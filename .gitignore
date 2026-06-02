@@ -12,3 +12,4 @@ venv/
 .pytest_cache/
 .ruff_cache/
 skill-workspace/
+.cursor/debug-*.log

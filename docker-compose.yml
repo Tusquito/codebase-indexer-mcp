@@ -44,7 +44,9 @@ services:
       OPENBLAS_NUM_THREADS: 20
       MKL_NUM_THREADS: 20
       FASTEMBED_CACHE_PATH: /cache/fastembed
-      HF_HUB_OFFLINE: "1"
+      # Default 0 so first run can download models into fastembed_cache volume.
+      # Set HF_HUB_OFFLINE=1 in .env after models are cached for air-gapped use.
+      HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-0}
     volumes:
       - ${WORKSPACE_ROOT:-.}:/workspace:ro
       - fastembed_cache:/cache/fastembed
