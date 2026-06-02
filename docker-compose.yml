@@ -1,0 +1,64 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: codeindexer_qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      QDRANT__SERVICE__GRPC_PORT: 6334
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/6333'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mcp_server:
+    build:
+      context: ./mcp_server
+      dockerfile: Dockerfile
+    container_name: codeindexer_mcp
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    environment:
+      QDRANT_URL: http://qdrant:6333
+      EMBED_MODEL: nomic-ai/nomic-embed-text-v1.5
+      VECTOR_SIZE: 768
+      QDRANT_COLLECTION: codebase
+      HYBRID_SEARCH: true
+      MCP_TRANSPORT: streamable-http
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: 8000
+      MAX_CHUNK_LINES: 150
+      CHUNK_OVERLAP_LINES: 20
+      BATCH_SIZE: 32
+      LOG_LEVEL: INFO
+      OMP_NUM_THREADS: 20
+      OPENBLAS_NUM_THREADS: 20
+      MKL_NUM_THREADS: 20
+      FASTEMBED_CACHE_PATH: /cache/fastembed
+      HF_HUB_OFFLINE: "1"
+    volumes:
+      - ${WORKSPACE_ROOT:-.}:/workspace:ro
+      - fastembed_cache:/cache/fastembed
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+
+volumes:
+  qdrant_data:
+  fastembed_cache:
+
+networks:
+  default:
+    name: codeindexer

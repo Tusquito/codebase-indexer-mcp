@@ -1,0 +1,414 @@
+# src/codebase_indexer/tools/cross_references.py
+"""MCP tool: find_cross_references — discover links across collections."""
+
+import asyncio
+import re
+from collections import defaultdict
+
+from fastmcp import FastMCP
+
+from codebase_indexer.config import Settings
+from codebase_indexer.indexer.embedder import Embedder
+from codebase_indexer.storage.qdrant import QdrantStorage
+
+
+# ---------------------------------------------------------------------------
+# URL / route path extraction
+# ---------------------------------------------------------------------------
+
+# Extract route paths from endpoint definitions
+_ROUTE_EXTRACTORS = [
+    # Java Spring: @RequestMapping("/rest/login/"), @GetMapping("/foo")
+    re.compile(r'@(?:Request|Get|Post|Put|Delete|Patch)Mapping\s*\(\s*(?:value\s*=\s*|path\s*=\s*)?["\']([^"\']+)["\']', re.IGNORECASE),
+    # C# ASP.NET: [Route("me/email")], [HttpGet("profile")]
+    re.compile(r'\[(?:Route|Http(?:Get|Post|Put|Delete|Patch))\s*\(\s*["\']([^"\']+)["\']', re.IGNORECASE),
+    # C# minimal API: .MapGet("/api/foo", ...)
+    re.compile(r'\.Map(?:Get|Post|Put|Delete|Patch)\s*\(\s*["\']([^"\']+)["\']', re.IGNORECASE),
+    # Node/Express: app.get("/foo", ...), router.post("/bar", ...)
+    re.compile(r'(?:app|router)\.(?:get|post|put|delete|patch)\s*\(\s*["\']([^"\']+)["\']', re.IGNORECASE),
+]
+
+# Extract URL paths from config files (YAML, properties, JSON)
+_CONFIG_URL_EXTRACTORS = [
+    # YAML/properties: key: /profile/me/email or key: /rest/login/
+    re.compile(r':\s*(/(?:rest|api|profile|v\d+|membership|indicator|activity|finder|catalog|me)/[^\s,}\]"\']+)', re.IGNORECASE),
+    # Broader: any value starting with / followed by path segments (at least 2 segments)
+    re.compile(r':\s*(/[a-zA-Z][a-zA-Z0-9_-]*/[a-zA-Z][a-zA-Z0-9_{}/-]*)', re.MULTILINE),
+    # host/baseUrl config: host: http://...
+    re.compile(r'(?:host|baseUrl|baseAddress|base-url|base_url|base\.url|endpoint|uri)\s*[:=]\s*["\']?(https?://[^\s"\']+)', re.IGNORECASE),
+]
+
+# Extract URL paths from HTTP client code and config values
+_CODE_URL_EXTRACTORS = [
+    # String literals with path-like values: "/profile/me/email", "/rest/login/"
+    re.compile(r'["\'](/(?:rest|api|profile|v\d+|membership|indicator|activity|finder|catalog|me|batch|btc|kafka|cache|udh)/[^"\']+)["\']'),
+    # RestTemplate / WebClient URL args with path segments
+    re.compile(r'(?:exchange|getForObject|getForEntity|postForObject|postForEntity|put|delete|retrieve|uri)\s*\(\s*["\']([^"\']*?/[a-zA-Z][a-zA-Z0-9_/-]+)["\']', re.IGNORECASE),
+]
+
+
+def _extract_route_paths(content: str, rel_path: str = "") -> list[str]:
+    """Extract API route paths from endpoint definition code.
+
+    Handles ASP.NET [controller] token by substituting the controller name
+    derived from the file path (e.g., EmailController.cs → email).
+    """
+    paths = []
+    for pattern in _ROUTE_EXTRACTORS:
+        for m in pattern.finditer(content):
+            path = m.group(1).strip("/")
+            if path and len(path) > 1:
+                # Resolve ASP.NET [controller] token
+                if "[controller]" in path.lower() and rel_path:
+                    import os
+                    fname = os.path.basename(rel_path).replace(".cs", "")
+                    ctrl_name = fname.replace("Controller", "").lower()
+                    if ctrl_name:
+                        resolved = re.sub(r'\[controller\]', ctrl_name, path, flags=re.IGNORECASE)
+                        paths.append(resolved)
+                else:
+                    paths.append(path)
+    return paths
+
+
+def _extract_config_urls(content: str) -> tuple[list[str], list[str]]:
+    """Extract paths and base URLs from config content.
+
+    Returns (paths, base_urls).
+    """
+    paths = []
+    base_urls = []
+    for pattern in _CONFIG_URL_EXTRACTORS:
+        for m in pattern.finditer(content):
+            val = m.group(1)
+            if val.startswith("http"):
+                base_urls.append(val)
+            else:
+                path = val.strip("/")
+                if path and len(path) > 2:
+                    paths.append(path)
+    return paths, base_urls
+
+
+def _extract_code_urls(content: str) -> list[str]:
+    """Extract URL paths from code (string literals)."""
+    paths = []
+    for pattern in _CODE_URL_EXTRACTORS:
+        for m in pattern.finditer(content):
+            path = m.group(1).strip("/")
+            if path and len(path) > 2:
+                paths.append(path)
+    return paths
+
+
+def _paths_match(caller_path: str, endpoint_path: str) -> bool:
+    """Check if a caller path references an endpoint path.
+
+    Handles partial matches: caller="/profile/me/email/{id}" matches
+    endpoint="me/email", and caller="profile/me/core" matches endpoint="me/core".
+
+    Guards against false positives:
+    - Both paths must have at least 2 segments (e.g. "rest/cache", not just "app")
+    - Match must be on full path segments, not arbitrary substrings
+    """
+    def norm(p: str) -> str:
+        p = re.sub(r'\{[^}]+\}', '', p).strip('/')
+        return p.lower()
+
+    cn = norm(caller_path)
+    en = norm(endpoint_path)
+    if not cn or not en:
+        return False
+
+    cn_segs = [s for s in cn.split('/') if s]
+    en_segs = [s for s in en.split('/') if s]
+
+    # Require at least 2 segments on both sides to avoid false positives
+    if len(cn_segs) < 2 or len(en_segs) < 2:
+        return False
+
+    # Check if the shorter segment list appears as a contiguous subsequence
+    # of the longer one (segment-aligned, not substring)
+    shorter, longer = (en_segs, cn_segs) if len(en_segs) <= len(cn_segs) else (cn_segs, en_segs)
+    for i in range(len(longer) - len(shorter) + 1):
+        if longer[i:i + len(shorter)] == shorter:
+            return True
+    return False
+
+
+# ---------------------------------------------------------------------------
+# Reference classification (improved)
+# ---------------------------------------------------------------------------
+
+_IMPORT_PATTERNS = re.compile(
+    r"^(?:import\s|from\s|require\(|using\s|#include)", re.MULTILINE
+)
+_ENDPOINT_DEF_PATTERNS = re.compile(
+    r"@(?:Get|Post|Put|Delete|Patch|Request)Mapping|"
+    r"@(?:GET|POST|PUT|DELETE|PATCH|Path)\b|"
+    r"\[(?:Http(?:Get|Post|Put|Delete|Patch)|Route|ApiController)\]|"
+    r"\.Map(?:Get|Post|Put|Delete|Patch)\(|"
+    r"app\.(?:get|post|put|delete|patch)\(|"
+    r"router\.(?:get|post|put|delete)\(",
+    re.IGNORECASE,
+)
+_HTTP_CALL_PATTERNS = re.compile(
+    r"RestTemplate|WebClient\.(?:create|builder)|\.exchange\(|\.retrieve\(|"
+    r"@FeignClient|"
+    r"HttpClient|IHttpClientFactory|\.GetAsync\(|\.PostAsync\(|\.PutAsync\(|"
+    r"\.DeleteAsync\(|\.SendAsync\(|\.GetFromJsonAsync\(|\.PostAsJsonAsync\(|"
+    r"httpx\.|requests\.|fetch\(|axios\.|"
+    r"\.get\(\s*[\"']https?://|\.post\(\s*[\"']https?://",
+    re.IGNORECASE,
+)
+_CONFIG_FILE_PATTERNS = re.compile(
+    r"\.(ya?ml|json|properties|env|config)$", re.IGNORECASE
+)
+_CLASS_DEF_PATTERNS = re.compile(
+    r"^\s*(?:public\s+|private\s+|protected\s+|internal\s+)?(?:abstract\s+|static\s+|sealed\s+|partial\s+)*"
+    r"(?:class|interface|enum|record|struct)\s+",
+    re.MULTILINE,
+)
+
+
+def _classify_reference(content: str, symbol_or_query: str, rel_path: str = "") -> str:
+    """Classify the type of cross-reference based on chunk content."""
+    # Config files with URL paths → service_config
+    if _CONFIG_FILE_PATTERNS.search(rel_path):
+        _, base_urls = _extract_config_urls(content)
+        paths, _ = _extract_config_urls(content)
+        if base_urls or paths:
+            return "service_config"
+
+    if _CLASS_DEF_PATTERNS.search(content):
+        if symbol_or_query and re.search(
+            rf"(?:class|interface|enum|record)\s+{re.escape(symbol_or_query)}\b",
+            content,
+        ):
+            return "definition"
+    if _ENDPOINT_DEF_PATTERNS.search(content):
+        return "endpoint_definition"
+    if _HTTP_CALL_PATTERNS.search(content):
+        return "http_call"
+    if _IMPORT_PATTERNS.search(content):
+        return "import"
+    return "usage"
+
+
+# ---------------------------------------------------------------------------
+# Tool registration
+# ---------------------------------------------------------------------------
+
+def register_cross_references_tool(
+    mcp: FastMCP, settings: Settings, storage: QdrantStorage
+) -> None:
+    @mcp.tool(
+        name="find_cross_references",
+        description=(
+            "Find cross-project links for a symbol, endpoint, concept, or any query "
+            "across multiple indexed collections. Discovers: direct code links "
+            "(imports, class usage, interface implementations), HTTP endpoint "
+            "connections (controller in one project, client call in another), "
+            "shared DTOs/error codes, and semantic relationships. "
+            "Each result is classified as: definition, import, usage, "
+            "endpoint_definition, or http_call. "
+            "Use 'query' for semantic search (best for endpoints, concepts, "
+            "partial names) or 'symbol_name' for exact symbol matching."
+        ),
+    )
+    async def find_cross_references(
+        query: str | None = None,
+        symbol_name: str | None = None,
+        collections: list[str] | None = None,
+        top_k: int = 10,
+    ) -> dict:
+        if not query and not symbol_name:
+            return {"error": "Provide at least 'query' or 'symbol_name'."}
+
+        if collections:
+            target_collections = collections
+        else:
+            stats = await storage.list_collection_stats()
+            target_collections = [s.name for s in stats]
+
+        if not target_collections:
+            return {"query": query, "symbol_name": symbol_name, "found_in": {}, "collection_count": 0}
+
+        all_results: list[dict] = []
+        lookup_label = query or symbol_name or ""
+
+        # Semantic search
+        if query:
+            embedder = Embedder(
+                model=settings.embed_model,
+                vector_size=settings.vector_size,
+                hybrid=settings.hybrid_search,
+            )
+            dense_vector = (await embedder.embed_batch_dense([query]))[0]
+            sparse_vector = None
+            if settings.hybrid_search:
+                loop = asyncio.get_event_loop()
+                sparse_results = await loop.run_in_executor(
+                    None, embedder._embed_sparse_batch_sync, [query]
+                )
+                sparse_vector = sparse_results[0]
+
+            semantic_results = await storage.search(
+                collection=None,
+                dense_vector=dense_vector,
+                sparse_vector=sparse_vector,
+                top_k=top_k,
+                min_score=0.3,
+                restrict_collections=target_collections,
+            )
+            for r in semantic_results:
+                all_results.append({
+                    "rel_path": r.rel_path,
+                    "symbol_name": r.symbol_name,
+                    "symbol_type": r.symbol_type,
+                    "start_line": r.start_line,
+                    "end_line": r.end_line,
+                    "language": r.language,
+                    "content": r.content,
+                    "score": round(r.score, 4),
+                    "collection": r.collection,
+                    "match_type": "semantic",
+                    "reference_type": _classify_reference(r.content, lookup_label, r.rel_path),
+                })
+
+        # Exact symbol match
+        if symbol_name:
+            symbol_results = await storage.find_symbol_in_collections(
+                symbol_name=symbol_name,
+                collections=target_collections,
+                limit_per_collection=top_k,
+            )
+            seen_chunks = {r["rel_path"] + str(r["start_line"]) for r in all_results}
+            for r in symbol_results:
+                key = r.rel_path + str(r.start_line)
+                if key not in seen_chunks:
+                    seen_chunks.add(key)
+                    all_results.append({
+                        "rel_path": r.rel_path,
+                        "symbol_name": r.symbol_name,
+                        "symbol_type": r.symbol_type,
+                        "start_line": r.start_line,
+                        "end_line": r.end_line,
+                        "language": r.language,
+                        "content": r.content,
+                        "score": 1.0,
+                        "collection": r.collection,
+                        "match_type": "exact_symbol",
+                        "reference_type": _classify_reference(r.content, symbol_name, r.rel_path),
+                    })
+
+        # Group by collection
+        by_collection: dict[str, list[dict]] = defaultdict(list)
+        for r in all_results:
+            coll = r.pop("collection")
+            by_collection[coll].append(r)
+
+        link_summary = _build_link_summary(by_collection)
+
+        return {
+            "query": query,
+            "symbol_name": symbol_name,
+            "collection_count": len(by_collection),
+            "found_in": dict(by_collection),
+            "links": link_summary,
+        }
+
+
+def _build_link_summary(by_collection: dict[str, list[dict]]) -> list[dict]:
+    """Build a summary of cross-collection links using URL path matching.
+
+    Instead of creating cartesian product links between all http_calls and
+    all endpoint_definitions, extracts actual URL paths from both sides and
+    only creates links where paths actually match.
+    """
+    if len(by_collection) < 2:
+        return []
+
+    links = []
+
+    # Collect endpoints with their extracted route paths
+    endpoints: list[tuple[str, dict, list[str]]] = []  # (collection, result, paths)
+    # Collect callers: http_calls + service_configs with their URL paths
+    callers: list[tuple[str, dict, list[str]]] = []
+    # Collect definitions and usages
+    definitions: list[tuple[str, dict]] = []
+    usages: list[tuple[str, dict]] = []
+
+    for coll, results in by_collection.items():
+        for r in results:
+            ref = r.get("reference_type", "usage")
+            content = r.get("content", "")
+
+            if ref == "endpoint_definition":
+                paths = _extract_route_paths(content, r.get("rel_path", ""))
+                endpoints.append((coll, r, paths))
+            elif ref == "http_call":
+                paths = _extract_code_urls(content)
+                callers.append((coll, r, paths))
+            elif ref == "service_config":
+                paths, _ = _extract_config_urls(content)
+                callers.append((coll, r, paths))
+            elif ref == "definition":
+                definitions.append((coll, r))
+            elif ref in ("usage", "import"):
+                usages.append((coll, r))
+
+    # Path-based endpoint matching (no more cartesian product)
+    seen_links = set()
+    for call_coll, call_r, call_paths in callers:
+        for ep_coll, ep_r, ep_paths in endpoints:
+            if call_coll == ep_coll:
+                continue
+            # Check if any caller path matches any endpoint path
+            matched_paths = []
+            for cp in call_paths:
+                for ep in ep_paths:
+                    if _paths_match(cp, ep):
+                        matched_paths.append(f"{cp} → {ep}")
+
+            if matched_paths:
+                link_key = (call_coll, call_r["rel_path"], ep_coll, ep_r["rel_path"])
+                if link_key not in seen_links:
+                    seen_links.add(link_key)
+                    links.append({
+                        "type": "http_dependency",
+                        "from": {
+                            "collection": call_coll,
+                            "path": call_r["rel_path"],
+                            "reference_type": call_r.get("reference_type"),
+                        },
+                        "to": {
+                            "collection": ep_coll,
+                            "path": ep_r["rel_path"],
+                            "reference_type": "endpoint_definition",
+                        },
+                        "matched_paths": matched_paths,
+                    })
+
+    # definition ↔ usage/import links
+    for def_coll, def_r in definitions:
+        for use_coll, use_r in usages:
+            if def_coll != use_coll:
+                link_key = (use_coll, use_r["rel_path"], def_coll, def_r["rel_path"])
+                if link_key not in seen_links:
+                    seen_links.add(link_key)
+                    links.append({
+                        "type": "code_dependency",
+                        "from": {
+                            "collection": use_coll,
+                            "path": use_r["rel_path"],
+                            "reference_type": use_r.get("reference_type"),
+                        },
+                        "to": {
+                            "collection": def_coll,
+                            "path": def_r["rel_path"],
+                            "symbol": def_r.get("symbol_name"),
+                        },
+                    })
+
+    return links

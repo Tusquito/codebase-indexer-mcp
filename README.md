@@ -1,11 +1,11 @@
 # Local Codebase Indexer MCP Server
 
-A fully self-hosted, Docker-based MCP server that indexes your codebase into a local vector database using Ollama embeddings, then exposes semantic search tools to AI agents — minimising token consumption.
+A fully self-hosted, Docker-based MCP server that indexes your codebase into a local vector database using fastembed ONNX embeddings, then exposes semantic search tools to AI agents — minimising token consumption.
 
 ## Features
 
 - **100% Local** — Zero external API calls; all processing stays on your machine
-- **Semantic Code Search** — Tree-sitter AST-based chunking with Ollama embeddings
+- **Semantic Code Search** — Tree-sitter AST-based chunking with fastembed ONNX embeddings (nomic-embed-text-v1.5, runs in-process — no external model server)
 - **Incremental Indexing** — Only re-indexes changed files (SHA-256 hash comparison)
 - **Multi-Language** — Python, JavaScript, TypeScript, Go, Rust, Java, C, C++, C#
 - **Token Efficient** — Returns only relevant code chunks, not full files. Three dedicated low-cost orientation tools (`get_collection_summary`, `search_symbols`, `get_file_outline`) eliminate exploratory searches entirely.
@@ -20,10 +20,7 @@ cp .env.example .env
 # 2. Start all services (from your project directory)
 docker compose up -d --build
 
-# 3. Wait for model download (first run only)
-docker logs -f codeindexer_model_init
-
-# 4. Confirm all services are healthy
+# 3. Confirm all services are healthy
 docker compose ps
 
 # 5. Add MCP client config (see below)
@@ -160,7 +157,7 @@ All settings are environment-variable driven. See `.env.example` for all options
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `OLLAMA_EMBED_MODEL` | `nomic-embed-text:v1.5` | Ollama embedding model |
+| `EMBED_MODEL` | `nomic-ai/nomic-embed-text-v1.5` | fastembed ONNX embedding model |
 | `VECTOR_SIZE` | `768` | Embedding vector dimensions |
 | `QDRANT_COLLECTION` | `codebase` | Default collection name |
 | `MAX_CHUNK_LINES` | `150` | Maximum lines per chunk |
@@ -170,7 +167,6 @@ All settings are environment-variable driven. See `.env.example` for all options
 ## Architecture
 
 - **Qdrant** — Vector database for storing and searching embeddings
-- **Ollama** — Local embedding model server
-- **MCP Server** — FastMCP-based server exposing tools over HTTP/stdio
+- **MCP Server** — FastMCP-based server exposing tools over HTTP/stdio; fastembed ONNX models run in-process (no separate model server required)
 
 All services run in Docker with persistent volumes.
