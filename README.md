@@ -25,7 +25,7 @@ graph TD
         QD[("codeindexer_qdrant  :6333\n────────────────────────\nQdrant Vector DB\npersistent  qdrant_data  volume")]
     end
 
-    AI -- "MCP — HTTP streamable\nor stdio via docker exec" --> MCP
+    AI -- "MCP — HTTP streamable\nor stdio via stdio_proxy\n(docker exec → HTTP server)" --> MCP
     MCP -- "Qdrant HTTP / gRPC" --> QD
     WS -- "read-only bind mount\n→ /workspace" --> MCP
 ```
@@ -37,12 +37,18 @@ Each direct subdirectory of `/workspace` becomes one **collection** (one indexed
 ```bash
 # 1. Copy and edit .env
 cp .env.example .env
+# Set WORKSPACE_ROOT to the *parent* directory that contains all your repos.
+# Every direct subdirectory becomes a separate indexed collection.
+# Example: WORKSPACE_ROOT=C:\Users\me\repos  (not a single project folder)
 
 # 2. Start all services (from your project directory)
 docker compose up -d --build
 
 # 3. Confirm all services are healthy
 docker compose ps
+
+# 4. Stream server logs (indexing progress, errors)
+docker logs -f codeindexer_mcp
 
 # 5. Add MCP client config (see below)
 ```
@@ -57,13 +63,15 @@ docker compose ps
     "codebase-indexer": {
       "type": "stdio",
       "command": "docker",
-      "args": ["exec", "-i", "-e", "MCP_TRANSPORT=stdio", "codeindexer_mcp", "uv", "run", "python", "-m", "codebase_indexer.main"]
+      "args": ["exec", "-i", "codeindexer_mcp", "uv", "run", "python", "-m", "codebase_indexer.stdio_proxy"]
     }
   }
 }
 ```
 
-> **Why stdio?** Corporate proxies (e.g. McAfee Web Gateway) often intercept `localhost` HTTP traffic, returning 502 errors that the MCP SDK misreports as `MCPOAuthError`. The `docker exec` stdio transport bypasses HTTP entirely.
+> **Why the stdio proxy?**
+> - **Corporate proxies** (e.g. McAfee Web Gateway) often intercept `localhost` HTTP traffic, returning 502 errors the MCP SDK misreports as `MCPOAuthError`. `docker exec` stdio bypasses HTTP entirely.
+> - **`stdio_proxy` vs `main`** — the proxy is a thin shim that forwards JSON-RPC to the already-running HTTP server inside the container. No embedding models are reloaded on each session start. Indexing and search logs are routed through the HTTP server and visible in `docker logs codeindexer_mcp`.
 
 ### HTTP Transport (Claude Desktop)
 
@@ -85,8 +93,7 @@ docker compose ps
   "mcpServers": {
     "codebase-indexer": {
       "command": "docker",
-      "args": ["exec", "-i", "codeindexer_mcp", "uv", "run", "python", "-m", "codebase_indexer.main"],
-      "env": {}
+      "args": ["exec", "-i", "codeindexer_mcp", "uv", "run", "python", "-m", "codebase_indexer.stdio_proxy"]
     }
   }
 }
@@ -311,12 +318,13 @@ All settings are environment-variable driven. See `.env.example` for all options
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `WORKSPACE_ROOT` | `.` (current dir) | **Host path** mounted as `/workspace` inside the container. Set to the *parent* directory of all your repos so each subdirectory becomes a separate collection. Only used by Docker Compose for the bind mount — not passed into the container. |
 | `EMBED_MODEL` | `nomic-ai/nomic-embed-text-v1.5` | fastembed ONNX embedding model |
 | `VECTOR_SIZE` | `768` | Embedding vector dimensions |
 | `QDRANT_COLLECTION` | `codebase` | Default collection name |
 | `MAX_CHUNK_LINES` | `150` | Maximum lines per chunk |
 | `BATCH_SIZE` | `32` | Embedding batch size |
-| `LOG_LEVEL` | `INFO` | Logging level |
+| `LOG_LEVEL` | `INFO` | Logging level (output visible via `docker logs codeindexer_mcp`) |
 
 ## Architecture Summary
 
