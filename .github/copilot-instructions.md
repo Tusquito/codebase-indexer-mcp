@@ -99,6 +99,9 @@ Never call `search_codebase` without `max_content_chars` when you only need symb
 - **Path normalization**: `index_codebase` accepts full host paths (e.g. `C:\Users\me\repos\my-project`) and normalizes them to the last path component. Never pass `/` as the indexing path.
 - **Chunk sizes**: verbose/markup languages (`xml`, `yaml`, `json`, `markdown`, etc.) are capped at 60 lines per chunk; all others use `MAX_CHUNK_LINES` (default 150).
 - **Cross-collection search**: pass multiple collection names in the `collections` parameter of `search_codebase` / `find_cross_references`. Single-collection search goes through a faster code path.
+- **Documentation**: whenever you add, remove, or change an MCP tool (signature, behaviour, description), you **must** also update:
+  1. `README.md` — the tool table and any relevant sections (Quick Start, Configuration, Architecture)
+  2. `.github/copilot-instructions.md` — the tool table and Key conventions
 
 ## MCP transport modes
 
