@@ -12,7 +12,9 @@ from codebase_indexer.storage.qdrant import QdrantStorage
 from codebase_indexer.tools.cross_references import _classify_reference
 
 
-def register_search_tool(mcp: FastMCP, settings: Settings, storage: QdrantStorage) -> None:
+def register_search_tool(
+    mcp: FastMCP, settings: Settings, storage: QdrantStorage, embedder: Embedder
+) -> None:
     @mcp.tool(
         name="search_codebase",
         description=(
@@ -27,7 +29,10 @@ def register_search_tool(mcp: FastMCP, settings: Settings, storage: QdrantStorag
             "showing symbols that appear across collection boundaries (shared classes, "
             "interfaces, error codes, etc.). "
             "Set 'max_content_chars' to truncate chunk content in results and save "
-            "tokens — use get_chunk to fetch full content of a specific chunk."
+            "tokens — use get_chunk to fetch full content of a specific chunk. "
+            "'min_score' is a cosine threshold that only applies when hybrid search "
+            "is disabled; in hybrid mode results are ranked by RRF fusion and bounded "
+            "by 'top_k'."
         ),
     )
     async def search_codebase(
@@ -50,23 +55,7 @@ def register_search_tool(mcp: FastMCP, settings: Settings, storage: QdrantStorag
                 if c not in target_collections:
                     target_collections.append(c)
 
-        embedder = Embedder(
-            model=settings.embed_model,
-            vector_size=settings.vector_size,
-            hybrid=settings.hybrid_search,
-        )
-
-        # Get dense vector
-        dense_vector = (await embedder.embed_batch_dense([query]))[0]
-
-        # Get sparse vector (BM25) if hybrid is enabled
-        sparse_vector = None
-        if settings.hybrid_search:
-            loop = asyncio.get_event_loop()
-            sparse_results = await loop.run_in_executor(
-                None, embedder._embed_sparse_batch_sync, [query]
-            )
-            sparse_vector = sparse_results[0]
+        dense_vector, sparse_vector = await embedder.embed_query(query)
 
         # Search each collection (in parallel if multiple)
         if len(target_collections) == 1:

@@ -82,7 +82,7 @@ async def run_pipeline(
     )
 
     flush_every = settings.flush_every
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
 
     # Always fetch existing file metadata so we can delete stale/modified chunks.
     # The force flag only controls whether we skip unchanged files — not whether

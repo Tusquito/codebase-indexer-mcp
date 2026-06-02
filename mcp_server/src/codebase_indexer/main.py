@@ -1,12 +1,15 @@
 # src/codebase_indexer/main.py
 """FastMCP server entrypoint."""
 
+import hmac
 import logging
 import sys
 import time
 
 import structlog
 from fastmcp import FastMCP
+from starlette.middleware import Middleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
@@ -41,10 +44,12 @@ structlog.configure(
 log = structlog.get_logger()
 
 # Pre-load embedding models at startup so indexing/search are instant.
-# Models are cached in the fastembed_cache Docker volume.
+# Models are cached in the fastembed_cache Docker volume. This same instance is
+# shared with all query tools (search/symbols/cross_references/service_map) so
+# we don't re-instantiate an Embedder per request.
 log.info("preloading_models")
 t0 = time.monotonic()
-_warmup_embedder = Embedder(
+embedder = Embedder(
     model=settings.embed_model,
     vector_size=settings.vector_size,
     hybrid=settings.hybrid_search,
@@ -52,9 +57,9 @@ _warmup_embedder = Embedder(
     sparse_threads=settings.sparse_threads,
     max_embed_chars=settings.max_embed_chars,
 )
-_warmup_embedder._get_dense_model()
+embedder._get_dense_model()
 if settings.hybrid_search:
-    _warmup_embedder._get_sparse_model()
+    embedder._get_sparse_model()
 log.info("models_ready", elapsed=round(time.monotonic() - t0, 2))
 
 mcp = FastMCP(
@@ -104,23 +109,37 @@ mcp = FastMCP(
 
 @mcp.custom_route("/health", methods=["GET"])
 async def health(request: Request) -> JSONResponse:
-    return JSONResponse({
-        "status": "ok",
-        "model": settings.embed_model,
-        "hybrid": settings.hybrid_search,
-        "vector_size": settings.vector_size,
-    })
+    # Minimal, unauthenticated liveness probe. Deliberately does NOT echo the
+    # model/config so the endpoint cannot be used to fingerprint the server.
+    return JSONResponse({"status": "ok"})
+
+
+class BearerAuthMiddleware(BaseHTTPMiddleware):
+    """Require `Authorization: Bearer <token>` on every route except /health."""
+
+    def __init__(self, app, token: str) -> None:
+        super().__init__(app)
+        self._expected = f"Bearer {token}"
+
+    async def dispatch(self, request: Request, call_next):
+        if request.url.path == "/health":
+            return await call_next(request)
+        provided = request.headers.get("Authorization", "")
+        # Constant-time compare to avoid leaking the token via timing.
+        if not hmac.compare_digest(provided, self._expected):
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+        return await call_next(request)
 
 
 storage = QdrantStorage(settings)
 job_tracker = IndexJobTracker()
 register_index_tool(mcp, settings, storage, job_tracker)
-register_search_tool(mcp, settings, storage)
+register_search_tool(mcp, settings, storage, embedder)
 register_chunk_tool(mcp, settings, storage)
 register_collections_tool(mcp, settings, storage)
-register_cross_references_tool(mcp, settings, storage)
-register_service_map_tool(mcp, settings, storage)
-register_search_symbols_tool(mcp, settings, storage)
+register_cross_references_tool(mcp, settings, storage, embedder)
+register_service_map_tool(mcp, settings, storage, embedder)
+register_search_symbols_tool(mcp, settings, storage, embedder)
 register_file_outline_tool(mcp, settings, storage)
 register_collection_summary_tool(mcp, settings, storage)
 
@@ -129,8 +148,18 @@ if __name__ == "__main__":
     if settings.mcp_transport == "stdio":
         mcp.run(transport="stdio")
     else:
+        # Only attach auth middleware when a token is configured, so default
+        # local deployments (protected by the 127.0.0.1 port binding) are
+        # unaffected.
+        http_kwargs: dict = {}
+        if settings.mcp_auth_token:
+            log.info("bearer_auth_enabled")
+            http_kwargs["middleware"] = [
+                Middleware(BearerAuthMiddleware, token=settings.mcp_auth_token)
+            ]
         mcp.run(
             transport="streamable-http",
             host=settings.mcp_host,
             port=settings.mcp_port,
+            **http_kwargs,
         )

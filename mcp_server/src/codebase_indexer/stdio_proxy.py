@@ -8,11 +8,14 @@ Startup is near-instant since it only imports sys, json, and urllib.
 """
 
 import json
+import os
 import sys
 import urllib.request
 import urllib.error
 
-MCP_URL = "http://localhost:8000/mcp"
+MCP_URL = os.environ.get("MCP_URL", "http://localhost:8000/mcp")
+# Forwarded to the HTTP server so the proxy still works when bearer auth is on.
+AUTH_TOKEN = os.environ.get("MCP_AUTH_TOKEN", "")
 
 
 def main() -> None:
@@ -30,6 +33,8 @@ def main() -> None:
                 "Content-Type": "application/json",
                 "Accept": "application/json, text/event-stream",
             }
+            if AUTH_TOKEN:
+                headers["Authorization"] = f"Bearer {AUTH_TOKEN}"
             if session_id:
                 headers["Mcp-Session-Id"] = session_id
 

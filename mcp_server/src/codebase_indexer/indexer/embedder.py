@@ -238,8 +238,52 @@ class Embedder:
 
     async def embed_batch_dense(self, texts: list[str]) -> list[list[float]]:
         """Embed texts via fastembed ONNX in a thread executor."""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._embed_dense_batch_sync, texts)
+
+    async def embed_query(
+        self, text: str,
+    ) -> tuple[list[float], SparseVector | None]:
+        """Embed a single query string into (dense_vector, sparse_vector).
+
+        The sparse vector is None when hybrid search is disabled. When enabled,
+        the dense (ONNX) and sparse (BM25) encoders run concurrently in separate
+        thread-pool workers. This is the public entry point all query tools
+        should use instead of reaching into the private batch helpers.
+        """
+        loop = asyncio.get_running_loop()
+        if self.hybrid:
+            dense_list, sparse_list = await asyncio.gather(
+                loop.run_in_executor(None, self._embed_dense_batch_sync, [text]),
+                loop.run_in_executor(None, self._embed_sparse_batch_sync, [text]),
+            )
+            return dense_list[0], sparse_list[0]
+        dense_list = await loop.run_in_executor(
+            None, self._embed_dense_batch_sync, [text]
+        )
+        return dense_list[0], None
+
+    async def embed_queries(
+        self, texts: list[str],
+    ) -> list[tuple[list[float], SparseVector | None]]:
+        """Embed multiple query strings in one batched pass.
+
+        Far cheaper than calling embed_query in a loop: the dense encoder
+        processes all texts in a single ONNX run (with length-sorted batching)
+        and the sparse encoder runs once over the whole list.
+        """
+        loop = asyncio.get_running_loop()
+        if self.hybrid:
+            dense_list, sparse_list = await asyncio.gather(
+                loop.run_in_executor(None, self._embed_dense_batch_sync, texts),
+                loop.run_in_executor(None, self._embed_sparse_batch_sync, texts),
+            )
+        else:
+            dense_list = await loop.run_in_executor(
+                None, self._embed_dense_batch_sync, texts
+            )
+            sparse_list = [None] * len(texts)
+        return list(zip(dense_list, sparse_list))
 
     async def embed_chunks(self, chunks: list[Chunk]) -> list[EmbeddedChunk]:
         """Embed chunks with dense and (optionally) sparse vectors.
@@ -249,7 +293,7 @@ class Embedder:
         negligible CPU contention while hiding its latency entirely.
         """
         texts = [c.content for c in chunks]
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         t_start = time.monotonic()
 
@@ -273,7 +317,3 @@ class Embedder:
             EmbeddedChunk(chunk=chunk, dense_vector=dv, sparse_vector=sv)
             for chunk, dv, sv in zip(chunks, dense_vectors, sparse_vectors)
         ]
-
-
-# Backward-compatible alias
-OllamaEmbedder = Embedder

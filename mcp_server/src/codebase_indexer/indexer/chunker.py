@@ -5,30 +5,16 @@ import hashlib
 from dataclasses import dataclass
 
 import structlog
-import tree_sitter_python
-import tree_sitter_javascript
-import tree_sitter_typescript
-import tree_sitter_go
-import tree_sitter_rust
-import tree_sitter_java
-import tree_sitter_c
-import tree_sitter_cpp
-import tree_sitter_c_sharp
 from tree_sitter import Language, Parser, Node
+
+from codebase_indexer.indexer.languages import AST_LANGUAGE_SPECS
 
 log = structlog.get_logger()
 
-# Build languages
+# Built once at import time from the central language registry. Grammars are
+# loaded lazily by each spec's loader (so only AST languages pull tree-sitter).
 LANGUAGES: dict[str, Language] = {
-    "python": Language(tree_sitter_python.language()),
-    "javascript": Language(tree_sitter_javascript.language()),
-    "typescript": Language(tree_sitter_typescript.language_typescript()),
-    "go": Language(tree_sitter_go.language()),
-    "rust": Language(tree_sitter_rust.language()),
-    "java": Language(tree_sitter_java.language()),
-    "c": Language(tree_sitter_c.language()),
-    "cpp": Language(tree_sitter_cpp.language()),
-    "csharp": Language(tree_sitter_c_sharp.language()),
+    spec.name: spec.grammar_loader() for spec in AST_LANGUAGE_SPECS  # type: ignore[misc]
 }
 
 # One reusable Parser per language, built once at import time. Constructing a
@@ -36,27 +22,9 @@ LANGUAGES: dict[str, Language] = {
 # (each call to parse() produces an independent tree).
 _PARSERS: dict[str, Parser] = {lang: Parser(obj) for lang, obj in LANGUAGES.items()}
 
-# Node types to extract per language
+# Node types to extract per language, sourced from the registry.
 EXTRACT_NODE_TYPES: dict[str, set[str]] = {
-    "python": {"function_definition", "class_definition", "decorated_definition"},
-    "javascript": {
-        "function_declaration", "class_declaration", "arrow_function",
-        "method_definition", "export_statement",
-    },
-    "typescript": {
-        "function_declaration", "class_declaration", "arrow_function",
-        "method_definition", "export_statement",
-    },
-    "go": {"function_declaration", "method_declaration", "type_declaration"},
-    "rust": {"function_item", "impl_item", "struct_item", "enum_item", "trait_item"},
-    "java": {"class_declaration", "method_declaration", "interface_declaration"},
-    "c": {"function_definition", "class_specifier", "struct_specifier"},
-    "cpp": {"function_definition", "class_specifier", "struct_specifier"},
-    "csharp": {
-        "class_declaration", "method_declaration", "interface_declaration",
-        "struct_declaration", "enum_declaration", "namespace_declaration",
-        "constructor_declaration",
-    },
+    spec.name: set(spec.node_types) for spec in AST_LANGUAGE_SPECS
 }
 
 
@@ -223,7 +191,6 @@ def chunk_file(
         )
 
     chunks: list[Chunk] = []
-    covered_lines: set[int] = set()
 
     def _extract_from_node(node: Node) -> None:
         if node.type in node_types:
@@ -252,8 +219,6 @@ def chunk_file(
                 )]
 
             chunks.extend(extracted)
-            for line_no in range(start, end + 1):
-                covered_lines.add(line_no)
         else:
             for child in node.children:
                 _extract_from_node(child)

@@ -16,49 +16,12 @@ from typing import AsyncGenerator
 import pathspec
 import structlog
 
+from codebase_indexer.indexer.languages import EXTENSION_LANGUAGE_MAP
+
 log = structlog.get_logger()
 # stdlib logger for sync methods running inside thread-pool workers.
 # structlog can silently drop logs from threads; stdlib logging is guaranteed thread-safe.
 _tlog = logging.getLogger(__name__)
-
-EXTENSION_LANGUAGE_MAP = {
-    ".py": "python",
-    ".js": "javascript",
-    ".jsx": "javascript",
-    ".ts": "typescript",
-    ".tsx": "typescript",
-    ".go": "go",
-    ".rs": "rust",
-    ".java": "java",
-    ".c": "c",
-    ".h": "c",
-    ".cpp": "cpp",
-    ".cc": "cpp",
-    ".cxx": "cpp",
-    ".hpp": "cpp",
-    ".cs": "csharp",
-    ".xml": "xml",
-    ".xsd": "xml",
-    ".xsl": "xml",
-    ".xslt": "xml",
-    ".wsdl": "xml",
-    ".yml": "yaml",
-    ".yaml": "yaml",
-    ".json": "json",
-    ".proto": "protobuf",
-    ".sql": "sql",
-    ".kt": "kotlin",
-    ".kts": "kotlin",
-    ".scala": "scala",
-    ".rb": "ruby",
-    ".php": "php",
-    ".swift": "swift",
-    ".dart": "dart",
-    ".sh": "bash",
-    ".bash": "bash",
-    ".ps1": "powershell",
-    ".md": "markdown",
-}
 
 EXCLUDED_DIRS = {
     "node_modules",
@@ -116,9 +79,10 @@ def _detect_language(path: Path) -> str | None:
     return EXTENSION_LANGUAGE_MAP.get(path.suffix.lower())
 
 
-# Readahead buffer size: how many file records can be queued ahead of the
-# consumer. Larger buffer keeps the CPU pipeline fed during bursty I/O.
-_READAHEAD_BUFFER = 100
+# Fallback readahead depth used only when scan_files is called without an
+# explicit value. The pipeline always passes Settings.readahead_buffer; this
+# mirrors that default for standalone/direct callers.
+_DEFAULT_READAHEAD = 100
 
 
 async def scan_files(
@@ -138,17 +102,29 @@ async def scan_files(
             mtime_skipped=True and content not loaded, avoiding unnecessary
             reads and SHA-256 hashing on unchanged files.
     """
-    workspace = Path(workspace_path)
-    scan_root = workspace / sub_path.lstrip("/")
+    workspace = Path(workspace_path).resolve()
+    scan_root = (workspace / sub_path.lstrip("/")).resolve()
+
+    # Containment guard: never let a crafted sub_path (e.g. "../../etc/...")
+    # escape the mounted workspace. _normalize_path already reduces inputs to a
+    # single path segment upstream, but defense-in-depth keeps the scanner safe
+    # regardless of how it is called.
+    if scan_root != workspace and workspace not in scan_root.parents:
+        log.error(
+            "scan_path_outside_workspace",
+            workspace=str(workspace),
+            path=str(scan_root),
+        )
+        return
 
     if not scan_root.is_dir():
         log.error("scan_path_not_found", path=str(scan_root))
         return
 
     queue: asyncio.Queue[FileRecord | None] = asyncio.Queue(
-        maxsize=readahead or _READAHEAD_BUFFER
+        maxsize=readahead or _DEFAULT_READAHEAD
     )
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
 
     def _scan_sync() -> None:
         """Run all filesystem I/O in a thread-pool worker."""

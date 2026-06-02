@@ -1,8 +1,6 @@
 # src/codebase_indexer/tools/symbols.py
 """MCP tool: search_symbols — symbol-only search with zero code content."""
 
-import asyncio
-
 from fastmcp import FastMCP
 
 from codebase_indexer.config import Settings
@@ -11,7 +9,7 @@ from codebase_indexer.storage.qdrant import QdrantStorage
 
 
 def register_search_symbols_tool(
-    mcp: FastMCP, settings: Settings, storage: QdrantStorage
+    mcp: FastMCP, settings: Settings, storage: QdrantStorage, embedder: Embedder
 ) -> None:
     @mcp.tool(
         name="search_symbols",
@@ -23,7 +21,10 @@ def register_search_symbols_tool(
             "Use when you only need to know WHERE a symbol is defined/used, "
             "not what its code looks like. Call get_chunk for full content "
             "of any specific result. Saves ~90% tokens vs search_codebase "
-            "for orientation and symbol-location tasks."
+            "for orientation and symbol-location tasks. "
+            "'min_score' is a cosine threshold that only applies when hybrid search "
+            "is disabled; in hybrid mode results are ranked by RRF fusion and bounded "
+            "by 'top_k'."
         ),
     )
     async def search_symbols(
@@ -44,21 +45,7 @@ def register_search_symbols_tool(
                 if c not in target_collections:
                     target_collections.append(c)
 
-        embedder = Embedder(
-            model=settings.embed_model,
-            vector_size=settings.vector_size,
-            hybrid=settings.hybrid_search,
-        )
-
-        dense_vector = (await embedder.embed_batch_dense([query]))[0]
-
-        sparse_vector = None
-        if settings.hybrid_search:
-            loop = asyncio.get_event_loop()
-            sparse_results = await loop.run_in_executor(
-                None, embedder._embed_sparse_batch_sync, [query]
-            )
-            sparse_vector = sparse_results[0]
+        dense_vector, sparse_vector = await embedder.embed_query(query)
 
         if len(target_collections) == 1:
             results = await storage.search(

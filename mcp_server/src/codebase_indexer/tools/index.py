@@ -171,12 +171,23 @@ def register_index_tool(
                 "status": job.to_dict() if job else {},
             }
 
-        await job_tracker.start_job(collection, path)
+        job = await job_tracker.start_job(collection, path)
 
-        # Fire and forget — runs in the background
-        asyncio.create_task(
+        # Keep a strong reference to the background task. asyncio only holds a
+        # weak reference to tasks, so without this the task could be garbage
+        # collected mid-flight. Storing it on the (tracked) job keeps it alive;
+        # the done-callback surfaces any unexpected crash that escaped the
+        # internal try/except in _run_index_job.
+        task = asyncio.create_task(
             _run_index_job(job_tracker, collection, settings, storage, path, force)
         )
+        job._task = task
+
+        def _on_done(t: asyncio.Task) -> None:
+            if not t.cancelled() and t.exception() is not None:
+                log.error("index_task_crashed", collection=collection, error=str(t.exception()))
+
+        task.add_done_callback(_on_done)
 
         if not wait:
             return {
@@ -186,7 +197,6 @@ def register_index_tool(
                 "hint": "Use index_status to check progress.",
             }
 
-        job = await job_tracker.get_job(collection)
         try:
             await asyncio.wait_for(job._done_event.wait(), timeout=timeout)
         except asyncio.TimeoutError:

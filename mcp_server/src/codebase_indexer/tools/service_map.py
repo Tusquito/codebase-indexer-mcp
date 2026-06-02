@@ -1,7 +1,6 @@
 # src/codebase_indexer/tools/service_map.py
 """MCP tool: map_service_dependencies — build E2E call chain across services."""
 
-import asyncio
 from collections import defaultdict
 
 from fastmcp import FastMCP
@@ -14,9 +13,12 @@ from codebase_indexer.tools.cross_references import (
     _extract_config_urls,
     _extract_code_urls,
     _paths_match,
+    configure_url_keywords,
 )
 
-# Queries that discover endpoint definitions, HTTP clients, and config files
+# Generic, framework-oriented discovery queries (no project-specific terms).
+# Extend per-codebase via the SERVICE_DISCOVERY_EXTRA_QUERIES env var instead of
+# editing this list.
 _DISCOVERY_QUERIES = [
     # Endpoint definitions
     "REST controller endpoint mapping route RequestMapping GetMapping PostMapping",
@@ -30,15 +32,16 @@ _DISCOVERY_QUERIES = [
     "application.yml application.properties config host url endpoint",
     "base URL host address service connection configuration",
     "Feign client service connector proxy",
-    # Domain-specific discovery (adapted to UDH codebase)
-    "custisRest profile membership indicator api URL path",
+    # Generic integration shapes
     "adapter service operation request response",
 ]
 
 
 def register_service_map_tool(
-    mcp: FastMCP, settings: Settings, storage: QdrantStorage
+    mcp: FastMCP, settings: Settings, storage: QdrantStorage, embedder: Embedder
 ) -> None:
+    configure_url_keywords(settings.service_url_keyword_list)
+
     @mcp.tool(
         name="map_service_dependencies",
         description=(
@@ -73,30 +76,19 @@ def register_service_map_tool(
                 "collections_found": target_collections,
             }
 
-        embedder = Embedder(
-            model=settings.embed_model,
-            vector_size=settings.vector_size,
-            hybrid=settings.hybrid_search,
-        )
+        # Phase 1: Discover endpoints, clients, and configs in all collections.
+        # Embed every discovery query in a single batched pass (one ONNX run +
+        # one BM25 run) instead of N sequential round-trips.
+        queries = _DISCOVERY_QUERIES + settings.service_discovery_extra_query_list
+        query_vectors = await embedder.embed_queries(queries)
 
-        # Phase 1: Discover endpoints, clients, and configs in all collections
         endpoints_by_coll: dict[str, list[dict]] = defaultdict(list)
         callers_by_coll: dict[str, list[dict]] = defaultdict(list)
         configs_by_coll: dict[str, list[dict]] = defaultdict(list)
 
         seen_chunks: set[str] = set()
 
-        for query_text in _DISCOVERY_QUERIES:
-            dense_vector = (await embedder.embed_batch_dense([query_text]))[0]
-
-            sparse_vector = None
-            if settings.hybrid_search:
-                loop = asyncio.get_event_loop()
-                sparse_results = await loop.run_in_executor(
-                    None, embedder._embed_sparse_batch_sync, [query_text]
-                )
-                sparse_vector = sparse_results[0]
-
+        for dense_vector, sparse_vector in query_vectors:
             results = await storage.search(
                 collection=None,
                 dense_vector=dense_vector,

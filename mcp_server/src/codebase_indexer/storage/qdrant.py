@@ -203,16 +203,6 @@ class QdrantStorage:
                         continue
                     raise
 
-    async def delete_by_path(self, collection: str, rel_path: str) -> None:
-        """Delete all points for a given file path."""
-        client = await self._get_client()
-        await client.delete(
-            collection_name=collection,
-            points_selector=Filter(
-                must=[FieldCondition(key="rel_path", match=MatchValue(value=rel_path))]
-            ),
-        )
-
     async def delete_by_paths(
         self, collection: str, rel_paths: list[str], batch_size: int = 100,
     ) -> None:
@@ -241,14 +231,6 @@ class QdrantStorage:
             for i in range(0, len(rel_paths), batch_size)
         ]
         await asyncio.gather(*tasks)
-
-    async def get_file_hashes(self, collection: str) -> dict[str, str]:
-        """Get {rel_path: file_sha256} for incremental indexing.
-
-        Deprecated: prefer get_file_metadata() which also returns mtime.
-        """
-        metadata = await self.get_file_metadata(collection)
-        return {k: v["sha256"] for k, v in metadata.items()}
 
     async def get_file_metadata(self, collection: str) -> dict[str, dict]:
         """Get {rel_path: {"sha256": str, "mtime": float | None}} for incremental indexing.
@@ -314,7 +296,9 @@ class QdrantStorage:
         client = await self._get_client()
         query_filter = self._build_query_filter(language)
 
-        if sparse_vector and self.settings.hybrid_search:
+        used_hybrid = bool(sparse_vector and self.settings.hybrid_search)
+
+        if used_hybrid:
             sparse_query = {
                 "indices": sparse_vector.indices,
                 "values": sparse_vector.values,
@@ -340,10 +324,16 @@ class QdrantStorage:
                 with_payload=True,
             )
 
+        # RRF fusion scores are NOT on the cosine [0,1] similarity scale, so a
+        # cosine-calibrated min_score (e.g. 0.5) silently drops most relevant
+        # hybrid hits. Apply the cosine threshold only on the pure-dense path;
+        # hybrid relies on RRF ranking + top_k instead.
+        score_threshold = 0.0 if used_hybrid else min_score
+
         search_results = []
         for point in results.points:
             score = point.score if hasattr(point, 'score') and point.score is not None else 0.0
-            if score < min_score:
+            if score < score_threshold:
                 continue
             payload = point.payload or {}
             search_results.append(SearchResult(

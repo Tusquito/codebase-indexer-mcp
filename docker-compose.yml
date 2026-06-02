@@ -1,11 +1,15 @@
 services:
   qdrant:
-    image: qdrant/qdrant:latest
+    # Pin a specific version for reproducible builds and supply-chain safety.
+    # Bump deliberately after testing; avoid :latest which silently drifts.
+    image: qdrant/qdrant:v1.18.1
     container_name: codeindexer_qdrant
     restart: unless-stopped
+    # Bind to loopback only — Qdrant has no auth here and should never be
+    # reachable from the LAN. Use 127.0.0.1 so only the local host can connect.
     ports:
-      - "6333:6333"
-      - "6334:6334"
+      - "127.0.0.1:6333:6333"
+      - "127.0.0.1:6334:6334"
     volumes:
       - qdrant_data:/qdrant/storage
     environment:
@@ -29,8 +33,10 @@ services:
       dockerfile: Dockerfile
     container_name: codeindexer_mcp
     restart: unless-stopped
+    # Bind to loopback only so the MCP server is not exposed to the LAN. For
+    # remote access, set MCP_AUTH_TOKEN and publish on the desired interface.
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       qdrant:
         condition: service_healthy
@@ -43,6 +49,10 @@ services:
       MCP_TRANSPORT: streamable-http
       MCP_HOST: 0.0.0.0
       MCP_PORT: 8000
+      # Optional bearer token. When set, all HTTP requests (except /health)
+      # must send `Authorization: Bearer <token>`. The in-container stdio proxy
+      # reads the same value, so stdio sessions keep working.
+      MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:-}
       MAX_CHUNK_LINES: 150
       CHUNK_OVERLAP_LINES: 20
       BATCH_SIZE: ${BATCH_SIZE:-32}

@@ -1,9 +1,15 @@
 # src/codebase_indexer/config.py
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
     qdrant_url: str = Field(default="http://localhost:6333")
     qdrant_collection: str = Field(default="codebase")
     embed_model: str = Field(default="nomic-ai/nomic-embed-text-v1.5")
@@ -15,6 +21,10 @@ class Settings(BaseSettings):
     mcp_transport: str = Field(default="streamable-http")
     mcp_host: str = Field(default="0.0.0.0")
     mcp_port: int = Field(default=8000)
+    # Optional bearer token for the HTTP transport. When set, every request
+    # except /health must send `Authorization: Bearer <token>`. Empty disables
+    # auth (rely on the 127.0.0.1 port binding for local-only deployments).
+    mcp_auth_token: str = Field(default="")
     workspace_path: str = Field(default="/workspace")
     log_level: str = Field(default="INFO")
 
@@ -47,6 +57,22 @@ class Settings(BaseSettings):
     # RAM. Lower = less RAM, higher = faster.
     memmap_threshold_kb: int = Field(default=20000)
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
+    # --- Service-mapping / cross-reference tuning (project-agnostic) ---
+    # Comma-separated URL path keywords used to recognise API paths in config
+    # and code (e.g. "/api/...", "/rest/..."). Extend for your domain without
+    # editing source — these feed the URL extraction regexes.
+    service_url_keywords: str = Field(
+        default="rest,api,profile,service,internal,public,gateway,graphql,webhook,auth,users,accounts"
+    )
+    # Extra natural-language discovery queries for map_service_dependencies.
+    # Separate multiple queries with a pipe (|) or newline. Empty by default.
+    service_discovery_extra_queries: str = Field(default="")
+
+    @property
+    def service_url_keyword_list(self) -> list[str]:
+        return [k.strip() for k in self.service_url_keywords.split(",") if k.strip()]
+
+    @property
+    def service_discovery_extra_query_list(self) -> list[str]:
+        raw = self.service_discovery_extra_queries.replace("|", "\n")
+        return [q.strip() for q in raw.splitlines() if q.strip()]

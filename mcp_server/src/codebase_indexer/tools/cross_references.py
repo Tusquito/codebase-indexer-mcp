@@ -1,7 +1,6 @@
 # src/codebase_indexer/tools/cross_references.py
 """MCP tool: find_cross_references — discover links across collections."""
 
-import asyncio
 import re
 from collections import defaultdict
 
@@ -28,23 +27,51 @@ _ROUTE_EXTRACTORS = [
     re.compile(r'(?:app|router)\.(?:get|post|put|delete|patch)\s*\(\s*["\']([^"\']+)["\']', re.IGNORECASE),
 ]
 
-# Extract URL paths from config files (YAML, properties, JSON)
-_CONFIG_URL_EXTRACTORS = [
-    # YAML/properties: key: /profile/me/email or key: /rest/login/
-    re.compile(r':\s*(/(?:rest|api|profile|v\d+|membership|indicator|activity|finder|catalog|me)/[^\s,}\]"\']+)', re.IGNORECASE),
-    # Broader: any value starting with / followed by path segments (at least 2 segments)
-    re.compile(r':\s*(/[a-zA-Z][a-zA-Z0-9_-]*/[a-zA-Z][a-zA-Z0-9_{}/-]*)', re.MULTILINE),
-    # host/baseUrl config: host: http://...
-    re.compile(r'(?:host|baseUrl|baseAddress|base-url|base_url|base\.url|endpoint|uri)\s*[:=]\s*["\']?(https?://[^\s"\']+)', re.IGNORECASE),
+# Default URL path keywords (project-agnostic). Override per-codebase via the
+# SERVICE_URL_KEYWORDS env var (see Settings.service_url_keywords) — no source
+# edits required for domain-specific path prefixes.
+_DEFAULT_URL_KEYWORDS = [
+    "rest", "api", "profile", "service", "internal",
+    "public", "gateway", "graphql", "webhook", "auth", "users", "accounts",
 ]
 
-# Extract URL paths from HTTP client code and config values
-_CODE_URL_EXTRACTORS = [
-    # String literals with path-like values: "/profile/me/email", "/rest/login/"
-    re.compile(r'["\'](/(?:rest|api|profile|v\d+|membership|indicator|activity|finder|catalog|me|batch|btc|kafka|cache|udh)/[^"\']+)["\']'),
-    # RestTemplate / WebClient URL args with path segments
-    re.compile(r'(?:exchange|getForObject|getForEntity|postForObject|postForEntity|put|delete|retrieve|uri)\s*\(\s*["\']([^"\']*?/[a-zA-Z][a-zA-Z0-9_/-]+)["\']', re.IGNORECASE),
-]
+
+def _build_url_extractors(
+    keywords: list[str],
+) -> tuple[list[re.Pattern], list[re.Pattern]]:
+    """Compile the keyword-driven URL extractors from a keyword list.
+
+    Version segments like /v1/ /v2/ are always recognised regardless of the
+    configured keywords.
+    """
+    kw = "|".join([re.escape(k) for k in keywords] + [r"v\d+"])
+    config_extractors = [
+        # YAML/properties: key: /api/login or key: /rest/login/
+        re.compile(rf':\s*(/(?:{kw})/[^\s,}}\]"\']+)', re.IGNORECASE),
+        # Broader: any value starting with / followed by >=2 path segments
+        re.compile(r':\s*(/[a-zA-Z][a-zA-Z0-9_-]*/[a-zA-Z][a-zA-Z0-9_{}/-]*)', re.MULTILINE),
+        # host/baseUrl config: host: http://...
+        re.compile(r'(?:host|baseUrl|baseAddress|base-url|base_url|base\.url|endpoint|uri)\s*[:=]\s*["\']?(https?://[^\s"\']+)', re.IGNORECASE),
+    ]
+    code_extractors = [
+        # String literals with path-like values: "/api/login", "/rest/login/"
+        re.compile(rf'["\'](/(?:{kw})/[^"\']+)["\']'),
+        # RestTemplate / WebClient URL args with path segments
+        re.compile(r'(?:exchange|getForObject|getForEntity|postForObject|postForEntity|put|delete|retrieve|uri)\s*\(\s*["\']([^"\']*?/[a-zA-Z][a-zA-Z0-9_/-]+)["\']', re.IGNORECASE),
+    ]
+    return config_extractors, code_extractors
+
+
+# Extractors for config files (YAML/properties/JSON) and HTTP client code.
+# Reassigned by configure_url_keywords() at tool-registration time.
+_CONFIG_URL_EXTRACTORS, _CODE_URL_EXTRACTORS = _build_url_extractors(_DEFAULT_URL_KEYWORDS)
+
+
+def configure_url_keywords(keywords: list[str]) -> None:
+    """Recompile the keyword-driven URL extractors (idempotent, no-op if empty)."""
+    global _CONFIG_URL_EXTRACTORS, _CODE_URL_EXTRACTORS
+    if keywords:
+        _CONFIG_URL_EXTRACTORS, _CODE_URL_EXTRACTORS = _build_url_extractors(keywords)
 
 
 def _extract_route_paths(content: str, rel_path: str = "") -> list[str]:
@@ -200,8 +227,10 @@ def _classify_reference(content: str, symbol_or_query: str, rel_path: str = "") 
 # ---------------------------------------------------------------------------
 
 def register_cross_references_tool(
-    mcp: FastMCP, settings: Settings, storage: QdrantStorage
+    mcp: FastMCP, settings: Settings, storage: QdrantStorage, embedder: Embedder
 ) -> None:
+    configure_url_keywords(settings.service_url_keyword_list)
+
     @mcp.tool(
         name="find_cross_references",
         description=(
@@ -239,19 +268,7 @@ def register_cross_references_tool(
 
         # Semantic search
         if query:
-            embedder = Embedder(
-                model=settings.embed_model,
-                vector_size=settings.vector_size,
-                hybrid=settings.hybrid_search,
-            )
-            dense_vector = (await embedder.embed_batch_dense([query]))[0]
-            sparse_vector = None
-            if settings.hybrid_search:
-                loop = asyncio.get_event_loop()
-                sparse_results = await loop.run_in_executor(
-                    None, embedder._embed_sparse_batch_sync, [query]
-                )
-                sparse_vector = sparse_results[0]
+            dense_vector, sparse_vector = await embedder.embed_query(query)
 
             semantic_results = await storage.search(
                 collection=None,
