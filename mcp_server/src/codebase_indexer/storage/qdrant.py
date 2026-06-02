@@ -14,8 +14,12 @@ from qdrant_client.models import (
     Fusion,
     FusionQuery,
     MatchValue,
+    OptimizersConfigDiff,
     PointStruct,
     Prefetch,
+    ScalarQuantization,
+    ScalarQuantizationConfig,
+    ScalarType,
     SparseIndexParams,
     SparseVectorParams,
     VectorParams,
@@ -72,21 +76,48 @@ class QdrantStorage:
                         "dense": VectorParams(
                             size=self.settings.vector_size,
                             distance=Distance.COSINE,
+                            # Memory-map dense vectors instead of holding them
+                            # fully resident — large RAM saving on big collections.
+                            on_disk=self.settings.vectors_on_disk,
                         )
                     }
                     sparse_vectors_config = None
                     if self.settings.hybrid_search:
                         sparse_vectors_config = {
                             "sparse": SparseVectorParams(
-                                index=SparseIndexParams(on_disk=False)
+                                index=SparseIndexParams(
+                                    on_disk=self.settings.sparse_on_disk
+                                )
                             )
                         }
+
+                    # int8 scalar quantization: ~4x less vector RAM. Rescoring
+                    # against original vectors preserves search quality.
+                    quantization_config = None
+                    if self.settings.quantization:
+                        quantization_config = ScalarQuantization(
+                            scalar=ScalarQuantizationConfig(
+                                type=ScalarType.INT8,
+                                always_ram=True,
+                            )
+                        )
+
                     await client.create_collection(
                         collection_name=collection,
                         vectors_config=vectors_config,
                         sparse_vectors_config=sparse_vectors_config,
+                        quantization_config=quantization_config,
+                        optimizers_config=OptimizersConfigDiff(
+                            memmap_threshold=self.settings.memmap_threshold_kb,
+                        ),
                     )
-                    log.info("collection_created", name=collection, hybrid=self.settings.hybrid_search)
+                    log.info(
+                        "collection_created",
+                        name=collection,
+                        hybrid=self.settings.hybrid_search,
+                        on_disk=self.settings.vectors_on_disk,
+                        quantization=self.settings.quantization,
+                    )
                 else:
                     log.debug("collection_exists", name=collection)
 
@@ -98,45 +129,69 @@ class QdrantStorage:
                     continue
                 raise
 
+    async def set_indexing(self, collection: str, enabled: bool) -> None:
+        """Pause or resume HNSW index building for a collection.
+
+        Setting indexing_threshold=0 disables HNSW construction so a bulk
+        upload doesn't compete with embedding for CPU. Restore to a positive
+        threshold afterwards to let Qdrant build the index in one pass.
+        """
+        client = await self._get_client()
+        threshold = 20000 if enabled else 0
+        try:
+            await client.update_collection(
+                collection_name=collection,
+                optimizers_config=OptimizersConfigDiff(indexing_threshold=threshold),
+            )
+            log.info("indexing_threshold_set", collection=collection, enabled=enabled, threshold=threshold)
+        except Exception as e:
+            log.warning("set_indexing_error", collection=collection, enabled=enabled, error=str(e))
+
+    def _build_point(self, ec: EmbeddedChunk) -> PointStruct:
+        """Build a Qdrant point, converting the numpy dense vector to a list."""
+        dense = ec.dense_vector
+        # Lazily convert numpy float32 array -> plain list only at send time,
+        # so the held/double-buffered batch keeps the compact numpy form.
+        if hasattr(dense, "tolist"):
+            dense = dense.tolist()
+        vectors: dict = {"dense": dense}
+        if ec.sparse_vector is not None:
+            vectors["sparse"] = {
+                "indices": ec.sparse_vector.indices,
+                "values": ec.sparse_vector.values,
+            }
+        return PointStruct(
+            id=str(uuid.uuid5(uuid.NAMESPACE_URL, ec.chunk.chunk_id)),
+            vector=vectors,
+            payload={
+                "chunk_id": ec.chunk.chunk_id,
+                "rel_path": ec.chunk.rel_path,
+                "language": ec.chunk.language,
+                "start_line": ec.chunk.start_line,
+                "end_line": ec.chunk.end_line,
+                "symbol_name": ec.chunk.symbol_name,
+                "symbol_type": ec.chunk.symbol_type,
+                "content": ec.chunk.content,
+                "file_sha256": ec.chunk.file_sha256,
+                "file_mtime": ec.chunk.file_mtime,
+            },
+        )
+
     async def upsert_chunks(self, collection: str, embedded_chunks: list[EmbeddedChunk]) -> None:
         """Batch upsert chunks with dense + sparse vectors.
 
-        Splits into sub-batches of 500 points to stay within Qdrant's
-        gRPC/HTTP message size limits on large flush batches.
+        Builds and sends points in sub-batches (size from settings.upsert_batch)
+        to stay within Qdrant's gRPC/HTTP message size limits. Points are
+        materialized per sub-batch so at most one sub-batch worth of dense
+        vectors is converted to Python lists at a time, keeping peak RAM low.
         """
         client = await self._get_client()
-        points = []
-        for ec in embedded_chunks:
-            vectors: dict = {"dense": ec.dense_vector}
-            if ec.sparse_vector is not None:
-                vectors["sparse"] = {
-                    "indices": ec.sparse_vector.indices,
-                    "values": ec.sparse_vector.values,
-                }
-
-            points.append(
-                PointStruct(
-                    id=str(uuid.uuid5(uuid.NAMESPACE_URL, ec.chunk.chunk_id)),
-                    vector=vectors,
-                    payload={
-                        "chunk_id": ec.chunk.chunk_id,
-                        "rel_path": ec.chunk.rel_path,
-                        "language": ec.chunk.language,
-                        "start_line": ec.chunk.start_line,
-                        "end_line": ec.chunk.end_line,
-                        "symbol_name": ec.chunk.symbol_name,
-                        "symbol_type": ec.chunk.symbol_type,
-                        "content": ec.chunk.content,
-                        "file_sha256": ec.chunk.file_sha256,
-                        "file_mtime": ec.chunk.file_mtime,
-                    },
-                )
-            )
-
-        # Sub-batch to avoid Qdrant message size limits
-        _UPSERT_BATCH = 500
-        for i in range(0, len(points), _UPSERT_BATCH):
-            batch = points[i : i + _UPSERT_BATCH]
+        upsert_batch = self.settings.upsert_batch
+        for i in range(0, len(embedded_chunks), upsert_batch):
+            batch = [
+                self._build_point(ec)
+                for ec in embedded_chunks[i : i + upsert_batch]
+            ]
             for attempt in range(3):
                 try:
                     await client.upsert(collection_name=collection, points=batch)

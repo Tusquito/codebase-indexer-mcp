@@ -234,7 +234,7 @@ Batch N+1:               │ upsert (I/O) │ embed (CPU) │──────�
 Batch N+2:                                            │ upsert (I/O) │
 ```
 
-While Qdrant ingests batch N over the network, the CPU is already computing embeddings for batch N+1. At most two batches are held in memory at once (flushed every 2 000 chunks ≈ 8 MB).
+While Qdrant ingests batch N over the network, the CPU is already computing embeddings for batch N+1. At most two batches are held in memory at once (flushed every `FLUSH_EVERY` chunks, default 1 500). Dense vectors are held as compact numpy arrays to keep that peak small.
 
 ## How Search Works
 
@@ -314,7 +314,7 @@ Steps 1–3 use **zero embedding compute** (payload scroll only). Step 4 caps re
 
 ## Configuration
 
-All settings are environment-variable driven. See `.env.example` for all options.
+All settings are environment-variable driven, with defaults tuned for a **16 CPU / 16 GB** machine. See `.env.example` for all options and copy-paste tuning presets. Nothing hardware-specific is hardcoded in Python — moving to a bigger machine is a config-only change (no rebuild).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -323,8 +323,59 @@ All settings are environment-variable driven. See `.env.example` for all options
 | `VECTOR_SIZE` | `768` | Embedding vector dimensions |
 | `QDRANT_COLLECTION` | `codebase` | Default collection name |
 | `MAX_CHUNK_LINES` | `150` | Maximum lines per chunk |
-| `BATCH_SIZE` | `32` | Embedding batch size |
 | `LOG_LEVEL` | `INFO` | Logging level (output visible via `docker logs codeindexer_mcp`) |
+
+### Resource caps
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MCP_MEM_LIMIT` | `9g` | Hard memory cap for the MCP server container |
+| `QDRANT_MEM_LIMIT` | `5g` | Hard memory cap for the Qdrant container |
+| `MCP_CPUS` | `14` | CPU cap for the MCP server container |
+| `QDRANT_CPUS` | `4` | CPU cap for the Qdrant container |
+
+> On a single 16 GB Docker allocation these leave ~2 GB for the Docker VM kernel and page cache (which matters once vectors are memory-mapped).
+
+### Throughput / CPU
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OMP_NUM_THREADS` | `12` | ONNX/BLAS threads (also sets `OPENBLAS`/`MKL`). Keep at/below physical cores; dense + sparse encoders run concurrently. |
+| `DENSE_THREADS` | `0` (auto) | Override dense-encoder threads. `0` = ~75% of CPU cores. |
+| `SPARSE_THREADS` | `0` (auto) | Override sparse-encoder threads. |
+| `BATCH_SIZE` | `32` | Embedding batch size (larger = faster, more RAM) |
+| `FLUSH_EVERY` | `1500` | Chunks per embed+upsert flush. Peak RAM ≈ 2× this. |
+| `UPSERT_BATCH` | `500` | Points per Qdrant upsert sub-batch |
+| `READAHEAD_BUFFER` | `100` | Files queued ahead of the consumer during scan |
+| `MAX_EMBED_CHARS` | `4096` | Char cap fed to the dense encoder (bounds attention memory) |
+
+### Memory tuning
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MALLOC_ARENA_MAX` | `2` | Caps glibc per-thread malloc arenas — big RSS reduction under threaded ONNX |
+| `MALLOC_TRIM_THRESHOLD_` | `131072` | Returns freed native memory to the OS sooner |
+| `VECTORS_ON_DISK` | `true` | Memory-map dense vectors instead of holding them RAM-resident |
+| `SPARSE_ON_DISK` | `true` | Store the BM25 sparse index on disk |
+| `QUANTIZATION` | `true` | int8 scalar quantization of dense vectors (~4× less vector RAM; rescored, so search quality is preserved) |
+| `MEMMAP_THRESHOLD_KB` | `20000` | Segments above this size are memory-mapped rather than kept in RAM |
+
+> Qdrant storage settings (`VECTORS_ON_DISK`, `SPARSE_ON_DISK`, `QUANTIZATION`, `MEMMAP_THRESHOLD_KB`) apply when a collection is created, so they take effect on the next (re-)index of each project.
+
+### Tuning for different hardware
+
+The same image scales by editing `.env` only — see the **TUNING PRESETS** section at the bottom of `.env.example` for ready-to-paste blocks:
+
+- **More RAM** → raise `MCP_MEM_LIMIT`/`QDRANT_MEM_LIMIT`, raise `FLUSH_EVERY` and `BATCH_SIZE`, and optionally set `VECTORS_ON_DISK=false` / `QUANTIZATION=false` to keep vectors in RAM for faster search.
+- **More CPU** → raise `OMP_NUM_THREADS` (or `DENSE_THREADS`) and `BATCH_SIZE`, keeping a few cores reserved for Qdrant via `QDRANT_CPUS`.
+- **Smaller machine** → lower `MCP_MEM_LIMIT`, `FLUSH_EVERY`, `BATCH_SIZE`, and `OMP_NUM_THREADS`; keep on-disk storage and quantization enabled.
+
+### How indexing stays within budget
+
+- Dense vectors are kept as compact numpy arrays through the pipeline and only converted to plain lists per upsert sub-batch.
+- `malloc_trim` runs after every flush so long jobs return freed native memory to the OS instead of accumulating RSS (peak RSS is logged per flush as `rss_mb`).
+- Qdrant HNSW indexing is deferred during bulk upload (`indexing_threshold` is set to 0, then restored) so index construction doesn't compete with embedding for CPU.
+- Tree-sitter parsing runs in a thread executor so it never blocks the event loop, letting scan, embed, and upsert overlap.
 
 ## Architecture Summary
 

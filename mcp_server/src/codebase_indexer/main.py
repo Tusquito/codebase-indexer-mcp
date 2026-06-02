@@ -48,6 +48,9 @@ _warmup_embedder = Embedder(
     model=settings.embed_model,
     vector_size=settings.vector_size,
     hybrid=settings.hybrid_search,
+    dense_threads=settings.dense_threads,
+    sparse_threads=settings.sparse_threads,
+    max_embed_chars=settings.max_embed_chars,
 )
 _warmup_embedder._get_dense_model()
 if settings.hybrid_search:

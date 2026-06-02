@@ -125,6 +125,7 @@ async def scan_files(
     workspace_path: str,
     sub_path: str = "/",
     existing_metadata: dict[str, dict] | None = None,
+    readahead: int | None = None,
 ) -> AsyncGenerator[FileRecord, None]:
     """Recursively walk workspace, yielding FileRecord for each supported file.
 
@@ -144,7 +145,9 @@ async def scan_files(
         log.error("scan_path_not_found", path=str(scan_root))
         return
 
-    queue: asyncio.Queue[FileRecord | None] = asyncio.Queue(maxsize=_READAHEAD_BUFFER)
+    queue: asyncio.Queue[FileRecord | None] = asyncio.Queue(
+        maxsize=readahead or _READAHEAD_BUFFER
+    )
     loop = asyncio.get_event_loop()
 
     def _scan_sync() -> None:

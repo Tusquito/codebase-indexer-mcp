@@ -5,6 +5,7 @@ import asyncio
 import ctypes
 import gc
 import logging
+import os
 import statistics
 import time
 from dataclasses import dataclass
@@ -17,6 +18,39 @@ log = structlog.get_logger()
 # stdlib logger for sync methods running inside thread-pool workers.
 # structlog can silently drop logs from threads; stdlib logging is guaranteed thread-safe.
 _tlog = logging.getLogger(__name__)
+
+
+def trim_memory() -> None:
+    """Return freed native allocations to the OS (Linux/glibc only).
+
+    Python's allocator and ONNX Runtime hold freed memory in arenas that
+    inflate RSS. Calling malloc_trim after a large batch hands it back so
+    long indexing jobs don't accumulate unbounded resident memory.
+    """
+    gc.collect()
+    try:
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except Exception:
+        # Non-glibc platforms (e.g. local dev on Windows/macOS) — no-op.
+        pass
+
+
+def _resolve_threads(explicit: int) -> int:
+    """Resolve ONNX thread count: explicit value, else OMP env, else auto.
+
+    Auto leaves ~25% of cores for Qdrant indexing, the sparse worker, and the
+    asyncio loop, so the same image scales sensibly across machine sizes.
+    """
+    if explicit and explicit > 0:
+        return explicit
+    env = os.environ.get("OMP_NUM_THREADS")
+    if env:
+        try:
+            return max(1, int(env))
+        except ValueError:
+            pass
+    cpu = os.cpu_count() or 8
+    return max(1, int(cpu * 0.75))
 
 
 class EmbeddingError(Exception):
@@ -32,7 +66,9 @@ class SparseVector:
 @dataclass
 class EmbeddedChunk:
     chunk: Chunk
-    dense_vector: list[float]
+    # numpy float32 array (kept un-listed to save RAM); converted to a plain
+    # list lazily at Qdrant upsert time.
+    dense_vector: object
     sparse_vector: SparseVector | None
 
 
@@ -43,9 +79,9 @@ class Embedder:
     No external services required — fully self-contained.
     """
 
-    # nomic-embed-text-v1.5 has 8192 token context, but ONNX attention memory
-    # scales as O(seq_len² × batch_size). At batch_size=8, seq_len>2000 tokens
-    # (~4000 chars) causes OOM. Cap conservatively to keep peak memory safe.
+    # Default char cap. nomic-embed-text-v1.5 has 8192 token context, but ONNX
+    # attention memory scales as O(seq_len² × batch_size), so seq_len>~2000
+    # tokens (~4000 chars) risks OOM. Overridable per-instance via max_embed_chars.
     MAX_EMBED_CHARS = 4_096
 
     # Class-level model cache — loaded once, reused by all instances
@@ -61,11 +97,7 @@ class Embedder:
         """
         cls._shared_dense_model = None
         cls._shared_sparse_model = None
-        gc.collect()
-        try:
-            ctypes.cdll.LoadLibrary("libc.so.6").malloc_trim(0)
-        except Exception:
-            pass
+        trim_memory()
         _tlog.info("models_released memory_freed=true")
 
     def __init__(
@@ -74,18 +106,23 @@ class Embedder:
         vector_size: int = 768,
         batch_size: int = 16,
         hybrid: bool = True,
+        dense_threads: int = 0,
+        sparse_threads: int = 0,
+        max_embed_chars: int | None = None,
     ):
         self.model = model
         self.vector_size = vector_size
         self.batch_size = batch_size
         self.hybrid = hybrid
+        self.dense_threads = dense_threads
+        self.sparse_threads = sparse_threads
+        self.max_embed_chars = max_embed_chars or self.MAX_EMBED_CHARS
 
     def _get_dense_model(self):
         """Get or load fastembed dense encoder (ONNX, cached)."""
         if Embedder._shared_dense_model is None:
-            import os
             from fastembed import TextEmbedding
-            threads = int(os.environ.get("OMP_NUM_THREADS", 8))
+            threads = _resolve_threads(self.dense_threads)
             _tlog.info("loading_dense_model model=%s threads=%d backend=fastembed-onnx", self.model, threads)
             t0 = time.monotonic()
             # `threads` sets intra_op_num_threads on the ONNX InferenceSession directly.
@@ -98,15 +135,16 @@ class Embedder:
         """Get or load BM25 sparse encoder (cached)."""
         if Embedder._shared_sparse_model is None:
             from fastembed.sparse import SparseTextEmbedding
-            _tlog.info("loading_sparse_model model=Qdrant/bm25")
+            threads = _resolve_threads(self.sparse_threads)
+            _tlog.info("loading_sparse_model model=Qdrant/bm25 threads=%d", threads)
             t0 = time.monotonic()
-            Embedder._shared_sparse_model = SparseTextEmbedding(model_name="Qdrant/bm25")
+            Embedder._shared_sparse_model = SparseTextEmbedding(model_name="Qdrant/bm25", threads=threads)
             _tlog.info("sparse_model_loaded model=Qdrant/bm25 elapsed_s=%.2f", time.monotonic() - t0)
         return Embedder._shared_sparse_model
 
     def _truncate(self, text: str) -> str:
-        if len(text) > self.MAX_EMBED_CHARS:
-            return text[:self.MAX_EMBED_CHARS]
+        if len(text) > self.max_embed_chars:
+            return text[:self.max_embed_chars]
         return text
 
     def _embed_dense_batch_sync(self, texts: list[str]) -> list[list[float]]:
@@ -122,9 +160,9 @@ class Embedder:
         """
         model = self._get_dense_model()
 
-        truncated_count = sum(1 for t in texts if len(t) > self.MAX_EMBED_CHARS)
+        truncated_count = sum(1 for t in texts if len(t) > self.max_embed_chars)
         if truncated_count:
-            _tlog.warning("chunks_truncated count=%d max_chars=%d", truncated_count, self.MAX_EMBED_CHARS)
+            _tlog.warning("chunks_truncated count=%d max_chars=%d", truncated_count, self.max_embed_chars)
 
         truncated = [self._truncate(t) for t in texts]
         lengths = [len(t) for t in truncated]
@@ -138,14 +176,17 @@ class Embedder:
         sorted_indices = sorted(range(total), key=lambda i: lengths[i])
         sorted_texts = [truncated[i] for i in sorted_indices]
 
-        sorted_embeddings: list[list[float]] = []
+        # Keep embeddings as numpy float32 arrays (not Python float lists).
+        # A 768-dim list of Python floats is ~24 KB; the numpy array is ~3 KB,
+        # an ~8x RAM saving across the held/double-buffered batch.
+        sorted_embeddings: list = []
         t0 = time.monotonic()
         t_last_log = t0
 
         # Consume the generator batch-by-batch so we can emit progress every ~5s
-        batch: list[list[float]] = []
+        batch: list = []
         for emb in model.embed(sorted_texts, batch_size=self.batch_size):
-            batch.append(emb.tolist())
+            batch.append(emb)
             if len(batch) == self.batch_size:
                 sorted_embeddings.extend(batch)
                 now = time.monotonic()
@@ -162,7 +203,7 @@ class Embedder:
         sorted_embeddings.extend(batch)  # flush remaining partial batch
 
         # Restore original order
-        embeddings: list[list[float]] = [[] for _ in range(total)]
+        embeddings: list = [None] * total
         for sorted_pos, orig_idx in enumerate(sorted_indices):
             embeddings[orig_idx] = sorted_embeddings[sorted_pos]
 

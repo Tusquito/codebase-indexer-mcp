@@ -31,6 +31,11 @@ LANGUAGES: dict[str, Language] = {
     "csharp": Language(tree_sitter_c_sharp.language()),
 }
 
+# One reusable Parser per language, built once at import time. Constructing a
+# Parser per file is wasteful; Tree-sitter parsers are reusable across parses
+# (each call to parse() produces an independent tree).
+_PARSERS: dict[str, Parser] = {lang: Parser(obj) for lang, obj in LANGUAGES.items()}
+
 # Node types to extract per language
 EXTRACT_NODE_TYPES: dict[str, set[str]] = {
     "python": {"function_definition", "class_definition", "decorated_definition"},
@@ -208,7 +213,7 @@ def chunk_file(
         )
 
     try:
-        parser = Parser(lang_obj)
+        parser = _PARSERS.get(language) or Parser(lang_obj)
         tree = parser.parse(content.encode("utf-8"))
     except Exception as e:
         log.warning("treesitter_parse_failure", path=rel_path, error=str(e))

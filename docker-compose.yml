@@ -10,6 +10,13 @@ services:
       - qdrant_data:/qdrant/storage
     environment:
       QDRANT__SERVICE__GRPC_PORT: 6334
+    # Resource caps keep one service from starving the other or tripping the
+    # Docker VM OOM killer. Override per-machine via .env (see .env.example).
+    deploy:
+      resources:
+        limits:
+          memory: ${QDRANT_MEM_LIMIT:-5g}
+          cpus: "${QDRANT_CPUS:-4}"
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/6333'"]
       interval: 10s
@@ -38,15 +45,40 @@ services:
       MCP_PORT: 8000
       MAX_CHUNK_LINES: 150
       CHUNK_OVERLAP_LINES: 20
-      BATCH_SIZE: 32
+      BATCH_SIZE: ${BATCH_SIZE:-32}
       LOG_LEVEL: INFO
-      OMP_NUM_THREADS: 20
-      OPENBLAS_NUM_THREADS: 20
-      MKL_NUM_THREADS: 20
+      # ONNX / BLAS thread caps. Keep at/below physical cores; dense + sparse
+      # encoders run concurrently, so this is per-encoder. ~12 leaves headroom
+      # on a 16-core box for Qdrant indexing and the asyncio loop.
+      OMP_NUM_THREADS: ${OMP_NUM_THREADS:-12}
+      OPENBLAS_NUM_THREADS: ${OMP_NUM_THREADS:-12}
+      MKL_NUM_THREADS: ${OMP_NUM_THREADS:-12}
+      # glibc tuning: cap per-thread malloc arenas (default is 8*cores) and
+      # trim aggressively so native allocations are returned to the OS instead
+      # of bloating RSS. Big RAM win under threaded ONNX with zero speed cost.
+      MALLOC_ARENA_MAX: ${MALLOC_ARENA_MAX:-2}
+      MALLOC_TRIM_THRESHOLD_: ${MALLOC_TRIM_THRESHOLD_:-131072}
+      # Pipeline tuning knobs (see config.py / .env.example).
+      FLUSH_EVERY: ${FLUSH_EVERY:-1500}
+      UPSERT_BATCH: ${UPSERT_BATCH:-500}
+      READAHEAD_BUFFER: ${READAHEAD_BUFFER:-100}
+      MAX_EMBED_CHARS: ${MAX_EMBED_CHARS:-4096}
+      DENSE_THREADS: ${DENSE_THREADS:-0}
+      SPARSE_THREADS: ${SPARSE_THREADS:-0}
+      # Qdrant storage tuning (RAM vs search speed).
+      VECTORS_ON_DISK: ${VECTORS_ON_DISK:-true}
+      SPARSE_ON_DISK: ${SPARSE_ON_DISK:-true}
+      QUANTIZATION: ${QUANTIZATION:-true}
+      MEMMAP_THRESHOLD_KB: ${MEMMAP_THRESHOLD_KB:-20000}
       FASTEMBED_CACHE_PATH: /cache/fastembed
       # Default 0 so first run can download models into fastembed_cache volume.
       # Set HF_HUB_OFFLINE=1 in .env after models are cached for air-gapped use.
       HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-0}
+    deploy:
+      resources:
+        limits:
+          memory: ${MCP_MEM_LIMIT:-9g}
+          cpus: "${MCP_CPUS:-14}"
     volumes:
       - ${WORKSPACE_ROOT:-.}:/workspace:ro
       - fastembed_cache:/cache/fastembed

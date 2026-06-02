@@ -17,7 +17,7 @@ curl http://localhost:8000/health
 docker logs -f codeindexer_mcp
 ```
 
-All config is env-var driven via `.env` (copy from `.env.example`). Key vars: `WORKSPACE_ROOT`, `EMBED_MODEL`, `HYBRID_SEARCH`, `MCP_TRANSPORT`.
+All config is env-var driven via `.env` (copy from `.env.example`). Key vars: `WORKSPACE_ROOT`, `EMBED_MODEL`, `HYBRID_SEARCH`, `MCP_TRANSPORT`. Performance/RAM knobs (all env-overridable, defaults tuned for 16 CPU / 16 GB): container caps `MCP_MEM_LIMIT`/`QDRANT_MEM_LIMIT`/`MCP_CPUS`/`QDRANT_CPUS`, threading `OMP_NUM_THREADS`/`DENSE_THREADS`/`SPARSE_THREADS`, batching `BATCH_SIZE`/`FLUSH_EVERY`/`UPSERT_BATCH`/`READAHEAD_BUFFER`/`MAX_EMBED_CHARS`, glibc `MALLOC_ARENA_MAX`/`MALLOC_TRIM_THRESHOLD_`, and Qdrant storage `VECTORS_ON_DISK`/`SPARSE_ON_DISK`/`QUANTIZATION`/`MEMMAP_THRESHOLD_KB`. See `.env.example` for presets.
 
 ## Development
 
@@ -56,8 +56,8 @@ Three Docker services:
 
 1. **Scanner** (`scanner.py`) — walks the filesystem, skips dirs in `EXCLUDED_DIRS`, respects `.gitignore` and `.codeindexignore`, detects language by extension.
 2. **Chunker** (`chunker.py`) — uses Tree-sitter AST for supported languages (Python, JS/TS, Go, Rust, Java, C/C++, C#); falls back to sliding window for unsupported languages and markup files. Chunk IDs are deterministic: `sha256("{rel_path}:{start_line}")`.
-3. **Embedder** (`embedder.py`) — fastembed ONNX for dense vectors (nomic-embed-text-v1.5, 768-dim) + BM25 sparse vectors. Models are **class-level singletons** loaded once and released after each indexing job via `Embedder.release_models()` to reclaim native memory.
-4. **Pipeline** (`pipeline.py`) — double-buffered flushing: while Qdrant ingests batch N (I/O-bound), the CPU embeds batch N+1. Flushes every 500 chunks to keep memory bounded.
+3. **Embedder** (`embedder.py`) — fastembed ONNX for dense vectors (nomic-embed-text-v1.5, 768-dim) + BM25 sparse vectors. Dense vectors are kept as numpy arrays (converted to lists lazily at upsert). Dense/sparse thread counts auto-detect from CPU count (override via `DENSE_THREADS`/`SPARSE_THREADS`). Models are **class-level singletons** loaded once and released after each job via `Embedder.release_models()`; `trim_memory()` returns freed native memory to the OS.
+4. **Pipeline** (`pipeline.py`) — double-buffered flushing: while Qdrant ingests batch N (I/O-bound), the CPU embeds batch N+1. Flushes every `FLUSH_EVERY` chunks (default 1500) to keep memory bounded, calls `trim_memory()` after each flush, and logs peak `rss_mb`. HNSW indexing is deferred during bulk upload (`QdrantStorage.set_indexing`) and restored in a `finally`.
 
 Incremental indexing: existing SHA-256 hashes are fetched from Qdrant before the scan; unchanged files are skipped; stale files (deleted from disk) are purged after the scan.
 
