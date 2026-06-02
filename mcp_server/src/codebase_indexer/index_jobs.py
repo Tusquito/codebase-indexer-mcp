@@ -29,6 +29,7 @@ class IndexJob:
     errors: list[str] = field(default_factory=list)
     error_message: str = ""
     _cancel_event: asyncio.Event = field(default_factory=asyncio.Event, repr=False)
+    _done_event: asyncio.Event = field(default_factory=asyncio.Event, repr=False)
     _task: asyncio.Task | None = field(default=None, repr=False)
 
     @property

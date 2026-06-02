@@ -105,6 +105,8 @@ async def _run_index_job(
         job.finished_at = time.monotonic()
         Embedder.release_models()
         log.error("index_job_failed", collection=collection, error=str(e))
+    finally:
+        job._done_event.set()
 
 
 def register_index_tool(
@@ -122,13 +124,17 @@ def register_index_tool(
             "'C:\\Users\\me\\repos\\my-project', pass path='my-project'. "
             "Do NOT pass '/' — that indexes the entire workspace. "
             "The collection is automatically named after the folder. "
-            "Use index_status to check progress."
+            "By default (wait=True) this tool blocks until indexing completes "
+            "and returns the final result — no polling needed. "
+            "Set wait=False to return immediately and use index_status to check progress."
         ),
     )
     async def index_codebase(
         path: str = "/",
         collection: str | None = None,
         force: bool = False,
+        wait: bool = True,
+        timeout: int = 1800,
     ) -> dict:
         # Normalize host paths to container-relative paths
         path = _normalize_path(path)
@@ -150,6 +156,16 @@ def register_index_tool(
 
         if await job_tracker.is_running(collection):
             job = await job_tracker.get_job(collection)
+            if wait and job:
+                try:
+                    await asyncio.wait_for(job._done_event.wait(), timeout=timeout)
+                except asyncio.TimeoutError:
+                    return {
+                        "message": f"Timed out waiting for '{collection}' after {timeout}s.",
+                        "status": job.to_dict(),
+                        "hint": "Use index_status to check progress or stop_indexing to cancel.",
+                    }
+                return job.to_dict()
             return {
                 "message": f"Indexing already in progress for '{collection}'",
                 "status": job.to_dict() if job else {},
@@ -162,19 +178,32 @@ def register_index_tool(
             _run_index_job(job_tracker, collection, settings, storage, path, force)
         )
 
-        return {
-            "message": f"Indexing started for '{collection}' in the background.",
-            "collection": collection,
-            "path": path,
-            "hint": "Use index_status to check progress.",
-        }
+        if not wait:
+            return {
+                "message": f"Indexing started for '{collection}' in the background.",
+                "collection": collection,
+                "path": path,
+                "hint": "Use index_status to check progress.",
+            }
+
+        job = await job_tracker.get_job(collection)
+        try:
+            await asyncio.wait_for(job._done_event.wait(), timeout=timeout)
+        except asyncio.TimeoutError:
+            return {
+                "message": f"Timed out waiting for '{collection}' after {timeout}s.",
+                "status": job.to_dict() if job else {},
+                "hint": "Use index_status to check progress or stop_indexing to cancel.",
+            }
+        return job.to_dict()
 
     @mcp.tool(
         name="index_status",
         description=(
             "Check the status of indexing jobs. Returns status for all "
             "projects, or a specific one if 'collection' is provided. "
-            "Status can be: queued, running, done, failed, cancelled."
+            "Status can be: queued, running, done, failed, cancelled. "
+            "Only needed when index_codebase was called with wait=False."
         ),
     )
     async def index_status(
