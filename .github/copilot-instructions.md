@@ -67,7 +67,7 @@ Each tool is a `register_*_tool(mcp, settings, storage)` function — register a
 
 | Tool | File | Description |
 |------|------|-------------|
-| `index_codebase` / `index_status` | `index.py` | Async background indexing; jobs tracked in `IndexJobTracker` |
+| `index_codebase` / `index_status` | `index.py` | Indexes a project; blocks until done by default (`wait=True`). Pass `wait=False` for fire-and-forget; then use `index_status` to poll. Jobs tracked in `IndexJobTracker` |
 | `get_collection_summary` | `summary.py` | **Token-efficient orientation**: language breakdown, dir tree, top files. Zero embedding cost. Call first on an unfamiliar codebase. |
 | `search_symbols` | `symbols.py` | **Token-efficient symbol lookup**: same hybrid search as `search_codebase` but returns only metadata (no code content). Use to locate symbols before fetching content. Saves ~90% tokens vs `search_codebase`. |
 | `get_file_outline` | `outline.py` | **Token-efficient file structure**: symbol tree for a specific file via Qdrant scroll (zero embedding cost). Know what's in a file before fetching any chunk. |

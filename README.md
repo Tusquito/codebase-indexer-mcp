@@ -105,8 +105,8 @@ docker logs -f codeindexer_mcp
 
 | Tool | Description |
 |------|-------------|
-| `index_codebase` | Index a project into the vector database (incremental) |
-| `index_status` | Check the status of a background indexing job |
+| `index_codebase` | Index a project. Blocks until done by default (`wait=True`); returns final stats in one call — no polling needed. Use `wait=False` for fire-and-forget background mode. |
+| `index_status` | Check indexing progress. Only needed when `index_codebase` was called with `wait=False`. |
 | `stop_indexing` | Gracefully cancel a running indexing job |
 
 ### Token-Efficient Orientation
