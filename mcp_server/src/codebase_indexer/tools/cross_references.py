@@ -1,38 +1,45 @@
 # src/codebase_indexer/tools/cross_references.py
 """MCP tool: find_cross_references — discover links across collections."""
 
+from __future__ import annotations
+
 import re
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
 from fastmcp import FastMCP
 
-from codebase_indexer.config import Settings
-from codebase_indexer.indexer.embedder import Embedder
-from codebase_indexer.storage.qdrant import QdrantStorage
+from codebase_indexer.config import DEFAULT_SERVICE_URL_KEYWORDS
+
+if TYPE_CHECKING:
+    from codebase_indexer.context import AppContext
 
 
 # ---------------------------------------------------------------------------
 # URL / route path extraction
 # ---------------------------------------------------------------------------
 
-# Extract route paths from endpoint definitions
+# Extract route paths from endpoint definitions.
+# Capture groups use a bounded {1,300} repetition rather than open-ended `+`:
+# these patterns run over arbitrary indexed file content, and an upper bound
+# caps the work the backtracking engine can do on adversarial input (route
+# literals are never legitimately that long).
 _ROUTE_EXTRACTORS = [
     # Java Spring: @RequestMapping("/rest/login/"), @GetMapping("/foo")
-    re.compile(r'@(?:Request|Get|Post|Put|Delete|Patch)Mapping\s*\(\s*(?:value\s*=\s*|path\s*=\s*)?["\']([^"\']+)["\']', re.IGNORECASE),
+    re.compile(r'@(?:Request|Get|Post|Put|Delete|Patch)Mapping\s*\(\s*(?:value\s*=\s*|path\s*=\s*)?["\']([^"\']{1,300})["\']', re.IGNORECASE),
     # C# ASP.NET: [Route("me/email")], [HttpGet("profile")]
-    re.compile(r'\[(?:Route|Http(?:Get|Post|Put|Delete|Patch))\s*\(\s*["\']([^"\']+)["\']', re.IGNORECASE),
+    re.compile(r'\[(?:Route|Http(?:Get|Post|Put|Delete|Patch))\s*\(\s*["\']([^"\']{1,300})["\']', re.IGNORECASE),
     # C# minimal API: .MapGet("/api/foo", ...)
-    re.compile(r'\.Map(?:Get|Post|Put|Delete|Patch)\s*\(\s*["\']([^"\']+)["\']', re.IGNORECASE),
+    re.compile(r'\.Map(?:Get|Post|Put|Delete|Patch)\s*\(\s*["\']([^"\']{1,300})["\']', re.IGNORECASE),
     # Node/Express: app.get("/foo", ...), router.post("/bar", ...)
-    re.compile(r'(?:app|router)\.(?:get|post|put|delete|patch)\s*\(\s*["\']([^"\']+)["\']', re.IGNORECASE),
+    re.compile(r'(?:app|router)\.(?:get|post|put|delete|patch)\s*\(\s*["\']([^"\']{1,300})["\']', re.IGNORECASE),
 ]
 
-# Default URL path keywords (project-agnostic). Override per-codebase via the
-# SERVICE_URL_KEYWORDS env var (see Settings.service_url_keywords) — no source
-# edits required for domain-specific path prefixes.
+# Default URL path keywords (project-agnostic), sourced from the single
+# definition in config.py. Override per-codebase via the SERVICE_URL_KEYWORDS
+# env var (see Settings.service_url_keywords) — no source edits required.
 _DEFAULT_URL_KEYWORDS = [
-    "rest", "api", "profile", "service", "internal",
-    "public", "gateway", "graphql", "webhook", "auth", "users", "accounts",
+    k.strip() for k in DEFAULT_SERVICE_URL_KEYWORDS.split(",") if k.strip()
 ]
 
 
@@ -45,36 +52,28 @@ def _build_url_extractors(
     configured keywords.
     """
     kw = "|".join([re.escape(k) for k in keywords] + [r"v\d+"])
+    # All capture groups use bounded repetitions ({0,N}/{1,N}) rather than
+    # open-ended `+`/`*`. These extractors scan arbitrary indexed file content,
+    # so bounding the match length caps backtracking work on adversarial input
+    # while comfortably covering any realistic URL/path (≤ a few hundred chars).
     config_extractors = [
         # YAML/properties: key: /api/login or key: /rest/login/
-        re.compile(rf':\s*(/(?:{kw})/[^\s,}}\]"\']+)', re.IGNORECASE),
+        re.compile(rf':\s*(/(?:{kw})/[^\s,}}\]"\']{{1,200}})', re.IGNORECASE),
         # Broader: any value starting with / followed by >=2 path segments
-        re.compile(r':\s*(/[a-zA-Z][a-zA-Z0-9_-]*/[a-zA-Z][a-zA-Z0-9_{}/-]*)', re.MULTILINE),
+        re.compile(r':\s*(/[a-zA-Z][a-zA-Z0-9_-]{0,100}/[a-zA-Z][a-zA-Z0-9_{}/-]{0,200})', re.MULTILINE),
         # host/baseUrl config: host: http://...
-        re.compile(r'(?:host|baseUrl|baseAddress|base-url|base_url|base\.url|endpoint|uri)\s*[:=]\s*["\']?(https?://[^\s"\']+)', re.IGNORECASE),
+        re.compile(r'(?:host|baseUrl|baseAddress|base-url|base_url|base\.url|endpoint|uri)\s*[:=]\s*["\']?(https?://[^\s"\']{1,300})', re.IGNORECASE),
     ]
     code_extractors = [
         # String literals with path-like values: "/api/login", "/rest/login/"
-        re.compile(rf'["\'](/(?:{kw})/[^"\']+)["\']'),
+        re.compile(rf'["\'](/(?:{kw})/[^"\']{{1,200}})["\']'),
         # RestTemplate / WebClient URL args with path segments
-        re.compile(r'(?:exchange|getForObject|getForEntity|postForObject|postForEntity|put|delete|retrieve|uri)\s*\(\s*["\']([^"\']*?/[a-zA-Z][a-zA-Z0-9_/-]+)["\']', re.IGNORECASE),
+        re.compile(r'(?:exchange|getForObject|getForEntity|postForObject|postForEntity|put|delete|retrieve|uri)\s*\(\s*["\']([^"\']{0,200}?/[a-zA-Z][a-zA-Z0-9_/-]{1,200})["\']', re.IGNORECASE),
     ]
     return config_extractors, code_extractors
 
 
-# Extractors for config files (YAML/properties/JSON) and HTTP client code.
-# Reassigned by configure_url_keywords() at tool-registration time.
-_CONFIG_URL_EXTRACTORS, _CODE_URL_EXTRACTORS = _build_url_extractors(_DEFAULT_URL_KEYWORDS)
-
-
-def configure_url_keywords(keywords: list[str]) -> None:
-    """Recompile the keyword-driven URL extractors (idempotent, no-op if empty)."""
-    global _CONFIG_URL_EXTRACTORS, _CODE_URL_EXTRACTORS
-    if keywords:
-        _CONFIG_URL_EXTRACTORS, _CODE_URL_EXTRACTORS = _build_url_extractors(keywords)
-
-
-def _extract_route_paths(content: str, rel_path: str = "") -> list[str]:
+def _route_paths_impl(content: str, rel_path: str = "") -> list[str]:
     """Extract API route paths from endpoint definition code.
 
     Handles ASP.NET [controller] token by substituting the controller name
@@ -98,34 +97,77 @@ def _extract_route_paths(content: str, rel_path: str = "") -> list[str]:
     return paths
 
 
-def _extract_config_urls(content: str) -> tuple[list[str], list[str]]:
-    """Extract paths and base URLs from config content.
+class UrlExtractors:
+    """Keyword-driven URL/route extraction + reference classification.
 
-    Returns (paths, base_urls).
+    One instance is built per app from the configured SERVICE_URL_KEYWORDS and
+    injected into the tools (see AppContext), replacing the previous module-global
+    extractor state that was mutated at registration time.
     """
-    paths = []
-    base_urls = []
-    for pattern in _CONFIG_URL_EXTRACTORS:
-        for m in pattern.finditer(content):
-            val = m.group(1)
-            if val.startswith("http"):
-                base_urls.append(val)
-            else:
-                path = val.strip("/")
+
+    def __init__(self, keywords: list[str] | None = None) -> None:
+        self.reconfigure(keywords or _DEFAULT_URL_KEYWORDS)
+
+    def reconfigure(self, keywords: list[str]) -> None:
+        self._config_extractors, self._code_extractors = _build_url_extractors(
+            keywords or _DEFAULT_URL_KEYWORDS
+        )
+
+    @staticmethod
+    def route_paths(content: str, rel_path: str = "") -> list[str]:
+        return _route_paths_impl(content, rel_path)
+
+    def config_urls(self, content: str) -> tuple[list[str], list[str]]:
+        """Extract (paths, base_urls) from config content."""
+        paths: list[str] = []
+        base_urls: list[str] = []
+        for pattern in self._config_extractors:
+            for m in pattern.finditer(content):
+                val = m.group(1)
+                if val.startswith("http"):
+                    base_urls.append(val)
+                else:
+                    path = val.strip("/")
+                    if path and len(path) > 2:
+                        paths.append(path)
+        return paths, base_urls
+
+    def code_urls(self, content: str) -> list[str]:
+        """Extract URL paths from code (string literals)."""
+        paths: list[str] = []
+        for pattern in self._code_extractors:
+            for m in pattern.finditer(content):
+                path = m.group(1).strip("/")
                 if path and len(path) > 2:
                     paths.append(path)
-    return paths, base_urls
+        return paths
+
+    def classify_reference(self, content: str, symbol_or_query: str, rel_path: str = "") -> str:
+        return _classify_reference_impl(self, content, symbol_or_query, rel_path)
+
+
+# Module-level default instance + thin back-compat free functions. Production
+# code uses an injected UrlExtractors (via AppContext); these remain for tests
+# and standalone callers, and avoid the previous mutate-global pattern.
+_DEFAULT_EXTRACTORS = UrlExtractors()
+
+
+def configure_url_keywords(keywords: list[str]) -> None:
+    """Reconfigure the module default extractor (idempotent, no-op if empty)."""
+    if keywords:
+        _DEFAULT_EXTRACTORS.reconfigure(keywords)
+
+
+def _extract_route_paths(content: str, rel_path: str = "") -> list[str]:
+    return _route_paths_impl(content, rel_path)
+
+
+def _extract_config_urls(content: str) -> tuple[list[str], list[str]]:
+    return _DEFAULT_EXTRACTORS.config_urls(content)
 
 
 def _extract_code_urls(content: str) -> list[str]:
-    """Extract URL paths from code (string literals)."""
-    paths = []
-    for pattern in _CODE_URL_EXTRACTORS:
-        for m in pattern.finditer(content):
-            path = m.group(1).strip("/")
-            if path and len(path) > 2:
-                paths.append(path)
-    return paths
+    return _DEFAULT_EXTRACTORS.code_urls(content)
 
 
 def _paths_match(caller_path: str, endpoint_path: str) -> bool:
@@ -198,12 +240,13 @@ _CLASS_DEF_PATTERNS = re.compile(
 )
 
 
-def _classify_reference(content: str, symbol_or_query: str, rel_path: str = "") -> str:
+def _classify_reference_impl(
+    extractors: "UrlExtractors", content: str, symbol_or_query: str, rel_path: str = ""
+) -> str:
     """Classify the type of cross-reference based on chunk content."""
     # Config files with URL paths → service_config
     if _CONFIG_FILE_PATTERNS.search(rel_path):
-        _, base_urls = _extract_config_urls(content)
-        paths, _ = _extract_config_urls(content)
+        paths, base_urls = extractors.config_urls(content)
         if base_urls or paths:
             return "service_config"
 
@@ -222,14 +265,19 @@ def _classify_reference(content: str, symbol_or_query: str, rel_path: str = "") 
     return "usage"
 
 
+def _classify_reference(content: str, symbol_or_query: str, rel_path: str = "") -> str:
+    """Back-compat wrapper classifying via the module default extractor."""
+    return _classify_reference_impl(_DEFAULT_EXTRACTORS, content, symbol_or_query, rel_path)
+
+
 # ---------------------------------------------------------------------------
 # Tool registration
 # ---------------------------------------------------------------------------
 
-def register_cross_references_tool(
-    mcp: FastMCP, settings: Settings, storage: QdrantStorage, embedder: Embedder
-) -> None:
-    configure_url_keywords(settings.service_url_keyword_list)
+def register_cross_references_tool(mcp: FastMCP, ctx: "AppContext") -> None:
+    storage = ctx.storage
+    embedder = ctx.embedder
+    extractors = ctx.url_extractors
 
     @mcp.tool(
         name="find_cross_references",
@@ -290,7 +338,7 @@ def register_cross_references_tool(
                     "score": round(r.score, 4),
                     "collection": r.collection,
                     "match_type": "semantic",
-                    "reference_type": _classify_reference(r.content, lookup_label, r.rel_path),
+                    "reference_type": extractors.classify_reference(r.content, lookup_label, r.rel_path),
                 })
 
         # Exact symbol match
@@ -316,7 +364,7 @@ def register_cross_references_tool(
                         "score": 1.0,
                         "collection": r.collection,
                         "match_type": "exact_symbol",
-                        "reference_type": _classify_reference(r.content, symbol_name, r.rel_path),
+                        "reference_type": extractors.classify_reference(r.content, symbol_name, r.rel_path),
                     })
 
         # Group by collection
@@ -325,7 +373,7 @@ def register_cross_references_tool(
             coll = r.pop("collection")
             by_collection[coll].append(r)
 
-        link_summary = _build_link_summary(by_collection)
+        link_summary = _build_link_summary(by_collection, extractors)
 
         return {
             "query": query,
@@ -336,7 +384,9 @@ def register_cross_references_tool(
         }
 
 
-def _build_link_summary(by_collection: dict[str, list[dict]]) -> list[dict]:
+def _build_link_summary(
+    by_collection: dict[str, list[dict]], extractors: "UrlExtractors"
+) -> list[dict]:
     """Build a summary of cross-collection links using URL path matching.
 
     Instead of creating cartesian product links between all http_calls and
@@ -362,13 +412,13 @@ def _build_link_summary(by_collection: dict[str, list[dict]]) -> list[dict]:
             content = r.get("content", "")
 
             if ref == "endpoint_definition":
-                paths = _extract_route_paths(content, r.get("rel_path", ""))
+                paths = extractors.route_paths(content, r.get("rel_path", ""))
                 endpoints.append((coll, r, paths))
             elif ref == "http_call":
-                paths = _extract_code_urls(content)
+                paths = extractors.code_urls(content)
                 callers.append((coll, r, paths))
             elif ref == "service_config":
-                paths, _ = _extract_config_urls(content)
+                paths, _ = extractors.config_urls(content)
                 callers.append((coll, r, paths))
             elif ref == "definition":
                 definitions.append((coll, r))

@@ -110,6 +110,7 @@ async def run_pipeline(
             sub_path,
             existing_metadata=existing_metadata if not force else None,
             readahead=settings.readahead_buffer,
+            excluded_dirs=settings.excluded_dirs_set,
         ):
             result.total_files += 1
             scanned_paths.add(file_record.rel_path)
@@ -228,9 +229,11 @@ async def run_pipeline(
         peak_rss_mb=_rss_mb(),
     )
 
-    # Release ONNX models after indexing to reclaim native memory.
-    # They reload in ~1.5s from the cached volume on the next request.
-    Embedder.release_models()
+    # Optionally release ONNX models after indexing to reclaim native memory.
+    # Off by default: a long-lived server shares these models with the search
+    # tools, so releasing here would force a ~1.5s reload on the next query.
+    if settings.release_models_after_index:
+        Embedder.release_models()
 
     return result
 

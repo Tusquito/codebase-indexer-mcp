@@ -1,15 +1,20 @@
 # src/codebase_indexer/tools/outline.py
 """MCP tool: get_file_outline — symbol tree for a file, no code content."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from fastmcp import FastMCP
 
-from codebase_indexer.config import Settings
-from codebase_indexer.storage.qdrant import QdrantStorage
+if TYPE_CHECKING:
+    from codebase_indexer.context import AppContext
 
 
-def register_file_outline_tool(
-    mcp: FastMCP, settings: Settings, storage: QdrantStorage
-) -> None:
+def register_file_outline_tool(mcp: FastMCP, ctx: "AppContext") -> None:
+    settings = ctx.settings
+    storage = ctx.storage
+
     @mcp.tool(
         name="get_file_outline",
         description=(

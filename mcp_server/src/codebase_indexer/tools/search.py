@@ -1,20 +1,28 @@
 # src/codebase_indexer/tools/search.py
 """MCP tool: search_codebase"""
 
+from __future__ import annotations
+
 import asyncio
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
 from fastmcp import FastMCP
 
-from codebase_indexer.config import Settings
-from codebase_indexer.indexer.embedder import Embedder
 from codebase_indexer.storage.qdrant import QdrantStorage
-from codebase_indexer.tools.cross_references import _classify_reference
+from codebase_indexer.tools.cross_references import UrlExtractors
+from codebase_indexer.tools.search_common import resolve_collections, run_search
+
+if TYPE_CHECKING:
+    from codebase_indexer.context import AppContext
 
 
-def register_search_tool(
-    mcp: FastMCP, settings: Settings, storage: QdrantStorage, embedder: Embedder
-) -> None:
+def register_search_tool(mcp: FastMCP, ctx: "AppContext") -> None:
+    settings = ctx.settings
+    storage = ctx.storage
+    embedder = ctx.embedder
+    extractors = ctx.url_extractors
+
     @mcp.tool(
         name="search_codebase",
         description=(
@@ -47,36 +55,12 @@ def register_search_tool(
         if top_k > 20:
             top_k = 20
 
-        # Build the set of collections to search
-        primary = collection or settings.qdrant_collection
-        target_collections = [primary]
-        if collections:
-            for c in collections:
-                if c not in target_collections:
-                    target_collections.append(c)
-
-        dense_vector, sparse_vector = await embedder.embed_query(query)
-
-        # Search each collection (in parallel if multiple)
-        if len(target_collections) == 1:
-            results = await storage.search(
-                collection=target_collections[0],
-                dense_vector=dense_vector,
-                sparse_vector=sparse_vector,
-                top_k=top_k,
-                language=language,
-                min_score=min_score,
-            )
-        else:
-            results = await storage.search(
-                collection=None,  # None triggers cross-collection
-                dense_vector=dense_vector,
-                sparse_vector=sparse_vector,
-                top_k=top_k,
-                language=language,
-                min_score=min_score,
-                restrict_collections=target_collections,
-            )
+        target_collections = resolve_collections(
+            collection or settings.qdrant_collection, collections
+        )
+        results = await run_search(
+            storage, embedder, query, target_collections, top_k, language, min_score
+        )
 
         result_items = []
         for r in results:
@@ -105,7 +89,7 @@ def register_search_tool(
         cross_refs = []
         if len(target_collections) > 1:
             cross_refs = await _detect_cross_references(
-                results, target_collections, storage
+                results, target_collections, storage, extractors
             )
 
         return {
@@ -119,6 +103,7 @@ async def _detect_cross_references(
     results: list,
     target_collections: list[str],
     storage: QdrantStorage,
+    extractors: UrlExtractors,
 ) -> list[dict]:
     """Detect symbols that appear across collection boundaries.
 
@@ -160,7 +145,7 @@ async def _detect_cross_references(
                 if r.symbol_name == sym:
                     entry = {
                         "path": f"{r.rel_path}:{r.start_line}",
-                        "reference_type": _classify_reference(r.content, sym),
+                        "reference_type": extractors.classify_reference(r.content, sym),
                     }
                     if entry not in locations[r.collection]:
                         locations[r.collection].append(entry)

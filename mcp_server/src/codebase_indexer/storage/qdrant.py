@@ -15,6 +15,7 @@ from qdrant_client.models import (
     FusionQuery,
     MatchValue,
     OptimizersConfigDiff,
+    PayloadSchemaType,
     PointStruct,
     Prefetch,
     ScalarQuantization,
@@ -59,9 +60,16 @@ class QdrantStorage:
         self.settings = settings
         self._client: AsyncQdrantClient | None = None
 
+    # Payload fields filtered by the query/lookup paths. Keyword indexes here
+    # turn full payload scans into indexed lookups (large win as collections grow).
+    _INDEXED_PAYLOAD_FIELDS = ("rel_path", "chunk_id", "symbol_name", "language")
+
     async def _get_client(self) -> AsyncQdrantClient:
         if self._client is None:
-            self._client = AsyncQdrantClient(url=self.settings.qdrant_url)
+            self._client = AsyncQdrantClient(
+                url=self.settings.qdrant_url,
+                timeout=self.settings.qdrant_timeout,
+            )
         return self._client
 
     async def ensure_collection(self, collection: str, retries: int = 5) -> None:
@@ -121,6 +129,12 @@ class QdrantStorage:
                 else:
                     log.debug("collection_exists", name=collection)
 
+                # Ensure keyword payload indexes exist (best-effort, idempotent).
+                # Done on every ensure_collection so pre-existing collections are
+                # backfilled on their next (re-)index.
+                if self.settings.payload_indexes:
+                    await self._ensure_payload_indexes(client, collection)
+
                 return
             except Exception as e:
                 if attempt < retries - 1:
@@ -128,6 +142,25 @@ class QdrantStorage:
                     await asyncio.sleep(2)
                     continue
                 raise
+
+    async def _ensure_payload_indexes(
+        self, client: AsyncQdrantClient, collection: str
+    ) -> None:
+        """Create keyword payload indexes for the filtered fields (idempotent).
+
+        Creating an index that already exists is a no-op on the Qdrant side, so
+        this is safe to call on every ensure_collection. Failures are logged and
+        swallowed — search still works without the index, just slower.
+        """
+        for field in self._INDEXED_PAYLOAD_FIELDS:
+            try:
+                await client.create_payload_index(
+                    collection_name=collection,
+                    field_name=field,
+                    field_schema=PayloadSchemaType.KEYWORD,
+                )
+            except Exception as e:
+                log.debug("payload_index_skip", collection=collection, field=field, error=str(e))
 
     async def set_indexing(self, collection: str, enabled: bool) -> None:
         """Pause or resume HNSW index building for a collection.

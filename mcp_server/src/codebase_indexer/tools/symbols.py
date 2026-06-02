@@ -1,16 +1,23 @@
 # src/codebase_indexer/tools/symbols.py
 """MCP tool: search_symbols — symbol-only search with zero code content."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from fastmcp import FastMCP
 
-from codebase_indexer.config import Settings
-from codebase_indexer.indexer.embedder import Embedder
-from codebase_indexer.storage.qdrant import QdrantStorage
+from codebase_indexer.tools.search_common import resolve_collections, run_search
+
+if TYPE_CHECKING:
+    from codebase_indexer.context import AppContext
 
 
-def register_search_symbols_tool(
-    mcp: FastMCP, settings: Settings, storage: QdrantStorage, embedder: Embedder
-) -> None:
+def register_search_symbols_tool(mcp: FastMCP, ctx: "AppContext") -> None:
+    settings = ctx.settings
+    storage = ctx.storage
+    embedder = ctx.embedder
+
     @mcp.tool(
         name="search_symbols",
         description=(
@@ -38,34 +45,12 @@ def register_search_symbols_tool(
         if top_k > 30:
             top_k = 30
 
-        primary = collection or settings.qdrant_collection
-        target_collections = [primary]
-        if collections:
-            for c in collections:
-                if c not in target_collections:
-                    target_collections.append(c)
-
-        dense_vector, sparse_vector = await embedder.embed_query(query)
-
-        if len(target_collections) == 1:
-            results = await storage.search(
-                collection=target_collections[0],
-                dense_vector=dense_vector,
-                sparse_vector=sparse_vector,
-                top_k=top_k,
-                language=language,
-                min_score=min_score,
-            )
-        else:
-            results = await storage.search(
-                collection=None,
-                dense_vector=dense_vector,
-                sparse_vector=sparse_vector,
-                top_k=top_k,
-                language=language,
-                min_score=min_score,
-                restrict_collections=target_collections,
-            )
+        target_collections = resolve_collections(
+            collection or settings.qdrant_collection, collections
+        )
+        results = await run_search(
+            storage, embedder, query, target_collections, top_k, language, min_score
+        )
 
         return {
             "results": [

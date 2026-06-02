@@ -1,5 +1,9 @@
 # src/codebase_indexer/main.py
-"""FastMCP server entrypoint."""
+"""FastMCP server entrypoint.
+
+Importing this module has no side effects: all wiring happens in create_app(),
+so the module is safe to import in tests without loading models or settings.
+"""
 
 import hmac
 import logging
@@ -14,8 +18,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from codebase_indexer.config import Settings
-from codebase_indexer.index_jobs import IndexJobTracker
-from codebase_indexer.indexer.embedder import Embedder
+from codebase_indexer.context import AppContext
 from codebase_indexer.tools.index import register_index_tool
 from codebase_indexer.tools.search import register_search_tool
 from codebase_indexer.tools.chunk import register_chunk_tool
@@ -25,46 +28,8 @@ from codebase_indexer.tools.service_map import register_service_map_tool
 from codebase_indexer.tools.symbols import register_search_symbols_tool
 from codebase_indexer.tools.outline import register_file_outline_tool
 from codebase_indexer.tools.summary import register_collection_summary_tool
-from codebase_indexer.storage.qdrant import QdrantStorage
 
-settings = Settings()
-
-# Always log to stderr so stdout stays clean for stdio JSON-RPC transport
-logging.basicConfig(
-    format="%(message)s",
-    level=getattr(logging, settings.log_level.upper(), logging.INFO),
-    stream=sys.stderr,
-)
-structlog.configure(
-    wrapper_class=structlog.make_filtering_bound_logger(
-        getattr(logging, settings.log_level.upper(), logging.INFO)
-    ),
-    logger_factory=structlog.PrintLoggerFactory(file=sys.stderr),
-)
-log = structlog.get_logger()
-
-# Pre-load embedding models at startup so indexing/search are instant.
-# Models are cached in the fastembed_cache Docker volume. This same instance is
-# shared with all query tools (search/symbols/cross_references/service_map) so
-# we don't re-instantiate an Embedder per request.
-log.info("preloading_models")
-t0 = time.monotonic()
-embedder = Embedder(
-    model=settings.embed_model,
-    vector_size=settings.vector_size,
-    hybrid=settings.hybrid_search,
-    dense_threads=settings.dense_threads,
-    sparse_threads=settings.sparse_threads,
-    max_embed_chars=settings.max_embed_chars,
-)
-embedder._get_dense_model()
-if settings.hybrid_search:
-    embedder._get_sparse_model()
-log.info("models_ready", elapsed=round(time.monotonic() - t0, 2))
-
-mcp = FastMCP(
-    name="codebase-indexer",
-    instructions="""
+_INSTRUCTIONS = """
     A local codebase semantic search server.
     WORKSPACE_ROOT is mounted as /workspace — each subfolder is a project.
 
@@ -103,15 +68,17 @@ mcp = FastMCP(
     matches them to produce a call chain map.
 
     Search uses nomic-embed-text (dense ONNX) + BM25 (sparse) fused via RRF.
-    """,
-)
+    """
 
 
-@mcp.custom_route("/health", methods=["GET"])
-async def health(request: Request) -> JSONResponse:
-    # Minimal, unauthenticated liveness probe. Deliberately does NOT echo the
-    # model/config so the endpoint cannot be used to fingerprint the server.
-    return JSONResponse({"status": "ok"})
+def configure_logging(settings: Settings) -> None:
+    """Route all logs to stderr so stdout stays clean for stdio JSON-RPC."""
+    level = getattr(logging, settings.log_level.upper(), logging.INFO)
+    logging.basicConfig(format="%(message)s", level=level, stream=sys.stderr)
+    structlog.configure(
+        wrapper_class=structlog.make_filtering_bound_logger(level),
+        logger_factory=structlog.PrintLoggerFactory(file=sys.stderr),
+    )
 
 
 class BearerAuthMiddleware(BaseHTTPMiddleware):
@@ -131,19 +98,53 @@ class BearerAuthMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-storage = QdrantStorage(settings)
-job_tracker = IndexJobTracker()
-register_index_tool(mcp, settings, storage, job_tracker)
-register_search_tool(mcp, settings, storage, embedder)
-register_chunk_tool(mcp, settings, storage)
-register_collections_tool(mcp, settings, storage)
-register_cross_references_tool(mcp, settings, storage, embedder)
-register_service_map_tool(mcp, settings, storage, embedder)
-register_search_symbols_tool(mcp, settings, storage, embedder)
-register_file_outline_tool(mcp, settings, storage)
-register_collection_summary_tool(mcp, settings, storage)
+def create_app(settings: Settings | None = None, preload_models: bool = True) -> FastMCP:
+    """Build and wire the FastMCP server.
 
-if __name__ == "__main__":
+    All side effects (logging setup, model preload, tool registration) live here
+    rather than at import time, so the module stays import-safe for tests.
+    """
+    settings = settings or Settings()
+    configure_logging(settings)
+    log = structlog.get_logger()
+
+    ctx = AppContext.create(settings)
+
+    if preload_models:
+        # Warm the shared ONNX models so the first index/search is instant.
+        # Models are cached in the fastembed_cache Docker volume.
+        log.info("preloading_models")
+        t0 = time.monotonic()
+        ctx.embedder._get_dense_model()
+        if settings.hybrid_search:
+            ctx.embedder._get_sparse_model()
+        log.info("models_ready", elapsed=round(time.monotonic() - t0, 2))
+
+    mcp = FastMCP(name="codebase-indexer", instructions=_INSTRUCTIONS)
+
+    @mcp.custom_route("/health", methods=["GET"])
+    async def health(request: Request) -> JSONResponse:
+        # Minimal, unauthenticated liveness probe. Deliberately does NOT echo the
+        # model/config so the endpoint cannot be used to fingerprint the server.
+        return JSONResponse({"status": "ok"})
+
+    register_index_tool(mcp, ctx)
+    register_search_tool(mcp, ctx)
+    register_chunk_tool(mcp, ctx)
+    register_collections_tool(mcp, ctx)
+    register_cross_references_tool(mcp, ctx)
+    register_service_map_tool(mcp, ctx)
+    register_search_symbols_tool(mcp, ctx)
+    register_file_outline_tool(mcp, ctx)
+    register_collection_summary_tool(mcp, ctx)
+
+    return mcp
+
+
+def main() -> None:
+    settings = Settings()
+    mcp = create_app(settings)
+    log = structlog.get_logger()
     log.info("starting_mcp_server", transport=settings.mcp_transport, port=settings.mcp_port)
     if settings.mcp_transport == "stdio":
         mcp.run(transport="stdio")
@@ -163,3 +164,7 @@ if __name__ == "__main__":
             port=settings.mcp_port,
             **http_kwargs,
         )
+
+
+if __name__ == "__main__":
+    main()

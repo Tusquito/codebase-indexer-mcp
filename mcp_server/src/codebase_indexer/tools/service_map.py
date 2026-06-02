@@ -1,20 +1,17 @@
 # src/codebase_indexer/tools/service_map.py
 """MCP tool: map_service_dependencies — build E2E call chain across services."""
 
+from __future__ import annotations
+
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
 from fastmcp import FastMCP
 
-from codebase_indexer.config import Settings
-from codebase_indexer.indexer.embedder import Embedder
-from codebase_indexer.storage.qdrant import QdrantStorage
-from codebase_indexer.tools.cross_references import (
-    _extract_route_paths,
-    _extract_config_urls,
-    _extract_code_urls,
-    _paths_match,
-    configure_url_keywords,
-)
+from codebase_indexer.tools.cross_references import _paths_match
+
+if TYPE_CHECKING:
+    from codebase_indexer.context import AppContext
 
 # Generic, framework-oriented discovery queries (no project-specific terms).
 # Extend per-codebase via the SERVICE_DISCOVERY_EXTRA_QUERIES env var instead of
@@ -37,10 +34,11 @@ _DISCOVERY_QUERIES = [
 ]
 
 
-def register_service_map_tool(
-    mcp: FastMCP, settings: Settings, storage: QdrantStorage, embedder: Embedder
-) -> None:
-    configure_url_keywords(settings.service_url_keyword_list)
+def register_service_map_tool(mcp: FastMCP, ctx: "AppContext") -> None:
+    settings = ctx.settings
+    storage = ctx.storage
+    embedder = ctx.embedder
+    extractors = ctx.url_extractors
 
     @mcp.tool(
         name="map_service_dependencies",
@@ -116,14 +114,14 @@ def register_service_map_tool(
                 }
 
                 # Classify what this chunk represents
-                route_paths = _extract_route_paths(content, r.rel_path)
+                route_paths = extractors.route_paths(content, r.rel_path)
                 if route_paths:
                     entry["routes"] = route_paths
                     endpoints_by_coll[r.collection].append(entry)
                     continue
 
-                code_urls = _extract_code_urls(content)
-                config_paths, base_urls = _extract_config_urls(content)
+                code_urls = extractors.code_urls(content)
+                config_paths, base_urls = extractors.config_urls(content)
 
                 if base_urls:
                     entry["base_urls"] = base_urls

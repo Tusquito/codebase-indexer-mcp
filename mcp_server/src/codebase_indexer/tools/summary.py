@@ -1,12 +1,15 @@
 # src/codebase_indexer/tools/summary.py
 """MCP tool: get_collection_summary — compact codebase orientation in one call."""
 
+from __future__ import annotations
+
 from collections import Counter
+from typing import TYPE_CHECKING
 
 from fastmcp import FastMCP
 
-from codebase_indexer.config import Settings
-from codebase_indexer.storage.qdrant import QdrantStorage
+if TYPE_CHECKING:
+    from codebase_indexer.context import AppContext
 
 
 def _top_level_dirs(rel_paths: list[str], depth: int = 2) -> list[str]:
@@ -23,9 +26,10 @@ def _top_level_dirs(rel_paths: list[str], depth: int = 2) -> list[str]:
     return sorted(seen)
 
 
-def register_collection_summary_tool(
-    mcp: FastMCP, settings: Settings, storage: QdrantStorage
-) -> None:
+def register_collection_summary_tool(mcp: FastMCP, ctx: "AppContext") -> None:
+    settings = ctx.settings
+    storage = ctx.storage
+
     @mcp.tool(
         name="get_collection_summary",
         description=(

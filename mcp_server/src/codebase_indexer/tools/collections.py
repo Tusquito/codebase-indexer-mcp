@@ -1,13 +1,19 @@
 # src/codebase_indexer/tools/collections.py
 """MCP tool: list_collections"""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from fastmcp import FastMCP
 
-from codebase_indexer.config import Settings
-from codebase_indexer.storage.qdrant import QdrantStorage
+if TYPE_CHECKING:
+    from codebase_indexer.context import AppContext
 
 
-def register_collections_tool(mcp: FastMCP, settings: Settings, storage: QdrantStorage) -> None:
+def register_collections_tool(mcp: FastMCP, ctx: "AppContext") -> None:
+    storage = ctx.storage
+
     @mcp.tool(
         name="list_collections",
         description="List all indexed collections with statistics.",

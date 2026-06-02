@@ -43,3 +43,48 @@ jobs:
 
       - name: Run tests
         run: uv run pytest -q
+
+  benchmark:
+    # Non-blocking: surfaces performance numbers as an artifact without gating
+    # merges on runner-dependent latency. Strict thresholds stay off in CI.
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: mcp_server
+    services:
+      qdrant:
+        image: qdrant/qdrant:v1.18.1
+        ports:
+          - 6333:6333
+        options: >-
+          --health-cmd "bash -c ':> /dev/tcp/127.0.0.1/6333'"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      QDRANT_URL: http://localhost:6333
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      - name: Run benchmark (payload indexes ON) vs committed baseline
+        run: >-
+          uv run python -m benchmarks.bench
+          --files 150 --iterations 20
+          --compare benchmarks/baseline.json
+          --output bench-results.json
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: mcp_server/bench-results.json

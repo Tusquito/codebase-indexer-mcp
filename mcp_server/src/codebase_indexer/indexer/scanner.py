@@ -23,6 +23,10 @@ log = structlog.get_logger()
 # structlog can silently drop logs from threads; stdlib logging is guaranteed thread-safe.
 _tlog = logging.getLogger(__name__)
 
+# Default directories pruned during the walk: build artifacts, VCS, caches and
+# editor metadata that never carry indexable source. Deliberately excludes
+# project-specific or content-bearing folders (e.g. "docs") — those belong in a
+# per-project .codeindexignore. Override the default set via Settings.excluded_dirs.
 EXCLUDED_DIRS = {
     "node_modules",
     ".git",
@@ -41,8 +45,6 @@ EXCLUDED_DIRS = {
     ".github",
     ".idea",
     ".vscode",
-    "docs",
-    "Ops"
 }
 
 
@@ -90,6 +92,7 @@ async def scan_files(
     sub_path: str = "/",
     existing_metadata: dict[str, dict] | None = None,
     readahead: int | None = None,
+    excluded_dirs: set[str] | None = None,
 ) -> AsyncGenerator[FileRecord, None]:
     """Recursively walk workspace, yielding FileRecord for each supported file.
 
@@ -101,9 +104,12 @@ async def scan_files(
             files whose mtime matches the stored value are yielded with
             mtime_skipped=True and content not loaded, avoiding unnecessary
             reads and SHA-256 hashing on unchanged files.
+        excluded_dirs: Directory names pruned during the walk. Defaults to the
+            module-level EXCLUDED_DIRS when not supplied (standalone callers).
     """
     workspace = Path(workspace_path).resolve()
     scan_root = (workspace / sub_path.lstrip("/")).resolve()
+    excluded = excluded_dirs if excluded_dirs is not None else EXCLUDED_DIRS
 
     # Containment guard: never let a crafted sub_path (e.g. "../../etc/...")
     # escape the mounted workspace. _normalize_path already reduces inputs to a
@@ -129,12 +135,24 @@ async def scan_files(
     def _scan_sync() -> None:
         """Run all filesystem I/O in a thread-pool worker."""
         try:
-            gitignore_spec = _load_ignore_spec(workspace, ".gitignore")
-            codeindexignore_spec = _load_ignore_spec(workspace, ".codeindexignore")
+            # Workspace-root ignore files apply patterns relative to the
+            # workspace root (matched against the workspace-relative path).
+            root_gitignore_spec = _load_ignore_spec(workspace, ".gitignore")
+            root_codeindexignore_spec = _load_ignore_spec(workspace, ".codeindexignore")
+
+            # Project-level ignore files (when indexing a subdirectory project).
+            # These apply patterns relative to the project root, so they are
+            # matched against the scan-root-relative path. Without this a
+            # project's own .gitignore was silently ignored.
+            proj_gitignore_spec = None
+            proj_codeindexignore_spec = None
+            if scan_root != workspace:
+                proj_gitignore_spec = _load_ignore_spec(scan_root, ".gitignore")
+                proj_codeindexignore_spec = _load_ignore_spec(scan_root, ".codeindexignore")
 
             for dirpath, dirnames, filenames in os.walk(scan_root):
                 # Filter out excluded directories in-place
-                dirnames[:] = [d for d in dirnames if d not in EXCLUDED_DIRS]
+                dirnames[:] = [d for d in dirnames if d not in excluded]
 
                 for filename in filenames:
                     abs_path = Path(dirpath) / filename
@@ -142,11 +160,19 @@ async def scan_files(
                         rel_path = abs_path.relative_to(workspace).as_posix()
                     except ValueError:
                         continue
+                    try:
+                        rel_to_scan = abs_path.relative_to(scan_root).as_posix()
+                    except ValueError:
+                        rel_to_scan = rel_path
 
-                    # Check ignore rules
-                    if gitignore_spec and gitignore_spec.match_file(rel_path):
+                    # Check ignore rules (root-relative and project-relative)
+                    if root_gitignore_spec and root_gitignore_spec.match_file(rel_path):
                         continue
-                    if codeindexignore_spec and codeindexignore_spec.match_file(rel_path):
+                    if root_codeindexignore_spec and root_codeindexignore_spec.match_file(rel_path):
+                        continue
+                    if proj_gitignore_spec and proj_gitignore_spec.match_file(rel_to_scan):
+                        continue
+                    if proj_codeindexignore_spec and proj_codeindexignore_spec.match_file(rel_to_scan):
                         continue
 
                     language = _detect_language(abs_path)

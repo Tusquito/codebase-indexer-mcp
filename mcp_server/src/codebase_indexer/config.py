@@ -2,6 +2,13 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 
+# Single source of truth for the default URL-path keywords used by the
+# service-mapping / cross-reference URL extractors. Both Settings (below) and
+# the extractor defaults derive from this, so there is only one place to edit.
+DEFAULT_SERVICE_URL_KEYWORDS = (
+    "rest,api,profile,service,internal,public,gateway,graphql,webhook,auth,users,accounts"
+)
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -11,6 +18,9 @@ class Settings(BaseSettings):
     )
 
     qdrant_url: str = Field(default="http://localhost:6333")
+    # Timeout (seconds) for Qdrant client calls. A hung Qdrant then surfaces as
+    # a clean timeout error instead of stalling the asyncio event loop.
+    qdrant_timeout: float = Field(default=30.0)
     qdrant_collection: str = Field(default="codebase")
     embed_model: str = Field(default="nomic-ai/nomic-embed-text-v1.5")
     vector_size: int = Field(default=768)
@@ -27,6 +37,22 @@ class Settings(BaseSettings):
     mcp_auth_token: str = Field(default="")
     workspace_path: str = Field(default="/workspace")
     log_level: str = Field(default="INFO")
+
+    # Directory names pruned during the scan walk (build artifacts, VCS, caches,
+    # editor metadata). Comma-separated and env-overridable. Project-specific or
+    # content-bearing folders (e.g. docs) belong in a per-project
+    # .codeindexignore rather than this global default.
+    excluded_dirs: str = Field(
+        default=(
+            "node_modules,.git,__pycache__,.venv,venv,dist,build,target,bin,obj,"
+            ".gradle,.mypy_cache,.pytest_cache,.ruff_cache,.github,.idea,.vscode"
+        )
+    )
+
+    # Release the shared ONNX models after an indexing job completes. Reclaims
+    # native memory but forces a ~1.5s reload on the next request — undesirable
+    # on a long-lived server that also serves search, so default off.
+    release_models_after_index: bool = Field(default=False)
 
     # --- Pipeline tuning knobs (hardware-portable; all env-overridable) ---
     # Number of chunks accumulated before an embed+upsert flush. The double
@@ -56,17 +82,23 @@ class Settings(BaseSettings):
     # Segments larger than this many KB are memory-mapped rather than kept in
     # RAM. Lower = less RAM, higher = faster.
     memmap_threshold_kb: int = Field(default=20000)
+    # Create keyword payload indexes (rel_path, chunk_id, symbol_name, language)
+    # so filtered lookups/deletes don't do full payload scans. Toggleable so the
+    # benchmark harness can measure the indexes-off vs indexes-on delta.
+    payload_indexes: bool = Field(default=True)
 
     # --- Service-mapping / cross-reference tuning (project-agnostic) ---
     # Comma-separated URL path keywords used to recognise API paths in config
     # and code (e.g. "/api/...", "/rest/..."). Extend for your domain without
     # editing source — these feed the URL extraction regexes.
-    service_url_keywords: str = Field(
-        default="rest,api,profile,service,internal,public,gateway,graphql,webhook,auth,users,accounts"
-    )
+    service_url_keywords: str = Field(default=DEFAULT_SERVICE_URL_KEYWORDS)
     # Extra natural-language discovery queries for map_service_dependencies.
     # Separate multiple queries with a pipe (|) or newline. Empty by default.
     service_discovery_extra_queries: str = Field(default="")
+
+    @property
+    def excluded_dirs_set(self) -> set[str]:
+        return {d.strip() for d in self.excluded_dirs.split(",") if d.strip()}
 
     @property
     def service_url_keyword_list(self) -> list[str]:

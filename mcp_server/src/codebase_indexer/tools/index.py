@@ -1,10 +1,13 @@
 # src/codebase_indexer/tools/index.py
 """MCP tool: index_codebase (async background indexing)"""
 
+from __future__ import annotations
+
 import asyncio
 import os
 import re
 import time
+from typing import TYPE_CHECKING
 
 import structlog
 from fastmcp import FastMCP
@@ -14,6 +17,9 @@ from codebase_indexer.index_jobs import IndexJobTracker, JobStatus
 from codebase_indexer.indexer.pipeline import run_pipeline, IndexCancelled
 from codebase_indexer.indexer.embedder import Embedder
 from codebase_indexer.storage.qdrant import QdrantStorage
+
+if TYPE_CHECKING:
+    from codebase_indexer.context import AppContext
 
 log = structlog.get_logger()
 
@@ -97,24 +103,25 @@ async def _run_index_job(
         job.status = JobStatus.CANCELLED
         job.error_message = str(e)
         job.finished_at = time.monotonic()
-        Embedder.release_models()
+        if settings.release_models_after_index:
+            Embedder.release_models()
         log.info("index_job_cancelled", collection=collection, elapsed=job.elapsed_seconds)
     except Exception as e:
         job.status = JobStatus.FAILED
         job.error_message = str(e)
         job.finished_at = time.monotonic()
-        Embedder.release_models()
+        if settings.release_models_after_index:
+            Embedder.release_models()
         log.error("index_job_failed", collection=collection, error=str(e))
     finally:
         job._done_event.set()
 
 
-def register_index_tool(
-    mcp: FastMCP,
-    settings: Settings,
-    storage: QdrantStorage,
-    job_tracker: IndexJobTracker,
-) -> None:
+def register_index_tool(mcp: FastMCP, ctx: "AppContext") -> None:
+    settings = ctx.settings
+    storage = ctx.storage
+    job_tracker = ctx.job_tracker
+
     @mcp.tool(
         name="index_codebase",
         description=(
