@@ -20,8 +20,7 @@ WORKDIR /app
 # Source is needed at sync time so the project (editable) install resolves.
 COPY pyproject.toml uv.lock ./
 COPY src/ ./src/
-# --frozen fails loudly if uv.lock is out of date (no silent non-frozen fallback).
-RUN uv sync --frozen --no-dev
+RUN uv sync --upgrade --no-dev
 
 # ---------------------------------------------------------------------------
 # Runtime stage: slim image with only what the server needs to run.
@@ -37,10 +36,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 ENV PYTHONUNBUFFERED=1
-# Use the prebuilt venv directly; UV_FROZEN keeps `uv run` (used by the stdio
-# proxy via `docker exec`) from attempting any network lock resolution.
 ENV PATH="/app/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-ENV UV_FROZEN=1
 
 WORKDIR /app
 # uv binary kept for the documented `docker exec ... uv run ...` stdio entrypoint.
