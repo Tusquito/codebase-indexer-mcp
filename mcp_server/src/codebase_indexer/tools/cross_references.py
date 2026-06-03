@@ -369,9 +369,9 @@ def register_cross_references_tool(mcp: FastMCP, ctx: "AppContext") -> None:
 
         # Group by collection
         by_collection: dict[str, list[dict]] = defaultdict(list)
-        for r in all_results:
-            coll = r.pop("collection")
-            by_collection[coll].append(r)
+        for result in all_results:
+            coll = result.pop("collection")
+            by_collection[coll].append(result)
 
         link_summary = _build_link_summary(by_collection, extractors)
 

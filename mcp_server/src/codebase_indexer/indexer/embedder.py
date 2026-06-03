@@ -282,7 +282,7 @@ class Embedder:
             dense_list = await loop.run_in_executor(
                 None, self._embed_dense_batch_sync, texts
             )
-            sparse_list = [None] * len(texts)
+            sparse_list = [None] * len(texts)  # type: ignore[list-item]
         return list(zip(dense_list, sparse_list))
 
     async def embed_chunks(self, chunks: list[Chunk]) -> list[EmbeddedChunk]:
@@ -296,7 +296,6 @@ class Embedder:
         loop = asyncio.get_running_loop()
 
         t_start = time.monotonic()
-
         if self.hybrid:
             dense_vectors, sparse_vectors = await asyncio.gather(
                 loop.run_in_executor(None, self._embed_dense_batch_sync, texts),
@@ -304,7 +303,7 @@ class Embedder:
             )
         else:
             dense_vectors = await loop.run_in_executor(None, self._embed_dense_batch_sync, texts)
-            sparse_vectors = [None] * len(chunks)
+            sparse_vectors = [None] * len(chunks)  # type: ignore[list-item]
 
         log.info(
             "embed_chunks_complete",

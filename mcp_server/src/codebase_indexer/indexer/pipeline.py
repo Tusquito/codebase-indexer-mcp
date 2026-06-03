@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 try:
     import resource  # Unix-only; absent on local Windows dev
 except ImportError:
-    resource = None
+    resource = None  # type: ignore[assignment]
 
 import structlog
 
@@ -37,7 +37,7 @@ def _rss_mb() -> float:
     if resource is None:
         return 0.0
     try:
-        return round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024, 1)
+        return round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024, 1)  # type: ignore[attr-defined]
     except Exception:
         return 0.0
 
@@ -142,7 +142,7 @@ async def run_pipeline(
                 # so it doesn't block the event loop (lets scan/upsert overlap).
                 chunks = await loop.run_in_executor(
                     None,
-                    lambda fr=file_record: chunk_file(
+                    lambda fr=file_record: chunk_file(  # type: ignore[misc]
                         content=fr.content,
                         rel_path=fr.rel_path,
                         language=fr.language,

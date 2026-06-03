@@ -52,7 +52,7 @@ def _extract_symbol_name(node: Node) -> str | None:
     """Try to extract a symbol name from a tree-sitter node."""
     for child in node.children:
         if child.type in ("identifier", "name", "property_identifier", "type_identifier"):
-            return child.text.decode("utf-8", errors="replace")
+            return child.text.decode("utf-8", errors="replace") if child.text is not None else None
         # For decorated_definition / export_statement, look deeper
         if child.type in ("function_definition", "class_definition", "function_declaration",
                           "class_declaration", "method_declaration"):

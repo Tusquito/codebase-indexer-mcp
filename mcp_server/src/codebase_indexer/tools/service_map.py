@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from fastmcp import FastMCP
 
@@ -103,7 +103,7 @@ def register_service_map_tool(mcp: FastMCP, ctx: "AppContext") -> None:
                 seen_chunks.add(chunk_key)
 
                 content = r.content
-                entry = {
+                entry: dict[str, Any] = {
                     "rel_path": r.rel_path,
                     "symbol_name": r.symbol_name,
                     "symbol_type": r.symbol_type,

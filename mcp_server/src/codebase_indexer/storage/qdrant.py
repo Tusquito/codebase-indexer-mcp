@@ -68,7 +68,7 @@ class QdrantStorage:
         if self._client is None:
             self._client = AsyncQdrantClient(
                 url=self.settings.qdrant_url,
-                timeout=self.settings.qdrant_timeout,
+                timeout=int(self.settings.qdrant_timeout),
             )
         return self._client
 
@@ -314,7 +314,7 @@ class QdrantStorage:
 
         if not must:
             return None
-        return Filter(must=must)
+        return Filter(must=must)  # type: ignore[arg-type]
 
     async def _search_single(
         self,
@@ -332,15 +332,12 @@ class QdrantStorage:
         used_hybrid = bool(sparse_vector and self.settings.hybrid_search)
 
         if used_hybrid:
-            sparse_query = {
-                "indices": sparse_vector.indices,
-                "values": sparse_vector.values,
-            }
+            assert sparse_vector is not None
             results = await client.query_points(
                 collection_name=collection,
                 prefetch=[
                     Prefetch(query=dense_vector, using="dense", limit=top_k * 3),
-                    Prefetch(query=sparse_query, using="sparse", limit=top_k * 3),
+                    Prefetch(query=sparse_vector, using="sparse", limit=top_k * 3),  # type: ignore[arg-type]
                 ],
                 query=FusionQuery(fusion=Fusion.RRF),
                 limit=top_k,
@@ -426,7 +423,7 @@ class QdrantStorage:
 
         merged: list[SearchResult] = []
         for r in all_results:
-            if isinstance(r, Exception):
+            if isinstance(r, BaseException):
                 log.warning("cross_collection_search_error", error=str(r))
                 continue
             merged.extend(r)
