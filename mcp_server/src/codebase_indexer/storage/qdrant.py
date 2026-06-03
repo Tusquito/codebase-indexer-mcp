@@ -25,6 +25,7 @@ from qdrant_client.models import (
     SparseVectorParams,
     VectorParams,
 )
+from qdrant_client.models import SparseVector as QdrantSparseVector
 
 from codebase_indexer.config import Settings
 from codebase_indexer.indexer.embedder import EmbeddedChunk, SparseVector
@@ -333,11 +334,15 @@ class QdrantStorage:
 
         if used_hybrid:
             assert sparse_vector is not None
+            qdrant_sparse = QdrantSparseVector(
+                indices=sparse_vector.indices,
+                values=sparse_vector.values,
+            )
             results = await client.query_points(
                 collection_name=collection,
                 prefetch=[
                     Prefetch(query=dense_vector, using="dense", limit=top_k * 3),
-                    Prefetch(query=sparse_vector, using="sparse", limit=top_k * 3),  # type: ignore[arg-type]
+                    Prefetch(query=qdrant_sparse, using="sparse", limit=top_k * 3),
                 ],
                 query=FusionQuery(fusion=Fusion.RRF),
                 limit=top_k,
