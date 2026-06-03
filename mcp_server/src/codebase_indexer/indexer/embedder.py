@@ -13,6 +13,11 @@ from dataclasses import dataclass
 import structlog
 
 from codebase_indexer.indexer.chunker import Chunk
+from codebase_indexer.memory import (
+    check_memory_pressure,
+    emergency_trim,
+    get_rss_mb,
+)
 
 log = structlog.get_logger()
 # stdlib logger for sync methods running inside thread-pool workers.
@@ -109,6 +114,8 @@ class Embedder:
         dense_threads: int = 0,
         sparse_threads: int = 0,
         max_embed_chars: int | None = None,
+        memory_warn_pct: int = 70,
+        memory_halt_pct: int = 85,
     ):
         self.model = model
         self.vector_size = vector_size
@@ -117,6 +124,8 @@ class Embedder:
         self.dense_threads = dense_threads
         self.sparse_threads = sparse_threads
         self.max_embed_chars = max_embed_chars or self.MAX_EMBED_CHARS
+        self.memory_warn_pct = memory_warn_pct
+        self.memory_halt_pct = memory_halt_pct
 
     def _get_dense_model(self):
         """Get or load fastembed dense encoder (ONNX, cached)."""
@@ -147,6 +156,19 @@ class Embedder:
             return text[:self.max_embed_chars]
         return text
 
+    def _adaptive_batch_size(self, max_chars_in_batch: int, base_batch: int) -> int:
+        """Reduce batch size for long sequences to limit ONNX attention memory.
+
+        ONNX attention is O(seq_len² × batch_size), so batches with long
+        sequences need fewer items to avoid memory spikes.  The thresholds
+        are conservative: halve at 1000 chars, quarter at 2000+.
+        """
+        if max_chars_in_batch > 2000:
+            return max(1, base_batch // 4)
+        if max_chars_in_batch > 1000:
+            return max(1, base_batch // 2)
+        return base_batch
+
     def _embed_dense_batch_sync(self, texts: list[str]) -> list[list[float]]:
         """Embed texts via fastembed ONNX (synchronous, CPU-bound).
 
@@ -157,6 +179,11 @@ class Embedder:
         short ones through O(4000²) attention — ~400× wasted compute.
         Length-sorting keeps padding minimal, typically yielding 2-4× higher
         throughput with zero extra CPU or RAM.
+
+        Under memory pressure the batch size is adaptively reduced and, at
+        the halt threshold, embedding is aborted with an ``EmbeddingError``
+        so the pipeline can surface a clear diagnostic instead of being
+        OOM-killed silently.
         """
         model = self._get_dense_model()
 
@@ -167,14 +194,17 @@ class Embedder:
         truncated = [self._truncate(t) for t in texts]
         lengths = [len(t) for t in truncated]
         total = len(truncated)
+
+        rss_start = get_rss_mb()
         _tlog.info(
-            "dense_embed_start chunks=%d batch_size=%d chars_avg=%d chars_max=%d chars_min=%d",
-            total, self.batch_size, round(statistics.mean(lengths)), max(lengths), min(lengths),
+            "dense_embed_start chunks=%d batch_size=%d chars_avg=%d chars_max=%d chars_min=%d rss_mb=%.1f",
+            total, self.batch_size, round(statistics.mean(lengths)), max(lengths), min(lengths), rss_start,
         )
 
         # Sort by length so each ONNX batch has similar-length texts (less padding)
         sorted_indices = sorted(range(total), key=lambda i: lengths[i])
         sorted_texts = [truncated[i] for i in sorted_indices]
+        sorted_lengths = [lengths[i] for i in sorted_indices]
 
         # Keep embeddings as numpy float32 arrays (not Python float lists).
         # A 768-dim list of Python floats is ~24 KB; the numpy array is ~3 KB,
@@ -183,24 +213,53 @@ class Embedder:
         t0 = time.monotonic()
         t_last_log = t0
 
-        # Consume the generator batch-by-batch so we can emit progress every ~5s
-        batch: list = []
-        for emb in model.embed(sorted_texts, batch_size=self.batch_size):
-            batch.append(emb)
-            if len(batch) == self.batch_size:
-                sorted_embeddings.extend(batch)
-                now = time.monotonic()
-                if now - t_last_log >= 5.0:
-                    elapsed = now - t0
-                    done = len(sorted_embeddings)
-                    _tlog.info(
-                        "dense_embed_progress done=%d total=%d pct=%d elapsed_s=%.1f chunks_per_s=%.1f",
-                        done, total, round(done / total * 100),
-                        elapsed, done / elapsed if elapsed > 0 else 0,
-                    )
-                    t_last_log = now
-                batch = []
-        sorted_embeddings.extend(batch)  # flush remaining partial batch
+        # Manually slice into sub-batches so we can adapt batch size per-slice
+        # based on max sequence length and memory pressure.
+        i = 0
+        while i < len(sorted_texts):
+            # Check memory pressure before each sub-batch
+            severity, pct = check_memory_pressure(self.memory_warn_pct, self.memory_halt_pct)
+            if severity == "halt":
+                _tlog.error(
+                    "dense_embed_halt memory_pct=%.1f halt_pct=%d done=%d total=%d",
+                    pct, self.memory_halt_pct, len(sorted_embeddings), total,
+                )
+                raise EmbeddingError(
+                    f"Memory pressure {pct:.0f}% exceeds halt threshold "
+                    f"({self.memory_halt_pct}%). Reduce BATCH_SIZE, FLUSH_EVERY, "
+                    f"or MAX_EMBED_CHARS, or increase container memory."
+                )
+            if severity == "warn":
+                emergency_trim()
+                _tlog.warning(
+                    "dense_embed_memory_warn memory_pct=%.1f warn_pct=%d — halving batch size",
+                    pct, self.memory_warn_pct,
+                )
+
+            # Determine effective batch size for this slice
+            max_chars_in_slice = sorted_lengths[min(i + self.batch_size - 1, len(sorted_lengths) - 1)]
+            effective_bs = self._adaptive_batch_size(max_chars_in_slice, self.batch_size)
+            if severity == "warn":
+                effective_bs = max(1, effective_bs // 2)
+
+            sub_texts = sorted_texts[i:i + effective_bs]
+            for emb in model.embed(sub_texts, batch_size=effective_bs):
+                sorted_embeddings.append(emb)
+
+            i += effective_bs
+
+            now = time.monotonic()
+            if now - t_last_log >= 5.0:
+                elapsed = now - t0
+                done = len(sorted_embeddings)
+                _tlog.info(
+                    "dense_embed_progress done=%d total=%d pct=%d elapsed_s=%.1f "
+                    "chunks_per_s=%.1f effective_bs=%d rss_mb=%.1f",
+                    done, total, round(done / total * 100),
+                    elapsed, done / elapsed if elapsed > 0 else 0,
+                    effective_bs, get_rss_mb(),
+                )
+                t_last_log = now
 
         # Restore original order
         embeddings: list = [None] * total
@@ -208,6 +267,7 @@ class Embedder:
             embeddings[orig_idx] = sorted_embeddings[sorted_pos]
 
         elapsed = round(time.monotonic() - t0, 2)
+        rss_end = get_rss_mb()
 
         # Spot-check dimension on first and last embedding (not all N)
         for i in (0, len(embeddings) - 1):
@@ -218,8 +278,9 @@ class Embedder:
                 )
 
         _tlog.info(
-            "dense_embed_done chunks=%d elapsed_s=%.2f chunks_per_s=%.1f",
+            "dense_embed_done chunks=%d elapsed_s=%.2f chunks_per_s=%.1f rss_mb=%.1f rss_delta_mb=%.1f",
             len(embeddings), elapsed, len(embeddings) / elapsed if elapsed > 0 else 0,
+            rss_end, rss_end - rss_start,
         )
 
         return embeddings
@@ -288,19 +349,28 @@ class Embedder:
     async def embed_chunks(self, chunks: list[Chunk]) -> list[EmbeddedChunk]:
         """Embed chunks with dense and (optionally) sparse vectors.
 
-        Dense (ONNX) and sparse (BM25) run concurrently in separate thread-pool
-        workers. BM25 is lightweight (~5% of dense time) so the overlap adds
-        negligible CPU contention while hiding its latency entirely.
+        Dense (ONNX) and sparse (BM25) normally run concurrently in separate
+        thread-pool workers. Under memory pressure, concurrency is disabled
+        and they run sequentially to reduce peak allocations.
         """
         texts = [c.content for c in chunks]
         loop = asyncio.get_running_loop()
 
         t_start = time.monotonic()
-        if self.hybrid:
+
+        # Under memory pressure, run sequentially to avoid concurrent allocation spikes.
+        severity, pct = check_memory_pressure(self.memory_warn_pct, self.memory_halt_pct)
+        force_sequential = severity in ("warn", "halt")
+
+        if self.hybrid and not force_sequential:
             dense_vectors, sparse_vectors = await asyncio.gather(
                 loop.run_in_executor(None, self._embed_dense_batch_sync, texts),
                 loop.run_in_executor(None, self._embed_sparse_batch_sync, texts),
             )
+        elif self.hybrid:
+            log.info("embed_sequential_mode", reason="memory_pressure", pressure_pct=pct)
+            dense_vectors = await loop.run_in_executor(None, self._embed_dense_batch_sync, texts)
+            sparse_vectors = await loop.run_in_executor(None, self._embed_sparse_batch_sync, texts)
         else:
             dense_vectors = await loop.run_in_executor(None, self._embed_dense_batch_sync, texts)
             sparse_vectors = [None] * len(chunks)  # type: ignore[list-item]

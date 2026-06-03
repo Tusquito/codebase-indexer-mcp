@@ -10,36 +10,24 @@ Additional concurrency optimizations:
 - Modified/stale file deletions are batched to reduce Qdrant round-trips
 - Dense + sparse embeddings run concurrently in separate thread workers
 - mtime pre-filtering skips unchanged files without reading them
+- Memory-pressure monitoring throttles or aborts before OOM kill
 """
 
 import asyncio
+import gc
 import time
 from dataclasses import dataclass, field
-
-try:
-    import resource  # Unix-only; absent on local Windows dev
-except ImportError:
-    resource = None  # type: ignore[assignment]
 
 import structlog
 
 from codebase_indexer.config import Settings
 from codebase_indexer.indexer.scanner import scan_files
 from codebase_indexer.indexer.chunker import chunk_file, Chunk
-from codebase_indexer.indexer.embedder import Embedder, trim_memory
+from codebase_indexer.indexer.embedder import Embedder, EmbeddingError, trim_memory
+from codebase_indexer.memory import check_memory_pressure, get_rss_mb
 from codebase_indexer.storage.qdrant import QdrantStorage
 
 log = structlog.get_logger()
-
-
-def _rss_mb() -> float:
-    """Current process max RSS in MB (Linux reports ru_maxrss in KB)."""
-    if resource is None:
-        return 0.0
-    try:
-        return round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024, 1)  # type: ignore[attr-defined]
-    except Exception:
-        return 0.0
 
 
 @dataclass
@@ -79,6 +67,8 @@ async def run_pipeline(
         dense_threads=settings.dense_threads,
         sparse_threads=settings.sparse_threads,
         max_embed_chars=settings.max_embed_chars,
+        memory_warn_pct=settings.memory_pressure_warn_pct,
+        memory_halt_pct=settings.memory_pressure_halt_pct,
     )
 
     flush_every = settings.flush_every
@@ -186,6 +176,13 @@ async def run_pipeline(
             scan_s=round(time.monotonic() - scan_start, 2),
         )
 
+        # Release metadata dicts now — they held one entry per previously-
+        # indexed file and are no longer needed after the scan loop.  On a
+        # 17k-vector collection this frees ~tens of MB of Python objects.
+        stale_paths = list(set(existing_hashes.keys()) - scanned_paths)
+        del existing_metadata, existing_hashes
+        gc.collect()
+
         # Flush remaining chunks
         if pending_chunks:
             log.info("flushing_final_batch", count=len(pending_chunks))
@@ -208,7 +205,6 @@ async def run_pipeline(
                 result.errors.append(f"Final upsert error: {e}")
 
         # Batch-delete stale chunks (files that were removed) in one call
-        stale_paths = list(set(existing_hashes.keys()) - scanned_paths)
         if stale_paths:
             log.info("deleting_stale_files", count=len(stale_paths))
             await storage.delete_by_paths(coll, stale_paths)
@@ -226,7 +222,7 @@ async def run_pipeline(
         skipped=result.skipped_files,
         chunks=result.total_chunks,
         elapsed=result.elapsed_seconds,
-        peak_rss_mb=_rss_mb(),
+        peak_rss_mb=get_rss_mb(),
     )
 
     # Optionally release ONNX models after indexing to reclaim native memory.
@@ -249,8 +245,9 @@ async def _flush_double_buffered(
     """Embed chunks and overlap upsert with the next embedding round.
 
     1. Wait for previous upsert (if any) — ensures at most 2 batches in RAM.
-    2. Embed current batch (CPU-bound, thread executor).
-    3. Fire upsert as background task (I/O-bound) and return the task handle.
+    2. Check memory pressure — abort early if above halt threshold.
+    3. Embed current batch (CPU-bound, thread executor).
+    4. Fire upsert as background task (I/O-bound) and return the task handle.
 
     Returns the new in-flight upsert task for the caller to track.
     """
@@ -263,7 +260,22 @@ async def _flush_double_buffered(
                 log.error("prev_upsert_error", error=str(e))
                 result.errors.append(f"Upsert error: {e}")
 
-        # Step 2: embed (CPU-bound)
+        # Step 2: pre-flight memory pressure check
+        severity, pct = check_memory_pressure(
+            embedder.memory_warn_pct, embedder.memory_halt_pct
+        )
+        if severity == "halt":
+            msg = (
+                f"Memory pressure {pct:.0f}% exceeds halt threshold "
+                f"({embedder.memory_halt_pct}%) before embedding {len(chunks)} chunks. "
+                f"Reduce BATCH_SIZE, FLUSH_EVERY, or MAX_EMBED_CHARS, or increase "
+                f"container memory."
+            )
+            log.error("flush_halt_memory_pressure", pressure_pct=pct, chunks=len(chunks))
+            result.errors.append(msg)
+            raise EmbeddingError(msg)
+
+        # Step 3: embed (CPU-bound)
         t0 = time.monotonic()
         embedded = await embedder.embed_chunks(chunks)
         t1 = time.monotonic()
@@ -276,23 +288,24 @@ async def _flush_double_buffered(
             chunks=chunk_count,
             total_indexed=result.total_chunks,
             embed_s=round(t1 - t0, 2),
-            rss_mb=_rss_mb(),
+            rss_mb=get_rss_mb(),
         )
 
-        # Step 3: fire upsert as background task — awaited on next flush call
+        # Step 4: fire upsert as background task — awaited on next flush call.
+        # trim_memory runs *after* the upsert completes so the embedded data
+        # can be freed first (it stays alive until upsert finishes).
         async def _do_upsert():
             ut0 = time.monotonic()
             await storage.upsert_chunks(collection, embedded)
             log.info("upsert_complete", chunks=chunk_count, upsert_s=round(time.monotonic() - ut0, 2))
+            trim_memory()
 
         task = asyncio.create_task(_do_upsert())
 
-        # Return freed native allocations (Python + ONNX arenas) to the OS each
-        # flush so long jobs don't accumulate unbounded RSS.
-        trim_memory()
-
         return task
 
+    except EmbeddingError:
+        raise
     except Exception as e:
         log.error("flush_error", error=str(e), chunk_count=len(chunks))
         result.errors.append(f"Batch embed/upsert error: {e}")

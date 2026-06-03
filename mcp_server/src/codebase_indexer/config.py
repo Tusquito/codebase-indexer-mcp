@@ -71,6 +71,12 @@ class Settings(BaseSettings):
     dense_threads: int = Field(default=0)
     sparse_threads: int = Field(default=0)
 
+    # --- Memory pressure thresholds (cgroup-aware OOM prevention) ---
+    # At warn_pct: halve ONNX batch size, disable dense/sparse concurrency.
+    # At halt_pct: abort the current indexing flush and log an actionable error.
+    memory_pressure_warn_pct: int = Field(default=70)
+    memory_pressure_halt_pct: int = Field(default=85)
+
     # --- Qdrant storage tuning (affects RAM vs search speed) ---
     # Store dense vectors on disk (memory-mapped) instead of fully in RAM.
     vectors_on_disk: bool = Field(default=True)

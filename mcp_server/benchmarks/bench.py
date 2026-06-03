@@ -38,7 +38,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from codebase_indexer.config import Settings  # noqa: E402
 from codebase_indexer.indexer.embedder import Embedder  # noqa: E402
-from codebase_indexer.indexer.pipeline import _rss_mb, run_pipeline  # noqa: E402
+from codebase_indexer.indexer.pipeline import run_pipeline  # noqa: E402
+from codebase_indexer.memory import get_rss_mb  # noqa: E402
 from codebase_indexer.storage.qdrant import QdrantStorage  # noqa: E402
 
 from benchmarks.corpus import generate_corpus  # noqa: E402
@@ -248,7 +249,7 @@ async def run_benchmark(
                 "indexed_files": full.indexed_files,
                 "chunks_per_s": round(total_chunks / full_index_s, 2) if full_index_s else 0.0,
                 "incremental_skipped": incr.skipped_files,
-                "peak_rss_mb": _rss_mb(),
+                "peak_rss_mb": get_rss_mb(),
             },
             "lookups_ms": lookups,
             "delete_by_paths_ms": {"batch_size": len(del_paths), "elapsed_ms": delete_ms},

@@ -75,6 +75,9 @@ services:
       MAX_EMBED_CHARS: ${MAX_EMBED_CHARS:-4096}
       DENSE_THREADS: ${DENSE_THREADS:-0}
       SPARSE_THREADS: ${SPARSE_THREADS:-0}
+      # Memory pressure thresholds — adaptive OOM prevention.
+      MEMORY_PRESSURE_WARN_PCT: ${MEMORY_PRESSURE_WARN_PCT:-70}
+      MEMORY_PRESSURE_HALT_PCT: ${MEMORY_PRESSURE_HALT_PCT:-85}
       # Qdrant storage tuning (RAM vs search speed).
       VECTORS_ON_DISK: ${VECTORS_ON_DISK:-true}
       SPARSE_ON_DISK: ${SPARSE_ON_DISK:-true}

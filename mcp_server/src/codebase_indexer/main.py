@@ -7,6 +7,7 @@ so the module is safe to import in tests without loading models or settings.
 
 import hmac
 import logging
+import os
 import sys
 import time
 
@@ -19,6 +20,10 @@ from starlette.responses import JSONResponse
 
 from codebase_indexer.config import Settings
 from codebase_indexer.context import AppContext
+from codebase_indexer.memory import (
+    get_cgroup_memory_limit,
+    log_memory_diagnostics,
+)
 from codebase_indexer.tools.index import register_index_tool
 from codebase_indexer.tools.search import register_search_tool
 from codebase_indexer.tools.chunk import register_chunk_tool
@@ -107,6 +112,45 @@ def create_app(settings: Settings | None = None, preload_models: bool = True) ->
     settings = settings or Settings()
     configure_logging(settings)
     log = structlog.get_logger()
+
+    # --- Startup memory diagnostics & OOM-restart detection ---
+    _CLEAN_SHUTDOWN_MARKER = "/tmp/.mcp_clean_shutdown"
+    if os.path.exists(_CLEAN_SHUTDOWN_MARKER):
+        os.remove(_CLEAN_SHUTDOWN_MARKER)
+    else:
+        # Marker absent → previous instance didn't shut down cleanly.
+        # First boot has no marker either, so only warn when the container
+        # has been running before (restart count > 0 implies prior crash).
+        log.warning(
+            "possible_oom_restart",
+            msg="Previous instance may have been OOM-killed (no clean shutdown marker found).",
+            hint="Check 'docker inspect' for RestartCount and OOMKilled.",
+        )
+
+    log_memory_diagnostics("startup")
+    limit = get_cgroup_memory_limit()
+    if limit:
+        limit_gb = round(limit / (1024**3), 1)
+        log.info(
+            "memory_config",
+            cgroup_limit_gb=limit_gb,
+            batch_size=settings.batch_size,
+            flush_every=settings.flush_every,
+            max_embed_chars=settings.max_embed_chars,
+            warn_pct=settings.memory_pressure_warn_pct,
+            halt_pct=settings.memory_pressure_halt_pct,
+        )
+        # Warn if the cgroup limit is small relative to the workload
+        if limit_gb < 4:
+            log.warning(
+                "low_memory_limit",
+                cgroup_limit_gb=limit_gb,
+                hint="Consider reducing BATCH_SIZE, FLUSH_EVERY, or MAX_EMBED_CHARS for stability.",
+            )
+
+    # Write clean shutdown marker on exit (best effort)
+    import atexit
+    atexit.register(lambda: open(_CLEAN_SHUTDOWN_MARKER, "w").write("ok"))
 
     ctx = AppContext.create(settings)
 

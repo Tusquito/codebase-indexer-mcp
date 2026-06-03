@@ -334,16 +334,16 @@ All settings are environment-variable driven, with defaults tuned for a **16 CPU
 | `MCP_CPUS` | `14` | CPU cap for the MCP server container |
 | `QDRANT_CPUS` | `4` | CPU cap for the Qdrant container |
 
-> On a single 16 GB Docker allocation these leave ~2 GB for the Docker VM kernel and page cache (which matters once vectors are memory-mapped).
+> **Important**: `MCP_MEM_LIMIT + QDRANT_MEM_LIMIT` must leave at least 2–3 GiB for the Linux kernel, Docker daemon, and WSL2 overhead. Over-allocating causes silent OOM kills — the container restarts with no error message. On a 16 GB Docker allocation: MCP ≤ 9g + Qdrant ≤ 5g = 14g leaves 2 GB for the VM kernel and page cache.
 
 ### Throughput / CPU
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OMP_NUM_THREADS` | `12` | ONNX/BLAS threads (also sets `OPENBLAS`/`MKL`). Keep at/below physical cores; dense + sparse encoders run concurrently. |
-| `DENSE_THREADS` | `0` (auto) | Override dense-encoder threads. `0` = ~75% of CPU cores. |
+| `DENSE_THREADS` | `0` (auto) | Override dense-encoder threads. `0` = ~75% of CPU cores. Tip: BM25 sparse is lightweight — giving more threads to dense and fewer to sparse is usually optimal. |
 | `SPARSE_THREADS` | `0` (auto) | Override sparse-encoder threads. |
-| `BATCH_SIZE` | `32` | Embedding batch size (larger = faster, more RAM) |
+| `BATCH_SIZE` | `32` | Embedding batch size (larger = faster, more RAM). Automatically halved for long chunks and under memory pressure. |
 | `FLUSH_EVERY` | `1500` | Chunks per embed+upsert flush. Peak RAM ≈ 2× this. |
 | `UPSERT_BATCH` | `500` | Points per Qdrant upsert sub-batch |
 | `READAHEAD_BUFFER` | `100` | Files queued ahead of the consumer during scan |
@@ -355,6 +355,8 @@ All settings are environment-variable driven, with defaults tuned for a **16 CPU
 |----------|---------|-------------|
 | `MALLOC_ARENA_MAX` | `2` | Caps glibc per-thread malloc arenas — big RSS reduction under threaded ONNX |
 | `MALLOC_TRIM_THRESHOLD_` | `131072` | Returns freed native memory to the OS sooner |
+| `MEMORY_PRESSURE_WARN_PCT` | `70` | At this cgroup memory usage %, batch size is halved and dense/sparse run sequentially |
+| `MEMORY_PRESSURE_HALT_PCT` | `85` | At this %, embedding is aborted with a clear error instead of being OOM-killed |
 | `VECTORS_ON_DISK` | `true` | Memory-map dense vectors instead of holding them RAM-resident |
 | `SPARSE_ON_DISK` | `true` | Store the BM25 sparse index on disk |
 | `QUANTIZATION` | `true` | int8 scalar quantization of dense vectors (~4× less vector RAM; rescored, so search quality is preserved) |
@@ -373,7 +375,11 @@ The same image scales by editing `.env` only — see the **TUNING PRESETS** sect
 ### How indexing stays within budget
 
 - Dense vectors are kept as compact numpy arrays through the pipeline and only converted to plain lists per upsert sub-batch.
-- `malloc_trim` runs after every flush so long jobs return freed native memory to the OS instead of accumulating RSS (peak RSS is logged per flush as `rss_mb`).
+- `malloc_trim` runs after every upsert completes so long jobs return freed native memory to the OS instead of accumulating RSS (current RSS is logged per batch as `rss_mb`).
+- **Adaptive batch sizing**: ONNX attention is O(seq_len² × batch_size). Batches containing long chunks (>1000 chars) automatically use a smaller batch size, preventing memory spikes on the last (longest) batches.
+- **Cgroup-aware memory guard**: before each embedding batch, the pipeline checks `/sys/fs/cgroup/memory.current` against the container's memory limit. At 70% usage, batch sizes are halved and dense/sparse encoding runs sequentially. At 85%, embedding is aborted with a clear error instead of being silently OOM-killed.
+- **OOM-restart detection**: on startup, the server checks for a clean-shutdown marker. If absent, it logs a warning that the previous instance may have been OOM-killed.
+- Metadata dicts from incremental indexing are released after the scan phase to free memory before the heaviest embedding batches.
 - Qdrant HNSW indexing is deferred during bulk upload (`indexing_threshold` is set to 0, then restored) so index construction doesn't compete with embedding for CPU.
 - Tree-sitter parsing runs in a thread executor so it never blocks the event loop, letting scan, embed, and upsert overlap.
 
