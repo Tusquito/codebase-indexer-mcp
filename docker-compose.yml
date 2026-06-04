@@ -105,6 +105,28 @@ services:
       retries: 5
       start_period: 120s
 
+  cron:
+    build:
+      context: ./cron
+      dockerfile: Dockerfile
+    container_name: codeindexer_cron
+    restart: unless-stopped
+    depends_on:
+      mcp_server:
+        condition: service_healthy
+    environment:
+      TZ: Europe/Amsterdam
+      MCP_URL: http://mcp_server:8000
+      MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:-}
+      WORKSPACE_ROOT: /workspace
+    volumes:
+      - ${WORKSPACE_ROOT:?Set WORKSPACE_ROOT in .env to your repos directory}:/workspace
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "1"
+
 volumes:
   qdrant_data:
   fastembed_cache:
