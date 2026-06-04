@@ -9,10 +9,17 @@ import os
 import statistics
 import time
 from dataclasses import dataclass
+from typing import Any
 
 import structlog
 
+from codebase_indexer.config import KNOWN_EMBED_MODEL_MAX_TOKENS
 from codebase_indexer.indexer.chunker import Chunk
+from codebase_indexer.indexer.truncation import (
+    TruncationSource,
+    resolve_max_embed_tokens,
+    truncate_for_embedding,
+)
 from codebase_indexer.memory import (
     check_memory_pressure,
     emergency_trim,
@@ -58,6 +65,25 @@ def _resolve_threads(explicit: int) -> int:
     return max(1, int(cpu * 0.75))
 
 
+def _extract_onnx_inner(fastembed_wrapper: Any) -> Any | None:
+    """Return the underlying ONNX/BM25 implementation from a fastembed wrapper."""
+    return getattr(fastembed_wrapper, "model", None)
+
+
+def _extract_tokenizer(fastembed_wrapper: Any) -> Any | None:
+    inner = _extract_onnx_inner(fastembed_wrapper)
+    if inner is None:
+        return None
+    return getattr(inner, "tokenizer", None)
+
+
+def _extract_model_dir(fastembed_wrapper: Any) -> Any:
+    inner = _extract_onnx_inner(fastembed_wrapper)
+    if inner is None:
+        return None
+    return getattr(inner, "_model_dir", None)
+
+
 class EmbeddingError(Exception):
     pass
 
@@ -85,14 +111,16 @@ class Embedder:
     No external services required — fully self-contained.
     """
 
-    # Default char cap. Many dense transformers allow long context, but ONNX
-    # attention memory scales as O(seq_len² × batch_size), so seq_len>~2000
-    # tokens (~4000 chars) risks OOM. Overridable per-instance via max_dense_embed_chars.
-    MAX_DENSE_EMBED_CHARS = 4_096
-
     # Class-level model cache — loaded once, reused by all instances
     _shared_dense_model = None
     _shared_sparse_model = None
+    # Tokenizers and resolved limits persist across ONNX release (lightweight).
+    _shared_dense_tokenizer: Any | None = None
+    _shared_sparse_tokenizer: Any | None = None
+    _shared_dense_max_tokens: int = 0
+    _shared_sparse_max_tokens: int = 0
+    _shared_dense_truncation_source: TruncationSource = "disabled"
+    _shared_sparse_truncation_source: TruncationSource = "disabled"
 
     # Idle-timeout tracking — updated on every embed call; checked by background task
     _last_embed_time: float = 0.0
@@ -105,7 +133,7 @@ class Embedder:
         """Drop ONNX models from memory and return native allocations to the OS.
 
         Call after a large indexing job completes. Models reload in ~1.5s from
-        the cached volume on the next embed request.
+        the cached volume on the next embed request. Tokenizers stay loaded.
         """
         cls._shared_dense_model = None
         cls._shared_sparse_model = None
@@ -178,8 +206,8 @@ class Embedder:
         hybrid: bool = True,
         dense_threads: int = 0,
         sparse_threads: int = 0,
-        max_dense_embed_chars: int | None = None,
-        max_sparse_embed_chars: int = 0,
+        max_dense_embed_tokens: int = 0,
+        max_sparse_embed_tokens: int = 0,
         memory_warn_pct: int = 70,
         memory_halt_pct: int = 85,
     ):
@@ -190,10 +218,54 @@ class Embedder:
         self.hybrid = hybrid
         self.dense_threads = dense_threads
         self.sparse_threads = sparse_threads
-        self.max_dense_embed_chars = max_dense_embed_chars or self.MAX_DENSE_EMBED_CHARS
-        self.max_sparse_embed_chars = max_sparse_embed_chars
+        self._max_dense_embed_tokens_cfg = max_dense_embed_tokens
+        self._max_sparse_embed_tokens_cfg = max_sparse_embed_tokens
         self.memory_warn_pct = memory_warn_pct
         self.memory_halt_pct = memory_halt_pct
+        self._dense_truncation_ready = False
+        self._sparse_truncation_ready = False
+
+    @property
+    def _dense_max_tokens(self) -> int:
+        return Embedder._shared_dense_max_tokens
+
+    @property
+    def _sparse_max_tokens(self) -> int:
+        return Embedder._shared_sparse_max_tokens
+
+    def _ensure_dense_truncation(self) -> None:
+        if self._dense_truncation_ready:
+            return
+        model = self._get_dense_model()
+        Embedder._shared_dense_tokenizer = _extract_tokenizer(model)
+        model_dir = _extract_model_dir(model)
+        max_tok, source = resolve_max_embed_tokens(
+            role="dense",
+            model_name=self.dense_model,
+            env_tokens=self._max_dense_embed_tokens_cfg,
+            model_dir=model_dir,
+            known_registry=KNOWN_EMBED_MODEL_MAX_TOKENS,
+        )
+        Embedder._shared_dense_max_tokens = max_tok
+        Embedder._shared_dense_truncation_source = source
+        self._dense_truncation_ready = True
+
+    def _ensure_sparse_truncation(self) -> None:
+        if self._sparse_truncation_ready:
+            return
+        model = self._get_sparse_model()
+        Embedder._shared_sparse_tokenizer = _extract_tokenizer(model)
+        model_dir = _extract_model_dir(model)
+        max_tok, source = resolve_max_embed_tokens(
+            role="sparse",
+            model_name=self.sparse_model,
+            env_tokens=self._max_sparse_embed_tokens_cfg,
+            model_dir=model_dir,
+            known_registry=KNOWN_EMBED_MODEL_MAX_TOKENS,
+        )
+        Embedder._shared_sparse_max_tokens = max_tok
+        Embedder._shared_sparse_truncation_source = source
+        self._sparse_truncation_ready = True
 
     def _get_dense_model(self):
         """Get or load fastembed dense encoder (ONNX, cached)."""
@@ -219,21 +291,34 @@ class Embedder:
             _tlog.info("sparse_model_loaded model=%s elapsed_s=%.2f", self.sparse_model, time.monotonic() - t0)
         return Embedder._shared_sparse_model
 
-    def _truncate_dense(self, text: str) -> str:
-        if len(text) > self.max_dense_embed_chars:
-            return text[: self.max_dense_embed_chars]
-        return text
+    def _truncate_dense(self, text: str) -> tuple[str, int]:
+        self._ensure_dense_truncation()
+        return truncate_for_embedding(
+            text,
+            max_tokens=self._dense_max_tokens,
+            tokenizer=Embedder._shared_dense_tokenizer,
+        )
 
-    def _adaptive_batch_size(self, max_chars_in_batch: int, base_batch: int) -> int:
+    def _truncate_sparse(self, text: str) -> str:
+        self._ensure_sparse_truncation()
+        if self._sparse_max_tokens <= 0:
+            return text
+        truncated, _ = truncate_for_embedding(
+            text,
+            max_tokens=self._sparse_max_tokens,
+            tokenizer=Embedder._shared_sparse_tokenizer,
+        )
+        return truncated
+
+    def _adaptive_batch_size(self, max_tokens_in_batch: int, base_batch: int) -> int:
         """Reduce batch size for long sequences to limit ONNX attention memory.
 
         ONNX attention is O(seq_len² × batch_size), so batches with long
-        sequences need fewer items to avoid memory spikes.  The thresholds
-        are conservative: halve at 1000 chars, quarter at 2000+.
+        sequences need fewer items to avoid memory spikes.
         """
-        if max_chars_in_batch > 2000:
+        if max_tokens_in_batch > 512:
             return max(1, base_batch // 4)
-        if max_chars_in_batch > 1000:
+        if max_tokens_in_batch > 256:
             return max(1, base_batch // 2)
         return base_batch
 
@@ -254,29 +339,43 @@ class Embedder:
         OOM-killed silently.
         """
         model = self._get_dense_model()
+        self._ensure_dense_truncation()
 
-        truncated_count = sum(1 for t in texts if len(t) > self.max_dense_embed_chars)
-        if truncated_count:
-            _tlog.warning(
-                "dense_chunks_truncated count=%d max_chars=%d",
-                truncated_count,
-                self.max_dense_embed_chars,
+        truncated: list[str] = []
+        token_lengths: list[int] = []
+        for t in texts:
+            tr, count = self._truncate_dense(t)
+            truncated.append(tr)
+            token_lengths.append(
+                count if count >= 0 else max(1, len(tr) // 3)
             )
-
-        truncated = [self._truncate_dense(t) for t in texts]
-        lengths = [len(t) for t in truncated]
+        if self._dense_max_tokens > 0:
+            truncated_count = sum(
+                1 for orig, tr in zip(texts, truncated) if len(orig) != len(tr)
+            )
+            if truncated_count:
+                _tlog.warning(
+                    "dense_chunks_truncated count=%d max_tokens=%d source=%s",
+                    truncated_count,
+                    self._dense_max_tokens,
+                    Embedder._shared_dense_truncation_source,
+                )
+        char_lengths = [len(t) for t in truncated]
         total = len(truncated)
 
         rss_start = get_rss_mb()
         _tlog.info(
-            "dense_embed_start chunks=%d batch_size=%d chars_avg=%d chars_max=%d chars_min=%d rss_mb=%.1f",
-            total, self.batch_size, round(statistics.mean(lengths)), max(lengths), min(lengths), rss_start,
+            "dense_embed_start chunks=%d batch_size=%d tokens_avg=%d tokens_max=%d "
+            "chars_avg=%d chars_max=%d rss_mb=%.1f",
+            total, self.batch_size, round(statistics.mean(token_lengths)),
+            max(token_lengths), round(statistics.mean(char_lengths)),
+            max(char_lengths), rss_start,
         )
 
-        # Sort by length so each ONNX batch has similar-length texts (less padding)
-        sorted_indices = sorted(range(total), key=lambda i: lengths[i])
+        # Sort by token length so each ONNX batch has similar-length texts (less padding)
+        sorted_indices = sorted(range(total), key=lambda i: token_lengths[i])
         sorted_texts = [truncated[i] for i in sorted_indices]
-        sorted_lengths = [lengths[i] for i in sorted_indices]
+        sorted_token_lengths = [token_lengths[i] for i in sorted_indices]
 
         # Keep embeddings as numpy float32 arrays (not Python float lists).
         # A 768-dim list of Python floats is ~24 KB; the numpy array is ~3 KB,
@@ -299,7 +398,8 @@ class Embedder:
                 raise EmbeddingError(
                     f"Memory pressure {pct:.0f}% exceeds halt threshold "
                     f"({self.memory_halt_pct}%). Reduce BATCH_SIZE, FLUSH_EVERY, "
-                    f"or MAX_DENSE_EMBED_CHARS / MAX_SPARSE_EMBED_CHARS, or increase container memory."
+                    f"or MAX_DENSE_EMBED_TOKENS / MAX_SPARSE_EMBED_TOKENS, or increase "
+                    f"container memory."
                 )
             if severity == "warn":
                 emergency_trim()
@@ -309,8 +409,10 @@ class Embedder:
                 )
 
             # Determine effective batch size for this slice
-            max_chars_in_slice = sorted_lengths[min(i + self.batch_size - 1, len(sorted_lengths) - 1)]
-            effective_bs = self._adaptive_batch_size(max_chars_in_slice, self.batch_size)
+            max_tokens_in_slice = sorted_token_lengths[
+                min(i + self.batch_size - 1, len(sorted_token_lengths) - 1)
+            ]
+            effective_bs = self._adaptive_batch_size(max_tokens_in_slice, self.batch_size)
             if severity == "warn":
                 effective_bs = max(1, effective_bs // 2)
 
@@ -357,23 +459,23 @@ class Embedder:
 
         return embeddings
 
-    def _truncate_sparse(self, text: str) -> str:
-        if self.max_sparse_embed_chars > 0 and len(text) > self.max_sparse_embed_chars:
-            return text[: self.max_sparse_embed_chars]
-        return text
-
     def _embed_sparse_batch_sync(self, texts: list[str]) -> list[SparseVector]:
         """Compute sparse vectors via fastembed (synchronous, CPU-bound)."""
         model = self._get_sparse_model()
-        if self.max_sparse_embed_chars > 0:
-            truncated_count = sum(1 for t in texts if len(t) > self.max_sparse_embed_chars)
+        self._ensure_sparse_truncation()
+        if self._sparse_max_tokens > 0:
+            truncated = [self._truncate_sparse(t) for t in texts]
+            truncated_count = sum(
+                1 for orig, tr in zip(texts, truncated) if len(orig) != len(tr)
+            )
             if truncated_count:
                 _tlog.warning(
-                    "sparse_chunks_truncated count=%d max_chars=%d",
+                    "sparse_chunks_truncated count=%d max_tokens=%d source=%s",
                     truncated_count,
-                    self.max_sparse_embed_chars,
+                    self._sparse_max_tokens,
+                    Embedder._shared_sparse_truncation_source,
                 )
-            texts = [self._truncate_sparse(t) for t in texts]
+            texts = truncated
         _tlog.info("sparse_embed_start chunks=%d", len(texts))
         t0 = time.monotonic()
         result = [

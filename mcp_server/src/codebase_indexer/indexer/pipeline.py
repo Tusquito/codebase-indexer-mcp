@@ -67,8 +67,8 @@ async def run_pipeline(
         hybrid=settings.hybrid_search,
         dense_threads=settings.dense_threads,
         sparse_threads=settings.sparse_threads,
-        max_dense_embed_chars=settings.max_dense_embed_chars,
-        max_sparse_embed_chars=settings.max_sparse_embed_chars,
+        max_dense_embed_tokens=settings.max_dense_embed_tokens,
+        max_sparse_embed_tokens=settings.max_sparse_embed_tokens,
         memory_warn_pct=settings.memory_pressure_warn_pct,
         memory_halt_pct=settings.memory_pressure_halt_pct,
     )
@@ -284,7 +284,7 @@ async def _flush_double_buffered(
             msg = (
                 f"Memory pressure {pct:.0f}% exceeds halt threshold "
                 f"({embedder.memory_halt_pct}%) before embedding {len(chunks)} chunks. "
-                f"Reduce BATCH_SIZE, FLUSH_EVERY, MAX_DENSE_EMBED_CHARS, or MAX_SPARSE_EMBED_CHARS, or increase "
+                f"Reduce BATCH_SIZE, FLUSH_EVERY, MAX_DENSE_EMBED_TOKENS, or MAX_SPARSE_EMBED_TOKENS, or increase "
                 f"container memory."
             )
             log.error("flush_halt_memory_pressure", pressure_pct=pct, chunks=len(chunks))

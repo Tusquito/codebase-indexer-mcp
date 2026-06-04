@@ -1,5 +1,4 @@
 # src/codebase_indexer/config.py
-import os
 from typing import Self
 
 from pydantic import Field, model_validator
@@ -18,6 +17,14 @@ KNOWN_EMBED_MODEL_DIMENSIONS: dict[str, int] = {
     "nomic-ai/nomic-embed-text-v1.5": 768,
     "BAAI/bge-base-en-v1.5": 768,
     "BAAI/bge-small-en-v1.5": 384,
+}
+
+# Known dense/sparse transformer models and max input tokens (embedding truncation).
+KNOWN_EMBED_MODEL_MAX_TOKENS: dict[str, int] = {
+    "nomic-ai/nomic-embed-text-v1.5": 8192,
+    "BAAI/bge-base-en-v1.5": 512,
+    "BAAI/bge-small-en-v1.5": 512,
+    "prithivida/Splade_PP_en_v1": 512,
 }
 
 
@@ -85,14 +92,11 @@ class Settings(BaseSettings):
     upsert_batch: int = Field(default=500)
     # How many scanned files may be queued ahead of the consumer.
     readahead_buffer: int = Field(default=100)
-    # Hard cap on characters fed to the dense encoder (ONNX attention is
-    # O(seq_len^2 * batch); this bounds peak embedding memory).
-    max_dense_embed_chars: int = Field(default=4096)
-    # Hard cap on characters fed to the sparse encoder. 0 = no limit (use for
-    # statistical models like Qdrant/bm25). Transformer sparse models (SPLADE)
-    # silently truncate at ~512 tokens (~2000 chars); set this to avoid wasting
-    # CPU on tokenization of text the model discards.
-    max_sparse_embed_chars: int = Field(default=0)
+    # Max tokens fed to the dense encoder. 0 = auto-detect from model (recommended).
+    # Set lower than the model max (e.g. 2048) to reduce ONNX attention memory.
+    max_dense_embed_tokens: int = Field(default=0)
+    # Max tokens fed to the sparse encoder. 0 = no limit for BM25; auto-detect for SPLADE.
+    max_sparse_embed_tokens: int = Field(default=0)
     # ONNX intra-op threads for the dense encoder. 0 = auto-detect from CPU count
     # (or OMP_NUM_THREADS). Sparse encoder threads are required via SPARSE_THREADS.
     dense_threads: int = Field(default=0)
@@ -127,15 +131,6 @@ class Settings(BaseSettings):
     # Extra natural-language discovery queries for map_service_dependencies.
     # Separate multiple queries with a pipe (|) or newline. Empty by default.
     service_discovery_extra_queries: str = Field(default="")
-
-    @model_validator(mode="after")
-    def _apply_legacy_max_embed_chars_env(self) -> Self:
-        """Accept deprecated MAX_EMBED_CHARS when MAX_DENSE_EMBED_CHARS is unset."""
-        if not os.environ.get("MAX_DENSE_EMBED_CHARS"):
-            legacy = os.environ.get("MAX_EMBED_CHARS")
-            if legacy is not None:
-                object.__setattr__(self, "max_dense_embed_chars", int(legacy))
-        return self
 
     @model_validator(mode="after")
     def validate_dense_embed_vector_size_matches_model(self) -> Self:
