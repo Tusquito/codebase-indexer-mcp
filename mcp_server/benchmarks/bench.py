@@ -182,7 +182,8 @@ async def run_benchmark(
 
         # --- Pre-embed a query once so search timings isolate storage cost ---
         embedder = Embedder(
-            model=settings.embed_model,
+            dense_model=settings.dense_embed_model,
+            sparse_model=settings.sparse_embed_model,
             vector_size=settings.vector_size,
             hybrid=settings.hybrid_search,
         )
@@ -235,7 +236,7 @@ async def run_benchmark(
                 "iterations": iterations,
                 "payload_indexes": payload_indexes,
                 "hybrid_search": settings.hybrid_search,
-                "embed_model": settings.embed_model,
+                "dense_embed_model": settings.dense_embed_model,
             },
             "corpus": {
                 "n_files": corpus.n_files,

@@ -107,7 +107,8 @@ class Embedder:
 
     def __init__(
         self,
-        model: str = "nomic-ai/nomic-embed-text-v1.5",
+        dense_model: str = "nomic-ai/nomic-embed-text-v1.5",
+        sparse_model: str = "Qdrant/bm25",
         vector_size: int = 768,
         batch_size: int = 16,
         hybrid: bool = True,
@@ -117,7 +118,8 @@ class Embedder:
         memory_warn_pct: int = 70,
         memory_halt_pct: int = 85,
     ):
-        self.model = model
+        self.dense_model = dense_model
+        self.sparse_model = sparse_model
         self.vector_size = vector_size
         self.batch_size = batch_size
         self.hybrid = hybrid
@@ -132,23 +134,23 @@ class Embedder:
         if Embedder._shared_dense_model is None:
             from fastembed import TextEmbedding
             threads = _resolve_threads(self.dense_threads)
-            _tlog.info("loading_dense_model model=%s threads=%d backend=fastembed-onnx", self.model, threads)
+            _tlog.info("loading_dense_model model=%s threads=%d backend=fastembed-onnx", self.dense_model, threads)
             t0 = time.monotonic()
             # `threads` sets intra_op_num_threads on the ONNX InferenceSession directly.
             # OMP_NUM_THREADS alone is insufficient — ONNX Runtime uses its own thread pool.
-            Embedder._shared_dense_model = TextEmbedding(model_name=self.model, threads=threads)
-            _tlog.info("dense_model_loaded model=%s threads=%d elapsed_s=%.2f", self.model, threads, time.monotonic() - t0)
+            Embedder._shared_dense_model = TextEmbedding(model_name=self.dense_model, threads=threads)
+            _tlog.info("dense_model_loaded model=%s threads=%d elapsed_s=%.2f", self.dense_model, threads, time.monotonic() - t0)
         return Embedder._shared_dense_model
 
     def _get_sparse_model(self):
-        """Get or load BM25 sparse encoder (cached)."""
+        """Get or load sparse encoder (cached). Model is configurable via sparse_model."""
         if Embedder._shared_sparse_model is None:
             from fastembed.sparse import SparseTextEmbedding
             threads = _resolve_threads(self.sparse_threads)
-            _tlog.info("loading_sparse_model model=Qdrant/bm25 threads=%d", threads)
+            _tlog.info("loading_sparse_model model=%s threads=%d", self.sparse_model, threads)
             t0 = time.monotonic()
-            Embedder._shared_sparse_model = SparseTextEmbedding(model_name="Qdrant/bm25", threads=threads)
-            _tlog.info("sparse_model_loaded model=Qdrant/bm25 elapsed_s=%.2f", time.monotonic() - t0)
+            Embedder._shared_sparse_model = SparseTextEmbedding(model_name=self.sparse_model, threads=threads)
+            _tlog.info("sparse_model_loaded model=%s elapsed_s=%.2f", self.sparse_model, time.monotonic() - t0)
         return Embedder._shared_sparse_model
 
     def _truncate(self, text: str) -> str:

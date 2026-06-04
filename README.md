@@ -21,7 +21,7 @@ graph TD
     end
 
     subgraph Docker["Docker Compose"]
-        MCP["codeindexer_mcp  :8000\n────────────────────────\nFastMCP server\nfastembed ONNX  in-process\nTree-sitter parser\nBM25 sparse encoder"]
+        MCP["codeindexer_mcp  :8000\n────────────────────────\nFastMCP server\nfastembed ONNX  in-process\nTree-sitter parser\nconfigurable sparse encoder"]
         QD[("codeindexer_qdrant  :6333\n────────────────────────\nQdrant Vector DB\npersistent  qdrant_data  volume")]
     end
 
@@ -168,7 +168,7 @@ flowchart LR
         direction TB
         em3["Run concurrently\nin thread executors"]
         em1["Dense  768-dim\nnomic-embed-text-v1.5\nONNX in-process"]
-        em2["Sparse  BM25\nQdrant/bm25"]
+        em2["Sparse  configurable\n(default: Qdrant/bm25)"]
         em3 --> em1 & em2
     end
 
@@ -202,7 +202,7 @@ Chunk (Qdrant point)
 ├── file_mtime    1748876400.0                        ← fast mtime pre-filter key
 │
 ├── dense_vector  [0.021, −0.134, …]  (768 floats)   ← cosine similarity search
-└── sparse_vector {indices: [42, 891, …],            ← BM25 keyword search
+└── sparse_vector {indices: [42, 891, …],            ← sparse keyword search
                    values:  [ 0.6,  0.3, …]}
 ```
 
@@ -248,12 +248,12 @@ flowchart LR
 
     subgraph Embed["Query Embedding"]
         DE["Dense vector\n768-dim ONNX"]
-        SE["Sparse vector\nBM25 tokens"]
+        SE["Sparse vector\nconfigurable model"]
     end
 
     subgraph Qdrant["Qdrant Hybrid Query"]
         DA["Dense ANN\ncosine similarity"]
-        SA["Sparse keyword\nBM25"]
+        SA["Sparse keyword\nconfigurable model"]
         RRF["RRF Fusion\nReciprocal Rank Fusion"]
     end
 
@@ -265,7 +265,7 @@ flowchart LR
     DA & SA --> RRF --> Res
 ```
 
-**Why hybrid?** Dense vectors capture *semantic similarity* ("find all payment handlers") while sparse BM25 captures *exact keyword matches* (`processOrder`, `OrderID`). RRF merges both ranked lists so results benefit from both signals simultaneously.
+**Why hybrid?** Dense vectors capture *semantic similarity* ("find all payment handlers") while sparse vectors capture *exact keyword matches* (`processOrder`, `OrderID`). RRF merges both ranked lists so results benefit from both signals simultaneously.
 
 ## Copilot CLI Skill
 
@@ -319,7 +319,8 @@ All settings are environment-variable driven, with defaults tuned for a **16 CPU
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `WORKSPACE_ROOT` | `.` (current dir) | **Host path** mounted as `/workspace` inside the container. Set to the *parent* directory of all your repos so each subdirectory becomes a separate collection. Only used by Docker Compose for the bind mount — not passed into the container. |
-| `EMBED_MODEL` | `nomic-ai/nomic-embed-text-v1.5` | fastembed ONNX embedding model |
+| `DENSE_EMBED_MODEL` | `nomic-ai/nomic-embed-text-v1.5` | fastembed ONNX dense embedding model |
+| `SPARSE_EMBED_MODEL` | `Qdrant/bm25` | fastembed sparse embedding model. Alternative: `prithivida/Splade_PP_en_v1` (SPLADE++ — learned sparse, better recall, heavier CPU) |
 | `VECTOR_SIZE` | `768` | Embedding vector dimensions |
 | `QDRANT_COLLECTION` | `codebase` | Default collection name |
 | `MAX_CHUNK_LINES` | `150` | Maximum lines per chunk |
@@ -341,7 +342,7 @@ All settings are environment-variable driven, with defaults tuned for a **16 CPU
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OMP_NUM_THREADS` | `12` | ONNX/BLAS threads (also sets `OPENBLAS`/`MKL`). Keep at/below physical cores; dense + sparse encoders run concurrently. |
-| `DENSE_THREADS` | `0` (auto) | Override dense-encoder threads. `0` = ~75% of CPU cores. Tip: BM25 sparse is lightweight — giving more threads to dense and fewer to sparse is usually optimal. |
+| `DENSE_THREADS` | `0` (auto) | Override dense-encoder threads. `0` = ~75% of CPU cores. Tip: statistical sparse models (e.g. BM25) are lightweight — giving more threads to dense is usually optimal. |
 | `SPARSE_THREADS` | `0` (auto) | Override sparse-encoder threads. |
 | `BATCH_SIZE` | `32` | Embedding batch size (larger = faster, more RAM). Automatically halved for long chunks and under memory pressure. |
 | `FLUSH_EVERY` | `1500` | Chunks per embed+upsert flush. Peak RAM ≈ 2× this. |
@@ -358,7 +359,7 @@ All settings are environment-variable driven, with defaults tuned for a **16 CPU
 | `MEMORY_PRESSURE_WARN_PCT` | `70` | At this cgroup memory usage %, batch size is halved and dense/sparse run sequentially |
 | `MEMORY_PRESSURE_HALT_PCT` | `85` | At this %, embedding is aborted with a clear error instead of being OOM-killed |
 | `VECTORS_ON_DISK` | `true` | Memory-map dense vectors instead of holding them RAM-resident |
-| `SPARSE_ON_DISK` | `true` | Store the BM25 sparse index on disk |
+| `SPARSE_ON_DISK` | `true` | Store the sparse index on disk |
 | `QUANTIZATION` | `true` | int8 scalar quantization of dense vectors (~4× less vector RAM; rescored, so search quality is preserved) |
 | `MEMMAP_THRESHOLD_KB` | `20000` | Segments above this size are memory-mapped rather than kept in RAM |
 

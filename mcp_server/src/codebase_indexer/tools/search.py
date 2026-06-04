@@ -28,7 +28,7 @@ def register_search_tool(mcp: FastMCP, ctx: "AppContext") -> None:
         description=(
             "Hybrid semantic + keyword search across indexed code. "
             "Combines dense vector similarity (nomic-embed-code) and "
-            "BM25 keyword matching via RRF fusion. Returns code chunks "
+            "sparse keyword matching via RRF fusion. Returns code chunks "
             "only — no full files loaded. Token-efficient by design. "
             "'collection' should be set to the current project folder name "
             "(basename of the working directory). Pass additional project "

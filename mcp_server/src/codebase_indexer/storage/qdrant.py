@@ -52,7 +52,8 @@ class CollectionStats:
     name: str
     vector_count: int
     disk_size_mb: float
-    embed_model: str
+    dense_embed_model: str
+    sparse_embed_model: str
     hybrid: bool
 
 
@@ -472,7 +473,8 @@ class QdrantStorage:
                     name=coll.name,
                     vector_count=info.points_count or 0,
                     disk_size_mb=round(disk_bytes / 1024 / 1024, 2),
-                    embed_model=self.settings.embed_model,
+                    dense_embed_model=self.settings.dense_embed_model,
+                    sparse_embed_model=self.settings.sparse_embed_model,
                     hybrid=self.settings.hybrid_search,
                 ))
             except Exception as e:

@@ -22,7 +22,8 @@ class Settings(BaseSettings):
     # a clean timeout error instead of stalling the asyncio event loop.
     qdrant_timeout: float = Field(default=30.0)
     qdrant_collection: str = Field(default="codebase")
-    embed_model: str = Field(default="nomic-ai/nomic-embed-text-v1.5")
+    dense_embed_model: str = Field(default="nomic-ai/nomic-embed-text-v1.5")
+    sparse_embed_model: str = Field(default="Qdrant/bm25")
     vector_size: int = Field(default=768)
     hybrid_search: bool = Field(default=True)
     max_chunk_lines: int = Field(default=150)

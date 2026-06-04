@@ -25,7 +25,8 @@ def register_collections_tool(mcp: FastMCP, ctx: "AppContext") -> None:
                 "name": s.name,
                 "vector_count": s.vector_count,
                 "disk_size_mb": s.disk_size_mb,
-                "embed_model": s.embed_model,
+                "dense_embed_model": s.dense_embed_model,
+                "sparse_embed_model": s.sparse_embed_model,
                 "hybrid": s.hybrid,
             }
             for s in stats

@@ -60,7 +60,8 @@ async def run_pipeline(
     await storage.ensure_collection(coll)
 
     embedder = Embedder(
-        model=settings.embed_model,
+        dense_model=settings.dense_embed_model,
+        sparse_model=settings.sparse_embed_model,
         vector_size=settings.vector_size,
         batch_size=settings.batch_size,
         hybrid=settings.hybrid_search,

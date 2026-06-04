@@ -42,8 +42,9 @@ services:
         condition: service_healthy
     environment:
       QDRANT_URL: http://qdrant:6333
-      EMBED_MODEL: nomic-ai/nomic-embed-text-v1.5
-      VECTOR_SIZE: 768
+      DENSE_EMBED_MODEL: ${DENSE_EMBED_MODEL:-nomic-ai/nomic-embed-text-v1.5}
+      SPARSE_EMBED_MODEL: ${SPARSE_EMBED_MODEL:-Qdrant/bm25}
+      VECTOR_SIZE: ${VECTOR_SIZE:-768}
       QDRANT_COLLECTION: codebase
       HYBRID_SEARCH: true
       MCP_TRANSPORT: streamable-http
