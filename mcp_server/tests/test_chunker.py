@@ -40,6 +40,13 @@ def test_chunk_unsupported_language_uses_sliding_window():
     assert all(c.symbol_type == "other" for c in chunks)
 
 
+def test_pom_xml_sliding_window_with_manifest_type():
+    content = '<?xml version="1.0"?>\n<project>\n  <artifactId>demo</artifactId>\n</project>\n'
+    chunks = chunk_file(content, "udh-adpt/pom.xml", "xml", "abc", max_chunk_lines=60)
+    assert chunks
+    assert all(c.symbol_type == "manifest" for c in chunks)
+
+
 def test_chunk_ids_are_deterministic():
     a = chunk_file(PY_SAMPLE, "sample.py", "python", "x")
     b = chunk_file(PY_SAMPLE, "sample.py", "python", "x")
@@ -281,3 +288,70 @@ def test_symbol_type_config_dotenv():
     source = "DB_HOST=localhost\nDB_PORT=5432\n"
     chunks = chunk_file(source, ".env", "properties", "x")
     assert all(c.symbol_type == "config" for c in chunks)
+
+
+def test_classify_config_compound_suffix_properties():
+    assert (
+        _classify_file_symbol_type("lib/desmon.client.properties", "properties")
+        == "config"
+    )
+
+
+def test_symbol_type_config_compound_suffix_properties():
+    source = "server.port=8080\n"
+    chunks = chunk_file(source, "lib/desmon.client.properties", "properties", "x")
+    assert len(chunks) >= 1
+    assert all(c.symbol_type == "config" for c in chunks)
+    assert chunks[0].symbol_name == "desmon.client.properties"
+
+
+def test_classify_ops_build_pipeline_yaml():
+    assert (
+        _classify_file_symbol_type(
+            "build-pipeline/security/sonarqube.yml", "yaml"
+        )
+        == "ops"
+    )
+
+
+def test_classify_ops_helm_templates_yaml():
+    assert (
+        _classify_file_symbol_type(
+            "templates/service/templates/deployment.yaml", "yaml"
+        )
+        == "ops"
+    )
+
+
+def test_classify_java_under_templates_not_ops():
+    assert (
+        _classify_file_symbol_type(
+            "src/main/java/com/example/templates/Service.java", "java"
+        )
+        is None
+    )
+
+
+def test_classify_kotlin_under_build_pipeline_not_ops():
+    assert (
+        _classify_file_symbol_type(
+            "build-pipeline/scripts/deploy.kts", "kotlin"
+        )
+        is None
+    )
+
+
+def test_classify_manifest_inside_build_pipeline():
+    assert (
+        _classify_file_symbol_type("build-pipeline/pom.xml", "xml")
+        == "manifest"
+    )
+
+
+def test_classify_xml_under_templates_not_ops():
+    assert (
+        _classify_file_symbol_type(
+            "src/main/resources/templates/report.xml", "xml"
+        )
+        is None
+    )

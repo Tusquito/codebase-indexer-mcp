@@ -152,3 +152,8 @@ FILENAME_LANGUAGE_MAP: dict[str, str] = {
 AST_LANGUAGE_SPECS: list[LanguageSpec] = [
     spec for spec in LANGUAGE_SPECS if spec.grammar_loader is not None
 ]
+
+# Registered languages without a grammar — sliding-window chunking by design.
+SLIDING_WINDOW_LANGUAGES: frozenset[str] = frozenset(
+    spec.name for spec in LANGUAGE_SPECS if spec.grammar_loader is None
+)

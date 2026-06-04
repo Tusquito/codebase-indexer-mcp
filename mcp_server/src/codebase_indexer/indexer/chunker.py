@@ -9,7 +9,7 @@ from pathlib import PurePosixPath
 import structlog
 from tree_sitter import Language, Parser, Node
 
-from codebase_indexer.indexer.languages import AST_LANGUAGE_SPECS
+from codebase_indexer.indexer.languages import AST_LANGUAGE_SPECS, SLIDING_WINDOW_LANGUAGES
 
 log = structlog.get_logger()
 
@@ -221,7 +221,7 @@ _VERBOSE_LANGUAGES = {
 }
 
 _CONFIG_EXTENSIONS = frozenset({
-    ".yaml", ".yml", ".properties",
+    ".properties",
     ".ini", ".cfg", ".toml",
 })
 _CONFIG_FILENAMES = frozenset({
@@ -246,7 +246,19 @@ _OPS_FILENAMES = frozenset({
     "dockerfile", "jenkinsfile",
     "docker-compose.yml", "docker-compose.yaml",
 })
-_OPS_PATH_PATTERNS = (".github/workflows/", ".gitlab-ci", "azure-pipelines")
+_OPS_PATH_PATTERNS = (
+    ".github/workflows/",
+    ".gitlab-ci",
+    "azure-pipelines",
+    "build-pipeline/",
+)
+_OPS_PATH_PATTERNS_YAML_ONLY = ("templates/",)
+# Path-based ops rules apply only to infra/config languages, not code (java, kotlin, etc.).
+_OPS_PATH_LANGUAGES = frozenset({
+    "yaml", "json", "xml", "bash", "powershell",
+    "properties", "toml", "hcl", "dockerfile",
+    "groovy", "markdown",
+})
 
 
 def _normalize_rel_path(rel_path: str) -> str:
@@ -264,18 +276,37 @@ def _classify_file_symbol_type(rel_path: str, language: str) -> str | None:
     norm = _normalize_rel_path(rel_path).lower()
     name = PurePosixPath(norm).name
     ext = _file_suffixes(rel_path)
+    last_ext = PurePosixPath(norm).suffix.lower()
 
-    if ext in _OPS_EXTENSIONS or name in _OPS_FILENAMES:
+    if (
+        ext in _OPS_EXTENSIONS
+        or last_ext in _OPS_EXTENSIONS
+        or name in _OPS_FILENAMES
+    ):
         return "ops"
-    for pattern in _OPS_PATH_PATTERNS:
-        if pattern in norm:
-            return "ops"
 
-    if name in _MANIFEST_FILENAMES or ext in _MANIFEST_EXTENSIONS:
+    if (
+        name in _MANIFEST_FILENAMES
+        or ext in _MANIFEST_EXTENSIONS
+        or last_ext in _MANIFEST_EXTENSIONS
+    ):
         return "manifest"
 
-    if ext in _CONFIG_EXTENSIONS or name in _CONFIG_FILENAMES:
+    if (
+        ext in _CONFIG_EXTENSIONS
+        or last_ext in _CONFIG_EXTENSIONS
+        or name in _CONFIG_FILENAMES
+    ):
         return "config"
+
+    if language in _OPS_PATH_LANGUAGES:
+        for pattern in _OPS_PATH_PATTERNS:
+            if pattern in norm:
+                return "ops"
+    if language == "yaml":
+        for pattern in _OPS_PATH_PATTERNS_YAML_ONLY:
+            if pattern in norm:
+                return "ops"
 
     if language == "yaml":
         return "config"
@@ -584,7 +615,8 @@ def chunk_file(
     node_types = EXTRACT_NODE_TYPES.get(language)
 
     if lang_obj is None or node_types is None:
-        log.info("unsupported_language_fallback", language=language, path=rel_path)
+        if language not in SLIDING_WINDOW_LANGUAGES:
+            log.info("unsupported_language_fallback", language=language, path=rel_path)
         chunks = _sliding_window_range(
             lines, 0, len(lines) - 1, rel_path, language, file_sha256,
             max_chunk_lines, chunk_overlap_lines, file_mtime=file_mtime,
