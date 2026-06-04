@@ -312,12 +312,24 @@ class Embedder:
         )
         return truncated
 
-    def _adaptive_batch_size(self, max_tokens_in_batch: int, base_batch: int) -> int:
+    def _adaptive_batch_size(
+        self,
+        max_tokens_in_batch: int,
+        base_batch: int,
+        pressure_pct: float = 0.0,
+    ) -> int:
         """Reduce batch size for long sequences to limit ONNX attention memory.
 
         ONNX attention is O(seq_len² × batch_size), so batches with long
         sequences need fewer items to avoid memory spikes.
+
+        When cgroup pressure is below memory_warn_pct, use gentler reductions
+        so high-memory containers are not throttled unnecessarily.
         """
+        if pressure_pct > 0 and pressure_pct < self.memory_warn_pct:
+            if max_tokens_in_batch >= 512:
+                return max(1, base_batch // 2)
+            return base_batch
         if max_tokens_in_batch >= 512:
             return max(1, base_batch // 4)
         if max_tokens_in_batch >= 256:
@@ -410,11 +422,26 @@ class Embedder:
                     pct, self.memory_warn_pct,
                 )
 
-            # Determine effective batch size for this slice
+            # Determine effective batch size for this slice (two-pass peek).
+            # First pass: conservative estimate using the full base batch window.
             max_tokens_in_slice = sorted_token_lengths[
                 min(i + self.batch_size - 1, len(sorted_token_lengths) - 1)
             ]
-            effective_bs = self._adaptive_batch_size(max_tokens_in_slice, self.batch_size)
+            effective_bs = self._adaptive_batch_size(
+                max_tokens_in_slice, self.batch_size, pct,
+            )
+            # Second pass: re-check with the actual effective window.
+            # Because sorted_token_lengths is ascending, the reduced window
+            # may exclude the long-tail tokens that triggered the first
+            # reduction.  Cap at first_bs so recovery never re-includes them.
+            first_bs = effective_bs
+            actual_max = sorted_token_lengths[
+                min(i + effective_bs - 1, len(sorted_token_lengths) - 1)
+            ]
+            effective_bs = min(
+                first_bs,
+                self._adaptive_batch_size(actual_max, self.batch_size, pct),
+            )
             if severity == "warn":
                 effective_bs = max(1, effective_bs // 2)
 
