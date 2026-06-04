@@ -46,6 +46,10 @@ _INSTRUCTIONS = """
     NEVER pass path="/" — that would scan the entire workspace.
     The collection is automatically named after the folder.
 
+    To re-index all existing collections: index_all().
+    Runs sequentially (one at a time) for memory safety.
+    Use force=True for a full re-index instead of incremental.
+
     TOKEN-EFFICIENT ORIENTATION (start here for unfamiliar codebases):
     1. get_collection_summary(collection="...") — file counts, language breakdown,
        directory tree, top files. Zero embedding cost. Replaces 3-5 searches.

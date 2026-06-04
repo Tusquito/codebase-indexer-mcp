@@ -107,6 +107,7 @@ docker logs -f codeindexer_mcp
 |------|-------------|
 | `index_codebase` | Index a project. Blocks until done by default (`wait=True`); returns final stats in one call — no polling needed. Use `wait=False` for fire-and-forget background mode. |
 | `index_status` | Check indexing progress. Only needed when `index_codebase` was called with `wait=False`. |
+| `index_all` | Re-index all existing collections sequentially. Discovers collections in Qdrant and re-indexes them one at a time (memory-safe). Same params as `index_codebase` minus `path`/`collection`. |
 | `stop_indexing` | Gracefully cancel a running indexing job |
 
 ### Token-Efficient Orientation

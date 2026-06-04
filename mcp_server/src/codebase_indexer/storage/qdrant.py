@@ -75,62 +75,120 @@ class QdrantStorage:
             )
         return self._client
 
-    async def ensure_collection(self, collection: str, retries: int = 5) -> None:
-        """Create hybrid collection if it doesn't exist."""
+    async def ensure_collection(self, collection: str, retries: int = 5, force: bool = False) -> None:
+        """Create hybrid collection if it doesn't exist.
+
+        When ``force=True`` the existing collection is always deleted and
+        recreated, giving a clean slate (used by force re-indexing).
+
+        Even when ``force=False``, if the existing collection's dense vector
+        dimension differs from ``settings.vector_size``, or its hybrid-search
+        configuration (sparse vectors) no longer matches the current settings,
+        the collection is automatically deleted and recreated so we never upsert
+        vectors of the wrong dimension.
+        """
         client = await self._get_client()
         for attempt in range(retries):
             try:
                 collections = await client.get_collections()
                 existing = {c.name for c in collections.collections}
-                if collection not in existing:
-                    vectors_config = {
-                        "dense": VectorParams(
-                            size=self.settings.vector_size,
-                            distance=Distance.COSINE,
-                            # Memory-map dense vectors instead of holding them
-                            # fully resident — large RAM saving on big collections.
-                            on_disk=self.settings.vectors_on_disk,
+
+                if collection in existing:
+                    should_recreate = force
+                    recreate_reason = "force=True" if force else ""
+
+                    if not should_recreate:
+                        # Inspect the collection for dimension / hybrid-config mismatch.
+                        info = await client.get_collection(collection)
+                        vectors_cfg = info.config.params.vectors
+                        existing_dim: int | None = None
+                        has_sparse: bool = False
+
+                        if isinstance(vectors_cfg, dict):
+                            dense_cfg = vectors_cfg.get("dense")
+                            if dense_cfg is not None:
+                                existing_dim = dense_cfg.size
+                            has_sparse = "sparse" in vectors_cfg
+                        else:
+                            # Single (unnamed) vector config — dimension is top-level.
+                            if vectors_cfg is not None:
+                                existing_dim = vectors_cfg.size
+
+                        if existing_dim is not None and existing_dim != self.settings.vector_size:
+                            should_recreate = True
+                            recreate_reason = (
+                                f"dimension mismatch: collection has {existing_dim}, "
+                                f"settings want {self.settings.vector_size}"
+                            )
+                        elif has_sparse != self.settings.hybrid_search:
+                            should_recreate = True
+                            recreate_reason = (
+                                f"hybrid_search mismatch: collection has sparse={has_sparse}, "
+                                f"settings want hybrid_search={self.settings.hybrid_search}"
+                            )
+
+                    if should_recreate:
+                        log.warning(
+                            "collection_recreating",
+                            name=collection,
+                            reason=recreate_reason,
+                        )
+                        await client.delete_collection(collection_name=collection)
+                        log.info("collection_deleted_for_recreate", name=collection)
+                    else:
+                        log.debug("collection_exists", name=collection)
+                        if self.settings.payload_indexes:
+                            await self._ensure_payload_indexes(client, collection)
+                        return
+
+                # At this point the collection either never existed or was just deleted.
+                vectors_config = {
+                    "dense": VectorParams(
+                        size=self.settings.vector_size,
+                        distance=Distance.COSINE,
+                        # Memory-map dense vectors instead of holding them
+                        # fully resident — large RAM saving on big collections.
+                        on_disk=self.settings.vectors_on_disk,
+                    )
+                }
+                sparse_vectors_config = None
+                if self.settings.hybrid_search:
+                    sparse_vectors_config = {
+                        "sparse": SparseVectorParams(
+                            index=SparseIndexParams(
+                                on_disk=self.settings.sparse_on_disk
+                            )
                         )
                     }
-                    sparse_vectors_config = None
-                    if self.settings.hybrid_search:
-                        sparse_vectors_config = {
-                            "sparse": SparseVectorParams(
-                                index=SparseIndexParams(
-                                    on_disk=self.settings.sparse_on_disk
-                                )
-                            )
-                        }
 
-                    # int8 scalar quantization: ~4x less vector RAM. Rescoring
-                    # against original vectors preserves search quality.
-                    quantization_config = None
-                    if self.settings.quantization:
-                        quantization_config = ScalarQuantization(
-                            scalar=ScalarQuantizationConfig(
-                                type=ScalarType.INT8,
-                                always_ram=True,
-                            )
+                # int8 scalar quantization: ~4x less vector RAM. Rescoring
+                # against original vectors preserves search quality.
+                quantization_config = None
+                if self.settings.quantization:
+                    quantization_config = ScalarQuantization(
+                        scalar=ScalarQuantizationConfig(
+                            type=ScalarType.INT8,
+                            always_ram=True,
                         )
+                    )
 
-                    await client.create_collection(
-                        collection_name=collection,
-                        vectors_config=vectors_config,
-                        sparse_vectors_config=sparse_vectors_config,
-                        quantization_config=quantization_config,
-                        optimizers_config=OptimizersConfigDiff(
-                            memmap_threshold=self.settings.memmap_threshold_kb,
-                        ),
-                    )
-                    log.info(
-                        "collection_created",
-                        name=collection,
-                        hybrid=self.settings.hybrid_search,
-                        on_disk=self.settings.vectors_on_disk,
-                        quantization=self.settings.quantization,
-                    )
-                else:
-                    log.debug("collection_exists", name=collection)
+                await client.create_collection(
+                    collection_name=collection,
+                    vectors_config=vectors_config,
+                    sparse_vectors_config=sparse_vectors_config,
+                    quantization_config=quantization_config,
+                    optimizers_config=OptimizersConfigDiff(
+                        memmap_threshold=self.settings.memmap_threshold_kb,
+                    ),
+                )
+                log.info(
+                    "collection_created",
+                    name=collection,
+                    hybrid=self.settings.hybrid_search,
+                    on_disk=self.settings.vectors_on_disk,
+                    quantization=self.settings.quantization,
+                    vector_size=self.settings.vector_size,
+                )
 
                 # Ensure keyword payload indexes exist (best-effort, idempotent).
                 # Done on every ensure_collection so pre-existing collections are
@@ -164,6 +222,21 @@ class QdrantStorage:
                 )
             except Exception as e:
                 log.debug("payload_index_skip", collection=collection, field=field, error=str(e))
+
+    async def delete_collection(self, collection: str) -> bool:
+        """Delete a collection if it exists. Returns True if deleted, False if not found."""
+        client = await self._get_client()
+        try:
+            collections = await client.get_collections()
+            existing = {c.name for c in collections.collections}
+            if collection in existing:
+                await client.delete_collection(collection_name=collection)
+                log.info("collection_deleted", name=collection)
+                return True
+            return False
+        except Exception as e:
+            log.warning("collection_delete_error", name=collection, error=str(e))
+            raise
 
     async def set_indexing(self, collection: str, enabled: bool) -> None:
         """Pause or resume HNSW index building for a collection.

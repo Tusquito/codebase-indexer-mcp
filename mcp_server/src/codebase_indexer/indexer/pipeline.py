@@ -57,7 +57,7 @@ async def run_pipeline(
     result = PipelineResult()
 
     coll = collection or settings.qdrant_collection
-    await storage.ensure_collection(coll)
+    await storage.ensure_collection(coll, force=force)
 
     embedder = Embedder(
         dense_model=settings.dense_embed_model,

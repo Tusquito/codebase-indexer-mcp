@@ -61,6 +61,83 @@ def storage():
 
 
 @pytest.mark.asyncio
+async def test_ensure_collection_recreates_on_dimension_mismatch():
+    """ensure_collection auto-recreates when the dense vector dimension changes."""
+    coll = f"test_dim_{uuid.uuid4().hex[:8]}"
+    # Create with dim=384
+    s384 = Settings(qdrant_url=QDRANT_URL, hybrid_search=False, vector_size=384)
+    st384 = QdrantStorage(s384)
+    client = await st384._get_client()
+    try:
+        await st384.ensure_collection(coll)
+        info = await client.get_collection(coll)
+        assert info.config.params.vectors["dense"].size == 384
+
+        # Now call ensure_collection with dim=768 — should auto-recreate.
+        s768 = Settings(qdrant_url=QDRANT_URL, hybrid_search=False, vector_size=768)
+        st768 = QdrantStorage(s768)
+        st768._client = client  # share the same underlying connection
+        await st768.ensure_collection(coll)
+
+        info2 = await client.get_collection(coll)
+        assert info2.config.params.vectors["dense"].size == 768
+    finally:
+        await client.delete_collection(coll)
+
+
+@pytest.mark.asyncio
+async def test_ensure_collection_force_recreates_matching_dimension():
+    """ensure_collection with force=True always recreates even when dims match."""
+    coll = f"test_force_{uuid.uuid4().hex[:8]}"
+    s = Settings(qdrant_url=QDRANT_URL, hybrid_search=True, vector_size=768)
+    st = QdrantStorage(s)
+    client = await st._get_client()
+    try:
+        await st.ensure_collection(coll)
+        # Upsert one chunk so we can verify the collection was wiped.
+        embedded = [_make_embedded("x.py", 1, "hello")]
+        await st.upsert_chunks(coll, embedded)
+        meta_before = await st.get_file_metadata(coll)
+        assert "x.py" in meta_before
+
+        # force=True must produce an empty collection.
+        await st.ensure_collection(coll, force=True)
+        meta_after = await st.get_file_metadata(coll)
+        assert meta_after == {}
+
+        # Verify the collection still has the right dimension.
+        info = await client.get_collection(coll)
+        assert info.config.params.vectors["dense"].size == 768
+    finally:
+        await client.delete_collection(coll)
+
+
+@pytest.mark.asyncio
+async def test_ensure_collection_recreates_on_hybrid_mismatch():
+    """ensure_collection auto-recreates when hybrid_search flag changes."""
+    coll = f"test_hybrid_{uuid.uuid4().hex[:8]}"
+    # Create without sparse vectors.
+    s_dense = Settings(qdrant_url=QDRANT_URL, hybrid_search=False, vector_size=768)
+    st_dense = QdrantStorage(s_dense)
+    client = await st_dense._get_client()
+    try:
+        await st_dense.ensure_collection(coll)
+        info = await client.get_collection(coll)
+        assert "sparse" not in (info.config.params.vectors or {})
+
+        # Now request hybrid — should recreate with sparse vectors.
+        s_hybrid = Settings(qdrant_url=QDRANT_URL, hybrid_search=True, vector_size=768)
+        st_hybrid = QdrantStorage(s_hybrid)
+        st_hybrid._client = client
+        await st_hybrid.ensure_collection(coll)
+
+        info2 = await client.get_collection(coll)
+        assert info2.config.params.sparse_vectors is not None
+    finally:
+        await client.delete_collection(coll)
+
+
+@pytest.mark.asyncio
 async def test_upsert_search_and_metadata_roundtrip(storage):
     coll = f"test_ci_{uuid.uuid4().hex[:8]}"
     client = await storage._get_client()

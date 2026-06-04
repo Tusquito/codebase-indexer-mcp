@@ -264,3 +264,109 @@ def register_index_tool(mcp: FastMCP, ctx: "AppContext") -> None:
             "collection": collection,
             "hint": "Use index_status to confirm it has stopped.",
         }
+
+    @mcp.tool(
+        name="index_all",
+        description=(
+            "Re-index all existing collections sequentially. "
+            "Discovers collections already in Qdrant and re-indexes them one at a time "
+            "(memory-safe). Use force=True to do a full re-index instead of incremental. "
+            "By default (wait=True) blocks until all collections finish. "
+            "Set wait=False to start all jobs and return immediately; use index_status to check progress. "
+            "Timeout is per-collection, not total."
+        ),
+    )
+    async def index_all(
+        force: bool = False,
+        wait: bool = True,
+        timeout: int = 1800,
+    ) -> dict:
+        collection_stats = await storage.list_collection_stats()
+        if not collection_stats:
+            return {
+                "error": "No indexed collections found.",
+                "hint": "Use index_codebase to index a project first, then use index_all to re-index all.",
+            }
+
+        collection_names = [s.name for s in collection_stats]
+        log.info("index_all_started", collections=collection_names, wait=wait, force=force)
+
+        if wait:
+            results: list[dict] = []
+            for name in collection_names:
+                path = f"/{name}"
+
+                if await job_tracker.is_running(name):
+                    existing = await job_tracker.get_job(name)
+                    log.info("index_all_skipping_running", collection=name)
+                    results.append(
+                        existing.to_dict()
+                        if existing
+                        else {"collection": name, "status": "running"}
+                    )
+                    continue
+
+                job = await job_tracker.start_job(name, path)
+                task = asyncio.create_task(
+                    _run_index_job(job_tracker, name, settings, storage, path, force)
+                )
+                job._task = task
+
+                def _on_done(t: asyncio.Task, _collection: str = name) -> None:
+                    if not t.cancelled() and t.exception() is not None:
+                        log.error("index_task_crashed", collection=_collection, error=str(t.exception()))
+
+                task.add_done_callback(_on_done)
+
+                try:
+                    await asyncio.wait_for(job._done_event.wait(), timeout=timeout)
+                except asyncio.TimeoutError:
+                    log.warning("index_all_timeout", collection=name, timeout=timeout)
+                    results.append({
+                        "collection": name,
+                        "status": "timeout",
+                        "message": f"Timed out waiting for '{name}' after {timeout}s.",
+                        "hint": "Use index_status to check progress or stop_indexing to cancel.",
+                    })
+                    continue
+
+                results.append(job.to_dict())
+
+            succeeded = sum(1 for r in results if r.get("status") == "done")
+            return {
+                "message": f"Indexed {succeeded}/{len(collection_names)} collections",
+                "results": results,
+            }
+
+        # wait=False: kick off all jobs and return immediately
+        results = []
+        for name in collection_names:
+            path = f"/{name}"
+
+            if await job_tracker.is_running(name):
+                existing = await job_tracker.get_job(name)
+                log.info("index_all_skipping_running", collection=name)
+                results.append(
+                    existing.to_dict()
+                    if existing
+                    else {"collection": name, "status": "running"}
+                )
+                continue
+
+            job = await job_tracker.start_job(name, path)
+            task = asyncio.create_task(
+                _run_index_job(job_tracker, name, settings, storage, path, force)
+            )
+            job._task = task
+
+            def _on_done_bg(t: asyncio.Task, _collection: str = name) -> None:
+                if not t.cancelled() and t.exception() is not None:
+                    log.error("index_task_crashed", collection=_collection, error=str(t.exception()))
+
+            task.add_done_callback(_on_done_bg)
+            results.append(job.to_dict())
+
+        return {
+            "message": f"Indexed {len(results)}/{len(collection_names)} collections",
+            "results": results,
+        }
