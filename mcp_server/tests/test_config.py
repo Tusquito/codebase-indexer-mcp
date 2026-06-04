@@ -29,12 +29,20 @@ def test_embed_settings_loaded_from_env():
     assert s.dense_embed_model == "nomic-ai/nomic-embed-text-v1.5"
     assert s.sparse_embed_model == "Qdrant/bm25"
     assert s.dense_embed_vector_size == 768
+    assert s.sparse_threads == 2
 
 
 def test_embed_settings_required(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("DENSE_EMBED_MODEL", raising=False)
     monkeypatch.delenv("SPARSE_EMBED_MODEL", raising=False)
     monkeypatch.delenv("DENSE_EMBED_VECTOR_SIZE", raising=False)
+    monkeypatch.delenv("SPARSE_THREADS", raising=False)
+    with pytest.raises(ValidationError):
+        Settings()
+
+
+def test_sparse_threads_required(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("SPARSE_THREADS", raising=False)
     with pytest.raises(ValidationError):
         Settings()
 
@@ -44,6 +52,7 @@ def test_custom_model_with_explicit_dense_embed_vector_size_valid():
         dense_embed_model="custom/model",
         sparse_embed_model="Qdrant/bm25",
         dense_embed_vector_size=384,
+        sparse_threads=2,
     )
     assert s.dense_embed_vector_size == 384
 
@@ -54,6 +63,7 @@ def test_known_model_wrong_dense_embed_vector_size_rejected():
             dense_embed_model="nomic-ai/nomic-embed-text-v1.5",
             sparse_embed_model="Qdrant/bm25",
             dense_embed_vector_size=384,
+            sparse_threads=2,
         )
 
 
@@ -62,6 +72,7 @@ def test_bge_base_model_dense_embed_vector_size_valid():
         dense_embed_model="BAAI/bge-base-en-v1.5",
         sparse_embed_model="Qdrant/bm25",
         dense_embed_vector_size=768,
+        sparse_threads=2,
     )
     assert s.dense_embed_model == "BAAI/bge-base-en-v1.5"
 
@@ -71,5 +82,6 @@ def test_bge_small_model_dense_embed_vector_size_valid():
         dense_embed_model="BAAI/bge-small-en-v1.5",
         sparse_embed_model="Qdrant/bm25",
         dense_embed_vector_size=384,
+        sparse_threads=2,
     )
     assert s.dense_embed_vector_size == 384

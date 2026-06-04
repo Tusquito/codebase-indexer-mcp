@@ -33,10 +33,12 @@ class Settings(BaseSettings):
     qdrant_timeout: float = Field(default=30.0)
     qdrant_collection: str = Field(default="codebase")
     # No Python defaults — set DENSE_EMBED_MODEL, SPARSE_EMBED_MODEL,
-    # DENSE_EMBED_VECTOR_SIZE in .env.
+    # DENSE_EMBED_VECTOR_SIZE, SPARSE_THREADS in .env (sparse threads depend on
+    # SPARSE_EMBED_MODEL — e.g. 2 for Qdrant/bm25, 4+ for SPLADE).
     dense_embed_model: str
     sparse_embed_model: str
     dense_embed_vector_size: int
+    sparse_threads: int
     hybrid_search: bool = Field(default=True)
     max_chunk_lines: int = Field(default=150)
     chunk_overlap_lines: int = Field(default=20)
@@ -85,11 +87,9 @@ class Settings(BaseSettings):
     # Hard cap on characters fed to the dense encoder (ONNX attention is
     # O(seq_len^2 * batch); this bounds peak embedding memory).
     max_embed_chars: int = Field(default=4096)
-    # ONNX intra-op threads for dense / sparse encoders. 0 = auto-detect from
-    # CPU count (leaves headroom for Qdrant + the asyncio loop). Set explicitly
-    # on bigger machines to scale throughput.
+    # ONNX intra-op threads for the dense encoder. 0 = auto-detect from CPU count
+    # (or OMP_NUM_THREADS). Sparse encoder threads are required via SPARSE_THREADS.
     dense_threads: int = Field(default=0)
-    sparse_threads: int = Field(default=0)
 
     # --- Memory pressure thresholds (cgroup-aware OOM prevention) ---
     # At warn_pct: halve ONNX batch size, disable dense/sparse concurrency.
@@ -100,7 +100,7 @@ class Settings(BaseSettings):
     # --- Qdrant storage tuning (affects RAM vs search speed) ---
     # Store dense vectors on disk (memory-mapped) instead of fully in RAM.
     vectors_on_disk: bool = Field(default=True)
-    # Store the sparse (BM25) index on disk.
+    # Store the sparse vector index on disk.
     sparse_on_disk: bool = Field(default=True)
     # Enable int8 scalar quantization of dense vectors (~4x less vector RAM,
     # rescoring preserves quality). Disable on RAM-rich hosts for max speed.

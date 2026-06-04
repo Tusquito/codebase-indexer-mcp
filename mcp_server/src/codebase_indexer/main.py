@@ -76,7 +76,8 @@ _INSTRUCTIONS = """
     endpoint definitions, HTTP clients, and config-based URLs, then
     matches them to produce a call chain map.
 
-    Search uses nomic-embed-text (dense ONNX) + BM25 (sparse) fused via RRF.
+    Search uses DENSE_EMBED_MODEL (dense ONNX) + SPARSE_EMBED_MODEL (sparse)
+    fused via RRF when HYBRID_SEARCH is enabled.
     """
 
 
@@ -204,16 +205,14 @@ def main() -> None:
     settings = Settings()
     mcp = create_app(settings)
     log = structlog.get_logger()
-    if (
-        settings.dense_threads == 0
-        and settings.sparse_threads == 0
-        and not os.environ.get("OMP_NUM_THREADS")
-    ):
+    if settings.dense_threads == 0 and not os.environ.get("OMP_NUM_THREADS"):
         resolved = _resolve_threads(0)
         log.info(
             "onnx_threads_auto",
             omp_num_threads=resolved,
-            hint="Set OMP_NUM_THREADS or DENSE_THREADS/SPARSE_THREADS to override",
+            dense_threads=settings.dense_threads,
+            sparse_threads=settings.sparse_threads,
+            hint="Set OMP_NUM_THREADS or DENSE_THREADS to override dense auto threads",
         )
     log.info("starting_mcp_server", transport=settings.mcp_transport, port=settings.mcp_port)
     if settings.mcp_transport == "stdio":

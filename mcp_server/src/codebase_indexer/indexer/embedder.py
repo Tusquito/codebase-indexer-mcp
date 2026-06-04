@@ -1,5 +1,5 @@
 # src/codebase_indexer/indexer/embedder.py
-"""Dense (fastembed ONNX) + Sparse (BM25 via fastembed) embedding client."""
+"""Dense (fastembed ONNX) + sparse (fastembed) hybrid embedding client."""
 
 import asyncio
 import ctypes
@@ -78,13 +78,14 @@ class EmbeddedChunk:
 
 
 class Embedder:
-    """Local embedder: fastembed ONNX for dense + BM25 for sparse vectors.
+    """Local embedder: fastembed ONNX dense + configurable sparse vectors.
 
+    Model names come from settings (DENSE_EMBED_MODEL, SPARSE_EMBED_MODEL).
     Models are loaded once at startup and shared across all instances.
     No external services required — fully self-contained.
     """
 
-    # Default char cap. nomic-embed-text-v1.5 has 8192 token context, but ONNX
+    # Default char cap. Many dense transformers allow long context, but ONNX
     # attention memory scales as O(seq_len² × batch_size), so seq_len>~2000
     # tokens (~4000 chars) risks OOM. Overridable per-instance via max_embed_chars.
     MAX_EMBED_CHARS = 4_096
@@ -170,8 +171,8 @@ class Embedder:
 
     def __init__(
         self,
-        dense_model: str = "nomic-ai/nomic-embed-text-v1.5",
-        sparse_model: str = "Qdrant/bm25",
+        dense_model: str,
+        sparse_model: str,
         dense_embed_vector_size: int,
         batch_size: int = 16,
         hybrid: bool = True,
@@ -351,7 +352,7 @@ class Embedder:
         return embeddings
 
     def _embed_sparse_batch_sync(self, texts: list[str]) -> list[SparseVector]:
-        """Compute BM25 sparse vectors (synchronous, CPU-bound)."""
+        """Compute sparse vectors via fastembed (synchronous, CPU-bound)."""
         model = self._get_sparse_model()
         _tlog.info("sparse_embed_start chunks=%d", len(texts))
         t0 = time.monotonic()
@@ -373,7 +374,7 @@ class Embedder:
         """Embed a single query string into (dense_vector, sparse_vector).
 
         The sparse vector is None when hybrid search is disabled. When enabled,
-        the dense (ONNX) and sparse (BM25) encoders run concurrently in separate
+        the dense and sparse encoders run concurrently in separate
         thread-pool workers. This is the public entry point all query tools
         should use instead of reaching into the private batch helpers.
         """
@@ -418,7 +419,7 @@ class Embedder:
     async def embed_chunks(self, chunks: list[Chunk]) -> list[EmbeddedChunk]:
         """Embed chunks with dense and (optionally) sparse vectors.
 
-        Dense (ONNX) and sparse (BM25) normally run concurrently in separate
+        Dense and sparse encoders normally run concurrently in separate
         thread-pool workers. Under memory pressure, concurrency is disabled
         and they run sequentially to reduce peak allocations.
         """

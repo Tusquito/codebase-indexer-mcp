@@ -5,7 +5,7 @@ A fully self-hosted, Docker-based MCP server that indexes your codebase into a l
 ## Features
 
 - **100% Local** — Zero external API calls; all processing stays on your machine
-- **Semantic Code Search** — Tree-sitter AST-based chunking with fastembed ONNX embeddings (nomic-embed-text-v1.5, runs in-process — no external model server)
+- **Semantic Code Search** — Tree-sitter AST-based chunking with configurable fastembed ONNX dense + sparse embeddings (in-process — no external model server)
 - **Incremental Indexing** — Only re-indexes changed files (SHA-256 hash comparison)
 - **Multi-Language** — Python, JavaScript, TypeScript, Go, Rust, Java, C, C++, C#
 - **Token Efficient** — Returns only relevant code chunks, not full files. Three dedicated low-cost orientation tools (`get_collection_summary`, `search_symbols`, `get_file_outline`) eliminate exploratory searches entirely.
@@ -168,8 +168,8 @@ flowchart LR
     subgraph S3["③ Embedder"]
         direction TB
         em3["Run concurrently\nin thread executors"]
-        em1["Dense  768-dim\nnomic-embed-text-v1.5\nONNX in-process"]
-        em2["Sparse  configurable\n(default: Qdrant/bm25)"]
+        em1["Dense  DENSE_EMBED_MODEL\nDENSE_EMBED_VECTOR_SIZE\nONNX in-process"]
+        em2["Sparse  SPARSE_EMBED_MODEL\nfastembed in-process"]
         em3 --> em1 & em2
     end
 
@@ -330,6 +330,7 @@ Settings are environment-variable driven. **Required variables** (no Python defa
 | `DENSE_EMBED_MODEL` | fastembed ONNX dense embedding model (example: `nomic-ai/nomic-embed-text-v1.5`) |
 | `SPARSE_EMBED_MODEL` | fastembed sparse embedding model (example: `Qdrant/bm25`; alt: `prithivida/Splade_PP_en_v1`) |
 | `DENSE_EMBED_VECTOR_SIZE` | Dense embedding dimensions; must match `DENSE_EMBED_MODEL` for known models (768 for nomic v1.5, 768 for bge-base, 384 for bge-small) |
+| `SPARSE_THREADS` | ONNX threads for `SPARSE_EMBED_MODEL` (e.g. `2` for `Qdrant/bm25`, `4+` for `prithivida/Splade_PP_en_v1`) |
 
 ### Optional application settings
 
@@ -345,8 +346,7 @@ Settings are environment-variable driven. **Required variables** (no Python defa
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DENSE_THREADS` | `0` (auto) | Override dense-encoder threads. `0` = `OMP_NUM_THREADS` if set, else ~75% of CPU cores. Tip: statistical sparse models (e.g. BM25) are lightweight — giving more threads to dense is usually optimal. |
-| `SPARSE_THREADS` | `0` (auto) | Override sparse-encoder threads. |
+| `DENSE_THREADS` | `0` (auto) | Override dense-encoder threads. `0` = `OMP_NUM_THREADS` if set, else ~75% of CPU cores. |
 | `BATCH_SIZE` | `32` | Embedding batch size (larger = faster, more RAM). Automatically halved for long chunks and under memory pressure. |
 | `FLUSH_EVERY` | `1500` | Chunks per embed+upsert flush. Peak RAM ≈ 2× this. |
 | `UPSERT_BATCH` | `500` | Points per Qdrant upsert sub-batch |
