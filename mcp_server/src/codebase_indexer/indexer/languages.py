@@ -106,9 +106,18 @@ LANGUAGE_SPECS: list[LanguageSpec] = [
         _loader("tree_sitter_sql"),
     ),
     # --- Markup / data / scripting (sliding-window chunking) ---
-    LanguageSpec("xml", (".xml", ".xsd", ".xsl", ".xslt", ".wsdl")),
+    LanguageSpec(
+        "xml",
+        (".xml", ".xsd", ".xsl", ".xslt", ".wsdl", ".csproj", ".fsproj", ".vbproj", ".nuspec"),
+    ),
     LanguageSpec("yaml", (".yml", ".yaml")),
     LanguageSpec("json", (".json",)),
+    # --- Configuration / manifest / ops (sliding-window chunking) ---
+    LanguageSpec("properties", (".properties", ".ini", ".cfg")),
+    LanguageSpec("toml", (".toml",)),
+    LanguageSpec("hcl", (".tf", ".hcl")),
+    LanguageSpec("dockerfile", (".dockerfile",)),
+    LanguageSpec("groovy", (".groovy", ".gvy", ".gradle")),
     LanguageSpec("protobuf", (".proto",)),
     LanguageSpec("kotlin", (".kt", ".kts")),
     LanguageSpec("scala", (".scala",)),
@@ -123,7 +132,20 @@ LANGUAGE_SPECS: list[LanguageSpec] = [
 
 # {".py": "python", ...} — cheap to build, no grammar imports triggered.
 EXTENSION_LANGUAGE_MAP: dict[str, str] = {
-    ext: spec.name for spec in LANGUAGE_SPECS for ext in spec.extensions
+    ext.lower(): spec.name for spec in LANGUAGE_SPECS for ext in spec.extensions
+}
+
+# Files without a conventional extension (matched on exact basename, case-sensitive).
+FILENAME_LANGUAGE_MAP: dict[str, str] = {
+    "Dockerfile": "dockerfile",
+    "Jenkinsfile": "groovy",
+    "docker-compose.yml": "yaml",
+    "docker-compose.yaml": "yaml",
+    ".env.example": "properties",
+    ".env.local": "properties",
+    ".env": "properties",
+    "build.gradle.kts": "groovy",
+    "settings.gradle.kts": "groovy",
 }
 
 # Specs that support AST-based chunking (have a tree-sitter grammar loader).

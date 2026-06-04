@@ -16,7 +16,7 @@ from typing import AsyncGenerator
 import pathspec
 import structlog
 
-from codebase_indexer.indexer.languages import EXTENSION_LANGUAGE_MAP
+from codebase_indexer.indexer.languages import EXTENSION_LANGUAGE_MAP, FILENAME_LANGUAGE_MAP
 
 log = structlog.get_logger()
 # stdlib logger for sync methods running inside thread-pool workers.
@@ -42,7 +42,6 @@ EXCLUDED_DIRS = {
     ".mypy_cache",
     ".pytest_cache",
     ".ruff_cache",
-    ".github",
     ".idea",
     ".vscode",
 }
@@ -77,7 +76,17 @@ def _load_ignore_spec(workspace: Path, filename: str) -> pathspec.PathSpec | Non
 
 
 def _detect_language(path: Path) -> str | None:
-    """Detect language from file extension."""
+    """Detect language from filename or extension (including compound suffixes)."""
+    name = path.name
+    if name in FILENAME_LANGUAGE_MAP:
+        return FILENAME_LANGUAGE_MAP[name]
+
+    full_suffix = "".join(path.suffixes).lower()
+    if full_suffix:
+        lang = EXTENSION_LANGUAGE_MAP.get(full_suffix)
+        if lang is not None:
+            return lang
+
     return EXTENSION_LANGUAGE_MAP.get(path.suffix.lower())
 
 
@@ -153,6 +162,15 @@ async def scan_files(
             for dirpath, dirnames, filenames in os.walk(scan_root):
                 # Filter out excluded directories in-place
                 dirnames[:] = [d for d in dirnames if d not in excluded]
+
+                # Only index CI workflows under .github/, not AGENTS.md or other metadata
+                try:
+                    rel_dir = Path(dirpath).relative_to(scan_root).as_posix()
+                except ValueError:
+                    rel_dir = ""
+                if rel_dir == ".github" or rel_dir.endswith("/.github"):
+                    dirnames[:] = [d for d in dirnames if d == "workflows"]
+                    continue
 
                 for filename in filenames:
                     abs_path = Path(dirpath) / filename

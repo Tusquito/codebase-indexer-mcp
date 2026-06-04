@@ -1,6 +1,7 @@
 """Unit tests for the tree-sitter / sliding-window chunker."""
 
 from codebase_indexer.indexer.chunker import (
+    _classify_file_symbol_type,
     _extract_imported_names,
     _filter_relevant_imports,
     chunk_file,
@@ -230,3 +231,53 @@ def test_js_default_and_named_import_filter():
     body = "const [state, setState] = useState(0); return <React.Fragment />"
     relevant = _filter_relevant_imports([line], body, "javascript")
     assert line in relevant
+
+
+def test_symbol_type_config_properties():
+    source = "server.port=8080\ndb.url=jdbc:postgresql://localhost/db\n"
+    chunks = chunk_file(source, "src/application.properties", "properties", "x")
+    assert len(chunks) >= 1
+    assert all(c.symbol_type == "config" for c in chunks)
+    assert chunks[0].symbol_name == "application.properties"
+
+
+def test_symbol_type_manifest_csproj():
+    source = '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup></PropertyGroup></Project>'
+    chunks = chunk_file(source, "src/MyApp.csproj", "xml", "x")
+    assert all(c.symbol_type == "manifest" for c in chunks)
+
+
+def test_symbol_type_ops_dockerfile():
+    source = "FROM node:20\nWORKDIR /app\nCOPY . .\n"
+    chunks = chunk_file(source, "Dockerfile", "dockerfile", "x")
+    assert all(c.symbol_type == "ops" for c in chunks)
+    assert chunks[0].symbol_name == "Dockerfile"
+
+
+def test_symbol_type_ops_github_workflow():
+    source = "name: CI\non: [push]\njobs:\n  build:\n    runs-on: ubuntu-latest\n"
+    chunks = chunk_file(source, ".github/workflows/ci.yml", "yaml", "x")
+    assert all(c.symbol_type == "ops" for c in chunks)
+
+
+def test_symbol_type_ops_azure_pipelines():
+    source = "trigger:\n  - main\npool:\n  vmImage: ubuntu-latest\n"
+    chunks = chunk_file(source, "azure-pipelines.yml", "yaml", "x")
+    assert all(c.symbol_type == "ops" for c in chunks)
+
+
+def test_symbol_type_config_generic_yaml():
+    assert _classify_file_symbol_type("deploy/settings.yaml", "yaml") == "config"
+    chunks = chunk_file("key: value\n", "deploy/settings.yaml", "yaml", "x")
+    assert all(c.symbol_type == "config" for c in chunks)
+
+
+def test_classify_manifest_by_filename():
+    assert _classify_file_symbol_type("pom.xml", "xml") == "manifest"
+    assert _classify_file_symbol_type("package.json", "json") == "manifest"
+
+
+def test_symbol_type_config_dotenv():
+    source = "DB_HOST=localhost\nDB_PORT=5432\n"
+    chunks = chunk_file(source, ".env", "properties", "x")
+    assert all(c.symbol_type == "config" for c in chunks)

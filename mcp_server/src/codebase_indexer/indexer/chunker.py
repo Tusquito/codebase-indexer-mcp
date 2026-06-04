@@ -4,6 +4,7 @@
 import hashlib
 import re
 from dataclasses import dataclass
+from pathlib import PurePosixPath
 
 import structlog
 from tree_sitter import Language, Parser, Node
@@ -214,7 +215,90 @@ def _sliding_window_range(
 
 
 # Languages that tokenize heavily and need smaller chunks
-_VERBOSE_LANGUAGES = {"xml", "json", "yaml", "markdown", "protobuf", "sql"}
+_VERBOSE_LANGUAGES = {
+    "xml", "json", "yaml", "markdown", "protobuf", "sql",
+    "properties", "toml", "hcl", "dockerfile", "groovy",
+}
+
+_CONFIG_EXTENSIONS = frozenset({
+    ".yaml", ".yml", ".properties",
+    ".ini", ".cfg", ".toml",
+})
+_CONFIG_FILENAMES = frozenset({
+    "appsettings.json", "appsettings.development.json",
+    "application.yml", "application.yaml", "application.properties",
+    "config.json", "config.yaml",
+    ".env", ".env.example", ".env.local",
+})
+
+_MANIFEST_FILENAMES = frozenset({
+    "pom.xml", "package.json", "go.mod", "cargo.toml",
+    "pyproject.toml", "build.gradle", "build.gradle.kts",
+    "settings.gradle", "settings.gradle.kts",
+    "requirements.txt", "setup.cfg",
+})
+_MANIFEST_EXTENSIONS = frozenset({
+    ".csproj", ".fsproj", ".vbproj", ".nuspec",
+})
+
+_OPS_EXTENSIONS = frozenset({".tf", ".hcl"})
+_OPS_FILENAMES = frozenset({
+    "dockerfile", "jenkinsfile",
+    "docker-compose.yml", "docker-compose.yaml",
+})
+_OPS_PATH_PATTERNS = (".github/workflows/", ".gitlab-ci", "azure-pipelines")
+
+
+def _normalize_rel_path(rel_path: str) -> str:
+    return rel_path.replace("\\", "/")
+
+
+def _file_suffixes(rel_path: str) -> str:
+    """Full compound suffix (e.g. .env.example) or last suffix."""
+    p = PurePosixPath(_normalize_rel_path(rel_path))
+    return "".join(p.suffixes).lower() or p.suffix.lower()
+
+
+def _classify_file_symbol_type(rel_path: str, language: str) -> str | None:
+    """Classify non-code files as config, manifest, or ops by path/name."""
+    norm = _normalize_rel_path(rel_path).lower()
+    name = PurePosixPath(norm).name
+    ext = _file_suffixes(rel_path)
+
+    if ext in _OPS_EXTENSIONS or name in _OPS_FILENAMES:
+        return "ops"
+    for pattern in _OPS_PATH_PATTERNS:
+        if pattern in norm:
+            return "ops"
+
+    if name in _MANIFEST_FILENAMES or ext in _MANIFEST_EXTENSIONS:
+        return "manifest"
+
+    if ext in _CONFIG_EXTENSIONS or name in _CONFIG_FILENAMES:
+        return "config"
+
+    if language == "yaml":
+        return "config"
+
+    return None
+
+
+def _apply_file_symbol_type(
+    chunks: list[Chunk],
+    rel_path: str,
+    language: str,
+) -> list[Chunk]:
+    """Override symbol_type (and default symbol_name) for config/manifest/ops files."""
+    file_type = _classify_file_symbol_type(rel_path, language)
+    if not file_type:
+        return chunks
+
+    default_name = PurePosixPath(_normalize_rel_path(rel_path)).name
+    for chunk in chunks:
+        chunk.symbol_type = file_type
+        if chunk.symbol_name is None:
+            chunk.symbol_name = default_name
+    return chunks
 
 # Tree-sitter node types that represent import/using declarations per language.
 # These lines are collected and selectively prepended to AST chunks when their
@@ -501,20 +585,22 @@ def chunk_file(
 
     if lang_obj is None or node_types is None:
         log.info("unsupported_language_fallback", language=language, path=rel_path)
-        return _sliding_window_range(
+        chunks = _sliding_window_range(
             lines, 0, len(lines) - 1, rel_path, language, file_sha256,
             max_chunk_lines, chunk_overlap_lines, file_mtime=file_mtime,
         )
+        return _apply_file_symbol_type(chunks, rel_path, language)
 
     try:
         parser = _PARSERS.get(language) or Parser(lang_obj)
         tree = parser.parse(content.encode("utf-8"))
     except Exception as e:
         log.warning("treesitter_parse_failure", path=rel_path, error=str(e))
-        return _sliding_window_range(
+        chunks = _sliding_window_range(
             lines, 0, len(lines) - 1, rel_path, language, file_sha256,
             max_chunk_lines, chunk_overlap_lines, file_mtime=file_mtime,
         )
+        return _apply_file_symbol_type(chunks, rel_path, language)
 
     chunks: list[Chunk] = []
 
@@ -553,20 +639,17 @@ def chunk_file(
 
     _extract_from_node(tree.root_node)
 
-    # If no AST nodes found, use sliding window on entire file
     if not chunks:
-        return _sliding_window_range(
+        chunks = _sliding_window_range(
             lines, 0, len(lines) - 1, rel_path, language, file_sha256,
             max_chunk_lines, chunk_overlap_lines, file_mtime=file_mtime,
         )
+    else:
+        import_lines = _collect_import_lines(tree.root_node, lines, language)
+        if import_lines:
+            for chunk in chunks:
+                relevant = _filter_relevant_imports(import_lines, chunk.content, language)
+                if relevant:
+                    _prepend_import_header(chunk, "\n".join(relevant))
 
-    # Prepend only imports referenced in each chunk (plus package/wildcard lines)
-    # so embeddings stay focused while cross-reference detection still works.
-    import_lines = _collect_import_lines(tree.root_node, lines, language)
-    if import_lines:
-        for chunk in chunks:
-            relevant = _filter_relevant_imports(import_lines, chunk.content, language)
-            if relevant:
-                _prepend_import_header(chunk, "\n".join(relevant))
-
-    return chunks
+    return _apply_file_symbol_type(chunks, rel_path, language)
