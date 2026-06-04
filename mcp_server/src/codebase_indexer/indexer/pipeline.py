@@ -62,7 +62,7 @@ async def run_pipeline(
     embedder = Embedder(
         dense_model=settings.dense_embed_model,
         sparse_model=settings.sparse_embed_model,
-        vector_size=settings.vector_size,
+        dense_embed_vector_size=settings.dense_embed_vector_size,
         batch_size=settings.batch_size,
         hybrid=settings.hybrid_search,
         dense_threads=settings.dense_threads,

@@ -65,7 +65,7 @@ async def test_ensure_collection_recreates_on_dimension_mismatch():
     """ensure_collection auto-recreates when the dense vector dimension changes."""
     coll = f"test_dim_{uuid.uuid4().hex[:8]}"
     # Create with dim=384
-    s384 = Settings(qdrant_url=QDRANT_URL, hybrid_search=False, vector_size=384)
+    s384 = Settings(qdrant_url=QDRANT_URL, hybrid_search=False, dense_embed_vector_size=384)
     st384 = QdrantStorage(s384)
     client = await st384._get_client()
     try:
@@ -74,7 +74,7 @@ async def test_ensure_collection_recreates_on_dimension_mismatch():
         assert info.config.params.vectors["dense"].size == 384
 
         # Now call ensure_collection with dim=768 — should auto-recreate.
-        s768 = Settings(qdrant_url=QDRANT_URL, hybrid_search=False, vector_size=768)
+        s768 = Settings(qdrant_url=QDRANT_URL, hybrid_search=False, dense_embed_vector_size=768)
         st768 = QdrantStorage(s768)
         st768._client = client  # share the same underlying connection
         await st768.ensure_collection(coll)
@@ -89,7 +89,7 @@ async def test_ensure_collection_recreates_on_dimension_mismatch():
 async def test_ensure_collection_force_recreates_matching_dimension():
     """ensure_collection with force=True always recreates even when dims match."""
     coll = f"test_force_{uuid.uuid4().hex[:8]}"
-    s = Settings(qdrant_url=QDRANT_URL, hybrid_search=True, vector_size=768)
+    s = Settings(qdrant_url=QDRANT_URL, hybrid_search=True, dense_embed_vector_size=768)
     st = QdrantStorage(s)
     client = await st._get_client()
     try:
@@ -117,7 +117,7 @@ async def test_ensure_collection_recreates_on_hybrid_mismatch():
     """ensure_collection auto-recreates when hybrid_search flag changes."""
     coll = f"test_hybrid_{uuid.uuid4().hex[:8]}"
     # Create without sparse vectors.
-    s_dense = Settings(qdrant_url=QDRANT_URL, hybrid_search=False, vector_size=768)
+    s_dense = Settings(qdrant_url=QDRANT_URL, hybrid_search=False, dense_embed_vector_size=768)
     st_dense = QdrantStorage(s_dense)
     client = await st_dense._get_client()
     try:
@@ -126,7 +126,7 @@ async def test_ensure_collection_recreates_on_hybrid_mismatch():
         assert "sparse" not in (info.config.params.vectors or {})
 
         # Now request hybrid — should recreate with sparse vectors.
-        s_hybrid = Settings(qdrant_url=QDRANT_URL, hybrid_search=True, vector_size=768)
+        s_hybrid = Settings(qdrant_url=QDRANT_URL, hybrid_search=True, dense_embed_vector_size=768)
         st_hybrid = QdrantStorage(s_hybrid)
         st_hybrid._client = client
         await st_hybrid.ensure_collection(coll)

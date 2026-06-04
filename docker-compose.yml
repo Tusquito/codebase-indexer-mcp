@@ -19,8 +19,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: ${QDRANT_MEM_LIMIT:-5g}
-          cpus: "${QDRANT_CPUS:-4}"
+          memory: ${QDRANT_MEM_LIMIT:?Set QDRANT_MEM_LIMIT in .env}
+          cpus: "${QDRANT_CPUS:?Set QDRANT_CPUS in .env}"
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/6333'"]
       interval: 10s
@@ -42,9 +42,9 @@ services:
         condition: service_healthy
     environment:
       QDRANT_URL: http://qdrant:6333
-      DENSE_EMBED_MODEL: ${DENSE_EMBED_MODEL:-nomic-ai/nomic-embed-text-v1.5}
-      SPARSE_EMBED_MODEL: ${SPARSE_EMBED_MODEL:-Qdrant/bm25}
-      VECTOR_SIZE: ${VECTOR_SIZE:-768}
+      DENSE_EMBED_MODEL: ${DENSE_EMBED_MODEL:?Set DENSE_EMBED_MODEL in .env}
+      SPARSE_EMBED_MODEL: ${SPARSE_EMBED_MODEL:?Set SPARSE_EMBED_MODEL in .env}
+      DENSE_EMBED_VECTOR_SIZE: ${DENSE_EMBED_VECTOR_SIZE:?Set DENSE_EMBED_VECTOR_SIZE in .env}
       QDRANT_COLLECTION: codebase
       HYBRID_SEARCH: true
       MCP_TRANSPORT: streamable-http
@@ -61,9 +61,9 @@ services:
       # ONNX / BLAS thread caps. Keep at/below physical cores; dense + sparse
       # encoders run concurrently, so this is per-encoder. ~12 leaves headroom
       # on a 16-core box for Qdrant indexing and the asyncio loop.
-      OMP_NUM_THREADS: ${OMP_NUM_THREADS:-12}
-      OPENBLAS_NUM_THREADS: ${OMP_NUM_THREADS:-12}
-      MKL_NUM_THREADS: ${OMP_NUM_THREADS:-12}
+      OMP_NUM_THREADS: ${OMP_NUM_THREADS:?Set OMP_NUM_THREADS in .env}
+      OPENBLAS_NUM_THREADS: ${OMP_NUM_THREADS}
+      MKL_NUM_THREADS: ${OMP_NUM_THREADS}
       # glibc tuning: cap per-thread malloc arenas (default is 8*cores) and
       # trim aggressively so native allocations are returned to the OS instead
       # of bloating RSS. Big RAM win under threaded ONNX with zero speed cost.
@@ -91,10 +91,10 @@ services:
     deploy:
       resources:
         limits:
-          memory: ${MCP_MEM_LIMIT:-9g}
-          cpus: "${MCP_CPUS:-14}"
+          memory: ${MCP_MEM_LIMIT:?Set MCP_MEM_LIMIT in .env}
+          cpus: "${MCP_CPUS:?Set MCP_CPUS in .env}"
     volumes:
-      - ${WORKSPACE_ROOT:-.}:/workspace:ro
+      - ${WORKSPACE_ROOT:?Set WORKSPACE_ROOT in .env to your repos directory}:/workspace:ro
       - fastembed_cache:/cache/fastembed
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]

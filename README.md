@@ -315,35 +315,37 @@ Steps 1–3 use **zero embedding compute** (payload scroll only). Step 4 caps re
 
 ## Configuration
 
-All settings are environment-variable driven, with defaults tuned for a **16 CPU / 16 GB** machine. See `.env.example` for all options and copy-paste tuning presets. Nothing hardware-specific is hardcoded in Python — moving to a bigger machine is a config-only change (no rebuild).
+Settings are environment-variable driven. **Required variables** (no Python defaults) must be set in `.env` — see the REQUIRED section in `.env.example`. Docker Compose fails fast if any are missing. Optional knobs keep defaults in `config.py` only.
+
+### Required (`.env` / Docker Compose)
+
+| Variable | Description |
+|----------|-------------|
+| `WORKSPACE_ROOT` | **Host path** mounted as `/workspace` inside the container. Set to the *parent* directory of all your repos so each subdirectory becomes a separate collection. |
+| `MCP_MEM_LIMIT` | Hard memory cap for the MCP server container |
+| `QDRANT_MEM_LIMIT` | Hard memory cap for the Qdrant container |
+| `MCP_CPUS` | CPU cap for the MCP server container |
+| `QDRANT_CPUS` | CPU cap for the Qdrant container |
+| `OMP_NUM_THREADS` | ONNX/BLAS threads (also sets `OPENBLAS`/`MKL`). Keep at/below physical cores. |
+| `DENSE_EMBED_MODEL` | fastembed ONNX dense embedding model (example: `nomic-ai/nomic-embed-text-v1.5`) |
+| `SPARSE_EMBED_MODEL` | fastembed sparse embedding model (example: `Qdrant/bm25`; alt: `prithivida/Splade_PP_en_v1`) |
+| `DENSE_EMBED_VECTOR_SIZE` | Dense embedding dimensions; must match `DENSE_EMBED_MODEL` for known models (768 for nomic v1.5, 768 for bge-base, 384 for bge-small) |
+
+### Optional application settings
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `WORKSPACE_ROOT` | `.` (current dir) | **Host path** mounted as `/workspace` inside the container. Set to the *parent* directory of all your repos so each subdirectory becomes a separate collection. Only used by Docker Compose for the bind mount — not passed into the container. |
-| `DENSE_EMBED_MODEL` | `nomic-ai/nomic-embed-text-v1.5` | fastembed ONNX dense embedding model |
-| `SPARSE_EMBED_MODEL` | `Qdrant/bm25` | fastembed sparse embedding model. Alternative: `prithivida/Splade_PP_en_v1` (SPLADE++ — learned sparse, better recall, heavier CPU) |
-| `VECTOR_SIZE` | `768` | Embedding vector dimensions |
 | `QDRANT_COLLECTION` | `codebase` | Default collection name |
 | `MAX_CHUNK_LINES` | `150` | Maximum lines per chunk |
 | `LOG_LEVEL` | `INFO` | Logging level (output visible via `docker logs codeindexer_mcp`) |
 
-### Resource caps
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `MCP_MEM_LIMIT` | `9g` | Hard memory cap for the MCP server container |
-| `QDRANT_MEM_LIMIT` | `5g` | Hard memory cap for the Qdrant container |
-| `MCP_CPUS` | `14` | CPU cap for the MCP server container |
-| `QDRANT_CPUS` | `4` | CPU cap for the Qdrant container |
-
-> **Important**: `MCP_MEM_LIMIT + QDRANT_MEM_LIMIT` must leave at least 2–3 GiB for the Linux kernel, Docker daemon, and WSL2 overhead. Over-allocating causes silent OOM kills — the container restarts with no error message. On a 16 GB Docker allocation: MCP ≤ 9g + Qdrant ≤ 5g = 14g leaves 2 GB for the VM kernel and page cache.
+> **Important**: `MCP_MEM_LIMIT + QDRANT_MEM_LIMIT` must leave at least 2–3 GiB for the Linux kernel, Docker daemon, and WSL2 overhead. Over-allocating causes silent OOM kills — the container restarts with no error message. Example for 16 GB Docker: MCP `9g` + Qdrant `5g` = 14g leaves 2 GB for the VM kernel and page cache.
 
 ### Throughput / CPU
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `OMP_NUM_THREADS` | `12` | ONNX/BLAS threads (also sets `OPENBLAS`/`MKL`). Keep at/below physical cores; dense + sparse encoders run concurrently. |
-| `DENSE_THREADS` | `0` (auto) | Override dense-encoder threads. `0` = ~75% of CPU cores. Tip: statistical sparse models (e.g. BM25) are lightweight — giving more threads to dense is usually optimal. |
+| `DENSE_THREADS` | `0` (auto) | Override dense-encoder threads. `0` = `OMP_NUM_THREADS` if set, else ~75% of CPU cores. Tip: statistical sparse models (e.g. BM25) are lightweight — giving more threads to dense is usually optimal. |
 | `SPARSE_THREADS` | `0` (auto) | Override sparse-encoder threads. |
 | `BATCH_SIZE` | `32` | Embedding batch size (larger = faster, more RAM). Automatically halved for long chunks and under memory pressure. |
 | `FLUSH_EVERY` | `1500` | Chunks per embed+upsert flush. Peak RAM ≈ 2× this. |

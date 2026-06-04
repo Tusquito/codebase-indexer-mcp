@@ -197,9 +197,24 @@ def create_app(settings: Settings | None = None, preload_models: bool = True) ->
 
 
 def main() -> None:
+    import os
+
+    from codebase_indexer.indexer.embedder import _resolve_threads
+
     settings = Settings()
     mcp = create_app(settings)
     log = structlog.get_logger()
+    if (
+        settings.dense_threads == 0
+        and settings.sparse_threads == 0
+        and not os.environ.get("OMP_NUM_THREADS")
+    ):
+        resolved = _resolve_threads(0)
+        log.info(
+            "onnx_threads_auto",
+            omp_num_threads=resolved,
+            hint="Set OMP_NUM_THREADS or DENSE_THREADS/SPARSE_THREADS to override",
+        )
     log.info("starting_mcp_server", transport=settings.mcp_transport, port=settings.mcp_port)
     if settings.mcp_transport == "stdio":
         mcp.run(transport="stdio")

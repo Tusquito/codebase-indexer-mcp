@@ -82,7 +82,7 @@ class QdrantStorage:
         recreated, giving a clean slate (used by force re-indexing).
 
         Even when ``force=False``, if the existing collection's dense vector
-        dimension differs from ``settings.vector_size``, or its hybrid-search
+        dimension differs from ``settings.dense_embed_vector_size``, or its hybrid-search
         configuration (sparse vectors) no longer matches the current settings,
         the collection is automatically deleted and recreated so we never upsert
         vectors of the wrong dimension.
@@ -114,11 +114,11 @@ class QdrantStorage:
                             if vectors_cfg is not None:
                                 existing_dim = vectors_cfg.size
 
-                        if existing_dim is not None and existing_dim != self.settings.vector_size:
+                        if existing_dim is not None and existing_dim != self.settings.dense_embed_vector_size:
                             should_recreate = True
                             recreate_reason = (
                                 f"dimension mismatch: collection has {existing_dim}, "
-                                f"settings want {self.settings.vector_size}"
+                                f"settings want {self.settings.dense_embed_vector_size}"
                             )
                         elif has_sparse != self.settings.hybrid_search:
                             should_recreate = True
@@ -144,7 +144,7 @@ class QdrantStorage:
                 # At this point the collection either never existed or was just deleted.
                 vectors_config = {
                     "dense": VectorParams(
-                        size=self.settings.vector_size,
+                        size=self.settings.dense_embed_vector_size,
                         distance=Distance.COSINE,
                         # Memory-map dense vectors instead of holding them
                         # fully resident — large RAM saving on big collections.
@@ -187,7 +187,7 @@ class QdrantStorage:
                     hybrid=self.settings.hybrid_search,
                     on_disk=self.settings.vectors_on_disk,
                     quantization=self.settings.quantization,
-                    vector_size=self.settings.vector_size,
+                    dense_embed_vector_size=self.settings.dense_embed_vector_size,
                 )
 
                 # Ensure keyword payload indexes exist (best-effort, idempotent).

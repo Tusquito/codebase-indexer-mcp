@@ -1,6 +1,8 @@
 # src/codebase_indexer/config.py
+from typing import Self
+
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field
 
 # Single source of truth for the default URL-path keywords used by the
 # service-mapping / cross-reference URL extractors. Both Settings (below) and
@@ -8,6 +10,14 @@ from pydantic import Field
 DEFAULT_SERVICE_URL_KEYWORDS = (
     "rest,api,profile,service,internal,public,gateway,graphql,webhook,auth,users,accounts"
 )
+
+# Known dense embedding models and their output dimensions. When listed,
+# DENSE_EMBED_VECTOR_SIZE must match exactly (set both in .env — see .env.example).
+KNOWN_EMBED_MODEL_DIMENSIONS: dict[str, int] = {
+    "nomic-ai/nomic-embed-text-v1.5": 768,
+    "BAAI/bge-base-en-v1.5": 768,
+    "BAAI/bge-small-en-v1.5": 384,
+}
 
 
 class Settings(BaseSettings):
@@ -22,9 +32,11 @@ class Settings(BaseSettings):
     # a clean timeout error instead of stalling the asyncio event loop.
     qdrant_timeout: float = Field(default=30.0)
     qdrant_collection: str = Field(default="codebase")
-    dense_embed_model: str = Field(default="nomic-ai/nomic-embed-text-v1.5")
-    sparse_embed_model: str = Field(default="Qdrant/bm25")
-    vector_size: int = Field(default=768)
+    # No Python defaults — set DENSE_EMBED_MODEL, SPARSE_EMBED_MODEL,
+    # DENSE_EMBED_VECTOR_SIZE in .env.
+    dense_embed_model: str
+    sparse_embed_model: str
+    dense_embed_vector_size: int
     hybrid_search: bool = Field(default=True)
     max_chunk_lines: int = Field(default=150)
     chunk_overlap_lines: int = Field(default=20)
@@ -109,6 +121,17 @@ class Settings(BaseSettings):
     # Extra natural-language discovery queries for map_service_dependencies.
     # Separate multiple queries with a pipe (|) or newline. Empty by default.
     service_discovery_extra_queries: str = Field(default="")
+
+    @model_validator(mode="after")
+    def validate_dense_embed_vector_size_matches_model(self) -> Self:
+        expected = KNOWN_EMBED_MODEL_DIMENSIONS.get(self.dense_embed_model)
+        if expected is not None and self.dense_embed_vector_size != expected:
+            raise ValueError(
+                f"DENSE_EMBED_VECTOR_SIZE={self.dense_embed_vector_size} does not match "
+                f"DENSE_EMBED_MODEL={self.dense_embed_model!r} "
+                f"(expected {expected})."
+            )
+        return self
 
     @property
     def excluded_dirs_set(self) -> set[str]:

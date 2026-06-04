@@ -172,7 +172,7 @@ class Embedder:
         self,
         dense_model: str = "nomic-ai/nomic-embed-text-v1.5",
         sparse_model: str = "Qdrant/bm25",
-        vector_size: int = 768,
+        dense_embed_vector_size: int,
         batch_size: int = 16,
         hybrid: bool = True,
         dense_threads: int = 0,
@@ -183,7 +183,7 @@ class Embedder:
     ):
         self.dense_model = dense_model
         self.sparse_model = sparse_model
-        self.vector_size = vector_size
+        self.dense_embed_vector_size = dense_embed_vector_size
         self.batch_size = batch_size
         self.hybrid = hybrid
         self.dense_threads = dense_threads
@@ -336,10 +336,10 @@ class Embedder:
 
         # Spot-check dimension on first and last embedding (not all N)
         for i in (0, len(embeddings) - 1):
-            if len(embeddings[i]) != self.vector_size:
+            if len(embeddings[i]) != self.dense_embed_vector_size:
                 raise EmbeddingError(
                     f"Embedding {i} dimension mismatch: "
-                    f"expected {self.vector_size}, got {len(embeddings[i])}"
+                    f"expected {self.dense_embed_vector_size}, got {len(embeddings[i])}"
                 )
 
         _tlog.info(
