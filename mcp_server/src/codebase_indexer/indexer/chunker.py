@@ -2,6 +2,7 @@
 """AST-based code chunking using Tree-sitter, with sliding window fallback."""
 
 import hashlib
+import re
 from dataclasses import dataclass
 
 import structlog
@@ -216,9 +217,8 @@ def _sliding_window_range(
 _VERBOSE_LANGUAGES = {"xml", "json", "yaml", "markdown", "protobuf", "sql"}
 
 # Tree-sitter node types that represent import/using declarations per language.
-# These lines are collected as an "import header" and prepended to every AST
-# chunk so that semantic search can match on imported types and packages —
-# which is the primary signal for cross-project reference detection.
+# These lines are collected and selectively prepended to AST chunks when their
+# symbols are referenced — primary signal for cross-project reference detection.
 _IMPORT_NODE_TYPES: dict[str, frozenset[str]] = {
     "python": frozenset({"import_statement", "import_from_statement", "future_import_statement"}),
     "java": frozenset({"import_declaration", "package_declaration"}),
@@ -234,18 +234,224 @@ _IMPORT_NODE_TYPES: dict[str, frozenset[str]] = {
 # Maximum number of lines to include in the prepended import header.
 _MAX_IMPORT_HEADER_LINES = 35
 
+# Sentinel: import line should always be prepended (package, wildcard, namespace).
+_ALWAYS_INCLUDE_IMPORT = None
 
-def _collect_import_header(tree_root: "Node", lines: list[str], language: str) -> str:
-    """Collect import/using declarations from the AST root as a header string.
 
-    Scans the top-level children of the AST root for import-like node types and
-    returns their source lines joined as a single string (capped at
-    _MAX_IMPORT_HEADER_LINES lines).  Returns an empty string if the language
-    has no import node types configured or none are found.
+def _symbol_referenced_in_content(name: str, content: str) -> bool:
+    """True if name appears as a whole identifier in content."""
+    return (
+        re.search(
+            rf"(?<![A-Za-z0-9_]){re.escape(name)}(?![A-Za-z0-9_])",
+            content,
+        )
+        is not None
+    )
+
+
+def _last_dotted_segment(qualified: str) -> str:
+    return qualified.rsplit(".", 1)[-1]
+
+
+def _parse_python_import_names(line: str) -> list[str] | None:
+    stripped = line.strip()
+
+    m = re.match(r"^import\s+([\w.]+)(?:\s+as\s+(\w+))?\s*$", stripped)
+    if m:
+        return [m.group(2) or _last_dotted_segment(m.group(1))]
+
+    m = re.match(r"^from\s+[\w.]+\s+import\s+(.+)$", stripped)
+    if not m:
+        return []
+
+    tail = m.group(1).strip()
+    if tail == "*":
+        return _ALWAYS_INCLUDE_IMPORT
+
+    names: list[str] = []
+    for part in re.split(r"\s*,\s*", tail):
+        part = part.strip()
+        if not part:
+            continue
+        alias_m = re.match(r"^([\w.]+)\s+as\s+(\w+)$", part)
+        if alias_m:
+            names.append(alias_m.group(2))
+        else:
+            names.append(_last_dotted_segment(part))
+    return names
+
+
+def _parse_java_import_names(line: str) -> list[str] | None:
+    stripped = line.strip()
+    if stripped.startswith("package "):
+        return _ALWAYS_INCLUDE_IMPORT
+
+    m = re.match(r"^import\s+(?:static\s+)?(.+?)\s*;\s*$", stripped)
+    if not m:
+        return []
+
+    qualified = m.group(1).strip()
+    if qualified.endswith(".*"):
+        return _ALWAYS_INCLUDE_IMPORT
+    return [_last_dotted_segment(qualified)]
+
+
+def _parse_csharp_using_names(line: str) -> list[str] | None:
+    stripped = line.strip()
+    if stripped.startswith("namespace ") and "{" not in stripped:
+        return _ALWAYS_INCLUDE_IMPORT
+
+    m = re.match(r"^using\s+(?:static\s+)?(.+?)\s*;\s*$", stripped)
+    if not m:
+        return []
+
+    qualified = m.group(1).strip()
+    if qualified.endswith("*"):
+        return _ALWAYS_INCLUDE_IMPORT
+    return [_last_dotted_segment(qualified)]
+
+
+def _parse_js_import_names(line: str) -> list[str]:
+    stripped = line.strip()
+    names: list[str] = []
+
+    default_m = re.match(r"^import\s+(\w+)[\s,]", stripped)
+    if default_m:
+        names.append(default_m.group(1))
+
+    brace_m = re.search(r"\{([^}]+)\}", stripped)
+    if brace_m:
+        for part in re.split(r"\s*,\s*", brace_m.group(1)):
+            part = part.strip()
+            if not part:
+                continue
+            alias_m = re.match(r"^(\w+)\s+as\s+(\w+)$", part)
+            names.append(alias_m.group(2) if alias_m else part.split()[0])
+        return names
+
+    ns_m = re.match(r"^import\s+\*\s+as\s+(\w+)", stripped)
+    if ns_m:
+        return [ns_m.group(1)]
+
+    return names if names else []
+
+
+def _go_import_path_name(import_path: str) -> str:
+    """Last path segment of a Go import path (e.g. net/http -> http)."""
+    path = import_path.rstrip("/")
+    return path.rsplit("/", 1)[-1]
+
+
+def _parse_go_import_names(line: str) -> list[str] | None:
+    stripped = line.strip()
+    if stripped.startswith("package "):
+        return _ALWAYS_INCLUDE_IMPORT
+
+    m = re.match(r'^import\s+"([^"]+)"\s*$', stripped)
+    if m:
+        return [_go_import_path_name(m.group(1))]
+
+    m = re.match(r'^(?:\w+\s+)?"([^"]+)"\s*$', stripped)
+    if m:
+        return [_go_import_path_name(m.group(1))]
+
+    return []
+
+
+def _parse_rust_use_names(line: str) -> list[str] | None:
+    stripped = line.strip()
+    m = re.match(r"^use\s+(.+);\s*$", stripped)
+    if not m:
+        return []
+
+    path = m.group(1).strip()
+    if path.endswith("::*") or path == "*":
+        return _ALWAYS_INCLUDE_IMPORT
+
+    alias_m = re.search(r"\s+as\s+(\w+)\s*$", path)
+    if alias_m:
+        return [alias_m.group(1)]
+
+    brace_m = re.search(r"\{([^}]+)\}", path)
+    if brace_m:
+        return [name.strip() for name in brace_m.group(1).split(",") if name.strip()]
+
+    if "::" in path:
+        return [_last_dotted_segment(path.replace("::", "."))]
+    return [_last_dotted_segment(path)]
+
+
+def _parse_c_cpp_include_names(line: str) -> list[str]:
+    stripped = line.strip()
+    m = re.match(r'#include\s+"([^"]+)"', stripped)
+    if m:
+        base = m.group(1).rsplit("/", 1)[-1]
+        if base.endswith(".h"):
+            base = base[:-2]
+        return [base]
+    m = re.match(r"#define\s+(\w+)", stripped)
+    if m:
+        return [m.group(1)]
+    return []
+
+
+_IMPORT_NAME_PARSERS: dict[str, object] = {
+    "python": _parse_python_import_names,
+    "java": _parse_java_import_names,
+    "csharp": _parse_csharp_using_names,
+    "javascript": _parse_js_import_names,
+    "typescript": _parse_js_import_names,
+    "go": _parse_go_import_names,
+    "rust": _parse_rust_use_names,
+    "c": _parse_c_cpp_include_names,
+    "cpp": _parse_c_cpp_include_names,
+}
+
+
+def _extract_imported_names(line: str, language: str) -> list[str] | None:
+    """Names from an import line to match against chunk content.
+
+    Returns None if the line should always be prepended (package, wildcard).
+    Returns an empty list when no names could be parsed.
+    """
+    parser = _IMPORT_NAME_PARSERS.get(language)
+    if parser is None:
+        return []
+
+    result = parser(line)  # type: ignore[operator]
+    if result is _ALWAYS_INCLUDE_IMPORT:
+        return None
+    return result
+
+
+def _filter_relevant_imports(
+    import_lines: list[str],
+    chunk_content: str,
+    language: str,
+) -> list[str]:
+    """Return import lines whose symbols are referenced in chunk_content."""
+    relevant: list[str] = []
+    for line in import_lines:
+        names = _extract_imported_names(line, language)
+        if names is None:
+            relevant.append(line)
+            continue
+        if not names:
+            continue
+        if any(_symbol_referenced_in_content(name, chunk_content) for name in names):
+            relevant.append(line)
+    return relevant
+
+
+def _collect_import_lines(tree_root: "Node", lines: list[str], language: str) -> list[str]:
+    """Collect import/using declaration lines from the AST root.
+
+    Scans top-level children for import-like node types. Capped at
+    _MAX_IMPORT_HEADER_LINES. Returns an empty list if none are found.
     """
     import_types = _IMPORT_NODE_TYPES.get(language)
     if not import_types:
-        return ""
+        return []
 
     import_lines: list[str] = []
     for child in tree_root.children:
@@ -255,13 +461,20 @@ def _collect_import_header(tree_root: "Node", lines: list[str], language: str) -
             import_lines.extend(lines[start : end + 1])
 
     if not import_lines:
-        return ""
+        return []
 
-    # Cap to avoid bloating chunks in files with hundreds of imports
     if len(import_lines) > _MAX_IMPORT_HEADER_LINES:
         import_lines = import_lines[:_MAX_IMPORT_HEADER_LINES]
 
-    return "\n".join(import_lines)
+    return import_lines
+
+
+def _prepend_import_header(chunk: Chunk, header: str) -> None:
+    """Prepend header to chunk content unless it is already present."""
+    preview = header[:20] if len(header) >= 20 else header
+    if preview and chunk.content.startswith(preview):
+        return
+    chunk.content = header + "\n" + chunk.content
 
 
 def chunk_file(
@@ -347,16 +560,13 @@ def chunk_file(
             max_chunk_lines, chunk_overlap_lines, file_mtime=file_mtime,
         )
 
-    # Prepend import/using declarations to each chunk so that semantic search
-    # can match on imported types and packages — the primary signal for
-    # cross-project reference detection (e.g. a Java class that imports
-    # com.udh.interface.Foo links back to the udh-interface collection).
-    import_header = _collect_import_header(tree.root_node, lines, language)
-    if import_header:
+    # Prepend only imports referenced in each chunk (plus package/wildcard lines)
+    # so embeddings stay focused while cross-reference detection still works.
+    import_lines = _collect_import_lines(tree.root_node, lines, language)
+    if import_lines:
         for chunk in chunks:
-            # Only prepend if the chunk doesn't already start with imports
-            # (avoids doubling up on chunks that ARE the import block).
-            if not chunk.content.startswith(import_header[:20]):
-                chunk.content = import_header + "\n" + chunk.content
+            relevant = _filter_relevant_imports(import_lines, chunk.content, language)
+            if relevant:
+                _prepend_import_header(chunk, "\n".join(relevant))
 
     return chunks

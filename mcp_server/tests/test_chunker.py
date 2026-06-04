@@ -1,6 +1,10 @@
 """Unit tests for the tree-sitter / sliding-window chunker."""
 
-from codebase_indexer.indexer.chunker import chunk_file
+from codebase_indexer.indexer.chunker import (
+    _extract_imported_names,
+    _filter_relevant_imports,
+    chunk_file,
+)
 
 
 PY_SAMPLE = '''\
@@ -41,8 +45,8 @@ def test_chunk_ids_are_deterministic():
     assert [c.chunk_id for c in a] == [c.chunk_id for c in b]
 
 
-def test_import_header_prepended_to_python_chunks():
-    """Import statements should appear in every function/class chunk."""
+def test_selective_import_header_python():
+    """Only imports whose symbols appear in a chunk are prepended."""
     source = '''\
 import os
 from typing import List
@@ -53,57 +57,84 @@ def greet(name: str) -> str:
 
 class Greeter:
     def say_hello(self) -> None:
-        print("hi")
+        os.getcwd()
 '''
     chunks = chunk_file(source, "greet.py", "python", "abc")
-    # Every chunk should carry the import context
-    for chunk in chunks:
-        assert "import os" in chunk.content, f"Missing import in chunk: {chunk.symbol_name}"
-        assert "from typing import List" in chunk.content
+    greet = next(c for c in chunks if c.symbol_name == "greet")
+    greeter = next(c for c in chunks if c.symbol_name == "Greeter")
+
+    assert "import os" not in greet.content
+    assert "from typing import List" not in greet.content
+
+    assert "import os" in greeter.content
+    assert "from typing import List" not in greeter.content
 
 
-def test_import_header_prepended_to_java_chunks():
-    """Java import declarations should appear in every class/method chunk."""
+def test_selective_import_header_java():
+    """Java class chunks only prepend imports for types used in that class."""
     source = '''\
 package com.example;
 
 import com.udh.interface.UserService;
 import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.Assertions;
 
-public class UserController {
-    private UserService userService;
-
-    public List<String> getUsers() {
+public class ListUsers {
+    public List<String> getUsers(UserService userService) {
         return userService.findAll();
     }
 }
-'''
-    chunks = chunk_file(source, "UserController.java", "java", "abc")
-    for chunk in chunks:
-        assert "import com.udh.interface.UserService" in chunk.content, (
-            f"Missing import in chunk: {chunk.symbol_name}"
-        )
 
-
-def test_import_header_prepended_to_csharp_chunks():
-    """C# using directives should appear in class chunks."""
-    source = '''\
-using System;
-using MyCompany.Core.Interfaces;
-
-namespace MyApp
-{
-    public class Service
-    {
-        public void Run() { }
+public class DeleteUsers {
+    public void deleteUser(UserService userService) {
+        Assertions.assertNotNull(userService);
     }
 }
 '''
-    chunks = chunk_file(source, "Service.cs", "csharp", "abc")
-    for chunk in chunks:
-        assert "using MyCompany.Core.Interfaces" in chunk.content, (
-            f"Missing using directive in chunk: {chunk.symbol_name}"
-        )
+    chunks = chunk_file(source, "Users.java", "java", "abc")
+    list_users = next(c for c in chunks if c.symbol_name == "ListUsers")
+    delete_users = next(c for c in chunks if c.symbol_name == "DeleteUsers")
+
+    assert "package com.example" in list_users.content
+    assert "import com.udh.interface.UserService" in list_users.content
+    assert "import java.util.List" in list_users.content
+    assert "import java.util.Map" not in list_users.content
+    assert "import org.junit.jupiter.api.Assertions" not in list_users.content
+
+    assert "import com.udh.interface.UserService" in delete_users.content
+    assert "import org.junit.jupiter.api.Assertions" in delete_users.content
+    assert "import java.util.List" not in delete_users.content
+
+
+def test_selective_import_header_csharp_filter():
+    """C# usings are kept when any namespace segment is referenced in the chunk."""
+    lines = ["using System;", "using System.IO;"]
+    writer_body = "public IO.Stream Open() { return null; }"
+    math_body = "return System.Math.Abs(value);"
+
+    writer_imports = _filter_relevant_imports(lines, writer_body, "csharp")
+    math_imports = _filter_relevant_imports(lines, math_body, "csharp")
+
+    assert writer_imports == ["using System.IO;"]
+    assert math_imports == ["using System;"]
+
+
+def test_java_wildcard_import_always_prepended():
+    source = '''\
+package com.example;
+
+import java.util.*;
+
+public class Demo {
+    public void work() {
+        List<String> items = new ArrayList<>();
+    }
+}
+'''
+    chunks = chunk_file(source, "Demo.java", "java", "abc")
+    demo = next(c for c in chunks if c.symbol_name == "Demo")
+    assert "import java.util.*" in demo.content
 
 
 def test_no_import_duplication_when_chunk_starts_with_imports():
@@ -117,7 +148,85 @@ def foo():
 '''
     chunks = chunk_file(source, "foo.py", "python", "abc")
     for chunk in chunks:
-        # Count occurrences of "import os" — should not be duplicated
         assert chunk.content.count("import os") == 1, (
             f"Duplicate import in chunk: {chunk.symbol_name}"
         )
+
+
+def test_extract_imported_names_java_alias_and_wildcard():
+    assert _extract_imported_names("import java.util.*;", "java") is None
+    assert _extract_imported_names("package com.foo;", "java") is None
+    assert _extract_imported_names(
+        "import com.udh.common.Action;", "java"
+    ) == ["Action"]
+
+
+def test_extract_imported_names_python_alias():
+    assert _extract_imported_names("import numpy as np", "python") == ["np"]
+    assert _extract_imported_names("from foo import bar, baz", "python") == [
+        "bar",
+        "baz",
+    ]
+
+
+def test_filter_relevant_imports_matches_symbols():
+    lines = [
+        "import com.udh.common.Action;",
+        "import java.util.Map;",
+    ]
+    body = "customer = profile.get(Action.DELETE);"
+    relevant = _filter_relevant_imports(lines, body, "java")
+    assert len(relevant) == 1
+    assert "Action" in relevant[0]
+
+
+def test_go_grouped_import_lines_parsed():
+    assert _extract_imported_names('    "fmt"', "go") == ["fmt"]
+    assert _extract_imported_names('    "net/http"', "go") == ["http"]
+    assert _extract_imported_names('http "net/http"', "go") == ["http"]
+
+
+def test_go_grouped_imports_prepended_to_chunk():
+    source = '''package main
+
+import (
+\t"fmt"
+\t"net/http"
+)
+
+func handler(w http.ResponseWriter, r *http.Request) {
+\tfmt.Fprintf(w, "Hello")
+}
+'''
+    chunks = chunk_file(source, "main.go", "go", "abc")
+    handler = next(c for c in chunks if c.symbol_name == "handler")
+    assert '"fmt"' in handler.content
+    assert '"net/http"' in handler.content
+
+
+def test_rust_curly_brace_use_parsed():
+    assert _extract_imported_names("use std::io::{Read, Write};", "rust") == [
+        "Read",
+        "Write",
+    ]
+
+
+def test_rust_curly_brace_use_filter():
+    lines = ["use std::io::{Read, Write};"]
+    body = "fn f(r: &mut Read) -> Result<()> { Ok(()) }"
+    relevant = _filter_relevant_imports(lines, body, "rust")
+    assert relevant == lines
+
+
+def test_js_default_and_named_import_parsed():
+    assert _extract_imported_names(
+        "import React, { useState, useEffect } from 'react';",
+        "javascript",
+    ) == ["React", "useState", "useEffect"]
+
+
+def test_js_default_and_named_import_filter():
+    line = "import React, { useState, useEffect } from 'react';"
+    body = "const [state, setState] = useState(0); return <React.Fragment />"
+    relevant = _filter_relevant_imports([line], body, "javascript")
+    assert line in relevant
