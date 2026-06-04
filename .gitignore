@@ -13,3 +13,4 @@ venv/
 .ruff_cache/
 skill-workspace/
 .cursor/debug-*.log
+.idea

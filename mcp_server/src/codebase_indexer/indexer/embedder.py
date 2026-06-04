@@ -93,6 +93,12 @@ class Embedder:
     _shared_dense_model = None
     _shared_sparse_model = None
 
+    # Idle-timeout tracking — updated on every embed call; checked by background task
+    _last_embed_time: float = 0.0
+    _idle_timer: "asyncio.Task | None" = None
+    # Configured via start_idle_timer(); 0 = disabled
+    _idle_timeout_s: int = 0
+
     @classmethod
     def release_models(cls) -> None:
         """Drop ONNX models from memory and return native allocations to the OS.
@@ -104,6 +110,63 @@ class Embedder:
         cls._shared_sparse_model = None
         trim_memory()
         _tlog.info("models_released memory_freed=true")
+
+    @classmethod
+    def start_idle_timer(cls, timeout_s: int) -> None:
+        """Start a background asyncio task that releases models after idle.
+
+        If timeout_s is 0 the timer is disabled. Safe to call multiple times —
+        the previous task is cancelled before starting a new one.
+        Also stores timeout_s so _ensure_idle_timer() can lazily re-start it.
+        """
+        cls._idle_timeout_s = timeout_s
+        if timeout_s <= 0:
+            return
+        cls.stop_idle_timer()
+
+        async def _idle_watcher() -> None:
+            check_interval = min(60, timeout_s)
+            while True:
+                await asyncio.sleep(check_interval)
+                if cls._shared_dense_model is None and cls._shared_sparse_model is None:
+                    # Models already released; nothing to do.
+                    continue
+                idle_s = time.monotonic() - cls._last_embed_time
+                if idle_s >= timeout_s:
+                    _tlog.info(
+                        "idle_timeout_releasing_models idle_s=%.0f timeout_s=%d",
+                        idle_s, timeout_s,
+                    )
+                    cls.release_models()
+
+        try:
+            loop = asyncio.get_running_loop()
+            cls._idle_timer = loop.create_task(_idle_watcher(), name="embedder-idle-timer")
+        except RuntimeError:
+            # No running event loop (e.g. during tests). Skip gracefully.
+            pass
+
+    @classmethod
+    def _ensure_idle_timer(cls) -> None:
+        """Lazily start the idle timer on the first embed call inside the event loop.
+
+        Called from async embed methods so the asyncio loop is always available.
+        No-op if the timer is already running, disabled (timeout=0), or no models
+        are loaded.
+        """
+        if cls._idle_timeout_s <= 0:
+            return
+        if cls._idle_timer is not None and not cls._idle_timer.done():
+            return
+        # Timer not yet started or was cancelled — start it now.
+        cls.start_idle_timer(cls._idle_timeout_s)
+
+    @classmethod
+    def stop_idle_timer(cls) -> None:
+        """Cancel the idle-timeout watcher task if running."""
+        if cls._idle_timer is not None and not cls._idle_timer.done():
+            cls._idle_timer.cancel()
+        cls._idle_timer = None
 
     def __init__(
         self,
@@ -314,6 +377,8 @@ class Embedder:
         thread-pool workers. This is the public entry point all query tools
         should use instead of reaching into the private batch helpers.
         """
+        Embedder._last_embed_time = time.monotonic()
+        Embedder._ensure_idle_timer()
         loop = asyncio.get_running_loop()
         if self.hybrid:
             dense_list, sparse_list = await asyncio.gather(
@@ -335,6 +400,8 @@ class Embedder:
         processes all texts in a single ONNX run (with length-sorted batching)
         and the sparse encoder runs once over the whole list.
         """
+        Embedder._last_embed_time = time.monotonic()
+        Embedder._ensure_idle_timer()
         loop = asyncio.get_running_loop()
         if self.hybrid:
             dense_list, sparse_list = await asyncio.gather(
@@ -355,6 +422,8 @@ class Embedder:
         thread-pool workers. Under memory pressure, concurrency is disabled
         and they run sequentially to reduce peak allocations.
         """
+        Embedder._last_embed_time = time.monotonic()
+        Embedder._ensure_idle_timer()
         texts = [c.content for c in chunks]
         loop = asyncio.get_running_loop()
 

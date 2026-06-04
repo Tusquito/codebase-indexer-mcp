@@ -51,9 +51,16 @@ class Settings(BaseSettings):
     )
 
     # Release the shared ONNX models after an indexing job completes. Reclaims
-    # native memory but forces a ~1.5s reload on the next request — undesirable
-    # on a long-lived server that also serves search, so default off.
-    release_models_after_index: bool = Field(default=False)
+    # ~300-500 MB of native ONNX/glibc memory immediately. Models reload in
+    # ~1.5s from the fastembed_cache volume on the next search query.
+    # Default on: indexing is infrequent, idle RAM costs more than reload latency.
+    # Set to false only if you need sub-second first-search latency after indexing.
+    release_models_after_index: bool = Field(default=True)
+
+    # Seconds of embed inactivity before ONNX models are automatically released.
+    # Covers cases where models were loaded for search but the server goes idle.
+    # 0 disables the idle timer (models stay until process restart or explicit release).
+    model_idle_timeout: int = Field(default=300)
 
     # --- Pipeline tuning knobs (hardware-portable; all env-overridable) ---
     # Number of chunks accumulated before an embed+upsert flush. The double

@@ -226,11 +226,25 @@ async def run_pipeline(
         peak_rss_mb=get_rss_mb(),
     )
 
-    # Optionally release ONNX models after indexing to reclaim native memory.
-    # Off by default: a long-lived server shares these models with the search
-    # tools, so releasing here would force a ~1.5s reload on the next query.
+    # Release ONNX models and reclaim native memory.
+    # On by default: frees ~300-500 MB immediately after indexing.
+    # Models reload in ~1.5s from cache on the next search query.
+    rss_before = get_rss_mb()
     if settings.release_models_after_index:
         Embedder.release_models()
+
+    # Unconditional post-pipeline cleanup: reclaim transient pipeline
+    # allocations (chunk lists, numpy arrays, text buffers) from glibc arenas
+    # even when models are kept resident.
+    del embedder
+    gc.collect()
+    trim_memory()
+    log.info(
+        "pipeline_memory_reclaimed",
+        rss_before_mb=rss_before,
+        rss_after_mb=get_rss_mb(),
+        models_released=settings.release_models_after_index,
+    )
 
     return result
 

@@ -154,6 +154,13 @@ def create_app(settings: Settings | None = None, preload_models: bool = True) ->
 
     ctx = AppContext.create(settings)
 
+    # Configure idle-timeout so _ensure_idle_timer() picks it up lazily
+    # on the first embed call (avoids needing an ASGI lifecycle hook).
+    from codebase_indexer.indexer.embedder import Embedder as _Embedder
+    _Embedder._idle_timeout_s = settings.model_idle_timeout
+    if settings.model_idle_timeout > 0:
+        log.info("idle_timer_configured", timeout_s=settings.model_idle_timeout)
+
     if preload_models:
         # Warm the shared ONNX models so the first index/search is instant.
         # Models are cached in the fastembed_cache Docker volume.

@@ -362,6 +362,8 @@ All settings are environment-variable driven, with defaults tuned for a **16 CPU
 | `SPARSE_ON_DISK` | `true` | Store the sparse index on disk |
 | `QUANTIZATION` | `true` | int8 scalar quantization of dense vectors (~4× less vector RAM; rescored, so search quality is preserved) |
 | `MEMMAP_THRESHOLD_KB` | `20000` | Segments above this size are memory-mapped rather than kept in RAM |
+| `RELEASE_MODELS_AFTER_INDEX` | `true` | Release ONNX models after indexing completes to reclaim ~300-500 MB. Models reload in ~1.5s from the cache volume on the next search query. Set to `false` only if you need sub-second first-search latency after indexing. |
+| `MODEL_IDLE_TIMEOUT` | `300` | Seconds of embed inactivity before ONNX models are automatically released. Covers the case where models were loaded for search but the server goes idle. `0` disables the idle timer. |
 
 > Qdrant storage settings (`VECTORS_ON_DISK`, `SPARSE_ON_DISK`, `QUANTIZATION`, `MEMMAP_THRESHOLD_KB`) apply when a collection is created, so they take effect on the next (re-)index of each project.
 
@@ -379,6 +381,9 @@ The same image scales by editing `.env` only — see the **TUNING PRESETS** sect
 - `malloc_trim` runs after every upsert completes so long jobs return freed native memory to the OS instead of accumulating RSS (current RSS is logged per batch as `rss_mb`).
 - **Adaptive batch sizing**: ONNX attention is O(seq_len² × batch_size). Batches containing long chunks (>1000 chars) automatically use a smaller batch size, preventing memory spikes on the last (longest) batches.
 - **Cgroup-aware memory guard**: before each embedding batch, the pipeline checks `/sys/fs/cgroup/memory.current` against the container's memory limit. At 70% usage, batch sizes are halved and dense/sparse encoding runs sequentially. At 85%, embedding is aborted with a clear error instead of being silently OOM-killed.
+- **Post-indexing memory reclamation**: after every indexing job, the pipeline releases all transient allocations (`gc.collect()` + `malloc_trim(0)`) and logs RSS before/after so you can verify the memory was freed.
+- **Model release after indexing** (`RELEASE_MODELS_AFTER_INDEX=true` default): ONNX models are dropped after each index job, returning ~300-500 MB of native memory immediately. Models reload in ~1.5s from the cache volume on the next search query.
+- **Idle-timeout model release** (`MODEL_IDLE_TIMEOUT=300` default): if the server has not run an embed in N seconds, ONNX models are automatically released. This reclaims memory when the server is idle after search queries, not just after indexing.
 - **OOM-restart detection**: on startup, the server checks for a clean-shutdown marker. If absent, it logs a warning that the previous instance may have been OOM-killed.
 - Metadata dicts from incremental indexing are released after the scan phase to free memory before the heaviest embedding batches.
 - Qdrant HNSW indexing is deferred during bulk upload (`indexing_threshold` is set to 0, then restored) so index construction doesn't compete with embedding for CPU.
