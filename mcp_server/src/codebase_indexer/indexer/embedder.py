@@ -24,6 +24,7 @@ from codebase_indexer.memory import (
     check_memory_pressure,
     emergency_trim,
     get_rss_mb,
+    memory_pressure_pct,
 )
 
 log = structlog.get_logger()
@@ -378,12 +379,13 @@ class Embedder:
         total = len(truncated)
 
         rss_start = get_rss_mb()
+        start_pressure_pct = memory_pressure_pct()
         _tlog.info(
             "dense_embed_start chunks=%d batch_size=%d tokens_avg=%d tokens_max=%d "
-            "chars_avg=%d chars_max=%d rss_mb=%.1f",
+            "chars_avg=%d chars_max=%d rss_mb=%.1f pressure_pct=%.1f",
             total, self.batch_size, round(statistics.mean(token_lengths)),
             max(token_lengths), round(statistics.mean(char_lengths)),
-            max(char_lengths), rss_start,
+            max(char_lengths), rss_start, start_pressure_pct,
         )
 
         # Sort by token length so each ONNX batch has similar-length texts (less padding)
@@ -401,6 +403,7 @@ class Embedder:
         # Manually slice into sub-batches so we can adapt batch size per-slice
         # based on max sequence length and memory pressure.
         i = 0
+        prev_effective_bs = self.batch_size
         while i < len(sorted_texts):
             # Check memory pressure before each sub-batch
             severity, pct = check_memory_pressure(self.memory_warn_pct, self.memory_halt_pct)
@@ -445,6 +448,22 @@ class Embedder:
             if severity == "warn":
                 effective_bs = max(1, effective_bs // 2)
 
+            _tlog.debug(
+                "dense_batch_decision i=%d severity=%s pressure_pct=%.1f "
+                "max_tokens=%d effective_bs=%d base_bs=%d",
+                i, severity, pct, actual_max, effective_bs, self.batch_size,
+            )
+            if effective_bs != prev_effective_bs:
+                resize_reason = "memory_warn" if severity == "warn" else "token_length"
+                _tlog.info(
+                    "dense_batch_resize prev_bs=%d new_bs=%d reason=%s "
+                    "max_tokens=%d pressure_pct=%.1f i=%d",
+                    prev_effective_bs, effective_bs,
+                    resize_reason,
+                    actual_max, pct, i,
+                )
+            prev_effective_bs = effective_bs
+
             sub_texts = sorted_texts[i:i + effective_bs]
             for emb in model.embed(sub_texts, batch_size=effective_bs):
                 sorted_embeddings.append(emb)
@@ -457,10 +476,11 @@ class Embedder:
                 done = len(sorted_embeddings)
                 _tlog.info(
                     "dense_embed_progress done=%d total=%d pct=%d elapsed_s=%.1f "
-                    "chunks_per_s=%.1f effective_bs=%d rss_mb=%.1f",
+                    "chunks_per_s=%.1f effective_bs=%d max_tokens=%d pressure_pct=%.1f "
+                    "rss_mb=%.1f",
                     done, total, round(done / total * 100),
                     elapsed, done / elapsed if elapsed > 0 else 0,
-                    effective_bs, get_rss_mb(),
+                    effective_bs, actual_max, pct, get_rss_mb(),
                 )
                 t_last_log = now
 
@@ -481,9 +501,10 @@ class Embedder:
                 )
 
         _tlog.info(
-            "dense_embed_done chunks=%d elapsed_s=%.2f chunks_per_s=%.1f rss_mb=%.1f rss_delta_mb=%.1f",
+            "dense_embed_done chunks=%d elapsed_s=%.2f chunks_per_s=%.1f rss_mb=%.1f "
+            "rss_delta_mb=%.1f pressure_pct=%.1f",
             len(embeddings), elapsed, len(embeddings) / elapsed if elapsed > 0 else 0,
-            rss_end, rss_end - rss_start,
+            rss_end, rss_end - rss_start, memory_pressure_pct(),
         )
 
         return embeddings
