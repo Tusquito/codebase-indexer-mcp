@@ -5,6 +5,10 @@ import asyncio
 import time
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from codebase_indexer.indexer.pipeline import PipelineResult
 
 
 class JobStatus(str, Enum):
@@ -22,15 +26,11 @@ class IndexJob:
     status: JobStatus = JobStatus.QUEUED
     started_at: float = 0.0
     finished_at: float = 0.0
-    total_files: int = 0
-    indexed_files: int = 0
-    skipped_files: int = 0
-    total_chunks: int = 0
-    errors: list[str] = field(default_factory=list)
     error_message: str = ""
     _cancel_event: asyncio.Event = field(default_factory=asyncio.Event, repr=False)
     _done_event: asyncio.Event = field(default_factory=asyncio.Event, repr=False)
     _task: asyncio.Task | None = field(default=None, repr=False)
+    _result: "PipelineResult | None" = field(default=None, repr=False)
 
     @property
     def is_cancel_requested(self) -> bool:
@@ -47,16 +47,17 @@ class IndexJob:
         return round(end - self.started_at, 2)
 
     def to_dict(self) -> dict:
+        r = self._result
         return {
             "collection": self.collection,
             "path": self.path,
             "status": self.status.value,
             "elapsed_seconds": self.elapsed_seconds,
-            "total_files": self.total_files,
-            "indexed_files": self.indexed_files,
-            "skipped_files": self.skipped_files,
-            "total_chunks": self.total_chunks,
-            "errors": self.errors,
+            "total_files": r.total_files if r else 0,
+            "indexed_files": r.indexed_files if r else 0,
+            "skipped_files": r.skipped_files if r else 0,
+            "total_chunks": r.total_chunks if r else 0,
+            "errors": list(r.errors) if r else [],
             "error_message": self.error_message,
         }
 

@@ -51,10 +51,19 @@ async def run_pipeline(
     sub_path: str = "/",
     force: bool = False,
     cancel_event: asyncio.Event | None = None,
+    result: PipelineResult | None = None,
 ) -> PipelineResult:
-    """Run the full indexing pipeline."""
+    """Run the full indexing pipeline.
+
+    Args:
+        result: Optional progress object to update in place. When provided,
+            counters and errors are written to this instance and the same
+            object is returned. Callers must not replace it with a new
+            ``PipelineResult`` inside the pipeline.
+    """
     start_time = time.monotonic()
-    result = PipelineResult()
+    if result is None:
+        result = PipelineResult()
 
     coll = collection or settings.qdrant_collection
     await storage.ensure_collection(coll, force=force)

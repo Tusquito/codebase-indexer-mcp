@@ -18,6 +18,25 @@ from fastmcp import FastMCP
 _GOOD_RESULT = PipelineResult(total_files=5, indexed_files=5, total_chunks=20)
 
 
+async def _mock_run_pipeline(
+    settings,
+    storage,
+    collection,
+    sub_path,
+    force,
+    cancel_event=None,
+    result=None,
+):
+    """Mock pipeline that copies counters into the shared result object."""
+    if result is not None:
+        result.total_files = _GOOD_RESULT.total_files
+        result.indexed_files = _GOOD_RESULT.indexed_files
+        result.skipped_files = _GOOD_RESULT.skipped_files
+        result.total_chunks = _GOOD_RESULT.total_chunks
+        result.errors = list(_GOOD_RESULT.errors)
+    return result if result is not None else _GOOD_RESULT
+
+
 def _stat(name: str) -> SimpleNamespace:
     """Minimal stand-in for CollectionStats (only .name is consumed by index_all)."""
     return SimpleNamespace(name=name)
@@ -78,7 +97,7 @@ class TestIndexAllSingleCollection:
     async def test_wait_true_indexes_and_returns_done(self):
         with patch(
             "codebase_indexer.tools.index.run_pipeline",
-            new=AsyncMock(return_value=_GOOD_RESULT),
+            new=AsyncMock(side_effect=_mock_run_pipeline),
         ):
             index_all, _, _ = await _setup(["alpha"])
             result = await index_all(wait=True)
@@ -97,7 +116,7 @@ class TestIndexAllMultipleCollections:
     async def test_wait_true_indexes_all_sequentially(self):
         with patch(
             "codebase_indexer.tools.index.run_pipeline",
-            new=AsyncMock(return_value=_GOOD_RESULT),
+            new=AsyncMock(side_effect=_mock_run_pipeline),
         ):
             index_all, _, _ = await _setup(["alpha", "beta"])
             result = await index_all(wait=True)
@@ -116,7 +135,7 @@ class TestIndexAllSkipsRunning:
     async def test_running_collection_is_skipped_others_indexed(self):
         with patch(
             "codebase_indexer.tools.index.run_pipeline",
-            new=AsyncMock(return_value=_GOOD_RESULT),
+            new=AsyncMock(side_effect=_mock_run_pipeline),
         ):
             index_all, job_tracker, _ = await _setup(["alpha", "beta"])
 
@@ -139,7 +158,7 @@ class TestIndexAllWaitFalse:
     async def test_returns_immediately_with_queued_statuses(self):
         with patch(
             "codebase_indexer.tools.index.run_pipeline",
-            new=AsyncMock(return_value=_GOOD_RESULT),
+            new=AsyncMock(side_effect=_mock_run_pipeline),
         ):
             index_all, _, _ = await _setup(["alpha", "beta"])
             result = await index_all(wait=False)
@@ -155,7 +174,7 @@ class TestIndexAllWaitFalse:
     async def test_wait_false_skips_running_collection(self):
         with patch(
             "codebase_indexer.tools.index.run_pipeline",
-            new=AsyncMock(return_value=_GOOD_RESULT),
+            new=AsyncMock(side_effect=_mock_run_pipeline),
         ):
             index_all, job_tracker, _ = await _setup(["alpha", "beta"])
 
@@ -180,7 +199,7 @@ class TestIndexAllWaitFalse:
 
 class TestIndexAllForceFlag:
     async def test_force_is_forwarded_to_pipeline(self):
-        mock_pipeline = AsyncMock(return_value=_GOOD_RESULT)
+        mock_pipeline = AsyncMock(side_effect=_mock_run_pipeline)
         with patch("codebase_indexer.tools.index.run_pipeline", new=mock_pipeline):
             index_all, _, _ = await _setup(["alpha"])
             await index_all(force=True, wait=True)
@@ -189,7 +208,7 @@ class TestIndexAllForceFlag:
         assert mock_pipeline.call_args.kwargs["force"] is True
 
     async def test_force_false_by_default(self):
-        mock_pipeline = AsyncMock(return_value=_GOOD_RESULT)
+        mock_pipeline = AsyncMock(side_effect=_mock_run_pipeline)
         with patch("codebase_indexer.tools.index.run_pipeline", new=mock_pipeline):
             index_all, _, _ = await _setup(["alpha"])
             await index_all(wait=True)
@@ -204,11 +223,19 @@ class TestIndexAllForceFlag:
 class TestIndexAllCollectionFailure:
     async def test_failed_collection_reported_others_continue(self):
         async def flaky_pipeline(
-            settings, storage, collection, sub_path, force, cancel_event
+            settings,
+            storage,
+            collection,
+            sub_path,
+            force,
+            cancel_event=None,
+            result=None,
         ):
             if collection == "beta":
                 raise RuntimeError("disk full")
-            return _GOOD_RESULT
+            return await _mock_run_pipeline(
+                settings, storage, collection, sub_path, force, cancel_event, result
+            )
 
         with patch("codebase_indexer.tools.index.run_pipeline", new=flaky_pipeline):
             index_all, _, _ = await _setup(["alpha", "beta"])
@@ -221,7 +248,13 @@ class TestIndexAllCollectionFailure:
 
     async def test_all_fail_reports_zero_succeeded(self):
         async def always_fail(
-            settings, storage, collection, sub_path, force, cancel_event
+            settings,
+            storage,
+            collection,
+            sub_path,
+            force,
+            cancel_event=None,
+            result=None,
         ):
             raise RuntimeError("storage unavailable")
 

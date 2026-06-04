@@ -14,7 +14,7 @@ from fastmcp import FastMCP
 
 from codebase_indexer.config import Settings
 from codebase_indexer.index_jobs import IndexJobTracker, JobStatus
-from codebase_indexer.indexer.pipeline import run_pipeline, IndexCancelled
+from codebase_indexer.indexer.pipeline import PipelineResult, run_pipeline, IndexCancelled
 from codebase_indexer.indexer.embedder import Embedder
 from codebase_indexer.storage.qdrant import QdrantStorage
 
@@ -76,27 +76,26 @@ async def _run_index_job(
     job.started_at = time.monotonic()
     log.info("index_job_started", collection=collection, path=path)
 
+    pipeline_result = PipelineResult()
+    job._result = pipeline_result
+
     try:
-        result = await run_pipeline(
+        await run_pipeline(
             settings=settings,
             storage=storage,
             collection=collection,
             sub_path=path,
             force=force,
             cancel_event=job._cancel_event,
+            result=pipeline_result,
         )
-        job.total_files = result.total_files
-        job.indexed_files = result.indexed_files
-        job.skipped_files = result.skipped_files
-        job.total_chunks = result.total_chunks
-        job.errors = result.errors
         job.status = JobStatus.DONE
         job.finished_at = time.monotonic()
         log.info(
             "index_job_done",
             collection=collection,
-            files=result.indexed_files,
-            chunks=result.total_chunks,
+            files=pipeline_result.indexed_files,
+            chunks=pipeline_result.total_chunks,
             elapsed=job.elapsed_seconds,
         )
     except IndexCancelled as e:
