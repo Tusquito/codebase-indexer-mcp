@@ -66,13 +66,15 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO")
 
     # Directory names pruned during the scan walk (build artifacts, VCS, caches,
-    # editor metadata). Comma-separated and env-overridable. Project-specific or
+    # migration history, editor metadata). Comma-separated and env-overridable.
+    # Project-specific or
     # content-bearing folders (e.g. docs) belong in a per-project
     # .codeindexignore rather than this global default.
     excluded_dirs: str = Field(
         default=(
             "node_modules,.git,__pycache__,.venv,venv,dist,build,target,bin,obj,"
-            ".gradle,.mypy_cache,.pytest_cache,.ruff_cache,.github,.idea,.vscode"
+            ".gradle,.mypy_cache,.pytest_cache,.ruff_cache,.github,.idea,.vscode,"
+            "migrations"
         )
     )
 

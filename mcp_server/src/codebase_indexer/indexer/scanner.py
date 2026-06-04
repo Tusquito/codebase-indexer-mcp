@@ -23,8 +23,9 @@ log = structlog.get_logger()
 # structlog can silently drop logs from threads; stdlib logging is guaranteed thread-safe.
 _tlog = logging.getLogger(__name__)
 
-# Default directories pruned during the walk: build artifacts, VCS, caches and
-# editor metadata that never carry indexable source. Deliberately excludes
+# Default directories pruned during the walk: build artifacts, VCS, caches,
+# migration history, and editor metadata that never carry indexable source.
+# Deliberately excludes
 # project-specific or content-bearing folders (e.g. "docs") — those belong in a
 # per-project .codeindexignore. Override the default set via Settings.excluded_dirs.
 EXCLUDED_DIRS = {
@@ -44,6 +45,7 @@ EXCLUDED_DIRS = {
     ".ruff_cache",
     ".idea",
     ".vscode",
+    "migrations",
 }
 
 

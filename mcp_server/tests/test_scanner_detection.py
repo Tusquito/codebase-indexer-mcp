@@ -12,6 +12,10 @@ def test_github_not_in_excluded_dirs():
     assert ".github" not in EXCLUDED_DIRS
 
 
+def test_migrations_in_excluded_dirs():
+    assert "migrations" in EXCLUDED_DIRS
+
+
 def test_detect_language_env_dotfiles():
     assert _detect_language(Path(".env.example")) == "properties"
     assert _detect_language(Path("src/.env.local")) == "properties"
