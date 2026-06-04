@@ -65,6 +65,15 @@ def test_max_dense_embed_tokens_from_env(monkeypatch: pytest.MonkeyPatch):
     assert Settings().max_dense_embed_tokens == 2048
 
 
+def test_sequential_embed_defaults_false():
+    assert Settings().sequential_embed is False
+
+
+def test_sequential_embed_from_env(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("SEQUENTIAL_EMBED", "true")
+    assert Settings().sequential_embed is True
+
+
 def test_custom_model_with_explicit_dense_embed_vector_size_valid():
     s = Settings(
         dense_embed_model="custom/model",
@@ -103,3 +112,17 @@ def test_bge_small_model_dense_embed_vector_size_valid():
         sparse_threads=2,
     )
     assert s.dense_embed_vector_size == 384
+
+
+def test_bge_v15_official_specs_in_registry():
+    from codebase_indexer.config import (
+        BGE_EN_V1_5_SPECS,
+        KNOWN_EMBED_MODEL_DIMENSIONS,
+        KNOWN_EMBED_MODEL_MAX_TOKENS,
+    )
+
+    assert BGE_EN_V1_5_SPECS["BAAI/bge-base-en-v1.5"] == (768, 512)
+    assert BGE_EN_V1_5_SPECS["BAAI/bge-small-en-v1.5"] == (384, 512)
+    for model, (dim, max_tokens) in BGE_EN_V1_5_SPECS.items():
+        assert KNOWN_EMBED_MODEL_DIMENSIONS[model] == dim
+        assert KNOWN_EMBED_MODEL_MAX_TOKENS[model] == max_tokens

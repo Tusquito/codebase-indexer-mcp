@@ -71,6 +71,7 @@ async def run_pipeline(
         max_sparse_embed_tokens=settings.max_sparse_embed_tokens,
         memory_warn_pct=settings.memory_pressure_warn_pct,
         memory_halt_pct=settings.memory_pressure_halt_pct,
+        sequential_embed=settings.sequential_embed,
     )
 
     flush_every = settings.flush_every

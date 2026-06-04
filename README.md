@@ -328,9 +328,20 @@ Settings are environment-variable driven. **Required variables** (no Python defa
 | `QDRANT_CPUS` | CPU cap for the Qdrant container |
 | `OMP_NUM_THREADS` | ONNX/BLAS threads (also sets `OPENBLAS`/`MKL`). Keep at/below physical cores. |
 | `DENSE_EMBED_MODEL` | fastembed ONNX dense embedding model (example: `nomic-ai/nomic-embed-text-v1.5`) |
-| `SPARSE_EMBED_MODEL` | fastembed sparse embedding model (example: `Qdrant/bm25`; alt: `prithivida/Splade_PP_en_v1`) |
-| `DENSE_EMBED_VECTOR_SIZE` | Dense embedding dimensions; must match `DENSE_EMBED_MODEL` for known models (768 for nomic v1.5, 768 for bge-base, 384 for bge-small) |
-| `SPARSE_THREADS` | ONNX threads for `SPARSE_EMBED_MODEL` (e.g. `2` for `Qdrant/bm25`, `4+` for `prithivida/Splade_PP_en_v1`) |
+| `SPARSE_EMBED_MODEL` | fastembed sparse model; default `Qdrant/bm25` (lexical BM25) |
+| `DENSE_EMBED_VECTOR_SIZE` | Dense embedding dimensions; must match `DENSE_EMBED_MODEL` (see [BGE v1.5](#baai-bge-english-v15) and nomic: 768) |
+| `SPARSE_THREADS` | ONNX threads for `SPARSE_EMBED_MODEL`; `2` for `Qdrant/bm25` (default) |
+
+### BAAI BGE English v1.5
+
+Official specs for the supported BGE dense models ([BAAI/bge-base-en-v1.5](https://huggingface.co/BAAI/bge-base-en-v1.5)):
+
+| Model | Dimension | Max sequence (tokens) |
+|-------|-----------|------------------------|
+| `BAAI/bge-base-en-v1.5` | 768 | 512 |
+| `BAAI/bge-small-en-v1.5` | 384 | 512 |
+
+Set `DENSE_EMBED_MODEL` and matching `DENSE_EMBED_VECTOR_SIZE` in `.env`. Leave `MAX_DENSE_EMBED_TOKENS=0` to auto-truncate at 512, or set `512` explicitly.
 
 ### Optional application settings
 
@@ -351,8 +362,9 @@ Settings are environment-variable driven. **Required variables** (no Python defa
 | `FLUSH_EVERY` | `1500` | Chunks per embed+upsert flush. Peak RAM ≈ 2× this. |
 | `UPSERT_BATCH` | `500` | Points per Qdrant upsert sub-batch |
 | `READAHEAD_BUFFER` | `100` | Files queued ahead of the consumer during scan |
-| `MAX_DENSE_EMBED_TOKENS` | `0` (auto) | Token cap fed to the dense encoder; auto-detects from model (e.g. 8192 for nomic). Lower to reduce ONNX memory. |
-| `MAX_SPARSE_EMBED_TOKENS` | `0` (no limit) | Token cap for sparse encoder. `0` for `Qdrant/bm25`; auto for SPLADE. |
+| `MAX_DENSE_EMBED_TOKENS` | `0` (auto) | Token cap fed to the dense encoder; auto-detects (512 for BGE base/small, 8192 for nomic). Lower to reduce ONNX memory. |
+| `MAX_SPARSE_EMBED_TOKENS` | `0` (no limit) | Token cap for sparse input. `0` = no truncation with `Qdrant/bm25` (default). Set explicitly only for other sparse transformer models. |
+| `SEQUENTIAL_EMBED` | `false` | Run sparse then dense sequentially during indexing (~lower peak RAM, slower) |
 
 ### Memory tuning
 

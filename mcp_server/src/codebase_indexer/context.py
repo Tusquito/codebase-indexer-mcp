@@ -41,6 +41,7 @@ class AppContext:
                 sparse_threads=settings.sparse_threads,
                 max_dense_embed_tokens=settings.max_dense_embed_tokens,
                 max_sparse_embed_tokens=settings.max_sparse_embed_tokens,
+                sequential_embed=settings.sequential_embed,
             ),
             job_tracker=IndexJobTracker(),
             url_extractors=UrlExtractors(settings.service_url_keyword_list),

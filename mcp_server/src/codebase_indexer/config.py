@@ -11,20 +11,24 @@ DEFAULT_SERVICE_URL_KEYWORDS = (
     "rest,api,profile,service,internal,public,gateway,graphql,webhook,auth,users,accounts"
 )
 
+# BAAI BGE English v1.5 — official (dimension, max sequence length in tokens).
+# https://huggingface.co/BAAI/bge-base-en-v1.5
+BGE_EN_V1_5_SPECS: dict[str, tuple[int, int]] = {
+    "BAAI/bge-base-en-v1.5": (768, 512),
+    "BAAI/bge-small-en-v1.5": (384, 512),
+}
+
 # Known dense embedding models and their output dimensions. When listed,
 # DENSE_EMBED_VECTOR_SIZE must match exactly (set both in .env — see .env.example).
 KNOWN_EMBED_MODEL_DIMENSIONS: dict[str, int] = {
     "nomic-ai/nomic-embed-text-v1.5": 768,
-    "BAAI/bge-base-en-v1.5": 768,
-    "BAAI/bge-small-en-v1.5": 384,
+    **{model: dims for model, (dims, _) in BGE_EN_V1_5_SPECS.items()},
 }
 
-# Known dense/sparse transformer models and max input tokens (embedding truncation).
+# Known dense transformer models and max input tokens (embedding truncation).
 KNOWN_EMBED_MODEL_MAX_TOKENS: dict[str, int] = {
     "nomic-ai/nomic-embed-text-v1.5": 8192,
-    "BAAI/bge-base-en-v1.5": 512,
-    "BAAI/bge-small-en-v1.5": 512,
-    "prithivida/Splade_PP_en_v1": 512,
+    **{model: max_tokens for model, (_, max_tokens) in BGE_EN_V1_5_SPECS.items()},
 }
 
 
@@ -42,7 +46,7 @@ class Settings(BaseSettings):
     qdrant_collection: str = Field(default="codebase")
     # No Python defaults — set DENSE_EMBED_MODEL, SPARSE_EMBED_MODEL,
     # DENSE_EMBED_VECTOR_SIZE, SPARSE_THREADS in .env (sparse threads depend on
-    # SPARSE_EMBED_MODEL — e.g. 2 for Qdrant/bm25, 4+ for SPLADE).
+    # SPARSE_EMBED_MODEL — default Qdrant/bm25: SPARSE_THREADS=2).
     dense_embed_model: str
     sparse_embed_model: str
     dense_embed_vector_size: int
@@ -93,13 +97,19 @@ class Settings(BaseSettings):
     # How many scanned files may be queued ahead of the consumer.
     readahead_buffer: int = Field(default=100)
     # Max tokens fed to the dense encoder. 0 = auto-detect from model (recommended).
-    # Set lower than the model max (e.g. 2048) to reduce ONNX attention memory.
+    # BGE base/small v1.5 auto-detect to 512; nomic v1.5 to 8192. Set lower to
+    # reduce ONNX attention memory on long-context models.
     max_dense_embed_tokens: int = Field(default=0)
-    # Max tokens fed to the sparse encoder. 0 = no limit for BM25; auto-detect for SPLADE.
+    # Max tokens fed to the sparse encoder. 0 = no limit (default for Qdrant/bm25).
     max_sparse_embed_tokens: int = Field(default=0)
     # ONNX intra-op threads for the dense encoder. 0 = auto-detect from CPU count
     # (or OMP_NUM_THREADS). Sparse encoder threads are required via SPARSE_THREADS.
     dense_threads: int = Field(default=0)
+
+    # Force sequential (sparse then dense) embedding instead of concurrent.
+    # Trades ~40-50% throughput for ~50% lower peak memory during indexing.
+    # Default false: concurrent is safe when BATCH_SIZE is properly tuned.
+    sequential_embed: bool = Field(default=False)
 
     # --- Memory pressure thresholds (cgroup-aware OOM prevention) ---
     # At warn_pct: halve ONNX batch size, disable dense/sparse concurrency.

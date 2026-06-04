@@ -210,6 +210,7 @@ class Embedder:
         max_sparse_embed_tokens: int = 0,
         memory_warn_pct: int = 70,
         memory_halt_pct: int = 85,
+        sequential_embed: bool = False,
     ):
         self.dense_model = dense_model
         self.sparse_model = sparse_model
@@ -222,6 +223,7 @@ class Embedder:
         self._max_sparse_embed_tokens_cfg = max_sparse_embed_tokens
         self.memory_warn_pct = memory_warn_pct
         self.memory_halt_pct = memory_halt_pct
+        self.sequential_embed = sequential_embed
         self._dense_truncation_ready = False
         self._sparse_truncation_ready = False
 
@@ -316,9 +318,9 @@ class Embedder:
         ONNX attention is O(seq_len² × batch_size), so batches with long
         sequences need fewer items to avoid memory spikes.
         """
-        if max_tokens_in_batch > 512:
+        if max_tokens_in_batch >= 512:
             return max(1, base_batch // 4)
-        if max_tokens_in_batch > 256:
+        if max_tokens_in_batch >= 256:
             return max(1, base_batch // 2)
         return base_batch
 
@@ -554,7 +556,7 @@ class Embedder:
 
         # Under memory pressure, run sequentially to avoid concurrent allocation spikes.
         severity, pct = check_memory_pressure(self.memory_warn_pct, self.memory_halt_pct)
-        force_sequential = severity in ("warn", "halt")
+        force_sequential = self.sequential_embed or severity in ("warn", "halt")
 
         if self.hybrid and not force_sequential:
             dense_vectors, sparse_vectors = await asyncio.gather(
@@ -562,7 +564,12 @@ class Embedder:
                 loop.run_in_executor(None, self._embed_sparse_batch_sync, texts),
             )
         elif self.hybrid:
-            log.info("embed_sequential_mode", reason="memory_pressure", pressure_pct=pct)
+            reason = "sequential_embed" if self.sequential_embed else "memory_pressure"
+            log.info(
+                "embed_sequential_mode",
+                reason=reason,
+                pressure_pct=pct if reason == "memory_pressure" else None,
+            )
             dense_vectors = await loop.run_in_executor(None, self._embed_dense_batch_sync, texts)
             sparse_vectors = await loop.run_in_executor(None, self._embed_sparse_batch_sync, texts)
         else:
