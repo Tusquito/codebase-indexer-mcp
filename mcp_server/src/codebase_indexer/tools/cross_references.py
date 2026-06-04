@@ -374,6 +374,39 @@ def register_cross_references_tool(mcp: FastMCP, ctx: "AppContext") -> None:
                         "reference_type": extractors.classify_reference(r.content, symbol_name, r.rel_path),
                     })
 
+            # Also run an import-phrased semantic search to surface chunks from
+            # other projects that *import* the symbol but aren't named after it.
+            # With import headers now prepended to every AST chunk, this search
+            # reliably finds consumer files that reference the library type.
+            import_query = f"import {symbol_name}"
+            import_dense, import_sparse = await embedder.embed_query(import_query)
+            import_results = await storage.search(
+                collection=None,
+                dense_vector=import_dense,
+                sparse_vector=import_sparse,
+                top_k=top_k,
+                min_score=0.3,
+                restrict_collections=target_collections,
+            )
+            seen_chunks = {r["rel_path"] + str(r["start_line"]) for r in all_results}
+            for r in import_results:
+                key = r.rel_path + str(r.start_line)
+                if key not in seen_chunks:
+                    seen_chunks.add(key)
+                    all_results.append({
+                        "rel_path": r.rel_path,
+                        "symbol_name": r.symbol_name,
+                        "symbol_type": r.symbol_type,
+                        "start_line": r.start_line,
+                        "end_line": r.end_line,
+                        "language": r.language,
+                        "content": r.content,
+                        "score": round(r.score, 4),
+                        "collection": r.collection,
+                        "match_type": "import_search",
+                        "reference_type": extractors.classify_reference(r.content, symbol_name, r.rel_path),
+                    })
+
         # Group by collection
         by_collection: dict[str, list[dict]] = defaultdict(list)
         for result in all_results:
@@ -465,24 +498,31 @@ def _build_link_summary(
                     })
 
     # definition ↔ usage/import links
+    # Only create a link when the usage/import chunk actually mentions the
+    # definition's symbol name — prevents noisy cartesian-product false positives.
     for def_coll, def_r in definitions:
+        def_symbol = def_r.get("symbol_name") or ""
         for use_coll, use_r in usages:
-            if def_coll != use_coll:
-                link_key = (use_coll, use_r["rel_path"], def_coll, def_r["rel_path"])
-                if link_key not in seen_links:
-                    seen_links.add(link_key)
-                    links.append({
-                        "type": "code_dependency",
-                        "from": {
-                            "collection": use_coll,
-                            "path": use_r["rel_path"],
-                            "reference_type": use_r.get("reference_type"),
-                        },
-                        "to": {
-                            "collection": def_coll,
-                            "path": def_r["rel_path"],
-                            "symbol": def_r.get("symbol_name"),
-                        },
-                    })
+            if def_coll == use_coll:
+                continue
+            # Require the usage chunk to contain the definition symbol name
+            if def_symbol and def_symbol not in use_r.get("content", ""):
+                continue
+            link_key = (use_coll, use_r["rel_path"], def_coll, def_r["rel_path"])
+            if link_key not in seen_links:
+                seen_links.add(link_key)
+                links.append({
+                    "type": "code_dependency",
+                    "from": {
+                        "collection": use_coll,
+                        "path": use_r["rel_path"],
+                        "reference_type": use_r.get("reference_type"),
+                    },
+                    "to": {
+                        "collection": def_coll,
+                        "path": def_r["rel_path"],
+                        "symbol": def_symbol,
+                    },
+                })
 
     return links

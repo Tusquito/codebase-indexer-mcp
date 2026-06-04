@@ -150,6 +150,54 @@ def _sliding_window_range(
 # Languages that tokenize heavily and need smaller chunks
 _VERBOSE_LANGUAGES = {"xml", "json", "yaml", "markdown", "protobuf", "sql"}
 
+# Tree-sitter node types that represent import/using declarations per language.
+# These lines are collected as an "import header" and prepended to every AST
+# chunk so that semantic search can match on imported types and packages —
+# which is the primary signal for cross-project reference detection.
+_IMPORT_NODE_TYPES: dict[str, frozenset[str]] = {
+    "python": frozenset({"import_statement", "import_from_statement", "future_import_statement"}),
+    "java": frozenset({"import_declaration", "package_declaration"}),
+    "csharp": frozenset({"using_directive", "namespace_declaration"}),
+    "javascript": frozenset({"import_statement", "import_declaration"}),
+    "typescript": frozenset({"import_statement", "import_declaration"}),
+    "go": frozenset({"import_declaration", "package_clause"}),
+    "rust": frozenset({"use_declaration", "extern_crate_declaration", "mod_item"}),
+    "c": frozenset({"preproc_include", "preproc_def"}),
+    "cpp": frozenset({"preproc_include", "preproc_def", "using_declaration", "namespace_definition"}),
+}
+
+# Maximum number of lines to include in the prepended import header.
+_MAX_IMPORT_HEADER_LINES = 35
+
+
+def _collect_import_header(tree_root: "Node", lines: list[str], language: str) -> str:
+    """Collect import/using declarations from the AST root as a header string.
+
+    Scans the top-level children of the AST root for import-like node types and
+    returns their source lines joined as a single string (capped at
+    _MAX_IMPORT_HEADER_LINES lines).  Returns an empty string if the language
+    has no import node types configured or none are found.
+    """
+    import_types = _IMPORT_NODE_TYPES.get(language)
+    if not import_types:
+        return ""
+
+    import_lines: list[str] = []
+    for child in tree_root.children:
+        if child.type in import_types:
+            start = child.start_point[0]
+            end = child.end_point[0]
+            import_lines.extend(lines[start : end + 1])
+
+    if not import_lines:
+        return ""
+
+    # Cap to avoid bloating chunks in files with hundreds of imports
+    if len(import_lines) > _MAX_IMPORT_HEADER_LINES:
+        import_lines = import_lines[:_MAX_IMPORT_HEADER_LINES]
+
+    return "\n".join(import_lines)
+
 
 def chunk_file(
     content: str,
@@ -231,5 +279,17 @@ def chunk_file(
             lines, 0, len(lines) - 1, rel_path, language, file_sha256,
             max_chunk_lines, chunk_overlap_lines, file_mtime=file_mtime,
         )
+
+    # Prepend import/using declarations to each chunk so that semantic search
+    # can match on imported types and packages — the primary signal for
+    # cross-project reference detection (e.g. a Java class that imports
+    # com.udh.interface.Foo links back to the udh-interface collection).
+    import_header = _collect_import_header(tree.root_node, lines, language)
+    if import_header:
+        for chunk in chunks:
+            # Only prepend if the chunk doesn't already start with imports
+            # (avoids doubling up on chunks that ARE the import block).
+            if not chunk.content.startswith(import_header[:20]):
+                chunk.content = import_header + "\n" + chunk.content
 
     return chunks

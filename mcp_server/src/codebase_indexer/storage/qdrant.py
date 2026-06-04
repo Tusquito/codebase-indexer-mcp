@@ -641,8 +641,9 @@ class QdrantStorage:
             FieldCondition(key="rel_path", match=MatchAny(any=rel_paths))
         ]
 
+        client = await self._get_client()
         try:
-            points, _ = await self.client.scroll(
+            points, _ = await client.scroll(
                 collection_name=collection,
                 scroll_filter=Filter(should=should_conditions),
                 limit=limit,
