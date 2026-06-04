@@ -51,6 +51,13 @@ def _make_chunk_id(rel_path: str, start_line: int) -> str:
 def _extract_symbol_name(node: Node) -> str | None:
     """Try to extract a symbol name from a tree-sitter node."""
     for child in node.children:
+        if child.type == "object_reference":
+            parts = []
+            for sub in child.children:
+                if sub.type == "identifier" and sub.text:
+                    parts.append(sub.text.decode("utf-8", errors="replace"))
+            if parts:
+                return ".".join(parts)
         if child.type in ("identifier", "name", "property_identifier", "type_identifier"):
             return child.text.decode("utf-8", errors="replace") if child.text is not None else None
         # For decorated_definition / export_statement, look deeper
@@ -62,6 +69,20 @@ def _extract_symbol_name(node: Node) -> str | None:
 
 def _classify_symbol_type(node_type: str) -> str:
     """Classify the AST node type into a semantic category."""
+    if node_type == "create_table":
+        return "table"
+    if node_type == "create_procedure":
+        return "procedure"
+    if node_type == "create_function":
+        return "function"
+    if node_type == "create_view":
+        return "view"
+    if node_type == "create_trigger":
+        return "trigger"
+    if node_type == "create_type":
+        return "type"
+    if node_type == "create_index":
+        return "index"
     if "class" in node_type or "struct" in node_type or "enum" in node_type or "interface" in node_type:
         return "class"
     if "method" in node_type or "constructor" in node_type:
@@ -69,6 +90,24 @@ def _classify_symbol_type(node_type: str) -> str:
     if "function" in node_type or "arrow_function" in node_type:
         return "function"
     return "other"
+
+
+def _chunk_symbol_metadata(
+    node: Node,
+    fallback_name: str | None,
+    fallback_type: str,
+) -> tuple[str | None, str]:
+    """Resolve symbol name/type for a chunk, preferring the node over parent fallbacks."""
+    own_name = _extract_symbol_name(node)
+    own_type = _classify_symbol_type(node.type)
+    name = own_name if own_name is not None else fallback_name
+    if own_type != "other":
+        symbol_type = own_type
+    elif fallback_type != "other":
+        symbol_type = fallback_type
+    else:
+        symbol_type = own_type
+    return name, symbol_type
 
 
 def _split_large_node(
@@ -79,13 +118,27 @@ def _split_large_node(
     file_sha256: str,
     max_chunk_lines: int,
     file_mtime: float = 0.0,
+    parent_symbol_name: str | None = None,
+    parent_symbol_type: str | None = None,
 ) -> list[Chunk]:
     """Recursively split a node that exceeds max_chunk_lines."""
+    fallback_name = (
+        parent_symbol_name
+        if parent_symbol_name is not None
+        else _extract_symbol_name(node)
+    )
+    fallback_type = (
+        parent_symbol_type
+        if parent_symbol_type is not None
+        else _classify_symbol_type(node.type)
+    )
+
     start = node.start_point[0]
     end = node.end_point[0]
     total = end - start + 1
 
     if total <= max_chunk_lines:
+        symbol_name, symbol_type = _chunk_symbol_metadata(node, fallback_name, fallback_type)
         content = "\n".join(lines[start:end + 1])
         return [Chunk(
             chunk_id=_make_chunk_id(rel_path, start + 1),
@@ -94,8 +147,8 @@ def _split_large_node(
             language=language,
             start_line=start + 1,
             end_line=end + 1,
-            symbol_name=_extract_symbol_name(node),
-            symbol_type=_classify_symbol_type(node.type),
+            symbol_name=symbol_name,
+            symbol_type=symbol_type,
             file_sha256=file_sha256,
             file_mtime=file_mtime,
         )]
@@ -104,11 +157,21 @@ def _split_large_node(
     children = [c for c in node.children if c.type not in ("comment", "{", "}", "(", ")", ";")]
     if not children:
         # Can't split further — just use sliding window on this range
-        return _sliding_window_range(lines, start, end, rel_path, language, file_sha256, max_chunk_lines, max_chunk_lines // 5, file_mtime=file_mtime)
+        return _sliding_window_range(
+            lines, start, end, rel_path, language, file_sha256,
+            max_chunk_lines, max_chunk_lines // 5, file_mtime=file_mtime,
+            symbol_name=fallback_name,
+            symbol_type=fallback_type,
+        )
 
     chunks = []
     for child in children:
-        chunks.extend(_split_large_node(child, lines, rel_path, language, file_sha256, max_chunk_lines, file_mtime=file_mtime))
+        chunks.extend(_split_large_node(
+            child, lines, rel_path, language, file_sha256, max_chunk_lines,
+            file_mtime=file_mtime,
+            parent_symbol_name=fallback_name,
+            parent_symbol_type=fallback_type,
+        ))
     return chunks
 
 
@@ -122,6 +185,8 @@ def _sliding_window_range(
     max_lines: int,
     overlap: int,
     file_mtime: float = 0.0,
+    symbol_name: str | None = None,
+    symbol_type: str = "other",
 ) -> list[Chunk]:
     """Sliding window chunker for a range of lines."""
     chunks = []
@@ -136,8 +201,8 @@ def _sliding_window_range(
             language=language,
             start_line=pos + 1,
             end_line=chunk_end + 1,
-            symbol_name=None,
-            symbol_type="other",
+            symbol_name=symbol_name,
+            symbol_type=symbol_type,
             file_sha256=file_sha256,
             file_mtime=file_mtime,
         ))
@@ -250,6 +315,8 @@ def chunk_file(
                 extracted = _split_large_node(
                     node, lines, rel_path, language, file_sha256, max_chunk_lines,
                     file_mtime=file_mtime,
+                    parent_symbol_name=_extract_symbol_name(node),
+                    parent_symbol_type=_classify_symbol_type(node.type),
                 )
             else:
                 node_content = "\n".join(lines[start:end + 1])

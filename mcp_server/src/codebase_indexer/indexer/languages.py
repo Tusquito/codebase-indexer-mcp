@@ -95,12 +95,21 @@ LANGUAGE_SPECS: list[LanguageSpec] = [
         }),
         _loader("tree_sitter_c_sharp"),
     ),
+    LanguageSpec(
+        "sql", (".sql",),
+        frozenset({
+            "create_table", "create_function",
+            # create_procedure: re-add when tree-sitter-sql ships the node kind (PR #355+)
+            "create_view", "create_type", "create_trigger",
+            "create_index",
+        }),
+        _loader("tree_sitter_sql"),
+    ),
     # --- Markup / data / scripting (sliding-window chunking) ---
     LanguageSpec("xml", (".xml", ".xsd", ".xsl", ".xslt", ".wsdl")),
     LanguageSpec("yaml", (".yml", ".yaml")),
     LanguageSpec("json", (".json",)),
     LanguageSpec("protobuf", (".proto",)),
-    LanguageSpec("sql", (".sql",)),
     LanguageSpec("kotlin", (".kt", ".kts")),
     LanguageSpec("scala", (".scala",)),
     LanguageSpec("ruby", (".rb",)),
