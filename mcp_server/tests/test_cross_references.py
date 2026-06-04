@@ -50,7 +50,21 @@ def test_configure_url_keywords_changes_extraction():
     configure_url_keywords([])
 
 
-def test_build_url_extractors_always_allows_version_segments():
+def test_classify_reference_build_dependency():
+    pom_content = """
+    <dependency>
+        <groupId>com.example.contracts</groupId>
+        <artifactId>myapp-contracts-definitions</artifactId>
+        <version>2.1.0-SNAPSHOT</version>
+    </dependency>
+    """
+    assert _classify_reference(pom_content, "myapp-contracts-definitions", "pom.xml") == "build_dependency"
+
+
+def test_classify_reference_build_dependency_csproj():
+    csproj_content = '<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />'
+    assert _classify_reference(csproj_content, "Newtonsoft.Json", "MyApp.csproj") == "build_dependency"
+
     config_extractors, code_extractors = _build_url_extractors(["api"])
     assert config_extractors and code_extractors
     # /v2/ should match via the always-on version segment, not the keyword.

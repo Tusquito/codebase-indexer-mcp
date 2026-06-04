@@ -115,7 +115,7 @@ These tools use **zero embedding cost** (Qdrant payload scroll only). Use them f
 
 | Tool | Description | Token saving |
 |------|-------------|-------------|
-| `get_collection_summary` | File counts by language, directory tree (depth 2), symbol breakdown, top-chunked files. Single call to understand a project. | Replaces 3–5 exploratory searches |
+| `get_collection_summary` | File counts by language, directory tree (depth 2), symbol breakdown, top-chunked files, and `build_dependencies` (which other indexed collections are depended on via Maven/NuGet/npm/etc). Single call to understand a project. | Replaces 3–5 exploratory searches |
 | `search_symbols` | Same hybrid search as `search_codebase` but returns **only** symbol locations — no code content. | ~90% vs `search_codebase` |
 | `get_file_outline` | All symbols in a specific file (name, type, line numbers) — no code content, no embedding. | Replaces reading full file chunks |
 
@@ -125,8 +125,8 @@ These tools use **zero embedding cost** (Qdrant payload scroll only). Use them f
 |------|-------------|
 | `search_codebase` | Hybrid semantic + keyword search. Returns code chunks. Use `max_content_chars` to truncate content and call `get_chunk` only for results you need in full. |
 | `get_chunk` | Retrieve a specific chunk by ID from a prior search result |
-| `find_cross_references` | Discover symbol/endpoint links across multiple collections |
-| `map_service_dependencies` | Build a full microservice dependency graph across collections |
+| `find_cross_references` | Discover symbol/endpoint links across multiple collections. Reference types: `definition`, `import`, `usage`, `endpoint_definition`, `http_call`, `service_config`, `build_dependency` |
+| `map_service_dependencies` | Build a full microservice dependency graph across collections. Detects HTTP/REST call chains **and** build-level dependencies (Maven, NuGet, npm, Gradle, Go, Cargo, Python). Returns `build_dependency` edges alongside `http_call`/`config_reference` edges. |
 
 ### Collections
 

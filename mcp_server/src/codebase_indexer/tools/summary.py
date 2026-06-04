@@ -8,6 +8,12 @@ from typing import TYPE_CHECKING
 
 from fastmcp import FastMCP
 
+from codebase_indexer.tools.build_deps import (
+    extract_build_deps,
+    is_build_manifest,
+    match_deps_to_collections,
+)
+
 if TYPE_CHECKING:
     from codebase_indexer.context import AppContext
 
@@ -35,7 +41,9 @@ def register_collection_summary_tool(mcp: FastMCP, ctx: "AppContext") -> None:
         description=(
             "Compact codebase orientation in a single tool call — no embedding cost. "
             "Returns: file count per language, top-level directory tree (depth 2), "
-            "symbol type breakdown, and the 10 most-chunked files. "
+            "symbol type breakdown, the 10 most-chunked files, and build_dependencies "
+            "listing which other indexed collections this project depends on at the "
+            "package/build level (Maven, NuGet, npm, Gradle, Go, Cargo, Python). "
             "Call this first when entering an unfamiliar project to orient the AI "
             "before running searches. Replaces 3-5 exploratory search_codebase calls."
         ),
@@ -57,6 +65,7 @@ def register_collection_summary_tool(mcp: FastMCP, ctx: "AppContext") -> None:
         lang_counter: Counter = Counter()
         symbol_type_counter: Counter = Counter()
         chunks_per_file: Counter = Counter()
+        manifest_paths: list[str] = []
 
         for row in rows:
             rel_path = row["rel_path"]
@@ -66,6 +75,8 @@ def register_collection_summary_tool(mcp: FastMCP, ctx: "AppContext") -> None:
             if rel_path not in files_by_path:
                 files_by_path[rel_path] = {"language": language}
                 lang_counter[language] += 1
+                if is_build_manifest(rel_path):
+                    manifest_paths.append(rel_path)
 
             symbol_type_counter[symbol_type] += 1
             chunks_per_file[rel_path] += 1
@@ -80,7 +91,54 @@ def register_collection_summary_tool(mcp: FastMCP, ctx: "AppContext") -> None:
             for path, count in chunks_per_file.most_common(10)
         ]
 
-        return {
+        # Detect build dependencies against other indexed collections
+        build_dependencies: list[dict] = []
+        if manifest_paths:
+            try:
+                # Fetch other collections to match against
+                all_stats = await storage.list_collection_stats()
+                other_collections = [s.name for s in all_stats if s.name != coll]
+
+                if other_collections:
+                    # Fetch content for all manifest files in one scroll
+                    manifest_chunks = await storage.scroll_chunks_by_paths(
+                        coll,
+                        manifest_paths,
+                        payload_fields=["rel_path", "content"],
+                    )
+
+                    # Merge chunks per file, then extract + match deps
+                    content_by_path: dict[str, str] = {}
+                    for chunk in manifest_chunks:
+                        p = chunk.get("rel_path", "")
+                        content_by_path[p] = (
+                            content_by_path.get(p, "") + "\n" + chunk.get("content", "")
+                        )
+
+                    seen_matches: set[str] = set()
+                    for rel_path, content in content_by_path.items():
+                        deps = extract_build_deps(content, rel_path)
+                        matches = match_deps_to_collections(
+                            deps, other_collections, self_collection=coll
+                        )
+                        for m in matches:
+                            key = f"{m['artifact']}:{m['matched_collection']}"
+                            if key not in seen_matches:
+                                seen_matches.add(key)
+                                build_dependencies.append({
+                                    "artifact": m["artifact"],
+                                    "group": m["group"],
+                                    "version": m["version"],
+                                    "scope": m["scope"],
+                                    "ecosystem": m["ecosystem"],
+                                    "matched_collection": m["matched_collection"],
+                                    "match_confidence": m["match_confidence"],
+                                    "declared_in": rel_path,
+                                })
+            except Exception:
+                pass  # Non-critical — summary still useful without build dep info
+
+        result: dict = {
             "collection": coll,
             "total_files": total_files,
             "total_chunks": total_chunks,
@@ -89,3 +147,6 @@ def register_collection_summary_tool(mcp: FastMCP, ctx: "AppContext") -> None:
             "directory_tree": top_dirs,
             "top_chunked_files": top_files,
         }
+        if build_dependencies:
+            result["build_dependencies"] = build_dependencies
+        return result

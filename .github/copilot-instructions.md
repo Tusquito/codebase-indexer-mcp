@@ -71,14 +71,14 @@ Each tool is a `register_*_tool(mcp, settings, storage)` function — register a
 | Tool | File | Description |
 |------|------|-------------|
 | `index_codebase` / `index_status` | `index.py` | Indexes a project; blocks until done by default (`wait=True`). Pass `wait=False` for fire-and-forget; then use `index_status` to poll. Jobs tracked in `IndexJobTracker` |
-| `get_collection_summary` | `summary.py` | **Token-efficient orientation**: language breakdown, dir tree, top files. Zero embedding cost. Call first on an unfamiliar codebase. |
+| `get_collection_summary` | `summary.py` | **Token-efficient orientation**: language breakdown, dir tree, top files, and `build_dependencies` (which other indexed collections this project depends on via Maven/NuGet/npm/Gradle/Go/Cargo/Python). Zero embedding cost. Call first on an unfamiliar codebase. |
 | `search_symbols` | `symbols.py` | **Token-efficient symbol lookup**: same hybrid search as `search_codebase` but returns only metadata (no code content). Use to locate symbols before fetching content. Saves ~90% tokens vs `search_codebase`. |
 | `get_file_outline` | `outline.py` | **Token-efficient file structure**: symbol tree for a specific file via Qdrant scroll (zero embedding cost). Know what's in a file before fetching any chunk. |
 | `search_codebase` | `search.py` | Hybrid RRF search (dense + sparse) across one or more collections. Use `max_content_chars` to truncate results; then call `get_chunk` for the 1–2 results you actually need in full. |
 | `get_chunk` | `chunk.py` | Retrieve a specific chunk by ID — use after `search_symbols` or truncated `search_codebase` |
 | `list_collections` | `collections.py` | List all indexed collections with stats |
-| `find_cross_references` | `cross_references.py` | Discover symbol/endpoint links across collections |
-| `map_service_dependencies` | `service_map.py` | Build a full microservice dependency graph |
+| `find_cross_references` | `cross_references.py` | Discover symbol/endpoint links across collections. Reference types: `definition`, `import`, `usage`, `endpoint_definition`, `http_call`, `service_config`, `build_dependency` |
+| `map_service_dependencies` | `service_map.py` | Build a full microservice dependency graph. Detects HTTP call chains **and** build-level dependencies (Maven, NuGet, npm, Gradle, Go, Cargo, Python). Returns `build_dependency` edges alongside `http_call`/`config_reference` edges. |
 
 ### Token-efficient workflow
 
@@ -102,6 +102,7 @@ Never call `search_codebase` without `max_content_chars` when you only need symb
 - **Path normalization**: `index_codebase` accepts full host paths (e.g. `C:\Users\me\repos\my-project`) and normalizes them to the last path component. Never pass `/` as the indexing path.
 - **Chunk sizes**: verbose/markup languages (`xml`, `yaml`, `json`, `markdown`, etc.) are capped at 60 lines per chunk; all others use `MAX_CHUNK_LINES` (default 150).
 - **Cross-collection search**: pass multiple collection names in the `collections` parameter of `search_codebase` / `find_cross_references`. Single-collection search goes through a faster code path.
+- **Build dependency detection**: `tools/build_deps.py` provides `extract_build_deps(content, rel_path)`, `is_build_manifest(rel_path)`, and `match_deps_to_collections(deps, collection_names)`. These parse Maven/NuGet/npm/Gradle/Go/Cargo/Python manifests and fuzzy-match artifact names against indexed collection names (e.g. artifact `my-core-definitions` matches collection `my-core`). Reference type `build_dependency` is returned by `find_cross_references` for manifest files. `map_service_dependencies` adds a Phase 2b that emits `build_dependency` edges. `get_collection_summary` auto-detects and reports `build_dependencies` when other collections are indexed.
 - **Documentation**: whenever you add, remove, or change an MCP tool (signature, behaviour, description), you **must** also update:
   1. `README.md` — the tool table and any relevant sections (Quick Start, Configuration, Architecture)
   2. `.github/copilot-instructions.md` — the tool table and Key conventions

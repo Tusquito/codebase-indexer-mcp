@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 from fastmcp import FastMCP
 
 from codebase_indexer.config import DEFAULT_SERVICE_URL_KEYWORDS
+from codebase_indexer.tools.build_deps import extract_build_deps, is_build_manifest
 
 if TYPE_CHECKING:
     from codebase_indexer.context import AppContext
@@ -244,6 +245,12 @@ def _classify_reference_impl(
     extractors: "UrlExtractors", content: str, symbol_or_query: str, rel_path: str = ""
 ) -> str:
     """Classify the type of cross-reference based on chunk content."""
+    # Build manifest files with dependency declarations → build_dependency
+    if is_build_manifest(rel_path):
+        deps = extract_build_deps(content, rel_path)
+        if deps:
+            return "build_dependency"
+
     # Config files with URL paths → service_config
     if _CONFIG_FILE_PATTERNS.search(rel_path):
         paths, base_urls = extractors.config_urls(content)

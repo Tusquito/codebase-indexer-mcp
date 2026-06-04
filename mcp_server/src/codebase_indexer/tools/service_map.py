@@ -8,6 +8,11 @@ from typing import TYPE_CHECKING, Any
 
 from fastmcp import FastMCP
 
+from codebase_indexer.tools.build_deps import (
+    extract_build_deps,
+    is_build_manifest,
+    match_deps_to_collections,
+)
 from codebase_indexer.tools.cross_references import _paths_match
 
 if TYPE_CHECKING:
@@ -31,6 +36,14 @@ _DISCOVERY_QUERIES = [
     "Feign client service connector proxy",
     # Generic integration shapes
     "adapter service operation request response",
+    # Build / package manifests — surface inter-project compile dependencies
+    "pom.xml dependency groupId artifactId version maven parent",
+    "csproj PackageReference ProjectReference NuGet dotnet",
+    "package.json dependencies devDependencies npm",
+    "build.gradle implementation api dependency compile",
+    "go.mod require module golang",
+    "Cargo.toml dependencies crate rust",
+    "pyproject.toml requirements.txt dependencies python",
 ]
 
 
@@ -46,10 +59,12 @@ def register_service_map_tool(mcp: FastMCP, ctx: "AppContext") -> None:
             "Automatically discover and map HTTP service dependencies across indexed "
             "collections. Scans all (or specified) collections for: endpoint definitions "
             "(controllers, route handlers), HTTP client calls (RestTemplate, HttpClient, "
-            "Feign, WebClient), and service configuration (base URLs, host settings in "
-            "YAML/properties). Returns a dependency graph showing which service calls "
-            "which, with matched endpoint paths. Use this to understand microservice "
-            "architecture and build E2E call chain maps."
+            "Feign, WebClient), service configuration (base URLs, host settings in "
+            "YAML/properties), and build-level dependencies (Maven pom.xml, NuGet .csproj, "
+            "npm package.json, Gradle build files, go.mod, Cargo.toml, pyproject.toml). "
+            "Returns a dependency graph showing which service calls which or depends on which, "
+            "with matched endpoint paths and package references. Use this to understand "
+            "microservice architecture and build E2E call chain maps."
         ),
     )
     async def map_service_dependencies(
@@ -83,6 +98,8 @@ def register_service_map_tool(mcp: FastMCP, ctx: "AppContext") -> None:
         endpoints_by_coll: dict[str, list[dict]] = defaultdict(list)
         callers_by_coll: dict[str, list[dict]] = defaultdict(list)
         configs_by_coll: dict[str, list[dict]] = defaultdict(list)
+        # Accumulates build manifest chunks; keyed by collection
+        manifests_by_coll: dict[str, list[dict]] = defaultdict(list)
 
         seen_chunks: set[str] = set()
 
@@ -133,6 +150,10 @@ def register_service_map_tool(mcp: FastMCP, ctx: "AppContext") -> None:
                 elif code_urls:
                     entry["called_paths"] = code_urls
                     callers_by_coll[r.collection].append(entry)
+                elif is_build_manifest(r.rel_path):
+                    # Store the full content so Phase 2b can parse dependencies.
+                    entry["content"] = content
+                    manifests_by_coll[r.collection].append(entry)
 
         # Phase 2: Build dependency graph via path matching
         edges: list[dict] = []
@@ -192,7 +213,42 @@ def register_service_map_tool(mcp: FastMCP, ctx: "AppContext") -> None:
                                     "base_urls": cfg.get("base_urls", []),
                                 })
 
-        # Phase 3: Build adjacency summary
+        # Phase 2b: Extract build dependencies from manifest chunks and match to collections
+        build_dep_edges: list[dict] = []
+        seen_build_edges: set[str] = set()
+
+        for dep_coll, manifest_entries in manifests_by_coll.items():
+            # Deduplicate by rel_path so we don't double-count multi-chunk manifests.
+            # Merge content chunks for the same file before parsing.
+            content_by_path: dict[str, str] = {}
+            for entry in manifest_entries:
+                path = entry["rel_path"]
+                content_by_path[path] = content_by_path.get(path, "") + "\n" + entry.get("content", "")
+
+            for rel_path, merged_content in content_by_path.items():
+                deps = extract_build_deps(merged_content, rel_path)
+                matches = match_deps_to_collections(
+                    deps, target_collections, self_collection=dep_coll
+                )
+                for m in matches:
+                    edge_key = f"{dep_coll}:{rel_path}→{m['matched_collection']}:{m['artifact']}"
+                    if edge_key in seen_build_edges:
+                        continue
+                    seen_build_edges.add(edge_key)
+                    build_dep_edges.append({
+                        "type": "build_dependency",
+                        "from_service": dep_coll,
+                        "from_file": rel_path,
+                        "to_service": m["matched_collection"],
+                        "artifact": m["artifact"],
+                        "group": m["group"],
+                        "version": m["version"],
+                        "scope": m["scope"],
+                        "ecosystem": m["ecosystem"],
+                        "match_confidence": m["match_confidence"],
+                    })
+
+        edges = [*edges, *build_dep_edges]
         adjacency: dict[str, list[str]] = defaultdict(list)
         for edge in edges:
             target = edge["to_service"]
@@ -206,10 +262,16 @@ def register_service_map_tool(mcp: FastMCP, ctx: "AppContext") -> None:
             ep_count = len(endpoints_by_coll.get(coll, []))
             caller_count = len(callers_by_coll.get(coll, []))
             cfg_count = len(configs_by_coll.get(coll, []))
+            manifest_count = len(manifests_by_coll.get(coll, []))
+            build_dep_count = sum(
+                1 for e in build_dep_edges if e["from_service"] == coll
+            )
             services[coll] = {
                 "endpoints_found": ep_count,
                 "http_callers_found": caller_count,
                 "configs_found": cfg_count,
+                "build_manifests_found": manifest_count,
+                "build_deps_found": build_dep_count,
                 "calls": adjacency.get(coll, []),
                 "called_by": [
                     src for src, targets in adjacency.items() if coll in targets
@@ -225,6 +287,7 @@ def register_service_map_tool(mcp: FastMCP, ctx: "AppContext") -> None:
                 "total_endpoints": sum(len(v) for v in endpoints_by_coll.values()),
                 "total_callers": sum(len(v) for v in callers_by_coll.values()),
                 "total_configs": sum(len(v) for v in configs_by_coll.values()),
+                "total_build_deps": len(build_dep_edges),
                 "total_edges": len(edges),
             },
         }

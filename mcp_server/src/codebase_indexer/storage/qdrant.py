@@ -13,6 +13,7 @@ from qdrant_client.models import (
     Filter,
     Fusion,
     FusionQuery,
+    MatchAny,
     MatchValue,
     OptimizersConfigDiff,
     PayloadSchemaType,
@@ -609,4 +610,53 @@ class QdrantStorage:
         for r in results:
             all_results.extend(r)
         return all_results
+
+    async def scroll_chunks_by_paths(
+        self,
+        collection: str,
+        rel_paths: list[str],
+        payload_fields: list[str] | None = None,
+        limit: int = 500,
+    ) -> list[dict]:
+        """Fetch chunk payloads for specific file paths using the keyword index.
+
+        Uses a ``should`` (OR) filter on the indexed ``rel_path`` field so
+        Qdrant can satisfy the query without a full-collection scan.
+
+        Args:
+            collection: Collection name to query.
+            rel_paths: List of rel_path values to retrieve chunks for.
+            payload_fields: Payload keys to include (``None`` = all fields).
+            limit: Maximum number of points to return.
+
+        Returns:
+            List of payload dicts (one per chunk) for the matching paths.
+        """
+        if not rel_paths:
+            return []
+
+        with_payload: bool | list[str] = payload_fields if payload_fields else True
+
+        should_conditions = [
+            FieldCondition(key="rel_path", match=MatchAny(any=rel_paths))
+        ]
+
+        try:
+            points, _ = await self.client.scroll(
+                collection_name=collection,
+                scroll_filter=Filter(should=should_conditions),
+                limit=limit,
+                with_payload=with_payload,
+                with_vectors=False,
+            )
+        except Exception as e:
+            log.warning(
+                "scroll_chunks_by_paths_error",
+                collection=collection,
+                n_paths=len(rel_paths),
+                error=str(e),
+            )
+            return []
+
+        return [p.payload for p in points if p.payload]
 
