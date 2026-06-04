@@ -47,6 +47,30 @@ def test_sparse_threads_required(monkeypatch: pytest.MonkeyPatch):
         Settings()
 
 
+def test_max_sparse_embed_chars_defaults_to_zero():
+    assert Settings().max_sparse_embed_chars == 0
+
+
+def test_max_sparse_embed_chars_from_env(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("MAX_SPARSE_EMBED_CHARS", "2000")
+    assert Settings().max_sparse_embed_chars == 2000
+
+
+def test_max_dense_embed_chars_defaults_to_4096():
+    assert Settings().max_dense_embed_chars == 4096
+
+
+def test_max_dense_embed_chars_from_env(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("MAX_DENSE_EMBED_CHARS", "1536")
+    assert Settings().max_dense_embed_chars == 1536
+
+
+def test_legacy_max_embed_chars_env(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("MAX_DENSE_EMBED_CHARS", raising=False)
+    monkeypatch.setenv("MAX_EMBED_CHARS", "2048")
+    assert Settings().max_dense_embed_chars == 2048
+
+
 def test_custom_model_with_explicit_dense_embed_vector_size_valid():
     s = Settings(
         dense_embed_model="custom/model",

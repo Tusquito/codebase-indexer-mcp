@@ -351,7 +351,8 @@ Settings are environment-variable driven. **Required variables** (no Python defa
 | `FLUSH_EVERY` | `1500` | Chunks per embed+upsert flush. Peak RAM ≈ 2× this. |
 | `UPSERT_BATCH` | `500` | Points per Qdrant upsert sub-batch |
 | `READAHEAD_BUFFER` | `100` | Files queued ahead of the consumer during scan |
-| `MAX_EMBED_CHARS` | `4096` | Char cap fed to the dense encoder (bounds attention memory) |
+| `MAX_DENSE_EMBED_CHARS` | `4096` | Char cap fed to the dense encoder (bounds attention memory). `MAX_EMBED_CHARS` is deprecated but still accepted. |
+| `MAX_SPARSE_EMBED_CHARS` | `0` (no limit) | Char cap fed to the sparse encoder. Use `0` for `Qdrant/bm25`; set ~`2000` for SPLADE (512-token model). |
 
 ### Memory tuning
 

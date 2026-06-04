@@ -141,7 +141,8 @@ def create_app(settings: Settings | None = None, preload_models: bool = True) ->
             cgroup_limit_gb=limit_gb,
             batch_size=settings.batch_size,
             flush_every=settings.flush_every,
-            max_embed_chars=settings.max_embed_chars,
+            max_dense_embed_chars=settings.max_dense_embed_chars,
+            max_sparse_embed_chars=settings.max_sparse_embed_chars,
             warn_pct=settings.memory_pressure_warn_pct,
             halt_pct=settings.memory_pressure_halt_pct,
         )
@@ -150,7 +151,7 @@ def create_app(settings: Settings | None = None, preload_models: bool = True) ->
             log.warning(
                 "low_memory_limit",
                 cgroup_limit_gb=limit_gb,
-                hint="Consider reducing BATCH_SIZE, FLUSH_EVERY, or MAX_EMBED_CHARS for stability.",
+                hint="Consider reducing BATCH_SIZE, FLUSH_EVERY, MAX_DENSE_EMBED_CHARS, or MAX_SPARSE_EMBED_CHARS for stability.",
             )
 
     # Write clean shutdown marker on exit (best effort)

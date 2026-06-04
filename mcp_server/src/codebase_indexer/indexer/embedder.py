@@ -87,8 +87,8 @@ class Embedder:
 
     # Default char cap. Many dense transformers allow long context, but ONNX
     # attention memory scales as O(seq_len² × batch_size), so seq_len>~2000
-    # tokens (~4000 chars) risks OOM. Overridable per-instance via max_embed_chars.
-    MAX_EMBED_CHARS = 4_096
+    # tokens (~4000 chars) risks OOM. Overridable per-instance via max_dense_embed_chars.
+    MAX_DENSE_EMBED_CHARS = 4_096
 
     # Class-level model cache — loaded once, reused by all instances
     _shared_dense_model = None
@@ -178,7 +178,8 @@ class Embedder:
         hybrid: bool = True,
         dense_threads: int = 0,
         sparse_threads: int = 0,
-        max_embed_chars: int | None = None,
+        max_dense_embed_chars: int | None = None,
+        max_sparse_embed_chars: int = 0,
         memory_warn_pct: int = 70,
         memory_halt_pct: int = 85,
     ):
@@ -189,7 +190,8 @@ class Embedder:
         self.hybrid = hybrid
         self.dense_threads = dense_threads
         self.sparse_threads = sparse_threads
-        self.max_embed_chars = max_embed_chars or self.MAX_EMBED_CHARS
+        self.max_dense_embed_chars = max_dense_embed_chars or self.MAX_DENSE_EMBED_CHARS
+        self.max_sparse_embed_chars = max_sparse_embed_chars
         self.memory_warn_pct = memory_warn_pct
         self.memory_halt_pct = memory_halt_pct
 
@@ -217,9 +219,9 @@ class Embedder:
             _tlog.info("sparse_model_loaded model=%s elapsed_s=%.2f", self.sparse_model, time.monotonic() - t0)
         return Embedder._shared_sparse_model
 
-    def _truncate(self, text: str) -> str:
-        if len(text) > self.max_embed_chars:
-            return text[:self.max_embed_chars]
+    def _truncate_dense(self, text: str) -> str:
+        if len(text) > self.max_dense_embed_chars:
+            return text[: self.max_dense_embed_chars]
         return text
 
     def _adaptive_batch_size(self, max_chars_in_batch: int, base_batch: int) -> int:
@@ -253,11 +255,15 @@ class Embedder:
         """
         model = self._get_dense_model()
 
-        truncated_count = sum(1 for t in texts if len(t) > self.max_embed_chars)
+        truncated_count = sum(1 for t in texts if len(t) > self.max_dense_embed_chars)
         if truncated_count:
-            _tlog.warning("chunks_truncated count=%d max_chars=%d", truncated_count, self.max_embed_chars)
+            _tlog.warning(
+                "dense_chunks_truncated count=%d max_chars=%d",
+                truncated_count,
+                self.max_dense_embed_chars,
+            )
 
-        truncated = [self._truncate(t) for t in texts]
+        truncated = [self._truncate_dense(t) for t in texts]
         lengths = [len(t) for t in truncated]
         total = len(truncated)
 
@@ -293,7 +299,7 @@ class Embedder:
                 raise EmbeddingError(
                     f"Memory pressure {pct:.0f}% exceeds halt threshold "
                     f"({self.memory_halt_pct}%). Reduce BATCH_SIZE, FLUSH_EVERY, "
-                    f"or MAX_EMBED_CHARS, or increase container memory."
+                    f"or MAX_DENSE_EMBED_CHARS / MAX_SPARSE_EMBED_CHARS, or increase container memory."
                 )
             if severity == "warn":
                 emergency_trim()
@@ -351,9 +357,23 @@ class Embedder:
 
         return embeddings
 
+    def _truncate_sparse(self, text: str) -> str:
+        if self.max_sparse_embed_chars > 0 and len(text) > self.max_sparse_embed_chars:
+            return text[: self.max_sparse_embed_chars]
+        return text
+
     def _embed_sparse_batch_sync(self, texts: list[str]) -> list[SparseVector]:
         """Compute sparse vectors via fastembed (synchronous, CPU-bound)."""
         model = self._get_sparse_model()
+        if self.max_sparse_embed_chars > 0:
+            truncated_count = sum(1 for t in texts if len(t) > self.max_sparse_embed_chars)
+            if truncated_count:
+                _tlog.warning(
+                    "sparse_chunks_truncated count=%d max_chars=%d",
+                    truncated_count,
+                    self.max_sparse_embed_chars,
+                )
+            texts = [self._truncate_sparse(t) for t in texts]
         _tlog.info("sparse_embed_start chunks=%d", len(texts))
         t0 = time.monotonic()
         result = [
