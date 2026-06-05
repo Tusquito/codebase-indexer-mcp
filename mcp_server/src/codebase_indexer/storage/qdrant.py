@@ -36,6 +36,8 @@ log = structlog.get_logger()
 
 @dataclass
 class SearchResult:
+    """A single code chunk returned from vector search with score and metadata."""
+
     chunk_id: str
     score: float
     rel_path: str
@@ -50,6 +52,8 @@ class SearchResult:
 
 @dataclass
 class CollectionStats:
+    """Summary statistics for one indexed Qdrant collection."""
+
     name: str
     vector_count: int
     disk_size_mb: float
@@ -59,7 +63,14 @@ class CollectionStats:
 
 
 class QdrantStorage:
+    """Async Qdrant client wrapper for hybrid dense+sparse indexing and search.
+
+    Manages collection lifecycle, batched upserts, payload keyword indexes,
+    incremental metadata scrolls, and RRF-fused hybrid queries.
+    """
+
     def __init__(self, settings: Settings):
+        """Initialize storage with application settings (URL, timeouts, hybrid flags)."""
         self.settings = settings
         self._client: AsyncQdrantClient | None = None
 

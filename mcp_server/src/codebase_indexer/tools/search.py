@@ -26,6 +26,10 @@ def register_search_tool(mcp: FastMCP, ctx: "AppContext") -> None:
     @mcp.tool(
         name="search_codebase",
         description=(
+            "This tool caps top_k at 20. When HYBRID_SEARCH is enabled (default), "
+            "results are ranked by reciprocal rank fusion — min_score is ignored. "
+            "When HYBRID_SEARCH is disabled, only dense cosine search runs and "
+            "min_score filters by similarity. See docs/SEARCH_BEHAVIOR.md. "
             "Hybrid semantic + keyword search across indexed code. "
             "Combines dense vector similarity (DENSE_EMBED_MODEL) and "
             "sparse matching (SPARSE_EMBED_MODEL) via RRF fusion. Returns code chunks "
@@ -37,10 +41,7 @@ def register_search_tool(mcp: FastMCP, ctx: "AppContext") -> None:
             "showing symbols that appear across collection boundaries (shared classes, "
             "interfaces, error codes, etc.). "
             "Set 'max_content_chars' to truncate chunk content in results and save "
-            "tokens — use get_chunk to fetch full content of a specific chunk. "
-            "'min_score' is a cosine threshold that only applies when hybrid search "
-            "is disabled; in hybrid mode results are ranked by RRF fusion and bounded "
-            "by 'top_k'."
+            "tokens — use get_chunk to fetch full content of a specific chunk."
         ),
     )
     async def search_codebase(

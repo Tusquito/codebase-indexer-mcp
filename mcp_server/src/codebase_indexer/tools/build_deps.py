@@ -18,6 +18,8 @@ from pathlib import PurePosixPath
 
 @dataclass
 class BuildDep:
+    """One declared dependency extracted from a build manifest file."""
+
     artifact: str          # artifact / package / module name
     group: str = ""        # group / namespace (Maven groupId, Go module prefix…)
     version: str = ""
@@ -67,6 +69,7 @@ _MVN_SCOPE = re.compile(r"<scope>([^<]{1,50})</scope>")
 
 
 def _extract_maven(content: str) -> list[BuildDep]:
+    """Parse Maven pom.xml dependency and parent blocks."""
     deps: list[BuildDep] = []
     # Find each <dependency> block and parse group/artifact/version/scope
     for block_m in re.finditer(r"<dependency>(.*?)</dependency>", content, re.DOTALL):
@@ -114,6 +117,7 @@ _NUGET_PROJ_REF = re.compile(
 
 
 def _extract_nuget(content: str) -> list[BuildDep]:
+    """Parse NuGet PackageReference and ProjectReference from .csproj/.fsproj."""
     deps: list[BuildDep] = []
     for m in _NUGET_PKG_REF.finditer(content):
         name = m.group(1).strip()
@@ -137,6 +141,7 @@ _NPM_ENTRY = re.compile(r'"([^"]{1,200})"\s*:\s*"([^"]{1,100})"')
 
 
 def _extract_npm(content: str) -> list[BuildDep]:
+    """Parse npm dependencies/devDependencies from package.json."""
     deps: list[BuildDep] = []
     for sec_m in _NPM_DEP_SECTION.finditer(content):
         scope = sec_m.group(1)  # "dependencies" | "devDependencies" | ...
@@ -164,6 +169,7 @@ _GRADLE_PROJ = re.compile(r'project\s*\(\s*["\']:([^"\')\s]{1,200})["\']', re.IG
 
 
 def _extract_gradle(content: str) -> list[BuildDep]:
+    """Parse Gradle/Maven-coordinate and project() dependencies."""
     deps: list[BuildDep] = []
     for m in _GRADLE_DEP.finditer(content):
         deps.append(BuildDep(
@@ -186,6 +192,7 @@ _GO_MODULE_LINE = re.compile(r"^\s*(\S+)\s+(\S+)", re.MULTILINE)
 
 
 def _extract_go(content: str) -> list[BuildDep]:
+    """Parse Go module require blocks from go.mod."""
     deps: list[BuildDep] = []
     seen: set[str] = set()
 
@@ -220,6 +227,7 @@ _CARGO_ENTRY = re.compile(r'^\s*(\w[\w-]{0,100})\s*=\s*["\']?([^{\n\r\[]{0,100}?
 
 
 def _extract_cargo(content: str) -> list[BuildDep]:
+    """Parse Cargo.toml [dependencies] and [dev-dependencies] sections."""
     deps: list[BuildDep] = []
 
     def _parse_section(section_content: str, scope: str) -> None:
@@ -243,6 +251,7 @@ _REQ_LINE = re.compile(r'^\s*([A-Za-z0-9_\-\.]{1,200})\s*(?:[>=<!~^]{1,2}\s*[\S]
 
 
 def _extract_python(content: str, filename: str) -> list[BuildDep]:
+    """Parse Python deps from pyproject.toml, requirements.txt, or setup.cfg."""
     deps: list[BuildDep] = []
 
     if filename == "pyproject.toml":

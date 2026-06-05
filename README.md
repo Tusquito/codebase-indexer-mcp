@@ -12,6 +12,16 @@ A fully self-hosted, Docker-based MCP server that indexes your codebase into a l
 - **MCP Compatible** — Works with Claude Desktop, Copilot CLI, Cursor, and more
 - **Optional GPU Acceleration** — Offload dense embedding to NVIDIA CUDA (`EMBED_DEVICE=cuda`) or AMD ROCm/MIGraphX (`EMBED_DEVICE=rocm`); CPU remains the default
 
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Dev setup (Python 3.12, uv), CI lint/type-check/test workflow, conventional commits |
+| [CHANGELOG.md](CHANGELOG.md) | Release history (Keep a Changelog format) |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Per-component responsibilities, indexing pipeline, embedding layer, hybrid search |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | CPU/CUDA/ROCm/WSL2 compose matrix, memory/CPU tuning |
+| [docs/SEARCH_BEHAVIOR.md](docs/SEARCH_BEHAVIOR.md) | `search_codebase` / `search_symbols` caps, `min_score` vs RRF semantics |
+
 ## System Architecture
 
 ```mermaid
@@ -130,14 +140,14 @@ These tools use **zero embedding cost** (Qdrant payload scroll only). Use them f
 | Tool | Description | Token saving |
 |------|-------------|-------------|
 | `get_collection_summary` | File counts by language, directory tree (depth 2), symbol breakdown, top-chunked files, and `build_dependencies` (which other indexed collections are depended on via Maven/NuGet/npm/etc). Single call to understand a project. | Replaces 3–5 exploratory searches |
-| `search_symbols` | Same hybrid search as `search_codebase` but returns **only** symbol locations — no code content. | ~90% vs `search_codebase` |
+| `search_symbols` | Same hybrid search as `search_codebase` but returns **only** symbol locations — no code content. `top_k` capped at 30; RRF/`min_score` semantics match `search_codebase` — see [docs/SEARCH_BEHAVIOR.md](docs/SEARCH_BEHAVIOR.md). | ~90% vs `search_codebase` |
 | `get_file_outline` | All symbols in a specific file (name, type, line numbers) — no code content, no embedding. | Replaces reading full file chunks |
 
 ### Semantic Search
 
 | Tool | Description |
 |------|-------------|
-| `search_codebase` | Hybrid semantic + keyword search. Returns code chunks. Use `max_content_chars` to truncate content and call `get_chunk` only for results you need in full. |
+| `search_codebase` | Hybrid semantic + keyword search. `top_k` capped at 20. When `HYBRID_SEARCH` is on (default), RRF ranking applies and `min_score` is ignored; see [docs/SEARCH_BEHAVIOR.md](docs/SEARCH_BEHAVIOR.md). Use `max_content_chars` to truncate content and call `get_chunk` only for results you need in full. |
 | `get_chunk` | Retrieve a specific chunk by ID from a prior search result |
 | `find_cross_references` | Discover symbol/endpoint links across multiple collections. Reference types: `definition`, `import`, `usage`, `endpoint_definition`, `http_call`, `service_config`, `build_dependency` |
 | `map_service_dependencies` | Build a full microservice dependency graph across collections. Detects HTTP/REST call chains **and** build-level dependencies (Maven, NuGet, npm, Gradle, Go, Cargo, Python). Returns `build_dependency` edges alongside `http_call`/`config_reference` edges. |
@@ -283,13 +293,13 @@ flowchart LR
 
 ## Copilot CLI Skill
 
-A ready-made skill is provided in [`skill/SKILL.md`](skill/SKILL.md) for GitHub Copilot CLI users. Install it once and the agent automatically follows the token-efficient tool ladder on every code navigation task.
+A ready-made skill is provided in [`skill/codebase-indexer/SKILL.md`](skill/codebase-indexer/SKILL.md) for GitHub Copilot CLI users. Install it once and the agent automatically follows the token-efficient tool ladder on every code navigation task.
 
 ### Installing
 
 ```bash
 # Copy to your user skills folder
-cp skill/SKILL.md ~/.agents/skills/codebase-indexer/SKILL.md
+cp skill/codebase-indexer/SKILL.md ~/.agents/skills/codebase-indexer/SKILL.md
 ```
 
 Or via `/skills` inside Copilot CLI → **Install from file**.
@@ -334,7 +344,7 @@ Settings are environment-variable driven. **Required variables** (no Python defa
 
 | Variable | Description |
 |----------|-------------|
-| `WORKSPACE_ROOT` | **Host path** mounted as `/workspace` inside the container. Set to the *parent* directory of all your repos so each subdirectory becomes a separate collection. |
+| `WORKSPACE_ROOT` | **Host path** bind-mounted into the container at `/workspace` (read-only for the MCP server; read-write for the cron service). Set to the *parent* directory of all your repos so each subdirectory becomes a separate collection. This is a Docker Compose variable — not read by the Python app directly. |
 | `MCP_MEM_LIMIT` | Hard memory cap for the MCP server container |
 | `QDRANT_MEM_LIMIT` | Hard memory cap for the Qdrant container |
 | `MCP_CPUS` | CPU cap for the MCP server container |
@@ -358,12 +368,41 @@ Official specs for the supported BGE dense models ([BAAI/bge-base-en-v1.5](https
 
 Set `DENSE_EMBED_MODEL` and matching `DENSE_EMBED_VECTOR_SIZE` in `.env`. Leave `MAX_DENSE_EMBED_TOKENS=0` to auto-truncate at 512, or set `512` explicitly.
 
+### Workspace paths (`WORKSPACE_ROOT` vs `WORKSPACE_PATH`)
+
+Two related settings control where code is scanned:
+
+| Setting | Where set | Meaning |
+|---------|-----------|---------|
+| `WORKSPACE_ROOT` | `.env` / Docker Compose | **Host** directory mounted at `/workspace` inside containers. Example: `C:\Users\me\repos`. |
+| `WORKSPACE_PATH` | `config.py` (default `/workspace`) | **In-container** scan root the MCP server walks. Normally leave at `/workspace` — the mount point of `WORKSPACE_ROOT`. |
+
+When calling `index_codebase`, pass the **project folder name** (basename under `/workspace`), e.g. `my-project` — never `/` and never the full host path unless you want it normalized to the last component.
+
+### Security
+
+By default, Docker Compose publishes the MCP server (`127.0.0.1:8000`) and Qdrant (`127.0.0.1:6333` / `6334`) on **loopback only**, so they are not reachable from other machines on the LAN.
+
+Optional bearer authentication is controlled by `MCP_AUTH_TOKEN`:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MCP_AUTH_TOKEN` | *(empty — auth disabled)* | When set, every HTTP request must include `Authorization: Bearer <token>`. `/health` is exempt. The in-container `stdio_proxy` and `codeindexer_cron` read the same value automatically. Leave empty for trusted local-only use behind the loopback binding. |
+
+If you change port bindings to expose the server beyond localhost, set `MCP_AUTH_TOKEN` to a long random string.
+
 ### Optional application settings
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `WORKSPACE_PATH` | `/workspace` | In-container root directory scanned by the indexer (see [Workspace paths](#workspace-paths-workspace_root-vs-workspace_path)) |
+| `QDRANT_URL` | `http://localhost:6333` | Qdrant HTTP/gRPC endpoint |
+| `QDRANT_TIMEOUT` | `30` | Timeout (seconds) for Qdrant client calls |
 | `QDRANT_COLLECTION` | `codebase` | Default collection name |
+| `HYBRID_SEARCH` | `true` | Enable dense+sparse RRF fusion; when `false`, dense-only search and `min_score` applies |
 | `MAX_CHUNK_LINES` | `150` | Maximum lines per chunk |
+| `CHUNK_OVERLAP_LINES` | `20` | Overlap between sliding-window chunks |
+| `EXCLUDED_DIRS` | `node_modules,.git,__pycache__,…` | Comma-separated directory names skipped during scan (see `config.py` for full default) |
 | `LOG_LEVEL` | `INFO` | Logging level (output visible via `docker logs codeindexer_mcp`) |
 
 > **Important**: `MCP_MEM_LIMIT + QDRANT_MEM_LIMIT` must leave at least 2–3 GiB for the Linux kernel, Docker daemon, and WSL2 overhead. Over-allocating causes silent OOM kills — the container restarts with no error message. Example for 16 GB Docker: MCP `9g` + Qdrant `5g` = 14g leaves 2 GB for the VM kernel and page cache.
@@ -393,10 +432,30 @@ Set `DENSE_EMBED_MODEL` and matching `DENSE_EMBED_VECTOR_SIZE` in `.env`. Leave 
 | `SPARSE_ON_DISK` | `true` | Store the sparse index on disk |
 | `QUANTIZATION` | `true` | int8 scalar quantization of dense vectors (~4× less vector RAM; rescored, so search quality is preserved) |
 | `MEMMAP_THRESHOLD_KB` | `20000` | Segments above this size are memory-mapped rather than kept in RAM |
+| `PAYLOAD_INDEXES` | `true` | Create keyword payload indexes on `rel_path`, `chunk_id`, `symbol_name`, `language` for faster filtered lookups |
 | `RELEASE_MODELS_AFTER_INDEX` | `true` | Release ONNX models after indexing completes to reclaim ~300-500 MB. Models reload in ~1.5s from the cache volume on the next search query. Set to `false` only if you need sub-second first-search latency after indexing. |
 | `MODEL_IDLE_TIMEOUT` | `300` | Seconds of embed inactivity before ONNX models are automatically released. Covers the case where models were loaded for search but the server goes idle. `0` disables the idle timer. |
 
-> Qdrant storage settings (`VECTORS_ON_DISK`, `SPARSE_ON_DISK`, `QUANTIZATION`, `MEMMAP_THRESHOLD_KB`) apply when a collection is created, so they take effect on the next (re-)index of each project.
+> Qdrant storage settings (`VECTORS_ON_DISK`, `SPARSE_ON_DISK`, `QUANTIZATION`, `MEMMAP_THRESHOLD_KB`, `PAYLOAD_INDEXES`) apply when a collection is created, so they take effect on the next (re-)index of each project.
+
+### Service mapping / cross-references
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SERVICE_URL_KEYWORDS` | `rest,api,profile,service,…` | Comma-separated URL path keywords for API path extraction in config and code |
+| `SERVICE_DISCOVERY_EXTRA_QUERIES` | *(empty)* | Extra natural-language queries for `map_service_dependencies`; separate with `\|` or newlines |
+
+### Benchmark harness (`mcp_server/benchmarks/bench.py`)
+
+Env-var defaults for the async benchmark runner (also overridable via CLI flags):
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BENCH_FILES` | `300` | Synthetic corpus file count |
+| `BENCH_SEED` | `1234` | RNG seed for reproducible corpus |
+| `BENCH_ITERS` | `50` | Search/filtered-lookup iterations per scenario |
+| `BENCH_COLLECTION` | `benchproj` | Temporary Qdrant collection name |
+| `BENCH_THRESHOLD` | `0` | Max allowed regression % vs `--compare` baseline (`0` = report only) |
 
 ### Tuning for different hardware
 
@@ -520,9 +579,37 @@ A healthy **native Linux** setup shows `embed_device=rocm` and `active_providers
 - Qdrant HNSW indexing is deferred during bulk upload (`indexing_threshold` is set to 0, then restored) so index construction doesn't compete with embedding for CPU.
 - Tree-sitter parsing runs in a thread executor so it never blocks the event loop, letting scan, embed, and upsert overlap.
 
+## Scheduled Reindex (cron)
+
+The `codeindexer_cron` service (`cron` in `docker-compose.yml`) runs `cron/reindex.py` on a schedule. For each indexed collection it:
+
+1. Locates the matching git repo under `/workspace/<collection-name>`
+2. Fetches and fast-forwards the default branch (`git pull`)
+3. Calls `index_codebase` with `force=False` when the repo changed (incremental re-index)
+
+Repos that are not git repositories, have no detectable default branch, or are unchanged since the last run are skipped.
+
+### Cron environment variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MCP_URL` | `http://mcp_server:8000` | MCP server base URL (cron appends `/mcp`) |
+| `MCP_AUTH_TOKEN` | *(empty)* | Bearer token sent when auth is enabled (same as MCP server) |
+| `WORKSPACE_ROOT` | `/workspace` | In-container workspace root where repos live (mounted from host `WORKSPACE_ROOT`) |
+| `INDEX_TIMEOUT` | `1800` | Seconds to wait for each `index_codebase` call to complete |
+| `MCP_HTTP_TIMEOUT` | `300` | HTTP timeout for individual MCP JSON-RPC requests |
+| `GIT_TIMEOUT` | `120` | Timeout for git subprocess commands |
+
+View cron logs:
+
+```bash
+docker logs -f codeindexer_cron
+```
+
 ## Architecture Summary
 
 - **Qdrant** — Vector database for storing and searching embeddings
 - **MCP Server** — FastMCP-based server exposing tools over HTTP/stdio; fastembed ONNX models run in-process (no separate model server required)
+- **Cron** — Scheduled git pull + incremental re-index for indexed collections
 
 All services run in Docker with persistent volumes. See [System Architecture](#system-architecture) and [How Indexing Works](#how-indexing-works) above for detailed diagrams.

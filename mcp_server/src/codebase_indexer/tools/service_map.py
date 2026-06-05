@@ -48,6 +48,7 @@ _DISCOVERY_QUERIES = [
 
 
 def register_service_map_tool(mcp: FastMCP, ctx: "AppContext") -> None:
+    """Register the map_service_dependencies MCP tool on the FastMCP instance."""
     settings = ctx.settings
     storage = ctx.storage
     embedder = ctx.embedder

@@ -21,6 +21,10 @@ def register_search_symbols_tool(mcp: FastMCP, ctx: "AppContext") -> None:
     @mcp.tool(
         name="search_symbols",
         description=(
+            "This tool caps top_k at 30. When HYBRID_SEARCH is enabled (default), "
+            "results are ranked by reciprocal rank fusion — min_score is ignored. "
+            "When HYBRID_SEARCH is disabled, only dense cosine search runs and "
+            "min_score filters by similarity. See docs/SEARCH_BEHAVIOR.md. "
             "Token-efficient symbol lookup: runs the same hybrid search as "
             "search_codebase but returns ONLY symbol metadata — no code content. "
             "Returns: chunk_id, rel_path, symbol_name, symbol_type, start_line, "
@@ -28,10 +32,7 @@ def register_search_symbols_tool(mcp: FastMCP, ctx: "AppContext") -> None:
             "Use when you only need to know WHERE a symbol is defined/used, "
             "not what its code looks like. Call get_chunk for full content "
             "of any specific result. Saves ~90% tokens vs search_codebase "
-            "for orientation and symbol-location tasks. "
-            "'min_score' is a cosine threshold that only applies when hybrid search "
-            "is disabled; in hybrid mode results are ranked by RRF fusion and bounded "
-            "by 'top_k'."
+            "for orientation and symbol-location tasks."
         ),
     )
     async def search_symbols(

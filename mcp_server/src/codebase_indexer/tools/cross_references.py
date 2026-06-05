@@ -107,15 +107,18 @@ class UrlExtractors:
     """
 
     def __init__(self, keywords: list[str] | None = None) -> None:
+        """Build extractors from keyword list; defaults to SERVICE_URL_KEYWORDS."""
         self.reconfigure(keywords or _DEFAULT_URL_KEYWORDS)
 
     def reconfigure(self, keywords: list[str]) -> None:
+        """Recompile config and code URL regexes from a new keyword list."""
         self._config_extractors, self._code_extractors = _build_url_extractors(
             keywords or _DEFAULT_URL_KEYWORDS
         )
 
     @staticmethod
     def route_paths(content: str, rel_path: str = "") -> list[str]:
+        """Extract API route paths from controller/handler definition code."""
         return _route_paths_impl(content, rel_path)
 
     def config_urls(self, content: str) -> tuple[list[str], list[str]]:
@@ -144,6 +147,7 @@ class UrlExtractors:
         return paths
 
     def classify_reference(self, content: str, symbol_or_query: str, rel_path: str = "") -> str:
+        """Classify chunk content as definition, import, http_call, build_dependency, etc."""
         return _classify_reference_impl(self, content, symbol_or_query, rel_path)
 
 
@@ -160,14 +164,17 @@ def configure_url_keywords(keywords: list[str]) -> None:
 
 
 def _extract_route_paths(content: str, rel_path: str = "") -> list[str]:
+    """Back-compat wrapper for route path extraction."""
     return _route_paths_impl(content, rel_path)
 
 
 def _extract_config_urls(content: str) -> tuple[list[str], list[str]]:
+    """Back-compat wrapper using the module default UrlExtractors instance."""
     return _DEFAULT_EXTRACTORS.config_urls(content)
 
 
 def _extract_code_urls(content: str) -> list[str]:
+    """Back-compat wrapper for code URL literal extraction."""
     return _DEFAULT_EXTRACTORS.code_urls(content)
 
 
@@ -282,6 +289,7 @@ def _classify_reference(content: str, symbol_or_query: str, rel_path: str = "") 
 # ---------------------------------------------------------------------------
 
 def register_cross_references_tool(mcp: FastMCP, ctx: "AppContext") -> None:
+    """Register the find_cross_references MCP tool on the FastMCP instance."""
     storage = ctx.storage
     embedder = ctx.embedder
     extractors = ctx.url_extractors

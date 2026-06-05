@@ -32,6 +32,8 @@ EXTRACT_NODE_TYPES: dict[str, set[str]] = {
 
 @dataclass
 class Chunk:
+    """One searchable code segment with vectors payload metadata fields."""
+
     chunk_id: str
     content: str
     rel_path: str
@@ -190,6 +192,7 @@ _SQL_PROCEDURE_START = re.compile(
 
 
 def _parse_sql_procedure_name(match: re.Match[str]) -> str:
+    """Build qualified procedure name from a CREATE PROCEDURE regex match."""
     schema = match.group("schema_bracket") or match.group("schema_plain")
     name = match.group("name")
     if not name:
@@ -202,6 +205,7 @@ def _line_range_overlaps_spans(
     end_line: int,
     spans: list[tuple[int, int, str]],
 ) -> bool:
+    """Return True if a 1-based line range intersects any procedure span."""
     for start, end, _ in spans:
         if start_line <= end and start <= end_line:
             return True
@@ -258,6 +262,7 @@ def _find_sql_procedure_spans(lines: list[str]) -> list[tuple[int, int, str]]:
 
 
 def _chunk_overlaps_spans(chunk: Chunk, spans: list[tuple[int, int, str]]) -> bool:
+    """Return True if chunk line range overlaps any SQL procedure span."""
     return _line_range_overlaps_spans(chunk.start_line, chunk.end_line, spans)
 
 
@@ -270,6 +275,7 @@ def _extract_sql_procedure_chunks(
     chunk_overlap_lines: int,
     file_mtime: float,
 ) -> tuple[list[Chunk], list[tuple[int, int, str]]]:
+    """Chunk T-SQL procedures via regex spans; returns chunks and span list."""
     spans = _find_sql_procedure_spans(lines)
     if not spans:
         return [], []
@@ -379,6 +385,7 @@ _OPS_PATH_LANGUAGES = frozenset({
 
 
 def _normalize_rel_path(rel_path: str) -> str:
+    """Normalize Windows backslashes to forward slashes for path logic."""
     return rel_path.replace("\\", "/")
 
 
@@ -482,10 +489,12 @@ def _symbol_referenced_in_content(name: str, content: str) -> bool:
 
 
 def _last_dotted_segment(qualified: str) -> str:
+    """Return the final segment of a dotted qualified name (e.g. pkg.mod.Class → Class)."""
     return qualified.rsplit(".", 1)[-1]
 
 
 def _parse_python_import_names(line: str) -> list[str] | None:
+    """Extract imported symbol names from a Python import/from line."""
     stripped = line.strip()
 
     m = re.match(r"^import\s+([\w.]+)(?:\s+as\s+(\w+))?\s*$", stripped)
@@ -514,6 +523,7 @@ def _parse_python_import_names(line: str) -> list[str] | None:
 
 
 def _parse_java_import_names(line: str) -> list[str] | None:
+    """Extract imported type names from a Java package/import line."""
     stripped = line.strip()
     if stripped.startswith("package "):
         return _ALWAYS_INCLUDE_IMPORT
@@ -529,6 +539,7 @@ def _parse_java_import_names(line: str) -> list[str] | None:
 
 
 def _parse_csharp_using_names(line: str) -> list[str] | None:
+    """Extract namespace/type names from a C# using or namespace line."""
     stripped = line.strip()
     if stripped.startswith("namespace ") and "{" not in stripped:
         return _ALWAYS_INCLUDE_IMPORT
@@ -544,6 +555,7 @@ def _parse_csharp_using_names(line: str) -> list[str] | None:
 
 
 def _parse_js_import_names(line: str) -> list[str]:
+    """Extract default, named, and namespace import symbols from JS/TS import line."""
     stripped = line.strip()
     names: list[str] = []
 
@@ -575,6 +587,7 @@ def _go_import_path_name(import_path: str) -> str:
 
 
 def _parse_go_import_names(line: str) -> list[str] | None:
+    """Extract package or import-path alias from a Go package/import line."""
     stripped = line.strip()
     if stripped.startswith("package "):
         return _ALWAYS_INCLUDE_IMPORT
@@ -591,6 +604,7 @@ def _parse_go_import_names(line: str) -> list[str] | None:
 
 
 def _parse_rust_use_names(line: str) -> list[str] | None:
+    """Extract bound names from a Rust use declaration line."""
     stripped = line.strip()
     m = re.match(r"^use\s+(.+);\s*$", stripped)
     if not m:
@@ -614,6 +628,7 @@ def _parse_rust_use_names(line: str) -> list[str] | None:
 
 
 def _parse_c_cpp_include_names(line: str) -> list[str]:
+    """Extract header base name or macro from #include / #define lines."""
     stripped = line.strip()
     m = re.match(r'#include\s+"([^"]+)"', stripped)
     if m:

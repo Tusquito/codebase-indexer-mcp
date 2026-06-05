@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
-# Trigger indexing of the CWD. Usage: ./scripts/index_local.sh [sub-path] [collection]
+# Trigger indexing of a project. Usage: ./scripts/index_local.sh <project-folder> [collection]
 set -euo pipefail
-PATH_ARG="${1:-/}"
-COLLECTION="${2:-codebase}"
+if [ $# -lt 1 ]; then
+  echo "Usage: $0 <project-folder> [collection]" >&2
+  echo "  project-folder: basename of a directory under WORKSPACE_ROOT (never '/')" >&2
+  exit 1
+fi
+PATH_ARG="$1"
+COLLECTION="${2:-$PATH_ARG}"
 curl -s -X POST http://localhost:8000/mcp \
   -H "Content-Type: application/json" \
   -d "{
