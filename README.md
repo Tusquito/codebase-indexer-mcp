@@ -36,7 +36,7 @@ graph TD
         QD[("codeindexer_qdrant  :6333\n────────────────────────\nQdrant Vector DB\npersistent  qdrant_data  volume")]
     end
 
-    AI -- "MCP — HTTP streamable\nor stdio via stdio_proxy\n(docker exec → HTTP server)" --> MCP
+    AI -- "MCP — HTTP streamable\n(fallback: stdio sidecar proxy)" --> MCP
     MCP -- "Qdrant HTTP / gRPC" --> QD
     WS -- "read-only bind mount\n→ /workspace" --> MCP
 ```
@@ -78,25 +78,42 @@ docker logs codeindexer_mcp 2>&1 | grep -E 'embed_device|active_providers|cuda'
 
 ## MCP Client Configuration
 
-### Copilot CLI (stdio via Docker)
+After `docker compose up -d`, connect your AI client to the running HTTP server at `http://localhost:8000/mcp`.
+
+### Cursor (recommended — native HTTP)
+
+Add to `~/.cursor/mcp.json` (Windows: `%USERPROFILE%\.cursor\mcp.json`):
 
 ```json
 {
   "mcpServers": {
     "codebase-indexer": {
-      "type": "stdio",
-      "command": "docker",
-      "args": ["exec", "-i", "codeindexer_mcp", "uv", "run", "python", "-m", "codebase_indexer.stdio_proxy"]
+      "url": "http://localhost:8000/mcp"
     }
   }
 }
 ```
 
-> **Why the stdio proxy?**
-> - **Corporate proxies** (e.g. McAfee Web Gateway) often intercept `localhost` HTTP traffic, returning 502 errors the MCP SDK misreports as `MCPOAuthError`. `docker exec` stdio bypasses HTTP entirely.
-> - **`stdio_proxy` vs `main`** — the proxy is a thin shim that forwards JSON-RPC to the already-running HTTP server inside the container. No embedding models are reloaded on each session start. Indexing and search logs are routed through the HTTP server and visible in `docker logs codeindexer_mcp`.
+When `MCP_AUTH_TOKEN` is set in `.env`, add the bearer header:
 
-### HTTP Transport (Claude Desktop)
+```json
+{
+  "mcpServers": {
+    "codebase-indexer": {
+      "url": "http://localhost:8000/mcp",
+      "headers": {
+        "Authorization": "Bearer <your-token>"
+      }
+    }
+  }
+}
+```
+
+Verified with Cursor 3.7.12: remote MCP servers use `"url"` alone (no `type` field). Because Cursor talks directly to the published port, it **reconnects automatically** after `docker compose restart mcp_server` — no manual MCP reload.
+
+> **Why HTTP?** The server already publishes `127.0.0.1:8000` with streamable HTTP. Pointing Cursor at that URL avoids coupling the IDE to a `docker exec` session that dies whenever `codeindexer_mcp` restarts.
+
+### Claude Desktop and other HTTP clients
 
 ```json
 {
@@ -109,18 +126,36 @@ docker logs codeindexer_mcp 2>&1 | grep -E 'embed_device|active_providers|cuda'
 }
 ```
 
-### stdio Transport (Cursor / Windsurf)
+Some clients require an explicit `transport` field; Cursor does not (see above). Add the same `headers.Authorization` entry when `MCP_AUTH_TOKEN` is set.
+
+### Fallback: stdio sidecar proxy
+
+Use when localhost HTTP is blocked (e.g. corporate proxies that intercept `localhost` and return 502, which the MCP SDK misreports as `MCPOAuthError`) or when a client only supports stdio.
+
+1. Uncomment the disabled `proxy` service in [`docker-compose.yml`](docker-compose.yml) (block labeled `FALLBACK: stdio sidecar proxy`).
+2. `docker compose up -d` to start `codeindexer_proxy`.
+3. Add to `mcp.json`:
 
 ```json
 {
   "mcpServers": {
     "codebase-indexer": {
       "command": "docker",
-      "args": ["exec", "-i", "codeindexer_mcp", "uv", "run", "python", "-m", "codebase_indexer.stdio_proxy"]
+      "args": ["exec", "-i", "codeindexer_proxy", "python", "/app/stdio_proxy.py"]
     }
   }
 }
 ```
+
+The sidecar (`codeindexer_proxy`) is a lightweight `python:3.12-slim` container running `sleep infinity` with only `stdio_proxy.py` mounted. Cursor `docker exec`s into this container — not `codeindexer_mcp` — so the stdio session survives `mcp_server` restarts. When auth is enabled, the sidecar reads `MCP_AUTH_TOKEN` from compose env (already wired in the commented block).
+
+> **`stdio_proxy` vs `main`** — the proxy is a thin shim that forwards JSON-RPC to the already-running HTTP server. No embedding models are reloaded on each session start. Indexing and search logs remain visible in `docker logs codeindexer_mcp`.
+
+> **Deprecated:** `docker exec` into `codeindexer_mcp` with `uv run python -m codebase_indexer.stdio_proxy`. `uv run` re-synced the editable package and failed with `OSError: Readme file does not exist: ../README.md`; exec into the main container also broke the stdio pipe on every `mcp_server` restart, requiring a manual Cursor MCP reload.
+
+### Copilot CLI
+
+Use native HTTP when your client supports it (same `url` as Cursor). Otherwise use the [stdio sidecar proxy](#fallback-stdio-sidecar-proxy) fallback above.
 
 ## MCP Tools
 
@@ -387,7 +422,7 @@ Optional bearer authentication is controlled by `MCP_AUTH_TOKEN`:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MCP_AUTH_TOKEN` | *(empty — auth disabled)* | When set, every HTTP request must include `Authorization: Bearer <token>`. `/health` is exempt. The in-container `stdio_proxy` and `codeindexer_cron` read the same value automatically. Leave empty for trusted local-only use behind the loopback binding. |
+| `MCP_AUTH_TOKEN` | *(empty — auth disabled)* | When set, every HTTP request must include `Authorization: Bearer <token>`. `/health` is exempt. HTTP clients (e.g. Cursor) pass the token via `mcp.json` `headers`; the stdio sidecar proxy and `codeindexer_cron` read the same value from env. Leave empty for trusted local-only use behind the loopback binding. |
 
 If you change port bindings to expose the server beyond localhost, set `MCP_AUTH_TOKEN` to a long random string.
 

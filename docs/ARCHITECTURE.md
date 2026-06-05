@@ -17,7 +17,7 @@ graph TD
         CRON["codeindexer_cron\ncron/reindex.py"]
     end
 
-    AI -- "HTTP streamable or stdio via stdio_proxy" --> MCP
+    AI -- "HTTP streamable (primary)\nstdio sidecar proxy (fallback)" --> MCP
     MCP -- "Qdrant HTTP/gRPC" --> QD
     WS -- "bind mount /workspace" --> MCP
     WS -- "bind mount (rw)" --> CRON
@@ -31,7 +31,7 @@ Each direct subdirectory of `/workspace` is one **collection** (indexed project)
 | Component | Path | Role |
 |-----------|------|------|
 | HTTP server | `mcp_server/src/codebase_indexer/main.py` | FastMCP app factory (`create_app`), registers all MCP tools, optional bearer auth middleware, `/health` endpoint |
-| stdio proxy | `mcp_server/src/codebase_indexer/stdio_proxy.py` | Forwards JSON-RPC from stdin/stdout to the running HTTP server inside the container — no model reload per session |
+| stdio proxy | `mcp_server/src/codebase_indexer/stdio_proxy.py` | Optional fallback: runs in a separate `codeindexer_proxy` sidecar; forwards JSON-RPC from stdin/stdout to the HTTP server — no model reload per session. Primary clients (e.g. Cursor) connect via HTTP URL instead. |
 | Cron job | `cron/reindex.py` | Daily git pull + incremental `index_codebase` for changed repos |
 | Benchmark | `mcp_server/benchmarks/bench.py` | Async harness for indexing/search latency and payload-index A/B comparison |
 

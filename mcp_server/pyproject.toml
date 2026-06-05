@@ -2,7 +2,6 @@
 name = "codebase-indexer"
 version = "0.1.0"
 description = "Self-hosted MCP server for semantic codebase search and indexing via Qdrant and fastembed"
-readme = "../README.md"
 license = { text = "MIT" }
 requires-python = ">=3.12"
 dependencies = [

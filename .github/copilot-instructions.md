@@ -116,5 +116,5 @@ Never call `search_codebase` without `max_content_chars` when you only need symb
 
 ## MCP transport modes
 
-- **HTTP** (default): `streamable-http` on port 8000. Used by Claude Desktop and Copilot CLI.
-- **stdio**: set `MCP_TRANSPORT=stdio` and use the Docker exec command. Used by Cursor/Windsurf.
+- **HTTP** (default, recommended): `streamable-http` on `127.0.0.1:8000`. Cursor connects via `"url": "http://localhost:8000/mcp"` in `mcp.json` (auto-reconnects after container restarts). Claude Desktop may also need `"transport": "streamable-http"`. When `MCP_AUTH_TOKEN` is set, clients pass `headers.Authorization: Bearer <token>`.
+- **stdio fallback**: uncomment the `codeindexer_proxy` sidecar in `docker-compose.yml` and `docker exec` into it — not `codeindexer_mcp`. Use when localhost HTTP is blocked or a client requires stdio. Do **not** use `docker exec … uv run … stdio_proxy` on the main container (deprecated: `uv run` startup failure + stdio pipe breaks on restart).

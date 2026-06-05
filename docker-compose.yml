@@ -108,6 +108,31 @@ services:
       retries: 5
       start_period: 120s
 
+  # ---------------------------------------------------------------------------
+  # FALLBACK: stdio sidecar proxy (DISABLED — uncomment to use)
+  #
+  # Use when Cursor cannot reach the HTTP endpoint directly and you need the
+  # old docker-exec stdio bridge. This container is independent of mcp_server
+  # restarts (no depends_on), so the exec session survives mcp_server recycle.
+  #
+  # Matching ~/.cursor/mcp.json entry:
+  #   "codebase-indexer": {
+  #     "type": "stdio",
+  #     "command": "docker",
+  #     "args": ["exec", "-i", "codeindexer_proxy", "python", "/app/stdio_proxy.py"]
+  #   }
+  #
+  # proxy:
+  #   image: python:3.12-slim
+  #   container_name: codeindexer_proxy
+  #   restart: unless-stopped
+  #   command: sleep infinity
+  #   environment:
+  #     MCP_URL: http://mcp_server:8000/mcp
+  #     MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:-}
+  #   volumes:
+  #     - ./mcp_server/src/codebase_indexer/stdio_proxy.py:/app/stdio_proxy.py:ro
+
   cron:
     build:
       context: ./cron

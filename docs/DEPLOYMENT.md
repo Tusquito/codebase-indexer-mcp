@@ -90,7 +90,42 @@ Default bindings are loopback-only:
 - MCP: `127.0.0.1:8000`
 - Qdrant: `127.0.0.1:6333` / `6334`
 
-Set `MCP_AUTH_TOKEN` when exposing beyond localhost. Cron and `stdio_proxy` read the same token.
+Set `MCP_AUTH_TOKEN` when exposing beyond localhost.
+
+### Connecting clients
+
+The MCP server publishes streamable HTTP on `127.0.0.1:8000` by default. **Recommended for Cursor** — add to `~/.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "codebase-indexer": {
+      "url": "http://localhost:8000/mcp"
+    }
+  }
+}
+```
+
+When `MCP_AUTH_TOKEN` is set, include the bearer header (Cursor 3.7.12 uses `"url"` alone — no `type` field):
+
+```json
+{
+  "mcpServers": {
+    "codebase-indexer": {
+      "url": "http://localhost:8000/mcp",
+      "headers": {
+        "Authorization": "Bearer <your-token>"
+      }
+    }
+  }
+}
+```
+
+URL transport reconnects automatically after `docker compose restart mcp_server` without a manual Cursor reload.
+
+**Fallback (stdio):** when localhost HTTP is blocked or a client requires stdio, uncomment the disabled `proxy` service in `docker-compose.yml` and use `docker exec` into `codeindexer_proxy` (not `codeindexer_mcp`). The sidecar reads `MCP_AUTH_TOKEN` from env and forwards to `http://mcp_server:8000/mcp`. See [README — MCP Client Configuration](../README.md#mcp-client-configuration).
+
+`codeindexer_cron` also reads `MCP_AUTH_TOKEN` for scheduled re-index calls.
 
 ## Volumes
 
