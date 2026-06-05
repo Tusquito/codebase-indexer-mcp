@@ -10,7 +10,7 @@ A fully self-hosted, Docker-based MCP server that indexes your codebase into a l
 - **Multi-Language** — Python, JavaScript, TypeScript, Go, Rust, Java, C, C++, C#
 - **Token Efficient** — Returns only relevant code chunks, not full files. Three dedicated low-cost orientation tools (`get_collection_summary`, `search_symbols`, `get_file_outline`) eliminate exploratory searches entirely.
 - **MCP Compatible** — Works with Claude Desktop, Copilot CLI, Cursor, and more
-- **Optional NVIDIA GPU Acceleration** — Offload dense embedding to CUDA via `EMBED_DEVICE=cuda` and `docker-compose.gpu.yml` (CPU remains the default)
+- **Optional GPU Acceleration** — Offload dense embedding to NVIDIA CUDA (`EMBED_DEVICE=cuda`) or AMD ROCm/MIGraphX (`EMBED_DEVICE=rocm`); CPU remains the default
 
 ## System Architecture
 
@@ -344,7 +344,7 @@ Settings are environment-variable driven. **Required variables** (no Python defa
 | `SPARSE_EMBED_MODEL` | fastembed sparse model; default `Qdrant/bm25` (lexical BM25) |
 | `DENSE_EMBED_VECTOR_SIZE` | Dense embedding dimensions; must match `DENSE_EMBED_MODEL` (see [BGE v1.5](#baai-bge-english-v15) and nomic: 768) |
 | `SPARSE_THREADS` | ONNX threads for `SPARSE_EMBED_MODEL`; `2` for `Qdrant/bm25` (default) |
-| `EMBED_DEVICE` | Dense embedding device: `cpu` (default) or `cuda`. `cuda` builds a GPU image (`fastembed-gpu`) and requires `docker-compose.gpu.yml` plus NVIDIA Container Toolkit. Rebuild after changing. |
+| `EMBED_DEVICE` | Dense embedding device: `cpu` (default), `cuda` (NVIDIA), or `rocm` (AMD). `cuda` builds a GPU image (`fastembed-gpu`) and requires `docker-compose.gpu.yml` plus NVIDIA Container Toolkit. `rocm` builds a ROCm image and requires `docker-compose.amd.yml` (native Linux) or `docker-compose.amd.wsl2.yml` (Windows+WSL2). The `ROCM_VARIANT` build arg (`native` or `wsl`) selects the ROCm/onnxruntime stack — see [AMD (ROCm/MIGraphX)](#amd-rocmmigraphx). Rebuild after changing. |
 | `NVIDIA_GPU_COUNT` | GPU devices reserved by `docker-compose.gpu.yml`; defaults to `1`. Set to `all` only when the host should expose every GPU. |
 
 ### BAAI BGE English v1.5
@@ -450,6 +450,61 @@ docker logs codeindexer_mcp 2>&1 | grep -E 'dense_model_loaded|active_providers|
 A healthy GPU setup shows `embed_device=cuda` and `active_providers` containing `CUDAExecutionProvider`. If the CUDA libraries load but no usable GPU is found, ONNX Runtime drops `CUDAExecutionProvider` from the active list; logs then include `cuda_requested_but_unavailable` and dense embedding runs on CPU. If the CUDA/cuDNN runtime libraries are missing entirely (e.g. wrong base image or a non-GPU build), model load can instead fail at startup rather than fall back. In either case: rebuild with `EMBED_DEVICE=cuda`, ensure the GPU override compose file is used, and confirm `nvidia-smi` works inside the container.
 
 > **VRAM note:** The cgroup memory-pressure guard (`MEMORY_PRESSURE_WARN_PCT` / `MEMORY_PRESSURE_HALT_PCT`) monitors **container RAM**, not GPU VRAM. CUDA out-of-memory errors are not caught by that guard — reduce `BATCH_SIZE` and `MAX_DENSE_EMBED_TOKENS` if dense embedding fails with GPU OOM.
+
+#### AMD (ROCm/MIGraphX)
+
+Optional AMD GPU support speeds up **dense embedding** via ONNX Runtime's MIGraphX and ROCm execution providers. CPU remains the default. **DirectML is not supported** — the server runs in a Linux container; DirectML ships only in the Windows `onnxruntime` wheel.
+
+**Supported hardware (narrow):** RDNA3/RDNA4 discrete Radeon GPUs and Ryzen AI Max / Strix Halo APUs. Other AMD GPU architectures are not supported by the ROCm consumer stack.
+
+**ROCm build variants** (`ROCM_VARIANT` Docker build arg; runtime `EMBED_DEVICE` stays `rocm` for both):
+
+| Variant | Compose override | ROCm base | ONNX Runtime package | GPU path |
+|---------|------------------|-----------|----------------------|----------|
+| `native` (default) | `docker-compose.amd.yml` | 6.4.4 | `onnxruntime-rocm==1.21.0` | `/dev/kfd` + `/dev/dri` (native Linux) |
+| `wsl` | `docker-compose.amd.wsl2.yml` | 7.2.1 | `onnxruntime_migraphx==1.23.2` | `/dev/dxg` (Windows + WSL2) |
+
+The `wsl` image installs `onnxruntime_migraphx` because ROCm 7.2+ no longer ships `onnxruntime-rocm`. **MIGraphX EP is unsupported on WSL2** — dense embedding uses `ROCMExecutionProvider` there. The server requests `["MIGraphXExecutionProvider","ROCMExecutionProvider","CPUExecutionProvider"]` and falls through to the first available provider, so no runtime code changes are needed between variants.
+
+**Prerequisites (native Linux):**
+
+- AMD GPU with [ROCm 6.4+](https://rocm.docs.amd.com/) driver on the host
+- Docker configured with `/dev/kfd` and `/dev/dri` device passthrough
+
+**Enable (native Linux):**
+
+1. Set `EMBED_DEVICE=rocm` in `.env`.
+2. Start with the AMD compose override (`ROCM_VARIANT=native` is passed automatically):
+
+   ```bash
+   EMBED_DEVICE=rocm docker compose -f docker-compose.yml -f docker-compose.amd.yml up -d --build
+   ```
+
+   The build selects ROCm 6.4.4 and installs `onnxruntime-rocm` while keeping plain `fastembed`. You must **rebuild** when switching between `cpu`, `cuda`, and `rocm`, or between `native` and `wsl` ROCm variants.
+
+**Enable (Windows + WSL2):**
+
+WSL2 uses a different GPU passthrough path (`/dev/dxg`, not `/dev/kfd`). Prerequisites:
+
+- [Adrenalin driver 26.2.2+](https://www.amd.com/en/support) on Windows
+- ROCm 7.2.1+ with `librocdxg.so` under `/opt/rocm/lib` inside WSL2
+- `/dev/dxg` present in WSL2
+
+```bash
+EMBED_DEVICE=rocm docker compose -f docker-compose.yml -f docker-compose.amd.wsl2.yml up -d --build
+```
+
+This passes `ROCM_VARIANT=wsl`, building ROCm 7.2.1 + `onnxruntime_migraphx`. Expect `ROCMExecutionProvider` (not MIGraphX) in logs on WSL2.
+
+**Verify:**
+
+```bash
+docker logs codeindexer_mcp 2>&1 | grep -E 'dense_model_loaded|active_providers|rocm_requested'
+```
+
+A healthy **native Linux** setup shows `embed_device=rocm` and `active_providers` containing `MIGraphXExecutionProvider` and/or `ROCMExecutionProvider`. On **WSL2**, expect `ROCMExecutionProvider` only. If ROCm libraries load but no usable GPU is found, logs include `rocm_requested_but_unavailable` and dense embedding falls back to CPU.
+
+> **VRAM note:** As with CUDA, the memory-pressure guard monitors **container RAM**, not GPU VRAM. Reduce `BATCH_SIZE` and `MAX_DENSE_EMBED_TOKENS` if dense embedding fails with GPU OOM.
 
 ### How indexing stays within budget
 

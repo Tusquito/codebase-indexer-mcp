@@ -1,0 +1,29 @@
+# AMD GPU override for mcp_server on Windows + WSL2. Use with the base compose file:
+#   EMBED_DEVICE=rocm docker compose -f docker-compose.yml -f docker-compose.amd.wsl2.yml up --build
+#
+# Builds ROCm 7.2.1 + onnxruntime_migraphx (ROCM_VARIANT=wsl). MIGraphX EP is unsupported
+# on WSL2 — dense embedding uses ROCMExecutionProvider via provider fallthrough.
+#
+# WSL2 prerequisites: Adrenalin driver 26.2.2+, ROCm 7.2.1+ on the Windows host,
+# librocdxg.so available under /opt/rocm/lib, and /dev/dxg present in WSL2.
+# /dev/kfd does NOT work in WSL2 — use this override instead of docker-compose.amd.yml.
+services:
+  mcp_server:
+    build:
+      args:
+        EMBED_DEVICE: rocm
+        ROCM_VARIANT: wsl
+    environment:
+      EMBED_DEVICE: rocm
+      HSA_ENABLE_DXG_DETECTION: "1"
+    devices:
+      - /dev/dxg
+    volumes:
+      - /usr/lib/wsl/lib/libdxcore.so:/usr/lib/libdxcore.so:ro
+      - /opt/rocm/lib/librocdxg.so:/usr/lib/librocdxg.so:ro
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp:unconfined
+    ipc: host
+    shm_size: "8gb"

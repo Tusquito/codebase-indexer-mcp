@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
 
 ARG EMBED_DEVICE=cpu
+ARG ROCM_VARIANT=native
 
 # ---------------------------------------------------------------------------
 # Builder stages: compile/install all dependencies into a self-contained venv.
@@ -52,10 +53,72 @@ RUN uv sync --frozen --no-dev \
     && uv pip install fastembed-gpu==0.8.0 onnxruntime-gpu==1.26.0
 RUN /app/.venv/bin/python -c "import onnxruntime; assert onnxruntime.__version__ == '1.26.0'"
 
+# ROCm images are large (~3 GB+ base). Pin base tag and onnxruntime wheel to the same
+# ROCm release (see repo.radeon.com/rocm/manylinux/rocm-rel-<ver>/).
+# ROCM_VARIANT=wsl targets the ROCDXG /dev/dxg passthrough path on Windows+WSL2.
+FROM rocm/dev-ubuntu-24.04:6.4.4 AS builder-rocm-native
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.12 \
+    python3.12-venv \
+    python3.12-dev \
+    gcc \
+    g++ \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/bin/python3.12 /usr/local/bin/python3 \
+    && ln -sf /usr/bin/python3.12 /usr/local/bin/python
+
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && install -m 755 /root/.local/bin/uv /usr/local/bin/uv
+
+WORKDIR /app
+COPY pyproject.toml uv.lock ./
+COPY src/ ./src/
+# Keep plain fastembed (not fastembed-gpu). Swap CPU onnxruntime for onnxruntime-rocm.
+RUN uv sync --frozen --no-dev \
+    && uv pip uninstall onnxruntime onnxruntime-gpu fastembed-gpu 2>/dev/null || true \
+    && uv pip install onnxruntime-rocm==1.21.0 \
+        -f https://repo.radeon.com/rocm/manylinux/rocm-rel-6.4.4/
+RUN /app/.venv/bin/python -c "import onnxruntime; assert onnxruntime.__version__ == '1.21.0'"
+
+FROM rocm/dev-ubuntu-24.04:7.2.1 AS builder-rocm-wsl
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.12 \
+    python3.12-venv \
+    python3.12-dev \
+    gcc \
+    g++ \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/bin/python3.12 /usr/local/bin/python3 \
+    && ln -sf /usr/bin/python3.12 /usr/local/bin/python
+
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && install -m 755 /root/.local/bin/uv /usr/local/bin/uv
+
+WORKDIR /app
+COPY pyproject.toml uv.lock ./
+COPY src/ ./src/
+# ROCm 7.2+ ships onnxruntime_migraphx (not onnxruntime-rocm). numpy<2 required by wheel.
+RUN uv sync --frozen --no-dev \
+    && uv pip uninstall onnxruntime onnxruntime-gpu fastembed-gpu onnxruntime-rocm 2>/dev/null || true \
+    && uv pip install "numpy<2" onnxruntime_migraphx==1.23.2 \
+        -f https://repo.radeon.com/rocm/manylinux/rocm-rel-7.2.1/
+RUN /app/.venv/bin/python -c "import onnxruntime; assert onnxruntime.__version__ == '1.23.2'"
+
+FROM builder-rocm-${ROCM_VARIANT} AS builder-rocm
+
 FROM builder-${EMBED_DEVICE} AS builder
 ARG EMBED_DEVICE
-RUN test "$EMBED_DEVICE" = "cpu" -o "$EMBED_DEVICE" = "cuda" \
-    || (echo "ERROR: EMBED_DEVICE must be 'cpu' or 'cuda', got '$EMBED_DEVICE'" >&2 && exit 1)
+ARG ROCM_VARIANT
+RUN test "$EMBED_DEVICE" = "cpu" -o "$EMBED_DEVICE" = "cuda" -o "$EMBED_DEVICE" = "rocm" \
+    || (echo "ERROR: EMBED_DEVICE must be 'cpu', 'cuda', or 'rocm', got '$EMBED_DEVICE'" >&2 && exit 1)
+RUN test "$ROCM_VARIANT" = "native" -o "$ROCM_VARIANT" = "wsl" \
+    || (echo "ERROR: ROCM_VARIANT must be 'native' or 'wsl', got '$ROCM_VARIANT'" >&2 && exit 1)
 
 # ---------------------------------------------------------------------------
 # Runtime stages: slim image with only what the server needs to run.
@@ -88,6 +151,40 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3 \
     && ln -sf /usr/bin/python3.12 /usr/local/bin/python
+
+FROM rocm/dev-ubuntu-24.04:6.4.4 AS runtime-rocm-native
+
+ENV HSA_ENABLE_DXG_DETECTION=1
+ENV LD_LIBRARY_PATH="/opt/rocm/lib:${LD_LIBRARY_PATH}"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.12 \
+    python3.12-venv \
+    curl \
+    ca-certificates \
+    gosu \
+    passwd \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/bin/python3.12 /usr/local/bin/python3 \
+    && ln -sf /usr/bin/python3.12 /usr/local/bin/python
+
+FROM rocm/dev-ubuntu-24.04:7.2.1 AS runtime-rocm-wsl
+
+ENV HSA_ENABLE_DXG_DETECTION=1
+ENV LD_LIBRARY_PATH="/opt/rocm/lib:${LD_LIBRARY_PATH}"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.12 \
+    python3.12-venv \
+    curl \
+    ca-certificates \
+    gosu \
+    passwd \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/bin/python3.12 /usr/local/bin/python3 \
+    && ln -sf /usr/bin/python3.12 /usr/local/bin/python
+
+FROM runtime-rocm-${ROCM_VARIANT} AS runtime-rocm
 
 FROM runtime-${EMBED_DEVICE} AS runtime
 

@@ -52,6 +52,12 @@ def resolve_onnx_providers(embed_device: str) -> list[str]:
     """Return ONNX Runtime execution providers for the dense encoder."""
     if embed_device == "cuda":
         return ["CUDAExecutionProvider", "CPUExecutionProvider"]
+    if embed_device == "rocm":
+        return [
+            "MIGraphXExecutionProvider",
+            "ROCMExecutionProvider",
+            "CPUExecutionProvider",
+        ]
     return ["CPUExecutionProvider"]
 
 
@@ -327,7 +333,7 @@ class Embedder:
         return Embedder._shared_dense_model
 
     def _log_dense_providers(self, model: Any) -> list[str]:
-        """Log active ONNX providers and warn if CUDA was requested but unavailable."""
+        """Log active ONNX providers and warn if GPU was requested but unavailable."""
         inner = _extract_onnx_inner(model)
         session = getattr(inner, "model", None) if inner is not None else None
         if session is None or not hasattr(session, "get_providers"):
@@ -337,6 +343,14 @@ class Embedder:
             _tlog.warning(
                 "cuda_requested_but_unavailable embed_device=%s active_providers=%s "
                 "— falling back to CPU. Rebuild with EMBED_DEVICE=cuda and ensure GPU passthrough.",
+                self.embed_device, active,
+            )
+        if self.embed_device == "rocm" and not any(
+            p in active for p in ("MIGraphXExecutionProvider", "ROCMExecutionProvider")
+        ):
+            _tlog.warning(
+                "rocm_requested_but_unavailable embed_device=%s active_providers=%s "
+                "— falling back to CPU. Rebuild with EMBED_DEVICE=rocm and ensure GPU passthrough.",
                 self.embed_device, active,
             )
         return active

@@ -132,6 +132,10 @@ def test_embed_device_accepts_cuda():
     assert Settings(embed_device="cuda").embed_device == "cuda"
 
 
+def test_embed_device_accepts_rocm():
+    assert Settings(embed_device="rocm").embed_device == "rocm"
+
+
 def test_embed_device_rejects_invalid():
     with pytest.raises(ValidationError):
         Settings(embed_device="tpu")

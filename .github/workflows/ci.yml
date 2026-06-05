@@ -90,8 +90,8 @@ jobs:
           path: mcp_server/bench-results.json
 
   docker-image:
-    # Non-blocking: validates CPU/CUDA Dockerfile matrix without gating merges.
-    # CUDA image is large; build-only (no GPU runner required).
+    # Non-blocking: validates CPU/CUDA/ROCm Dockerfile matrix without gating merges.
+    # GPU images are large; build-only (GitHub runners have no NVIDIA/AMD GPU).
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
@@ -102,6 +102,13 @@ jobs:
 
       - name: Build CUDA image
         run: docker build --build-arg EMBED_DEVICE=cuda -t codebase-indexer:cuda ./mcp_server
+
+      - name: Build ROCm image (native Linux)
+        run: docker build --build-arg EMBED_DEVICE=rocm --build-arg ROCM_VARIANT=native -t codebase-indexer:rocm ./mcp_server
+
+      # WSL2 variant: ROCm 7.2.1 + onnxruntime_migraphx; build-only (no /dev/dxg on CI).
+      - name: Build ROCm image (WSL2)
+        run: docker build --build-arg EMBED_DEVICE=rocm --build-arg ROCM_VARIANT=wsl -t codebase-indexer:rocm-wsl ./mcp_server
 
       - name: Smoke test CUDA image (provider + package swap)
         run: >-
