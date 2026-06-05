@@ -114,6 +114,16 @@ def test_bge_small_model_dense_embed_vector_size_valid():
     assert s.dense_embed_vector_size == 384
 
 
+def test_jina_code_model_dense_embed_vector_size_valid():
+    s = Settings(
+        dense_embed_model="jinaai/jina-embeddings-v2-base-code",
+        sparse_embed_model="Qdrant/bm25",
+        dense_embed_vector_size=768,
+        sparse_threads=2,
+    )
+    assert s.dense_embed_model == "jinaai/jina-embeddings-v2-base-code"
+
+
 def test_embed_device_defaults_to_cpu():
     assert Settings().embed_device == "cpu"
 
@@ -144,3 +154,26 @@ def test_bge_v15_official_specs_in_registry():
     for model, (dim, max_tokens) in BGE_EN_V1_5_SPECS.items():
         assert KNOWN_EMBED_MODEL_DIMENSIONS[model] == dim
         assert KNOWN_EMBED_MODEL_MAX_TOKENS[model] == max_tokens
+
+
+def test_jina_code_v2_specs_in_registry():
+    from codebase_indexer.config import (
+        JINA_CODE_EMBED_V2_SPECS,
+        KNOWN_EMBED_MODEL_DIMENSIONS,
+        KNOWN_EMBED_MODEL_MAX_TOKENS,
+    )
+
+    assert JINA_CODE_EMBED_V2_SPECS["jinaai/jina-embeddings-v2-base-code"] == (768, 8192)
+    for model, (dim, max_tokens) in JINA_CODE_EMBED_V2_SPECS.items():
+        assert KNOWN_EMBED_MODEL_DIMENSIONS[model] == dim
+        assert KNOWN_EMBED_MODEL_MAX_TOKENS[model] == max_tokens
+
+
+def test_jina_code_wrong_dense_embed_vector_size_rejected():
+    with pytest.raises(ValueError, match="does not match"):
+        Settings(
+            dense_embed_model="jinaai/jina-embeddings-v2-base-code",
+            sparse_embed_model="Qdrant/bm25",
+            dense_embed_vector_size=384,
+            sparse_threads=2,
+        )

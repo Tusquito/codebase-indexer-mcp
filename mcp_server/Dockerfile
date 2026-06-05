@@ -104,9 +104,13 @@ COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 # Windows checkouts may use CRLF; strip so the shebang interpreter resolves.
 RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh
 
-RUN /usr/sbin/useradd -m -u 1000 mcpuser \
-    && chown -R mcpuser /app \
-    && chmod +x /usr/local/bin/docker-entrypoint.sh
+RUN set -eux; \
+    if existing="$(getent passwd 1000 | cut -d: -f1)" && [ -n "$existing" ]; then \
+        userdel -r "$existing" 2>/dev/null || userdel "$existing"; \
+    fi; \
+    useradd -m -u 1000 mcpuser; \
+    chown -R mcpuser /app; \
+    chmod +x /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 8000
 

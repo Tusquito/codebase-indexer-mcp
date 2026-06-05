@@ -37,6 +37,18 @@ def test_resolve_auto_detect_from_registry():
     assert source == "model_auto_detect"
 
 
+def test_resolve_jina_code_auto_detect_from_registry():
+    max_tok, source = resolve_max_embed_tokens(
+        role="dense",
+        model_name="jinaai/jina-embeddings-v2-base-code",
+        env_tokens=0,
+        model_dir=None,
+        known_registry={"jinaai/jina-embeddings-v2-base-code": 8192},
+    )
+    assert max_tok == 8192
+    assert source == "model_auto_detect"
+
+
 def test_resolve_sparse_disabled_for_unknown():
     max_tok, source = resolve_max_embed_tokens(
         role="sparse",

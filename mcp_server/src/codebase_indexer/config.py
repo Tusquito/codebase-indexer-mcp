@@ -18,17 +18,25 @@ BGE_EN_V1_5_SPECS: dict[str, tuple[int, int]] = {
     "BAAI/bge-small-en-v1.5": (384, 512),
 }
 
+# Jina Embeddings v2 base code — code search (dimension, max sequence length in tokens).
+# https://huggingface.co/jinaai/jina-embeddings-v2-base-code
+JINA_CODE_EMBED_V2_SPECS: dict[str, tuple[int, int]] = {
+    "jinaai/jina-embeddings-v2-base-code": (768, 8192),
+}
+
 # Known dense embedding models and their output dimensions. When listed,
 # DENSE_EMBED_VECTOR_SIZE must match exactly (set both in .env — see .env.example).
 KNOWN_EMBED_MODEL_DIMENSIONS: dict[str, int] = {
     "nomic-ai/nomic-embed-text-v1.5": 768,
     **{model: dims for model, (dims, _) in BGE_EN_V1_5_SPECS.items()},
+    **{model: dims for model, (dims, _) in JINA_CODE_EMBED_V2_SPECS.items()},
 }
 
 # Known dense transformer models and max input tokens (embedding truncation).
 KNOWN_EMBED_MODEL_MAX_TOKENS: dict[str, int] = {
     "nomic-ai/nomic-embed-text-v1.5": 8192,
     **{model: max_tokens for model, (_, max_tokens) in BGE_EN_V1_5_SPECS.items()},
+    **{model: max_tokens for model, (_, max_tokens) in JINA_CODE_EMBED_V2_SPECS.items()},
 }
 
 
@@ -102,8 +110,8 @@ class Settings(BaseSettings):
     # How many scanned files may be queued ahead of the consumer.
     readahead_buffer: int = Field(default=100)
     # Max tokens fed to the dense encoder. 0 = auto-detect from model (recommended).
-    # BGE base/small v1.5 auto-detect to 512; nomic v1.5 to 8192. Set lower to
-    # reduce ONNX attention memory on long-context models.
+    # BGE base/small v1.5 auto-detect to 512; nomic v1.5 and jina code v2 to 8192.
+    # Set lower to reduce ONNX attention memory on long-context models.
     max_dense_embed_tokens: int = Field(default=0)
     # Max tokens fed to the sparse encoder. 0 = no limit (default for Qdrant/bm25).
     max_sparse_embed_tokens: int = Field(default=0)
