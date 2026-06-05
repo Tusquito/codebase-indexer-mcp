@@ -20,10 +20,13 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
     && install -m 755 /root/.local/bin/uv /usr/local/bin/uv
 
 WORKDIR /app
-# Source is needed at sync time so the project (editable) install resolves.
 COPY pyproject.toml uv.lock ./
 COPY src/ ./src/
-RUN uv sync --frozen --no-dev
+# Non-editable wheel build validates readme = "../README.md" → /README.md (outside /app context).
+RUN printf '# codebase-indexer\n' > /README.md
+ENV UV_PYTHON_PREFERENCE=only-system
+RUN uv sync --frozen --no-dev --no-editable --python /usr/local/bin/python3.12 \
+    && /app/.venv/bin/python -c "import codebase_indexer"
 
 FROM nvidia/cuda:12.8.1-devel-ubuntu24.04 AS builder-cuda
 
@@ -36,6 +39,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/bin/python3.12 /usr/local/bin/python3.12 \
     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3 \
     && ln -sf /usr/bin/python3.12 /usr/local/bin/python
 
@@ -45,13 +49,16 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
 COPY src/ ./src/
+RUN printf '# codebase-indexer\n' > /README.md
 # Swap the CPU fastembed/onnxruntime for the GPU build. Pin fastembed-gpu to the
 # same version resolved in uv.lock for the CPU fastembed so GPU images stay
 # reproducible and aligned with the locked onnxruntime CUDA/cuDNN expectations.
-RUN uv sync --frozen --no-dev \
+ENV UV_PYTHON_PREFERENCE=only-system
+RUN uv sync --frozen --no-dev --no-editable --python /usr/local/bin/python3.12 \
     && uv pip uninstall fastembed onnxruntime \
-    && uv pip install fastembed-gpu==0.8.0 onnxruntime-gpu==1.26.0
-RUN /app/.venv/bin/python -c "import onnxruntime; assert onnxruntime.__version__ == '1.26.0'"
+    && uv pip install fastembed-gpu==0.8.0 onnxruntime-gpu==1.26.0 \
+    && /app/.venv/bin/python -c "import onnxruntime; assert onnxruntime.__version__ == '1.26.0'" \
+    && /app/.venv/bin/python -c "import codebase_indexer"
 
 # ROCm images are large (~3 GB+ base). Pin base tag and onnxruntime wheel to the same
 # ROCm release (see repo.radeon.com/rocm/manylinux/rocm-rel-<ver>/).
@@ -67,6 +74,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/bin/python3.12 /usr/local/bin/python3.12 \
     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3 \
     && ln -sf /usr/bin/python3.12 /usr/local/bin/python
 
@@ -76,12 +84,15 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
 COPY src/ ./src/
+RUN printf '# codebase-indexer\n' > /README.md
 # Keep plain fastembed (not fastembed-gpu). Swap CPU onnxruntime for onnxruntime-rocm.
-RUN uv sync --frozen --no-dev \
+ENV UV_PYTHON_PREFERENCE=only-system
+RUN uv sync --frozen --no-dev --no-editable --python /usr/local/bin/python3.12 \
     && uv pip uninstall onnxruntime onnxruntime-gpu fastembed-gpu 2>/dev/null || true \
     && uv pip install onnxruntime-rocm==1.21.0 \
-        -f https://repo.radeon.com/rocm/manylinux/rocm-rel-6.4.4/
-RUN /app/.venv/bin/python -c "import onnxruntime; assert onnxruntime.__version__ == '1.21.0'"
+        -f https://repo.radeon.com/rocm/manylinux/rocm-rel-6.4.4/ \
+    && /app/.venv/bin/python -c "import onnxruntime; assert onnxruntime.__version__ == '1.21.0'" \
+    && /app/.venv/bin/python -c "import codebase_indexer"
 
 FROM rocm/dev-ubuntu-24.04:7.2.1 AS builder-rocm-wsl
 
@@ -94,6 +105,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/bin/python3.12 /usr/local/bin/python3.12 \
     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3 \
     && ln -sf /usr/bin/python3.12 /usr/local/bin/python
 
@@ -103,12 +115,15 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
 COPY src/ ./src/
+RUN printf '# codebase-indexer\n' > /README.md
 # ROCm 7.2+ ships onnxruntime_migraphx (not onnxruntime-rocm). numpy<2 required by wheel.
-RUN uv sync --frozen --no-dev \
+ENV UV_PYTHON_PREFERENCE=only-system
+RUN uv sync --frozen --no-dev --no-editable --python /usr/local/bin/python3.12 \
     && uv pip uninstall onnxruntime onnxruntime-gpu fastembed-gpu onnxruntime-rocm 2>/dev/null || true \
     && uv pip install "numpy<2" onnxruntime_migraphx==1.23.2 \
-        -f https://repo.radeon.com/rocm/manylinux/rocm-rel-7.2.1/
-RUN /app/.venv/bin/python -c "import onnxruntime; assert onnxruntime.__version__ == '1.23.2'"
+        -f https://repo.radeon.com/rocm/manylinux/rocm-rel-7.2.1/ \
+    && /app/.venv/bin/python -c "import onnxruntime; assert onnxruntime.__version__ == '1.23.2'" \
+    && /app/.venv/bin/python -c "import codebase_indexer"
 
 FROM builder-rocm-${ROCM_VARIANT} AS builder-rocm
 
@@ -189,12 +204,13 @@ FROM runtime-rocm-${ROCM_VARIANT} AS runtime-rocm
 FROM runtime-${EMBED_DEVICE} AS runtime
 
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app/src
 ENV PATH="/app/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 WORKDIR /app
 # uv binary kept for the documented `docker exec ... uv run ...` stdio entrypoint.
 COPY --from=builder /usr/local/bin/uv /usr/local/bin/uv
-# Prebuilt venv + source (editable install references /app/src at this path).
+# Prebuilt venv + source.
 COPY --from=builder /app /app
 
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
