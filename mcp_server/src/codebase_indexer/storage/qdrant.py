@@ -530,6 +530,22 @@ class QdrantStorage:
             return points[0].payload
         return None
 
+    async def find_chunk_by_id(
+        self,
+        chunk_id: str,
+        collection: str | None = None,
+    ) -> dict | None:
+        """Retrieve a chunk by ID from one collection or all indexed collections."""
+        if collection:
+            return await self.get_chunk_by_id(collection, chunk_id)
+
+        stats = await self.list_collection_stats()
+        for coll in stats:
+            result = await self.get_chunk_by_id(coll.name, chunk_id)
+            if result is not None:
+                return result
+        return None
+
     async def list_collection_stats(self) -> list[CollectionStats]:
         """List all collections with stats."""
         client = await self._get_client()

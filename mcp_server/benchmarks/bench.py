@@ -186,6 +186,7 @@ async def run_benchmark(
             sparse_model=settings.sparse_embed_model,
             dense_embed_vector_size=settings.dense_embed_vector_size,
             hybrid=settings.hybrid_search,
+            embed_device=settings.embed_device,
         )
         dense_vec, sparse_vec = await embedder.embed_query("service handler request processing")
 

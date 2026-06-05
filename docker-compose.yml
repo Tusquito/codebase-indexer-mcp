@@ -31,6 +31,8 @@ services:
     build:
       context: ./mcp_server
       dockerfile: Dockerfile
+      args:
+        EMBED_DEVICE: ${EMBED_DEVICE:-cpu}
     container_name: codeindexer_mcp
     restart: unless-stopped
     # Bind to loopback only so the MCP server is not exposed to the LAN. For
@@ -41,6 +43,7 @@ services:
       qdrant:
         condition: service_healthy
     environment:
+      EMBED_DEVICE: ${EMBED_DEVICE:-cpu}
       QDRANT_URL: http://qdrant:6333
       DENSE_EMBED_MODEL: ${DENSE_EMBED_MODEL:?Set DENSE_EMBED_MODEL in .env}
       SPARSE_EMBED_MODEL: ${SPARSE_EMBED_MODEL:?Set SPARSE_EMBED_MODEL in .env}

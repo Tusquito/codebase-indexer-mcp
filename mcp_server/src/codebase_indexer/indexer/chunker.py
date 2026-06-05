@@ -177,6 +177,123 @@ def _split_large_node(
     return chunks
 
 
+# tree-sitter-sql lacks create_procedure; extract T-SQL procedures via regex.
+_SQL_PROCEDURE_START = re.compile(
+    r"^\s*CREATE\s+(?:OR\s+ALTER\s+)?PROCEDURE\s+"
+    r"(?:"
+    r"\[(?P<schema_bracket>[\w]+)\]\."
+    r"|(?P<schema_plain>[\w]+)\."
+    r")?"
+    r"\[?(?P<name>[\w]+)\]?",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def _parse_sql_procedure_name(match: re.Match[str]) -> str:
+    schema = match.group("schema_bracket") or match.group("schema_plain")
+    name = match.group("name")
+    if not name:
+        return ""
+    return f"{schema}.{name}" if schema else name
+
+
+def _line_range_overlaps_spans(
+    start_line: int,
+    end_line: int,
+    spans: list[tuple[int, int, str]],
+) -> bool:
+    for start, end, _ in spans:
+        if start_line <= end and start <= end_line:
+            return True
+    return False
+
+
+def _find_procedure_body_end(lines: list[str], start_line: int) -> int | None:
+    """Return 1-based line of the closing END for a procedure starting at start_line."""
+    depth = 0
+    seen_begin = False
+    for line_no in range(start_line, len(lines) + 1):
+        upper = lines[line_no - 1].strip().upper()
+        if re.match(r"^BEGIN\s*$", upper):
+            depth += 1
+            seen_begin = True
+        elif re.match(r"^END\s*;?\s*$", upper):
+            if seen_begin:
+                depth -= 1
+                if depth <= 0:
+                    return line_no
+            else:
+                return line_no
+    return None
+
+
+def _find_sql_procedure_spans(lines: list[str]) -> list[tuple[int, int, str]]:
+    """Return (start_line, end_line, qualified_name) using 1-based line numbers."""
+    if not lines:
+        return []
+
+    starts: list[tuple[int, str]] = []
+    for line_no, line in enumerate(lines, 1):
+        match = _SQL_PROCEDURE_START.match(line)
+        if not match:
+            continue
+        name = _parse_sql_procedure_name(match)
+        if name:
+            starts.append((line_no, name))
+
+    if not starts:
+        return []
+
+    spans: list[tuple[int, int, str]] = []
+    for idx, (start_line, name) in enumerate(starts):
+        end_candidates = [len(lines)]
+        if idx + 1 < len(starts):
+            end_candidates.append(starts[idx + 1][0] - 1)
+        body_end = _find_procedure_body_end(lines, start_line)
+        if body_end is not None:
+            end_candidates.append(body_end)
+        end_line = max(start_line, min(end_candidates))
+        spans.append((start_line, end_line, name))
+    return spans
+
+
+def _chunk_overlaps_spans(chunk: Chunk, spans: list[tuple[int, int, str]]) -> bool:
+    return _line_range_overlaps_spans(chunk.start_line, chunk.end_line, spans)
+
+
+def _extract_sql_procedure_chunks(
+    lines: list[str],
+    rel_path: str,
+    language: str,
+    file_sha256: str,
+    max_chunk_lines: int,
+    chunk_overlap_lines: int,
+    file_mtime: float,
+) -> tuple[list[Chunk], list[tuple[int, int, str]]]:
+    spans = _find_sql_procedure_spans(lines)
+    if not spans:
+        return [], []
+
+    chunks: list[Chunk] = []
+    for start_line, end_line, name in spans:
+        chunks.extend(
+            _sliding_window_range(
+                lines,
+                start_line - 1,
+                end_line - 1,
+                rel_path,
+                language,
+                file_sha256,
+                max_chunk_lines,
+                chunk_overlap_lines,
+                file_mtime=file_mtime,
+                symbol_name=name,
+                symbol_type="procedure",
+            )
+        )
+    return chunks, spans
+
+
 def _sliding_window_range(
     lines: list[str],
     start: int,
@@ -611,6 +728,19 @@ def chunk_file(
         max_chunk_lines = min(max_chunk_lines, 60)
         chunk_overlap_lines = min(chunk_overlap_lines, 10)
 
+    procedure_spans: list[tuple[int, int, str]] = []
+    procedure_chunks: list[Chunk] = []
+    if language == "sql":
+        procedure_chunks, procedure_spans = _extract_sql_procedure_chunks(
+            lines,
+            rel_path,
+            language,
+            file_sha256,
+            max_chunk_lines,
+            chunk_overlap_lines,
+            file_mtime,
+        )
+
     lang_obj = LANGUAGES.get(language)
     node_types = EXTRACT_NODE_TYPES.get(language)
 
@@ -632,6 +762,10 @@ def chunk_file(
             lines, 0, len(lines) - 1, rel_path, language, file_sha256,
             max_chunk_lines, chunk_overlap_lines, file_mtime=file_mtime,
         )
+        if language == "sql" and procedure_chunks:
+            chunks = [c for c in chunks if not _chunk_overlaps_spans(c, procedure_spans)]
+            chunks.extend(procedure_chunks)
+            chunks.sort(key=lambda c: c.start_line)
         return _apply_file_symbol_type(chunks, rel_path, language)
 
     chunks: list[Chunk] = []
@@ -640,6 +774,12 @@ def chunk_file(
         if node.type in node_types:
             start = node.start_point[0]
             end = node.end_point[0]
+            if procedure_spans and _line_range_overlaps_spans(
+                start + 1,
+                end + 1,
+                procedure_spans,
+            ):
+                return
             total = end - start + 1
 
             if total > max_chunk_lines:
@@ -671,12 +811,19 @@ def chunk_file(
 
     _extract_from_node(tree.root_node)
 
+    if chunks and procedure_spans:
+        chunks = [c for c in chunks if not _chunk_overlaps_spans(c, procedure_spans)]
+
+    if procedure_chunks:
+        chunks.extend(procedure_chunks)
+
     if not chunks:
         chunks = _sliding_window_range(
             lines, 0, len(lines) - 1, rel_path, language, file_sha256,
             max_chunk_lines, chunk_overlap_lines, file_mtime=file_mtime,
         )
     else:
+        chunks.sort(key=lambda c: c.start_line)
         import_lines = _collect_import_lines(tree.root_node, lines, language)
         if import_lines:
             for chunk in chunks:

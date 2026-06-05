@@ -2,8 +2,9 @@
 """Orchestrates scan → chunk → embed (dense+sparse) → upsert pipeline.
 
 Uses double-buffered flushing: while batch N is being upserted to Qdrant
-(I/O-bound), batch N+1 is being embedded (CPU-bound). This overlaps the
-two phases for ~30-40% throughput improvement without extra CPU or RAM.
+(I/O-bound), batch N+1 is being embedded (compute-bound in thread workers;
+dense may use CUDA when EMBED_DEVICE=cuda). This overlaps the two phases
+for ~30-40% throughput improvement without extra CPU or RAM.
 
 Additional concurrency optimizations:
 - File scanning runs in a background thread with readahead queue
@@ -81,6 +82,7 @@ async def run_pipeline(
         memory_warn_pct=settings.memory_pressure_warn_pct,
         memory_halt_pct=settings.memory_pressure_halt_pct,
         sequential_embed=settings.sequential_embed,
+        embed_device=settings.embed_device,
     )
 
     flush_every = settings.flush_every
@@ -272,7 +274,7 @@ async def _flush_double_buffered(
 
     1. Wait for previous upsert (if any) — ensures at most 2 batches in RAM.
     2. Check memory pressure — abort early if above halt threshold.
-    3. Embed current batch (CPU-bound, thread executor).
+    3. Embed current batch (compute-bound via thread executor; dense may use CUDA).
     4. Fire upsert as background task (I/O-bound) and return the task handle.
 
     Returns the new in-flight upsert task for the caller to track.
@@ -301,7 +303,7 @@ async def _flush_double_buffered(
             result.errors.append(msg)
             raise EmbeddingError(msg)
 
-        # Step 3: embed (CPU-bound)
+        # Step 3: embed (CPU or GPU)
         t0 = time.monotonic()
         embedded = await embedder.embed_chunks(chunks)
         t1 = time.monotonic()

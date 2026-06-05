@@ -99,7 +99,7 @@ LANGUAGE_SPECS: list[LanguageSpec] = [
         "sql", (".sql",),
         frozenset({
             "create_table", "create_function",
-            # create_procedure: re-add when tree-sitter-sql ships the node kind (PR #355+)
+            # create_procedure: handled via regex in chunker.py until tree-sitter-sql PR #355+
             "create_view", "create_type", "create_trigger",
             "create_index",
         }),

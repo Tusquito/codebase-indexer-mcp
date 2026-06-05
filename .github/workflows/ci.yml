@@ -88,3 +88,23 @@ jobs:
         with:
           name: benchmark-results
           path: mcp_server/bench-results.json
+
+  docker-image:
+    # Non-blocking: validates CPU/CUDA Dockerfile matrix without gating merges.
+    # CUDA image is large; build-only (no GPU runner required).
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build CPU image
+        run: docker build --build-arg EMBED_DEVICE=cpu -t codebase-indexer:cpu ./mcp_server
+
+      - name: Build CUDA image
+        run: docker build --build-arg EMBED_DEVICE=cuda -t codebase-indexer:cuda ./mcp_server
+
+      - name: Smoke test CUDA image (provider + package swap)
+        run: >-
+          docker run --rm codebase-indexer:cuda
+          /app/.venv/bin/python -c
+          "import onnxruntime as ort; assert 'CUDAExecutionProvider' in ort.get_available_providers(), ort.get_available_providers(); import fastembed_gpu; from fastembed.sparse import SparseTextEmbedding; print(ort.__version__)"

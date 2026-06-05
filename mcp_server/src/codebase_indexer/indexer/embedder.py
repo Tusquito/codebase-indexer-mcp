@@ -48,6 +48,13 @@ def trim_memory() -> None:
         pass
 
 
+def resolve_onnx_providers(embed_device: str) -> list[str]:
+    """Return ONNX Runtime execution providers for the dense encoder."""
+    if embed_device == "cuda":
+        return ["CUDAExecutionProvider", "CPUExecutionProvider"]
+    return ["CPUExecutionProvider"]
+
+
 def _resolve_threads(explicit: int) -> int:
     """Resolve ONNX thread count: explicit value, else OMP env, else auto.
 
@@ -114,6 +121,7 @@ class Embedder:
 
     # Class-level model cache — loaded once, reused by all instances
     _shared_dense_model = None
+    _shared_dense_cache_key: tuple[str, tuple[str, ...], int] | None = None
     _shared_sparse_model = None
     # Tokenizers and resolved limits persist across ONNX release (lightweight).
     _shared_dense_tokenizer: Any | None = None
@@ -137,6 +145,7 @@ class Embedder:
         the cached volume on the next embed request. Tokenizers stay loaded.
         """
         cls._shared_dense_model = None
+        cls._shared_dense_cache_key = None
         cls._shared_sparse_model = None
         trim_memory()
         _tlog.info("models_released memory_freed=true")
@@ -212,6 +221,7 @@ class Embedder:
         memory_warn_pct: int = 70,
         memory_halt_pct: int = 85,
         sequential_embed: bool = False,
+        embed_device: str = "cpu",
     ):
         self.dense_model = dense_model
         self.sparse_model = sparse_model
@@ -225,6 +235,8 @@ class Embedder:
         self.memory_warn_pct = memory_warn_pct
         self.memory_halt_pct = memory_halt_pct
         self.sequential_embed = sequential_embed
+        self.embed_device = embed_device
+        self._providers = resolve_onnx_providers(embed_device)
         self._dense_truncation_ready = False
         self._sparse_truncation_ready = False
 
@@ -272,16 +284,62 @@ class Embedder:
 
     def _get_dense_model(self):
         """Get or load fastembed dense encoder (ONNX, cached)."""
+        threads = _resolve_threads(self.dense_threads)
+        cache_key = (self.dense_model, tuple(self._providers), threads)
+        if (
+            Embedder._shared_dense_model is not None
+            and Embedder._shared_dense_cache_key != cache_key
+        ):
+            _tlog.info(
+                "reloading_dense_model reason=cache_key_changed "
+                "old_key=%s new_key=%s",
+                Embedder._shared_dense_cache_key,
+                cache_key,
+            )
+            Embedder._shared_dense_model = None
+            Embedder._shared_dense_cache_key = None
+            Embedder._shared_dense_tokenizer = None
+            Embedder._shared_dense_max_tokens = 0
+            Embedder._shared_dense_truncation_source = "disabled"
+            self._dense_truncation_ready = False
+            trim_memory()
         if Embedder._shared_dense_model is None:
             from fastembed import TextEmbedding
-            threads = _resolve_threads(self.dense_threads)
-            _tlog.info("loading_dense_model model=%s threads=%d backend=fastembed-onnx", self.dense_model, threads)
+            _tlog.info(
+                "loading_dense_model model=%s threads=%d embed_device=%s providers=%s backend=fastembed-onnx",
+                self.dense_model, threads, self.embed_device, self._providers,
+            )
             t0 = time.monotonic()
             # `threads` sets intra_op_num_threads on the ONNX InferenceSession directly.
             # OMP_NUM_THREADS alone is insufficient — ONNX Runtime uses its own thread pool.
-            Embedder._shared_dense_model = TextEmbedding(model_name=self.dense_model, threads=threads)
-            _tlog.info("dense_model_loaded model=%s threads=%d elapsed_s=%.2f", self.dense_model, threads, time.monotonic() - t0)
+            Embedder._shared_dense_model = TextEmbedding(
+                model_name=self.dense_model,
+                threads=threads,
+                providers=self._providers,
+            )
+            Embedder._shared_dense_cache_key = cache_key
+            elapsed = time.monotonic() - t0
+            active_providers = self._log_dense_providers(Embedder._shared_dense_model)
+            _tlog.info(
+                "dense_model_loaded model=%s threads=%d embed_device=%s active_providers=%s elapsed_s=%.2f",
+                self.dense_model, threads, self.embed_device, active_providers, elapsed,
+            )
         return Embedder._shared_dense_model
+
+    def _log_dense_providers(self, model: Any) -> list[str]:
+        """Log active ONNX providers and warn if CUDA was requested but unavailable."""
+        inner = _extract_onnx_inner(model)
+        session = getattr(inner, "model", None) if inner is not None else None
+        if session is None or not hasattr(session, "get_providers"):
+            return []
+        active = session.get_providers()
+        if self.embed_device == "cuda" and "CUDAExecutionProvider" not in active:
+            _tlog.warning(
+                "cuda_requested_but_unavailable embed_device=%s active_providers=%s "
+                "— falling back to CPU. Rebuild with EMBED_DEVICE=cuda and ensure GPU passthrough.",
+                self.embed_device, active,
+            )
+        return active
 
     def _get_sparse_model(self):
         """Get or load sparse encoder (cached). Model is configurable via sparse_model."""
@@ -338,7 +396,7 @@ class Embedder:
         return base_batch
 
     def _embed_dense_batch_sync(self, texts: list[str]) -> list[list[float]]:
-        """Embed texts via fastembed ONNX (synchronous, CPU-bound).
+        """Embed texts via fastembed ONNX (synchronous; CPU or CUDA depending on EMBED_DEVICE).
 
         Texts are sorted by length before embedding so that each ONNX batch
         contains similar-length sequences.  ONNX pads every input in a batch

@@ -1,0 +1,13 @@
+# GPU override for mcp_server. Use with the base compose file:
+#   EMBED_DEVICE=cuda docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
+services:
+  mcp_server:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              # Reserve one GPU by default. Set NVIDIA_GPU_COUNT=all (or a
+              # larger number) only when the host should expose more devices.
+              count: ${NVIDIA_GPU_COUNT:-1}
+              capabilities: [gpu]

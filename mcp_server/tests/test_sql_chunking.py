@@ -4,6 +4,7 @@ import pytest
 
 from codebase_indexer.indexer.chunker import (
     _classify_symbol_type,
+    _find_sql_procedure_spans,
     chunk_file,
 )
 
@@ -84,10 +85,6 @@ EXECUTE FUNCTION update_modified_column();"""
     assert chunk.symbol_type == "trigger"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="tree-sitter-sql 0.3.11 has no create_procedure node kind in the grammar",
-)
 def test_create_procedure_tsql_style():
     chunk = _one(
         """CREATE PROCEDURE dbo.GetUsers(@status int)
@@ -97,6 +94,31 @@ BEGIN
 END;"""
     )
     assert chunk.symbol_name == "dbo.GetUsers"
+    assert chunk.symbol_type == "procedure"
+
+
+def test_create_procedure_bracketed_tsql_style():
+    chunk = _one(
+        """CREATE PROCEDURE [data_product].[merge_customer_profile_v1_0] @cust_id bigint
+AS
+BEGIN
+  SELECT 1
+END;"""
+    )
+    assert chunk.symbol_name == "data_product.merge_customer_profile_v1_0"
+    assert chunk.symbol_type == "procedure"
+    assert "CREATE PROCEDURE" in chunk.content
+
+
+def test_create_or_alter_procedure():
+    chunk = _one(
+        """CREATE OR ALTER PROCEDURE [sync].[merge_connect_profile_v1_0] @oldCustId INT
+AS
+BEGIN
+  SELECT 1
+END;"""
+    )
+    assert chunk.symbol_name == "sync.merge_connect_profile_v1_0"
     assert chunk.symbol_type == "procedure"
 
 
@@ -133,10 +155,95 @@ CREATE TYPE dbo.UserIdList AS TABLE (user_id INT);
     chunks = _chunk(sql)
     by_type = {(c.symbol_name, c.symbol_type) for c in chunks}
     assert ("dbo.users", "table") in by_type
+    assert ("dbo.GetUsers", "procedure") in by_type
     assert ("dbo.AddOne", "function") in by_type
     assert ("dbo.ActiveUsers", "view") in by_type
     assert ("dbo.UserIdList", "type") in by_type
-    assert len(chunks) >= 4
+    assert len(chunks) >= 5
+
+
+def test_procedure_body_does_not_emit_temp_table_chunks():
+    sql = """CREATE PROCEDURE [data_product].[merge_customer_profile_v1_0]
+AS
+BEGIN
+    create table #data_product (cust_id bigint);
+    SELECT 1
+END;"""
+    chunks = _chunk(sql)
+    assert all(c.symbol_type != "table" or c.symbol_name != "data_product" for c in chunks)
+    assert any(
+        c.symbol_name == "data_product.merge_customer_profile_v1_0"
+        and c.symbol_type == "procedure"
+        for c in chunks
+    )
+
+
+def test_large_procedure_splits_with_inherited_metadata():
+    body = "\n".join(f"    SELECT {i};" for i in range(80))
+    sql = f"""CREATE PROCEDURE dbo.BigProc
+AS
+BEGIN
+{body}
+END;"""
+    chunks = _chunk(sql)
+    assert len(chunks) >= 2
+    inherited = [
+        c for c in chunks
+        if c.symbol_name == "dbo.BigProc" and c.symbol_type == "procedure"
+    ]
+    assert len(inherited) >= 2
+
+
+def test_find_sql_procedure_spans_multiple_procedures():
+    sql = """CREATE PROCEDURE dbo.First
+AS
+BEGIN
+  SELECT 1
+END;
+
+CREATE PROCEDURE dbo.Second
+AS
+BEGIN
+  SELECT 2
+END;"""
+    spans = _find_sql_procedure_spans(sql.splitlines())
+    assert spans == [(1, 5, "dbo.First"), (7, 11, "dbo.Second")]
+
+
+def test_find_procedure_body_end_ignores_end_try_catch():
+    sql = """CREATE PROCEDURE dbo.WithTryCatch
+AS
+BEGIN
+  BEGIN TRY
+    SELECT 1
+  END TRY
+  BEGIN CATCH
+    SELECT 2
+  END CATCH
+END;"""
+    spans = _find_sql_procedure_spans(sql.splitlines())
+    assert len(spans) == 1
+    assert spans[0][2] == "dbo.WithTryCatch"
+    assert spans[0][1] == len(sql.splitlines())
+
+
+def test_procedure_with_try_catch_followed_by_view():
+    sql = """CREATE PROCEDURE dbo.WithTryCatch
+AS
+BEGIN
+  BEGIN TRY
+    SELECT 1
+  END TRY
+  BEGIN CATCH
+    SELECT 2
+  END CATCH
+END;
+
+CREATE VIEW dbo.AfterView AS SELECT 1;"""
+    chunks = _chunk(sql)
+    by_type = {(c.symbol_name, c.symbol_type) for c in chunks}
+    assert ("dbo.WithTryCatch", "procedure") in by_type
+    assert ("dbo.AfterView", "view") in by_type
 
 
 def test_large_sql_table_splits_with_inherited_metadata():

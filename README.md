@@ -10,6 +10,7 @@ A fully self-hosted, Docker-based MCP server that indexes your codebase into a l
 - **Multi-Language** — Python, JavaScript, TypeScript, Go, Rust, Java, C, C++, C#
 - **Token Efficient** — Returns only relevant code chunks, not full files. Three dedicated low-cost orientation tools (`get_collection_summary`, `search_symbols`, `get_file_outline`) eliminate exploratory searches entirely.
 - **MCP Compatible** — Works with Claude Desktop, Copilot CLI, Cursor, and more
+- **Optional NVIDIA GPU Acceleration** — Offload dense embedding to CUDA via `EMBED_DEVICE=cuda` and `docker-compose.gpu.yml` (CPU remains the default)
 
 ## System Architecture
 
@@ -21,7 +22,7 @@ graph TD
     end
 
     subgraph Docker["Docker Compose"]
-        MCP["codeindexer_mcp  :8000\n────────────────────────\nFastMCP server\nfastembed ONNX  in-process\nTree-sitter parser\nconfigurable sparse encoder"]
+        MCP["codeindexer_mcp  :8000\n────────────────────────\nFastMCP server (CPU or CUDA)\nfastembed ONNX  in-process\nTree-sitter parser\nconfigurable sparse encoder"]
         QD[("codeindexer_qdrant  :6333\n────────────────────────\nQdrant Vector DB\npersistent  qdrant_data  volume")]
     end
 
@@ -51,6 +52,18 @@ docker compose ps
 docker logs -f codeindexer_mcp
 
 # 5. Add MCP client config (see below)
+```
+
+### GPU (optional)
+
+Requires an NVIDIA GPU, the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html), and `EMBED_DEVICE=cuda` in `.env`. See [GPU Acceleration](#gpu-acceleration) for details.
+
+```bash
+# Set EMBED_DEVICE=cuda in .env, then start with the GPU compose override
+EMBED_DEVICE=cuda docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+
+# Confirm GPU passthrough and CUDA provider in logs
+docker logs codeindexer_mcp 2>&1 | grep -E 'embed_device|active_providers|cuda'
 ```
 
 ## MCP Client Configuration
@@ -331,6 +344,8 @@ Settings are environment-variable driven. **Required variables** (no Python defa
 | `SPARSE_EMBED_MODEL` | fastembed sparse model; default `Qdrant/bm25` (lexical BM25) |
 | `DENSE_EMBED_VECTOR_SIZE` | Dense embedding dimensions; must match `DENSE_EMBED_MODEL` (see [BGE v1.5](#baai-bge-english-v15) and nomic: 768) |
 | `SPARSE_THREADS` | ONNX threads for `SPARSE_EMBED_MODEL`; `2` for `Qdrant/bm25` (default) |
+| `EMBED_DEVICE` | Dense embedding device: `cpu` (default) or `cuda`. `cuda` builds a GPU image (`fastembed-gpu`) and requires `docker-compose.gpu.yml` plus NVIDIA Container Toolkit. Rebuild after changing. |
+| `NVIDIA_GPU_COUNT` | GPU devices reserved by `docker-compose.gpu.yml`; defaults to `1`. Set to `all` only when the host should expose every GPU. |
 
 ### BAAI BGE English v1.5
 
@@ -390,6 +405,51 @@ The same image scales by editing `.env` only — see the **TUNING PRESETS** sect
 - **More RAM** → raise `MCP_MEM_LIMIT`/`QDRANT_MEM_LIMIT`, raise `FLUSH_EVERY` and `BATCH_SIZE`, and optionally set `VECTORS_ON_DISK=false` / `QUANTIZATION=false` to keep vectors in RAM for faster search.
 - **More CPU** → raise `OMP_NUM_THREADS` (or `DENSE_THREADS`) and `BATCH_SIZE`, keeping a few cores reserved for Qdrant via `QDRANT_CPUS`.
 - **Smaller machine** → lower `MCP_MEM_LIMIT`, `FLUSH_EVERY`, `BATCH_SIZE`, and `OMP_NUM_THREADS`; keep on-disk storage and quantization enabled.
+
+### GPU Acceleration
+
+Optional NVIDIA CUDA support speeds up **dense embedding** during indexing and search. CPU is the default; no GPU is required.
+
+#### Prerequisites
+
+- NVIDIA GPU with a driver supported by [CUDA 12.8](https://developer.nvidia.com/cuda-downloads)
+- [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) installed and configured for Docker
+- On WSL2: Windows NVIDIA driver + GPU support enabled in Docker Desktop settings
+
+#### Enable
+
+1. Set `EMBED_DEVICE=cuda` in `.env` (see the GPU preset block in `.env.example`).
+2. Optionally set `NVIDIA_GPU_COUNT` in `.env` (`1` by default, `all` to expose every GPU).
+
+   > **Note:** `NVIDIA_GPU_COUNT=all` requires Docker Compose v2.3+ (Compose Specification `deploy.resources.reservations.devices`) and NVIDIA Container Toolkit 1.14+ with NVIDIA runtime configured.
+3. Start with the GPU compose override so the container receives GPU devices:
+
+   ```bash
+   EMBED_DEVICE=cuda docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+   ```
+
+   The build arg selects a CUDA base image and installs `fastembed-gpu` instead of `fastembed`. You must **rebuild** when switching between `cpu` and `cuda`.
+
+#### What runs where
+
+| Component | Device |
+|-----------|--------|
+| Dense embedding (`DENSE_EMBED_MODEL`) | **GPU** when `EMBED_DEVICE=cuda` and CUDA provider is active |
+| Sparse embedding (`SPARSE_EMBED_MODEL`, default BM25) | **CPU** |
+| Tree-sitter chunking, file scan, Qdrant upsert/search | **CPU** |
+| MCP server / HTTP transport | **CPU** |
+
+#### Verify
+
+After the first index or search triggers model load, check logs:
+
+```bash
+docker logs codeindexer_mcp 2>&1 | grep -E 'dense_model_loaded|active_providers|cuda_requested'
+```
+
+A healthy GPU setup shows `embed_device=cuda` and `active_providers` containing `CUDAExecutionProvider`. If the CUDA libraries load but no usable GPU is found, ONNX Runtime drops `CUDAExecutionProvider` from the active list; logs then include `cuda_requested_but_unavailable` and dense embedding runs on CPU. If the CUDA/cuDNN runtime libraries are missing entirely (e.g. wrong base image or a non-GPU build), model load can instead fail at startup rather than fall back. In either case: rebuild with `EMBED_DEVICE=cuda`, ensure the GPU override compose file is used, and confirm `nvidia-smi` works inside the container.
+
+> **VRAM note:** The cgroup memory-pressure guard (`MEMORY_PRESSURE_WARN_PCT` / `MEMORY_PRESSURE_HALT_PCT`) monitors **container RAM**, not GPU VRAM. CUDA out-of-memory errors are not caught by that guard — reduce `BATCH_SIZE` and `MAX_DENSE_EMBED_TOKENS` if dense embedding fails with GPU OOM.
 
 ### How indexing stays within budget
 

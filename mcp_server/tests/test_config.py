@@ -114,6 +114,24 @@ def test_bge_small_model_dense_embed_vector_size_valid():
     assert s.dense_embed_vector_size == 384
 
 
+def test_embed_device_defaults_to_cpu():
+    assert Settings().embed_device == "cpu"
+
+
+def test_embed_device_accepts_cuda():
+    assert Settings(embed_device="cuda").embed_device == "cuda"
+
+
+def test_embed_device_rejects_invalid():
+    with pytest.raises(ValidationError):
+        Settings(embed_device="tpu")
+
+
+def test_embed_device_from_env(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("EMBED_DEVICE", "cuda")
+    assert Settings().embed_device == "cuda"
+
+
 def test_bge_v15_official_specs_in_registry():
     from codebase_indexer.config import (
         BGE_EN_V1_5_SPECS,

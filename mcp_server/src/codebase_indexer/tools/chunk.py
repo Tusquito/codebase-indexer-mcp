@@ -12,7 +12,6 @@ if TYPE_CHECKING:
 
 
 def register_chunk_tool(mcp: FastMCP, ctx: "AppContext") -> None:
-    settings = ctx.settings
     storage = ctx.storage
 
     @mcp.tool(
@@ -23,8 +22,8 @@ def register_chunk_tool(mcp: FastMCP, ctx: "AppContext") -> None:
         chunk_id: str,
         collection: str | None = None,
     ) -> dict:
-        coll = collection or settings.qdrant_collection
-        result = await storage.get_chunk_by_id(coll, chunk_id)
+        result = await storage.find_chunk_by_id(chunk_id, collection=collection)
         if result is None:
-            return {"error": f"Chunk '{chunk_id}' not found in collection '{coll}'."}
+            scope = collection or "any collection"
+            return {"error": f"Chunk '{chunk_id}' not found in {scope}."}
         return result

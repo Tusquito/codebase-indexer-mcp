@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     sparse_embed_model: str
     dense_embed_vector_size: int
     sparse_threads: int
+    # Dense ONNX execution device: "cpu" (default) or "cuda" (NVIDIA GPU).
+    # Requires a GPU-built image (EMBED_DEVICE=cuda build arg) for CUDA to work.
+    embed_device: str = Field(default="cpu")
     hybrid_search: bool = Field(default=True)
     max_chunk_lines: int = Field(default=150)
     chunk_overlap_lines: int = Field(default=20)
@@ -152,6 +155,14 @@ class Settings(BaseSettings):
                 f"DENSE_EMBED_VECTOR_SIZE={self.dense_embed_vector_size} does not match "
                 f"DENSE_EMBED_MODEL={self.dense_embed_model!r} "
                 f"(expected {expected})."
+            )
+        return self
+
+    @model_validator(mode="after")
+    def validate_embed_device(self) -> Self:
+        if self.embed_device not in ("cpu", "cuda"):
+            raise ValueError(
+                f"EMBED_DEVICE must be 'cpu' or 'cuda', got {self.embed_device!r}"
             )
         return self
 

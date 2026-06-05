@@ -160,6 +160,21 @@ def create_app(settings: Settings | None = None, preload_models: bool = True) ->
 
     ctx = AppContext.create(settings)
 
+    if settings.embed_device == "cuda":
+        import onnxruntime
+
+        available = onnxruntime.get_available_providers()
+        if "CUDAExecutionProvider" not in available:
+            log.warning(
+                "cuda_requested_but_unavailable",
+                embed_device=settings.embed_device,
+                available_providers=available,
+                hint=(
+                    "Rebuild with EMBED_DEVICE=cuda (GPU image), use docker-compose.gpu.yml, "
+                    "and ensure NVIDIA drivers + Container Toolkit expose a GPU."
+                ),
+            )
+
     # Configure idle-timeout so _ensure_idle_timer() picks it up lazily
     # on the first embed call (avoids needing an ASGI lifecycle hook).
     from codebase_indexer.indexer.embedder import Embedder as _Embedder
