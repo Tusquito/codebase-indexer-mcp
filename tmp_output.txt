@@ -1,0 +1,795 @@
+Done. Output saved to: C:\Users\PAGH\Documents\Repositories\codebase-indexer-mcp\tmp_output.txt
+ Image codebase-indexer-mcp-cron Building 
+ Image codebase-indexer-mcp-mcp_server Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 1.24kB done
+#1 DONE 0.0s#2 [cron internal] load build definition from Dockerfile
+#2 transferring dockerfile: 464B 0.0s done
+#2 DONE 0.1s#3 [cron internal] load metadata for docker.io/library/python:3.12-slim
+#3 ...#4 [mcp_server internal] load build definition from Dockerfile
+#4 transferring dockerfile: 10.36kB 0.1s done
+#4 DONE 0.2s#5 [mcp_server] resolve image config for docker-image://docker.io/docker/dockerfile:1
+#5 DONE 5.7s#3 [cron internal] load metadata for docker.io/library/python:3.12-slim
+#3 ...#6 [mcp_server] docker-image://docker.io/docker/dockerfile:1@sha256:87999aa3d42bdc6bea60565083ee17e86d1f3339802f543c0d03998580f9cb89
+#6 resolve docker.io/docker/dockerfile:1@sha256:87999aa3d42bdc6bea60565083ee17e86d1f3339802f543c0d03998580f9cb89 0.0s done
+#6 CACHED#7 [mcp_server internal] load metadata for docker.io/rocm/dev-ubuntu-24.04:7.2.1
+#7 ...#3 [cron internal] load metadata for docker.io/library/python:3.12-slim
+#3 DONE 6.3s#8 [cron internal] load .dockerignore
+#8 transferring context: 2B 0.0s done
+#8 DONE 0.1s#9 [cron internal] load build context
+#9 DONE 0.0s#10 [cron 1/5] FROM docker.io/library/python:3.12-slim@sha256:090ba77e2958f6af52a5341f788b50b032dd4ca28377d2893dcf1ecbdfdfe203
+#10 resolve docker.io/library/python:3.12-slim@sha256:090ba77e2958f6af52a5341f788b50b032dd4ca28377d2893dcf1ecbdfdfe203
+#10 resolve docker.io/library/python:3.12-slim@sha256:090ba77e2958f6af52a5341f788b50b032dd4ca28377d2893dcf1ecbdfdfe203 0.0s done
+#10 DONE 0.1s#9 [cron internal] load build context
+#9 transferring context: 12.50kB 0.0s done
+#9 DONE 0.1s#11 [cron 2/5] RUN apt-get update && apt-get install -y --no-install-recommends     git     cron     ca-certificates     && rm -rf /var/lib/apt/lists/*
+#11 CACHED#12 [cron 3/5] WORKDIR /app
+#12 CACHED#13 [cron 4/5] COPY reindex.py crontab entrypoint.sh ./
+#13 DONE 0.1s
+
+#7 [mcp_server internal] load metadata for docker.io/rocm/dev-ubuntu-24.04:7.2.1
+#7 ...
+
+#14 [cron 5/5] RUN sed -i 's/\r$//' /app/crontab /app/reindex.py /app/entrypoint.sh     && chmod +x /app/reindex.py /app
+p/entrypoint.sh     && crontab /app/crontab
+#14 DONE 0.4s
+
+#15 [cron] exporting to image
+#15 exporting layers
+#15 exporting layers 0.2s done
+#15 ...
+
+#7 [mcp_server internal] load metadata for docker.io/rocm/dev-ubuntu-24.04:7.2.1
+#7 DONE 1.3s
+
+#15 [cron] exporting to image
+#15 exporting manifest sha256:de25374b826351372f464e8d1aaf021cfcfcf1c6eb4ae6a3dd1b9e266166e992 0.0s done
+#15 exporting config sha256:5723a674d898abdb92903ddc45adb45cc479e1946daaddd5b7754ae073443588 0.0s done
+#15 exporting attestation manifest sha256:c589919f4f39292529947dcda5d882a3ce818f28dde7b28c090b5533d58fa28c
+#15 ...
+
+#16 [mcp_server internal] load .dockerignore
+#16 transferring context: 2B 0.1s done
+#16 DONE 0.1s
+
+#15 [cron] exporting to image
+#15 exporting attestation manifest sha256:c589919f4f39292529947dcda5d882a3ce818f28dde7b28c090b5533d58fa28c 0.1s done    
+#15 exporting manifest list sha256:ac94495ec841bb821628756ca5b1c9c636c3407e04f56b0ef109d67b728ee426 0.0s done
+#15 naming to docker.io/library/codebase-indexer-mcp-cron:latest done
+#15 unpacking to docker.io/library/codebase-indexer-mcp-cron:latest
+#15 ...
+
+#17 [mcp_server internal] load build context
+#17 DONE 0.0s
+
+#15 [cron] exporting to image
+#15 unpacking to docker.io/library/codebase-indexer-mcp-cron:latest 0.1s done
+#15 DONE 0.6s
+
+#18 [mcp_server builder-rocm-wsl 1/8] FROM docker.io/rocm/dev-ubuntu-24.04:7.2.1@sha256:fe29799baf7b8db986a707110c15579d
+dc0fb6e39d48973fbb82dfc33a0c7e179
+#18 resolve docker.io/rocm/dev-ubuntu-24.04:7.2.1@sha256:fe29799baf7b8db986a707110c15579dc0fb6e39d48973fbb82dfc33a0c7e17
+79 0.0s done
+#18 CACHED
+
+#17 [mcp_server internal] load build context
+#17 ...
+
+#19 [cron] resolving provenance for metadata file
+#19 DONE 0.0s
+
+#17 [mcp_server internal] load build context
+#17 transferring context: 893.60kB 0.5s done
+#17 DONE 0.6s
+
+#20 [mcp_server builder-rocm-wsl 2/8] RUN apt-get update && apt-get install -y --no-install-recommends     python3.12   
+   python3.12-venv     python3.12-dev     gcc     g++     curl     ca-certificates     migraphx     half     && rm -rf /v
+var/lib/apt/lists/*     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3.12     && ln -sf /usr/bin/python3.12 /usr/lo
+ocal/bin/python3     && ln -sf /usr/bin/python3.12 /usr/local/bin/python
+#20 1.584 Get:1 http://archive.ubuntu.com/ubuntu noble InRelease [256 kB]
+#20 1.674 Get:2 http://security.ubuntu.com/ubuntu noble-security InRelease [126 kB]
+#20 1.840 Get:3 https://repo.radeon.com/amdgpu/30.30.1/ubuntu noble InRelease [3185 B]
+#20 1.868 Get:4 http://archive.ubuntu.com/ubuntu noble-updates InRelease [126 kB]
+#20 1.872 Get:5 https://repo.radeon.com/rocm/apt/7.2.1 noble InRelease [2605 B]
+#20 2.034 Get:6 http://security.ubuntu.com/ubuntu noble-security/restricted amd64 Packages [3807 kB]
+#20 2.142 Get:7 http://archive.ubuntu.com/ubuntu noble-backports InRelease [126 kB]
+#20 2.259 Get:8 https://repo.radeon.com/amdgpu/30.30.1/ubuntu noble/main amd64 Packages [1333 B]
+#20 2.398 Get:9 http://archive.ubuntu.com/ubuntu noble/main amd64 Packages [1808 kB]
+#20 2.466 Get:10 https://repo.radeon.com/rocm/apt/7.2.1 noble/main amd64 Packages [61.3 kB]
+#20 2.908 Get:11 http://security.ubuntu.com/ubuntu noble-security/universe amd64 Packages [1513 kB]
+#20 2.969 Get:12 http://archive.ubuntu.com/ubuntu noble/multiverse amd64 Packages [331 kB]
+#20 3.276 Get:13 http://archive.ubuntu.com/ubuntu noble/universe amd64 Packages [19.3 MB]
+#20 3.535 Get:14 http://security.ubuntu.com/ubuntu noble-security/main amd64 Packages [2148 kB]
+#20 4.311 Get:15 http://security.ubuntu.com/ubuntu noble-security/multiverse amd64 Packages [48.4 kB]
+#20 8.395 Get:16 http://archive.ubuntu.com/ubuntu noble/restricted amd64 Packages [117 kB]
+#20 8.532 Get:17 http://archive.ubuntu.com/ubuntu noble-updates/universe amd64 Packages [2155 kB]
+#20 ...
+
+#21 [mcp_server runtime-rocm-wsl 2/2] RUN apt-get update && apt-get install -y --no-install-recommends     python3.12   
+   python3.12-venv     curl     ca-certificates     gosu     passwd     migraphx     half     && rm -rf /var/lib/apt/list
+ts/*     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3.12     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3
+3     && ln -sf /usr/bin/python3.12 /usr/local/bin/python
+#21 1.600 Get:1 http://archive.ubuntu.com/ubuntu noble InRelease [256 kB]
+#21 1.680 Get:2 http://security.ubuntu.com/ubuntu noble-security InRelease [126 kB]
+#21 1.872 Get:3 https://repo.radeon.com/amdgpu/30.30.1/ubuntu noble InRelease [3185 B]
+#21 1.957 Get:4 https://repo.radeon.com/rocm/apt/7.2.1 noble InRelease [2605 B]
+#21 1.961 Get:5 http://archive.ubuntu.com/ubuntu noble-updates InRelease [126 kB]
+#21 2.069 Get:6 http://security.ubuntu.com/ubuntu noble-security/universe amd64 Packages [1513 kB]
+#21 2.161 Get:7 http://archive.ubuntu.com/ubuntu noble-backports InRelease [126 kB]
+#21 2.265 Get:8 https://repo.radeon.com/amdgpu/30.30.1/ubuntu noble/main amd64 Packages [1333 B]
+#21 2.428 Get:9 http://archive.ubuntu.com/ubuntu noble/restricted amd64 Packages [117 kB]
+#21 2.497 Get:10 https://repo.radeon.com/rocm/apt/7.2.1 noble/main amd64 Packages [61.3 kB]
+#21 2.729 Get:11 http://security.ubuntu.com/ubuntu noble-security/main amd64 Packages [2148 kB]
+#21 2.766 Get:12 http://archive.ubuntu.com/ubuntu noble/multiverse amd64 Packages [331 kB]
+#21 3.089 Get:13 http://archive.ubuntu.com/ubuntu noble/main amd64 Packages [1808 kB]
+#21 3.226 Get:14 http://security.ubuntu.com/ubuntu noble-security/restricted amd64 Packages [3807 kB]
+#21 4.006 Get:15 http://archive.ubuntu.com/ubuntu noble/universe amd64 Packages [19.3 MB]
+#21 4.290 Get:16 http://security.ubuntu.com/ubuntu noble-security/multiverse amd64 Packages [48.4 kB]
+#21 6.597 Get:17 http://archive.ubuntu.com/ubuntu noble-updates/universe amd64 Packages [2155 kB]
+#21 7.061 Get:18 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 Packages [2525 kB]
+#21 7.586 Get:19 http://archive.ubuntu.com/ubuntu noble-updates/multiverse amd64 Packages [54.6 kB]
+#21 7.688 Get:20 http://archive.ubuntu.com/ubuntu noble-updates/restricted amd64 Packages [4038 kB]
+#21 8.395 Get:21 http://archive.ubuntu.com/ubuntu noble-backports/universe amd64 Packages [35.9 kB]
+#21 8.497 Get:22 http://archive.ubuntu.com/ubuntu noble-backports/main amd64 Packages [49.0 kB]
+#21 8.608 Get:23 http://archive.ubuntu.com/ubuntu noble-backports/multiverse amd64 Packages [671 B]
+#21 8.648 Fetched 38.7 MB in 8s (4846 kB/s)
+#21 8.648 Reading package lists...
+#21 ...
+
+#20 [mcp_server builder-rocm-wsl 2/8] RUN apt-get update && apt-get install -y --no-install-recommends     python3.12   
+   python3.12-venv     python3.12-dev     gcc     g++     curl     ca-certificates     migraphx     half     && rm -rf /v
+var/lib/apt/lists/*     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3.12     && ln -sf /usr/bin/python3.12 /usr/lo
+ocal/bin/python3     && ln -sf /usr/bin/python3.12 /usr/local/bin/python
+#20 8.891 Get:18 http://archive.ubuntu.com/ubuntu noble-updates/restricted amd64 Packages [4038 kB]
+#20 9.421 Get:19 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 Packages [2525 kB]
+#20 9.853 Get:20 http://archive.ubuntu.com/ubuntu noble-updates/multiverse amd64 Packages [54.6 kB]
+#20 9.954 Get:21 http://archive.ubuntu.com/ubuntu noble-backports/universe amd64 Packages [35.9 kB]
+#20 10.04 Get:22 http://archive.ubuntu.com/ubuntu noble-backports/main amd64 Packages [49.0 kB]
+#20 10.14 Get:23 http://archive.ubuntu.com/ubuntu noble-backports/multiverse amd64 Packages [671 B]
+#20 10.17 Fetched 38.7 MB in 10s (4064 kB/s)
+#20 10.17 Reading package lists...
+#20 11.56 W: https://repo.radeon.com/amdgpu/30.30.1/ubuntu/dists/noble/InRelease: Key is stored in legacy trusted.gpg ke
+eyring (/etc/apt/trusted.gpg), see the DEPRECATION section in apt-key(8) for details.
+#20 11.56 W: https://repo.radeon.com/rocm/apt/7.2.1/dists/noble/InRelease: Key is stored in legacy trusted.gpg keyring (
+(/etc/apt/trusted.gpg), see the DEPRECATION section in apt-key(8) for details.
+#20 11.57 Reading package lists...
+#20 12.95 Building dependency tree...
+#20 13.31 Reading state information...
+#20 13.58 gcc is already the newest version (4:13.2.0-7ubuntu1).
+#20 13.58 gcc set to manually installed.
+#20 13.58 g++ is already the newest version (4:13.2.0-7ubuntu1).
+#20 13.58 g++ set to manually installed.
+#20 13.58 ca-certificates is already the newest version (20240203).
+#20 13.58 The following additional packages will be installed:
+#20 13.58   hipblaslt libcurl4t64 libpython3.12-dev libpython3.12-minimal
+#20 13.58   libpython3.12-stdlib libpython3.12t64 miopen-hip python3-pip-whl
+#20 13.58   python3-setuptools-whl python3.12-minimal rocblas rocrand
+#20 13.58 Suggested packages:
+#20 13.58   python3.12-doc binfmt-support
+#20 13.58 Recommended packages:
+#20 13.58   hipblaslt-dev migraphx-dev miopen-hip-dev rocblas-dev rocrand-dev
+#20 13.68 The following NEW packages will be installed:
+#20 13.68   half hipblaslt migraphx miopen-hip python3-pip-whl python3-setuptools-whl
+#20 13.68   python3.12-venv rocblas rocrand
+#20 13.68 The following packages will be upgraded:
+#20 13.68   curl libcurl4t64 libpython3.12-dev libpython3.12-minimal
+#20 13.68   libpython3.12-stdlib libpython3.12t64 python3.12 python3.12-dev
+#20 13.68   python3.12-minimal
+#20 13.93 9 upgraded, 9 newly installed, 0 to remove and 27 not upgraded.
+#20 13.93 Need to get 2212 MB of archives.
+#20 13.93 After this operation, 12.0 GB of additional disk space will be used.
+#20 13.93 Get:1 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 python3.12-dev amd64 3.12.3-1ubuntu0.13 [498 k
+kB]
+#20 16.29 Get:2 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libpython3.12-dev amd64 3.12.3-1ubuntu0.13 [56
+682 kB]
+#20 16.49 Get:3 https://repo.radeon.com/rocm/apt/7.2.1 noble/main amd64 half amd64 1.12.0.70201-81~24.04 [19.5 kB]      
+#20 16.77 Get:4 https://repo.radeon.com/rocm/apt/7.2.1 noble/main amd64 hipblaslt amd64 1.2.2.70201-81~24.04 [1614 MB]  
+#20 18.02 Get:5 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libpython3.12t64 amd64 3.12.3-1ubuntu0.13 [233
+38 kB]
+#20 18.65 Get:6 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 python3.12 amd64 3.12.3-1ubuntu0.13 [662 kB]  
+#20 18.99 Get:7 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libpython3.12-stdlib amd64 3.12.3-1ubuntu0.13 
+ [2068 kB]
+#20 19.57 Get:8 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 python3.12-minimal amd64 3.12.3-1ubuntu0.13 [2
+2346 kB]
+#20 20.32 Get:9 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libpython3.12-minimal amd64 3.12.3-1ubuntu0.13
+3 [837 kB]
+#20 ...
+
+#21 [mcp_server runtime-rocm-wsl 2/2] RUN apt-get update && apt-get install -y --no-install-recommends     python3.12   
+   python3.12-venv     curl     ca-certificates     gosu     passwd     migraphx     half     && rm -rf /var/lib/apt/list
+ts/*     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3.12     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3
+3     && ln -sf /usr/bin/python3.12 /usr/local/bin/python
+#21 8.648 Reading package lists...
+#21 10.36 W: https://repo.radeon.com/amdgpu/30.30.1/ubuntu/dists/noble/InRelease: Key is stored in legacy trusted.gpg ke
+eyring (/etc/apt/trusted.gpg), see the DEPRECATION section in apt-key(8) for details.
+#21 10.36 W: https://repo.radeon.com/rocm/apt/7.2.1/dists/noble/InRelease: Key is stored in legacy trusted.gpg keyring (
+(/etc/apt/trusted.gpg), see the DEPRECATION section in apt-key(8) for details.
+#21 10.38 Reading package lists...
+#21 11.75 Building dependency tree...
+#21 12.11 Reading state information...
+#21 12.41 ca-certificates is already the newest version (20240203).
+#21 12.41 passwd is already the newest version (1:4.13+dfsg1-4ubuntu3.2).
+#21 12.41 The following additional packages will be installed:
+#21 12.41   hipblaslt libcurl4t64 libpython3.12-dev libpython3.12-minimal
+#21 12.41   libpython3.12-stdlib libpython3.12t64 miopen-hip python3-pip-whl
+#21 12.41   python3-setuptools-whl python3.12-dev python3.12-minimal rocblas rocrand
+#21 12.42 Suggested packages:
+#21 12.42   python3.12-doc binfmt-support
+#21 12.42 Recommended packages:
+#21 12.42   hipblaslt-dev migraphx-dev miopen-hip-dev rocblas-dev rocrand-dev
+#21 12.52 The following NEW packages will be installed:
+#21 12.53   gosu half hipblaslt migraphx miopen-hip python3-pip-whl
+#21 12.53   python3-setuptools-whl python3.12-venv rocblas rocrand
+#21 12.53 The following packages will be upgraded:
+#21 12.53   curl libcurl4t64 libpython3.12-dev libpython3.12-minimal
+#21 12.53   libpython3.12-stdlib libpython3.12t64 python3.12 python3.12-dev
+#21 12.53   python3.12-minimal
+#21 13.02 9 upgraded, 10 newly installed, 0 to remove and 27 not upgraded.
+#21 13.02 Need to get 2213 MB of archives.
+#21 13.02 After this operation, 12.0 GB of additional disk space will be used.
+#21 13.02 Get:1 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 python3.12-dev amd64 3.12.3-1ubuntu0.13 [498 k
+kB]
+#21 14.01 Get:2 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libpython3.12-dev amd64 3.12.3-1ubuntu0.13 [56
+682 kB]
+#21 16.20 Get:3 https://repo.radeon.com/rocm/apt/7.2.1 noble/main amd64 half amd64 1.12.0.70201-81~24.04 [19.5 kB]      
+#21 16.40 Get:4 https://repo.radeon.com/rocm/apt/7.2.1 noble/main amd64 hipblaslt amd64 1.2.2.70201-81~24.04 [1614 MB]  
+#21 19.64 Get:5 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libpython3.12t64 amd64 3.12.3-1ubuntu0.13 [233
+38 kB]
+#21 20.54 Get:6 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 python3.12 amd64 3.12.3-1ubuntu0.13 [662 kB]  
+#21 ...
+
+#20 [mcp_server builder-rocm-wsl 2/8] RUN apt-get update && apt-get install -y --no-install-recommends     python3.12   
+   python3.12-venv     python3.12-dev     gcc     g++     curl     ca-certificates     migraphx     half     && rm -rf /v
+var/lib/apt/lists/*     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3.12     && ln -sf /usr/bin/python3.12 /usr/lo
+ocal/bin/python3     && ln -sf /usr/bin/python3.12 /usr/local/bin/python
+#20 20.72 Get:10 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 curl amd64 8.5.0-2ubuntu10.9 [227 kB]        
+#20 21.15 Get:11 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libcurl4t64 amd64 8.5.0-2ubuntu10.9 [342 kB] 
+#20 21.60 Get:12 http://archive.ubuntu.com/ubuntu noble-updates/universe amd64 python3-pip-whl all 24.0+dfsg-1ubuntu1.3 
+ [1707 kB]
+#20 23.61 Get:13 http://archive.ubuntu.com/ubuntu noble-updates/universe amd64 python3-setuptools-whl all 68.1.2-2ubuntu
+u1.2 [716 kB]
+#20 25.00 Get:14 http://archive.ubuntu.com/ubuntu noble-updates/universe amd64 python3.12-venv amd64 3.12.3-1ubuntu0.13 
+ [5672 B]
+#20 ...
+
+#21 [mcp_server runtime-rocm-wsl 2/2] RUN apt-get update && apt-get install -y --no-install-recommends     python3.12   
+   python3.12-venv     curl     ca-certificates     gosu     passwd     migraphx     half     && rm -rf /var/lib/apt/list
+ts/*     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3.12     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3
+3     && ln -sf /usr/bin/python3.12 /usr/local/bin/python
+#21 21.18 Get:7 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libpython3.12-stdlib amd64 3.12.3-1ubuntu0.13 
+ [2068 kB]
+#21 22.76 Get:8 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 python3.12-minimal amd64 3.12.3-1ubuntu0.13 [2
+2346 kB]
+#21 25.98 Get:9 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libpython3.12-minimal amd64 3.12.3-1ubuntu0.13
+3 [837 kB]
+#21 27.26 Get:10 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 curl amd64 8.5.0-2ubuntu10.9 [227 kB]        
+#21 27.97 Get:11 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libcurl4t64 amd64 8.5.0-2ubuntu10.9 [342 kB] 
+#21 28.41 Get:12 http://archive.ubuntu.com/ubuntu noble-updates/universe amd64 python3-pip-whl all 24.0+dfsg-1ubuntu1.3 
+ [1707 kB]
+#21 44.28 Get:13 http://archive.ubuntu.com/ubuntu noble-updates/universe amd64 python3-setuptools-whl all 68.1.2-2ubuntu
+u1.2 [716 kB]
+#21 45.58 Get:14 http://archive.ubuntu.com/ubuntu noble-updates/universe amd64 python3.12-venv amd64 3.12.3-1ubuntu0.13 
+ [5672 B]
+#21 46.29 Get:15 http://archive.ubuntu.com/ubuntu noble-updates/universe amd64 gosu amd64 1.17-1ubuntu0.24.04.3 [921 kB]
+#21 ...
+
+#20 [mcp_server builder-rocm-wsl 2/8] RUN apt-get update && apt-get install -y --no-install-recommends     python3.12   
+   python3.12-venv     python3.12-dev     gcc     g++     curl     ca-certificates     migraphx     half     && rm -rf /v
+var/lib/apt/lists/*     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3.12     && ln -sf /usr/bin/python3.12 /usr/lo
+ocal/bin/python3     && ln -sf /usr/bin/python3.12 /usr/local/bin/python
+#20 226.9 Get:15 https://repo.radeon.com/rocm/apt/7.2.1 noble/main amd64 rocblas amd64 5.2.0.70201-81~24.04 [165 MB]    
+#20 245.6 Get:16 https://repo.radeon.com/rocm/apt/7.2.1 noble/main amd64 rocrand amd64 4.2.0.70201-81~24.04 [39.5 MB]   
+#20 249.7 Get:17 https://repo.radeon.com/rocm/apt/7.2.1 noble/main amd64 miopen-hip amd64 3.5.1.70201-81~24.04 [308 MB] 
+#20 ...
+
+#21 [mcp_server runtime-rocm-wsl 2/2] RUN apt-get update && apt-get install -y --no-install-recommends     python3.12   
+   python3.12-venv     curl     ca-certificates     gosu     passwd     migraphx     half     && rm -rf /var/lib/apt/list
+ts/*     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3.12     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3
+3     && ln -sf /usr/bin/python3.12 /usr/local/bin/python
+#21 255.9 Get:16 https://repo.radeon.com/rocm/apt/7.2.1 noble/main amd64 rocblas amd64 5.2.0.70201-81~24.04 [165 MB]    
+#21 279.3 Get:17 https://repo.radeon.com/rocm/apt/7.2.1 noble/main amd64 rocrand amd64 4.2.0.70201-81~24.04 [39.5 MB]   
+#21 ...
+
+#20 [mcp_server builder-rocm-wsl 2/8] RUN apt-get update && apt-get install -y --no-install-recommends     python3.12   
+   python3.12-venv     python3.12-dev     gcc     g++     curl     ca-certificates     migraphx     half     && rm -rf /v
+var/lib/apt/lists/*     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3.12     && ln -sf /usr/bin/python3.12 /usr/lo
+ocal/bin/python3     && ln -sf /usr/bin/python3.12 /usr/local/bin/python
+#20 283.7 Get:18 https://repo.radeon.com/rocm/apt/7.2.1 noble/main amd64 migraphx amd64 2.15.0.70201-81~24.04 [68.7 MB] 
+#20 291.6 debconf: delaying package configuration, since apt-utils is not installed
+#20 291.6 Fetched 2212 MB in 4min 38s (7971 kB/s)
+#20 291.7 (Reading database ...
+(Reading database ... 5%
+(Reading database ... 10%
+(Reading database ... 15%
+(Reading database ... 20%
+(Reading database ... 25%
+(Reading database ... 30%
+(Reading database ... 35%
+(Reading database ... 40%
+(Reading database ... 45%
+(Reading database ... 50%
+(Reading database ... 55%
+(Reading database ... 60%
+(Reading database ... 65%
+(Reading database ... 70%
+(Reading database ... 75%
+(Reading database ... 80%
+(Reading database ... 85%
+(Reading database ... 90%
+(Reading database ... 95%
+(Reading database ... 100%
+(Reading database ... 20072 files and directories currently installed.)
+#20 291.9 Preparing to unpack .../00-python3.12-dev_3.12.3-1ubuntu0.13_amd64.deb ...
+#20 291.9 Unpacking python3.12-dev (3.12.3-1ubuntu0.13) over (3.12.3-1ubuntu0.12) ...
+#20 292.0 Preparing to unpack .../01-libpython3.12-dev_3.12.3-1ubuntu0.13_amd64.deb ...
+#20 292.0 Unpacking libpython3.12-dev:amd64 (3.12.3-1ubuntu0.13) over (3.12.3-1ubuntu0.12) ...
+#20 293.8 Preparing to unpack .../02-libpython3.12t64_3.12.3-1ubuntu0.13_amd64.deb ...
+#20 293.8 Unpacking libpython3.12t64:amd64 (3.12.3-1ubuntu0.13) over (3.12.3-1ubuntu0.12) ...
+#20 294.0 Preparing to unpack .../03-python3.12_3.12.3-1ubuntu0.13_amd64.deb ...
+#20 294.2 Unpacking python3.12 (3.12.3-1ubuntu0.13) over (3.12.3-1ubuntu0.12) ...
+#20 294.3 Preparing to unpack .../04-libpython3.12-stdlib_3.12.3-1ubuntu0.13_amd64.deb ...
+#20 294.4 Unpacking libpython3.12-stdlib:amd64 (3.12.3-1ubuntu0.13) over (3.12.3-1ubuntu0.12) ...
+#20 296.5 Preparing to unpack .../05-python3.12-minimal_3.12.3-1ubuntu0.13_amd64.deb ...
+#20 296.5 Unpacking python3.12-minimal (3.12.3-1ubuntu0.13) over (3.12.3-1ubuntu0.12) ...
+#20 296.7 Preparing to unpack .../06-libpython3.12-minimal_3.12.3-1ubuntu0.13_amd64.deb ...
+#20 296.8 Unpacking libpython3.12-minimal:amd64 (3.12.3-1ubuntu0.13) over (3.12.3-1ubuntu0.12) ...
+#20 ...
+
+#21 [mcp_server runtime-rocm-wsl 2/2] RUN apt-get update && apt-get install -y --no-install-recommends     python3.12   
+   python3.12-venv     curl     ca-certificates     gosu     passwd     migraphx     half     && rm -rf /var/lib/apt/list
+ts/*     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3.12     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3
+3     && ln -sf /usr/bin/python3.12 /usr/local/bin/python
+#21 287.1 Get:18 https://repo.radeon.com/rocm/apt/7.2.1 noble/main amd64 miopen-hip amd64 3.5.1.70201-81~24.04 [308 MB] 
+#21 ...
+
+#20 [mcp_server builder-rocm-wsl 2/8] RUN apt-get update && apt-get install -y --no-install-recommends     python3.12   
+   python3.12-venv     python3.12-dev     gcc     g++     curl     ca-certificates     migraphx     half     && rm -rf /v
+var/lib/apt/lists/*     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3.12     && ln -sf /usr/bin/python3.12 /usr/lo
+ocal/bin/python3     && ln -sf /usr/bin/python3.12 /usr/local/bin/python
+#20 298.5 Preparing to unpack .../07-curl_8.5.0-2ubuntu10.9_amd64.deb ...
+#20 298.5 Unpacking curl (8.5.0-2ubuntu10.9) over (8.5.0-2ubuntu10.8) ...
+#20 298.6 Preparing to unpack .../08-libcurl4t64_8.5.0-2ubuntu10.9_amd64.deb ...
+#20 298.7 Unpacking libcurl4t64:amd64 (8.5.0-2ubuntu10.9) over (8.5.0-2ubuntu10.8) ...
+#20 298.8 Selecting previously unselected package half.
+#20 298.8 Preparing to unpack .../09-half_1.12.0.70201-81~24.04_amd64.deb ...
+#20 298.8 Unpacking half (1.12.0.70201-81~24.04) ...
+#20 298.9 Selecting previously unselected package hipblaslt.
+#20 298.9 Preparing to unpack .../10-hipblaslt_1.2.2.70201-81~24.04_amd64.deb ...
+#20 298.9 Unpacking hipblaslt (1.2.2.70201-81~24.04) ...
+#20 ...
+
+#21 [mcp_server runtime-rocm-wsl 2/2] RUN apt-get update && apt-get install -y --no-install-recommends     python3.12   
+   python3.12-venv     curl     ca-certificates     gosu     passwd     migraphx     half     && rm -rf /var/lib/apt/list
+ts/*     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3.12     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3
+3     && ln -sf /usr/bin/python3.12 /usr/local/bin/python
+#21 311.3 Get:19 https://repo.radeon.com/rocm/apt/7.2.1 noble/main amd64 migraphx amd64 2.15.0.70201-81~24.04 [68.7 MB] 
+#21 317.1 debconf: delaying package configuration, since apt-utils is not installed
+#21 317.2 Fetched 2213 MB in 5min 4s (7273 kB/s)
+#21 317.2 (Reading database ...
+(Reading database ... 5%
+(Reading database ... 10%
+(Reading database ... 15%
+(Reading database ... 20%
+(Reading database ... 25%
+(Reading database ... 30%
+(Reading database ... 35%
+(Reading database ... 40%
+(Reading database ... 45%
+(Reading database ... 50%
+(Reading database ... 55%
+(Reading database ... 60%
+(Reading database ... 65%
+(Reading database ... 70%
+(Reading database ... 75%
+(Reading database ... 80%
+(Reading database ... 85%
+(Reading database ... 90%
+(Reading database ... 95%
+(Reading database ... 100%
+(Reading database ... 20072 files and directories currently installed.)
+#21 317.3 Preparing to unpack .../00-python3.12-dev_3.12.3-1ubuntu0.13_amd64.deb ...
+#21 317.3 Unpacking python3.12-dev (3.12.3-1ubuntu0.13) over (3.12.3-1ubuntu0.12) ...
+#21 317.3 Preparing to unpack .../01-libpython3.12-dev_3.12.3-1ubuntu0.13_amd64.deb ...
+#21 317.4 Unpacking libpython3.12-dev:amd64 (3.12.3-1ubuntu0.13) over (3.12.3-1ubuntu0.12) ...
+#21 318.9 Preparing to unpack .../02-libpython3.12t64_3.12.3-1ubuntu0.13_amd64.deb ...
+#21 318.9 Unpacking libpython3.12t64:amd64 (3.12.3-1ubuntu0.13) over (3.12.3-1ubuntu0.12) ...
+#21 319.1 Preparing to unpack .../03-python3.12_3.12.3-1ubuntu0.13_amd64.deb ...
+#21 319.2 Unpacking python3.12 (3.12.3-1ubuntu0.13) over (3.12.3-1ubuntu0.12) ...
+#21 319.3 Preparing to unpack .../04-libpython3.12-stdlib_3.12.3-1ubuntu0.13_amd64.deb ...
+#21 319.4 Unpacking libpython3.12-stdlib:amd64 (3.12.3-1ubuntu0.13) over (3.12.3-1ubuntu0.12) ...
+#21 321.1 Preparing to unpack .../05-python3.12-minimal_3.12.3-1ubuntu0.13_amd64.deb ...
+#21 321.1 Unpacking python3.12-minimal (3.12.3-1ubuntu0.13) over (3.12.3-1ubuntu0.12) ...
+#21 321.3 Preparing to unpack .../06-libpython3.12-minimal_3.12.3-1ubuntu0.13_amd64.deb ...
+#21 321.5 Unpacking libpython3.12-minimal:amd64 (3.12.3-1ubuntu0.13) over (3.12.3-1ubuntu0.12) ...
+#21 323.4 Preparing to unpack .../07-curl_8.5.0-2ubuntu10.9_amd64.deb ...
+#21 323.5 Unpacking curl (8.5.0-2ubuntu10.9) over (8.5.0-2ubuntu10.8) ...
+#21 323.6 Preparing to unpack .../08-libcurl4t64_8.5.0-2ubuntu10.9_amd64.deb ...
+#21 323.6 Unpacking libcurl4t64:amd64 (8.5.0-2ubuntu10.9) over (8.5.0-2ubuntu10.8) ...
+#21 323.7 Selecting previously unselected package half.
+#21 323.7 Preparing to unpack .../09-half_1.12.0.70201-81~24.04_amd64.deb ...
+#21 323.7 Unpacking half (1.12.0.70201-81~24.04) ...
+#21 323.7 Selecting previously unselected package hipblaslt.
+#21 323.7 Preparing to unpack .../10-hipblaslt_1.2.2.70201-81~24.04_amd64.deb ...
+#21 323.7 Unpacking hipblaslt (1.2.2.70201-81~24.04) ...
+#21 ...
+
+#20 [mcp_server builder-rocm-wsl 2/8] RUN apt-get update && apt-get install -y --no-install-recommends     python3.12   
+   python3.12-venv     python3.12-dev     gcc     g++     curl     ca-certificates     migraphx     half     && rm -rf /v
+var/lib/apt/lists/*     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3.12     && ln -sf /usr/bin/python3.12 /usr/lo
+ocal/bin/python3     && ln -sf /usr/bin/python3.12 /usr/local/bin/python
+#20 335.5 Selecting previously unselected package rocblas.
+#20 335.5 Preparing to unpack .../11-rocblas_5.2.0.70201-81~24.04_amd64.deb ...
+#20 335.5 Unpacking rocblas (5.2.0.70201-81~24.04) ...
+#20 341.7 Selecting previously unselected package rocrand.
+#20 341.7 Preparing to unpack .../12-rocrand_4.2.0.70201-81~24.04_amd64.deb ...
+#20 341.7 Unpacking rocrand (4.2.0.70201-81~24.04) ...
+#20 347.8 Selecting previously unselected package miopen-hip.
+#20 347.8 Preparing to unpack .../13-miopen-hip_3.5.1.70201-81~24.04_amd64.deb ...
+#20 347.8 Unpacking miopen-hip (3.5.1.70201-81~24.04) ...
+#20 ...
+
+#21 [mcp_server runtime-rocm-wsl 2/2] RUN apt-get update && apt-get install -y --no-install-recommends     python3.12   
+   python3.12-venv     curl     ca-certificates     gosu     passwd     migraphx     half     && rm -rf /var/lib/apt/list
+ts/*     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3.12     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3
+3     && ln -sf /usr/bin/python3.12 /usr/local/bin/python
+#21 356.4 Selecting previously unselected package rocblas.
+#21 356.4 Preparing to unpack .../11-rocblas_5.2.0.70201-81~24.04_amd64.deb ...
+#21 356.4 Unpacking rocblas (5.2.0.70201-81~24.04) ...
+#21 361.8 Selecting previously unselected package rocrand.
+#21 361.8 Preparing to unpack .../12-rocrand_4.2.0.70201-81~24.04_amd64.deb ...
+#21 361.8 Unpacking rocrand (4.2.0.70201-81~24.04) ...
+#21 ...
+
+#20 [mcp_server builder-rocm-wsl 2/8] RUN apt-get update && apt-get install -y --no-install-recommends     python3.12   
+   python3.12-venv     python3.12-dev     gcc     g++     curl     ca-certificates     migraphx     half     && rm -rf /v
+var/lib/apt/lists/*     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3.12     && ln -sf /usr/bin/python3.12 /usr/lo
+ocal/bin/python3     && ln -sf /usr/bin/python3.12 /usr/local/bin/python
+#20 359.8 Selecting previously unselected package migraphx.
+#20 359.8 Preparing to unpack .../14-migraphx_2.15.0.70201-81~24.04_amd64.deb ...
+#20 359.8 Unpacking migraphx (2.15.0.70201-81~24.04) ...
+#20 364.9 Selecting previously unselected package python3-pip-whl.
+#20 364.9 Preparing to unpack .../15-python3-pip-whl_24.0+dfsg-1ubuntu1.3_all.deb ...
+#20 364.9 Unpacking python3-pip-whl (24.0+dfsg-1ubuntu1.3) ...
+#20 365.0 Selecting previously unselected package python3-setuptools-whl.
+#20 365.0 Preparing to unpack .../16-python3-setuptools-whl_68.1.2-2ubuntu1.2_all.deb ...
+#20 365.0 Unpacking python3-setuptools-whl (68.1.2-2ubuntu1.2) ...
+#20 365.0 Selecting previously unselected package python3.12-venv.
+#20 365.0 Preparing to unpack .../17-python3.12-venv_3.12.3-1ubuntu0.13_amd64.deb ...
+#20 365.0 Unpacking python3.12-venv (3.12.3-1ubuntu0.13) ...
+#20 365.1 Setting up python3-setuptools-whl (68.1.2-2ubuntu1.2) ...
+#20 365.1 Setting up libcurl4t64:amd64 (8.5.0-2ubuntu10.9) ...
+#20 365.1 Setting up python3-pip-whl (24.0+dfsg-1ubuntu1.3) ...
+#20 365.2 Setting up libpython3.12-minimal:amd64 (3.12.3-1ubuntu0.13) ...
+#20 365.2 Setting up half (1.12.0.70201-81~24.04) ...
+#20 365.2 Setting up hipblaslt (1.2.2.70201-81~24.04) ...
+#20 365.2 Setting up rocblas (5.2.0.70201-81~24.04) ...
+#20 365.3 Setting up curl (8.5.0-2ubuntu10.9) ...
+#20 365.3 Setting up rocrand (4.2.0.70201-81~24.04) ...
+#20 365.3 Setting up python3.12-minimal (3.12.3-1ubuntu0.13) ...
+#20 366.3 Setting up libpython3.12-stdlib:amd64 (3.12.3-1ubuntu0.13) ...
+#20 366.3 Setting up miopen-hip (3.5.1.70201-81~24.04) ...
+#20 366.4 Setting up python3.12 (3.12.3-1ubuntu0.13) ...
+#20 ...
+
+#21 [mcp_server runtime-rocm-wsl 2/2] RUN apt-get update && apt-get install -y --no-install-recommends     python3.12   
+   python3.12-venv     curl     ca-certificates     gosu     passwd     migraphx     half     && rm -rf /var/lib/apt/list
+ts/*     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3.12     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3
+3     && ln -sf /usr/bin/python3.12 /usr/local/bin/python
+#21 366.7 Selecting previously unselected package miopen-hip.
+#21 366.7 Preparing to unpack .../13-miopen-hip_3.5.1.70201-81~24.04_amd64.deb ...
+#21 366.7 Unpacking miopen-hip (3.5.1.70201-81~24.04) ...
+#21 ...
+
+#20 [mcp_server builder-rocm-wsl 2/8] RUN apt-get update && apt-get install -y --no-install-recommends     python3.12   
+   python3.12-venv     python3.12-dev     gcc     g++     curl     ca-certificates     migraphx     half     && rm -rf /v
+var/lib/apt/lists/*     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3.12     && ln -sf /usr/bin/python3.12 /usr/lo
+ocal/bin/python3     && ln -sf /usr/bin/python3.12 /usr/local/bin/python
+#20 367.9 Setting up migraphx (2.15.0.70201-81~24.04) ...
+#20 368.0 Setting up libpython3.12t64:amd64 (3.12.3-1ubuntu0.13) ...
+#20 368.0 Setting up python3.12-venv (3.12.3-1ubuntu0.13) ...
+#20 368.1 Setting up libpython3.12-dev:amd64 (3.12.3-1ubuntu0.13) ...
+#20 368.1 Setting up python3.12-dev (3.12.3-1ubuntu0.13) ...
+#20 368.2 Processing triggers for libc-bin (2.39-0ubuntu8.7) ...
+#20 DONE 369.3s
+#22 [mcp_server builder-rocm-wsl 3/8] RUN curl -LsSf https://astral.sh/uv/install.sh | sh     && install -m 755 /root/.l
+local/bin/uv /usr/local/bin/uv
+#22 2.522 downloading uv 0.11.19 x86_64-unknown-linux-gnu
+#22 ...
+
+#21 [mcp_server runtime-rocm-wsl 2/2] RUN apt-get update && apt-get install -y --no-install-recommends     python3.12   
+   python3.12-venv     curl     ca-certificates     gosu     passwd     migraphx     half     && rm -rf /var/lib/apt/list
+ts/*     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3.12     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3
+3     && ln -sf /usr/bin/python3.12 /usr/local/bin/python
+#21 376.9 Selecting previously unselected package migraphx.
+#21 377.0 Preparing to unpack .../14-migraphx_2.15.0.70201-81~24.04_amd64.deb ...
+#21 377.0 Unpacking migraphx (2.15.0.70201-81~24.04) ...
+#21 381.7 Selecting previously unselected package python3-pip-whl.
+#21 381.7 Preparing to unpack .../15-python3-pip-whl_24.0+dfsg-1ubuntu1.3_all.deb ...
+#21 381.7 Unpacking python3-pip-whl (24.0+dfsg-1ubuntu1.3) ...
+#21 381.7 Selecting previously unselected package python3-setuptools-whl.
+#21 381.7 Preparing to unpack .../16-python3-setuptools-whl_68.1.2-2ubuntu1.2_all.deb ...
+#21 381.7 Unpacking python3-setuptools-whl (68.1.2-2ubuntu1.2) ...
+#21 381.8 Selecting previously unselected package python3.12-venv.
+#21 381.8 Preparing to unpack .../17-python3.12-venv_3.12.3-1ubuntu0.13_amd64.deb ...
+#21 381.8 Unpacking python3.12-venv (3.12.3-1ubuntu0.13) ...
+#21 381.9 Selecting previously unselected package gosu.
+#21 381.9 Preparing to unpack .../18-gosu_1.17-1ubuntu0.24.04.3_amd64.deb ...
+#21 381.9 Unpacking gosu (1.17-1ubuntu0.24.04.3) ...
+#21 382.0 Setting up python3-setuptools-whl (68.1.2-2ubuntu1.2) ...
+#21 382.0 Setting up libcurl4t64:amd64 (8.5.0-2ubuntu10.9) ...
+#21 382.0 Setting up python3-pip-whl (24.0+dfsg-1ubuntu1.3) ...
+#21 382.0 Setting up libpython3.12-minimal:amd64 (3.12.3-1ubuntu0.13) ...
+#21 382.0 Setting up half (1.12.0.70201-81~24.04) ...
+#21 382.1 Setting up hipblaslt (1.2.2.70201-81~24.04) ...
+#21 382.1 Setting up gosu (1.17-1ubuntu0.24.04.3) ...
+#21 382.1 Setting up rocblas (5.2.0.70201-81~24.04) ...
+#21 382.1 Setting up curl (8.5.0-2ubuntu10.9) ...
+#21 382.2 Setting up rocrand (4.2.0.70201-81~24.04) ...
+#21 382.2 Setting up python3.12-minimal (3.12.3-1ubuntu0.13) ...
+#21 383.1 Setting up libpython3.12-stdlib:amd64 (3.12.3-1ubuntu0.13) ...
+#21 383.2 Setting up miopen-hip (3.5.1.70201-81~24.04) ...
+#21 383.2 Setting up python3.12 (3.12.3-1ubuntu0.13) ...
+#21 384.2 Setting up migraphx (2.15.0.70201-81~24.04) ...
+#21 384.3 Setting up libpython3.12t64:amd64 (3.12.3-1ubuntu0.13) ...
+#21 384.3 Setting up python3.12-venv (3.12.3-1ubuntu0.13) ...
+#21 384.4 Setting up libpython3.12-dev:amd64 (3.12.3-1ubuntu0.13) ...
+#21 384.4 Setting up python3.12-dev (3.12.3-1ubuntu0.13) ...
+#21 384.4 Processing triggers for libc-bin (2.39-0ubuntu8.7) ...
+#21 DONE 385.7s
+
+#22 [mcp_server builder-rocm-wsl 3/8] RUN curl -LsSf https://astral.sh/uv/install.sh | sh     && install -m 755 /root/.l
+local/bin/uv /usr/local/bin/uv
+#22 ...
+
+#23 [mcp_server runtime 1/6] WORKDIR /app
+#23 DONE 0.1s
+
+#22 [mcp_server builder-rocm-wsl 3/8] RUN curl -LsSf https://astral.sh/uv/install.sh | sh     && install -m 755 /root/.l
+local/bin/uv /usr/local/bin/uv
+#22 27.92 installing to /root/.local/bin
+#22 27.93   uv
+#22 27.93   uvx
+#22 27.93 everything's installed!
+#22 27.96
+#22 27.96 To add $HOME/.local/bin to your PATH, either restart your shell or run:
+#22 27.96
+#22 27.96     source $HOME/.local/bin/env (sh, bash, zsh)
+#22 27.96     source $HOME/.local/bin/env.fish (fish)
+#22 DONE 28.1s
+
+#24 [mcp_server builder-rocm-wsl 4/8] WORKDIR /app
+#24 DONE 0.0s
+
+#25 [mcp_server builder-rocm-wsl 5/8] COPY pyproject.toml uv.lock ./
+#25 DONE 0.1s
+
+#26 [mcp_server builder-rocm-wsl 6/8] COPY src/ ./src/
+#26 DONE 0.1s
+
+#27 [mcp_server builder-rocm-wsl 7/8] RUN printf '# codebase-indexer\n' > /README.md
+#27 DONE 0.3s
+
+#28 [mcp_server builder-rocm-wsl 8/8] RUN uv sync --frozen --no-dev --no-editable --python /usr/local/bin/python3.12    
+  && uv pip uninstall onnxruntime onnxruntime-gpu fastembed-gpu onnxruntime-rocm 2>/dev/null || true     && uv pip instal
+ll "numpy<2" onnxruntime_migraphx==1.23.2         -f https://repo.radeon.com/rocm/manylinux/rocm-rel-7.2.1/     && /app/.
+.venv/bin/python -c "import onnxruntime; assert onnxruntime.__version__ == '1.23.2'"     && /app/.venv/bin/python -c "imp
+port onnxruntime as ort; p=ort.get_available_providers(); print('Available providers:', p); ep='MIGraphXExecutionProvider
+r'; print('NOTE: MIGraphXExecutionProvider absent at build time (no GPU visible) ΓÇö expected; confirm on AMD hardware at
+t runtime.' if ep not in p else 'MIGraphXExecutionProvider present at build time.')"     && /app/.venv/bin/python -c "imp
+port codebase_indexer"
+#28 0.503 Using CPython 3.12.3 interpreter at: /usr/local/bin/python3.12
+#28 0.503 Creating virtual environment at: .venv
+#28 0.529    Building codebase-indexer @ file:///app
+#28 1.147 Downloading beartype (1.3MiB)
+#28 1.213 Downloading grpcio (6.5MiB)
+#28 1.213 Downloading hf-xet (4.3MiB)
+#28 1.216 Downloading onnxruntime (17.3MiB)
+#28 1.216 Downloading numpy (15.9MiB)
+#28 1.218 Downloading pydantic-core (2.0MiB)
+#28 1.219 Downloading pygments (1.2MiB)
+#28 1.220 Downloading cryptography (4.5MiB)
+#28 1.221 Downloading pillow (6.8MiB)
+#28 1.222 Downloading tokenizers (3.2MiB)
+#28 4.663       Built codebase-indexer @ file:///app
+#28 4.789  Downloaded pygments
+#28 4.791  Downloaded beartype
+#28 5.513  Downloaded pydantic-core
+#28 7.674  Downloaded tokenizers
+#28 8.524  Downloaded hf-xet
+#28 8.622  Downloaded cryptography
+#28 9.415  Downloaded grpcio
+#28 9.485  Downloaded pillow
+#28 12.28  Downloaded numpy
+#28 12.56  Downloaded onnxruntime
+#28 12.56 Prepared 113 packages in 12.05s
+#28 12.69 Installed 113 packages in 128ms
+#28 12.69  + aiofile==3.11.1
+#28 12.69  + aiofiles==25.1.0
+#28 12.69  + annotated-doc==0.0.4
+#28 12.69  + annotated-types==0.7.0
+#28 12.69  + anyio==4.13.0
+#28 12.69  + attrs==26.1.0
+#28 12.69  + authlib==1.7.2
+#28 12.69  + beartype==0.22.9
+#28 12.69  + cachetools==7.1.4
+#28 12.69  + caio==0.9.25
+#28 12.69  + certifi==2026.5.20
+#28 12.69  + cffi==2.0.0
+#28 12.69  + charset-normalizer==3.4.7
+#28 12.69  + click==8.4.1
+#28 12.69  + codebase-indexer==0.1.0 (from file:///app)
+#28 12.69  + cryptography==48.0.0
+#28 12.69  + cyclopts==4.16.1
+#28 12.69  + dnspython==2.8.0
+#28 12.69  + docstring-parser==0.18.0
+#28 12.69  + email-validator==2.3.0
+#28 12.69  + exceptiongroup==1.3.1
+#28 12.69  + fastembed==0.8.0
+#28 12.69  + fastmcp==3.4.0
+#28 12.69  + fastmcp-slim==3.4.0
+#28 12.69  + filelock==3.29.0
+#28 12.69  + flatbuffers==25.12.19
+#28 12.69  + fsspec==2026.4.0
+#28 12.69  + gitdb==4.0.12
+#28 12.69  + gitpython==3.1.50
+#28 12.69  + griffelib==2.0.2
+#28 12.69  + grpcio==1.81.0
+#28 12.69  + h11==0.16.0
+#28 12.69  + h2==4.3.0
+#28 12.69  + hf-xet==1.5.0
+#28 12.69  + hpack==4.1.0
+#28 12.69  + httpcore==1.0.9
+#28 12.69  + httpx==0.28.1
+#28 12.69  + httpx-sse==0.4.3
+#28 12.69  + huggingface-hub==1.16.1
+#28 12.69  + hyperframe==6.1.0
+#28 12.69  + idna==3.18
+#28 12.69  + jaraco-classes==3.4.0
+#28 12.69  + jaraco-context==6.1.2
+#28 12.69  + jaraco-functools==4.5.0
+#28 12.69  + jeepney==0.9.0
+#28 12.69  + joserfc==1.7.0
+#28 12.69  + jsonref==1.1.0
+#28 12.69  + jsonschema==4.26.0
+#28 12.69  + jsonschema-path==0.5.0
+#28 12.69  + jsonschema-specifications==2025.9.1
+#28 12.69  + keyring==25.7.0
+#28 12.69  + loguru==0.7.3
+#28 12.69  + markdown-it-py==4.2.0
+#28 12.69  + mcp==1.27.2
+#28 12.69  + mdurl==0.1.2
+#28 12.69  + mmh3==5.2.1
+#28 12.69  + more-itertools==11.1.0
+#28 12.69  + numpy==2.4.6
+#28 12.69  + onnxruntime==1.26.0
+#28 12.69  + openapi-pydantic==0.5.1
+#28 12.69  + opentelemetry-api==1.42.1
+#28 12.69  + packaging==26.2
+#28 12.69  + pathable==0.6.0
+#28 12.69  + pathspec==1.1.1
+#28 12.69  + pillow==12.2.0
+#28 12.69  + platformdirs==4.10.0
+#28 12.69  + portalocker==3.2.0
+#28 12.69  + protobuf==7.35.0
+#28 12.69  + py-key-value-aio==0.4.5
+#28 12.69  + py-rust-stemmers==0.1.8
+#28 12.69  + pycparser==3.0
+#28 12.69  + pydantic==2.13.4
+#28 12.69  + pydantic-core==2.46.4
+#28 12.69  + pydantic-settings==2.14.1
+#28 12.69  + pygments==2.20.0
+#28 12.69  + pyjwt==2.13.0
+#28 12.69  + pyperclip==1.11.0
+#28 12.69  + python-dotenv==1.2.2
+#28 12.69  + python-multipart==0.0.30
+#28 12.69  + pyyaml==6.0.3
+#28 12.69  + qdrant-client==1.18.0
+#28 12.69  + referencing==0.37.0
+#28 12.69  + requests==2.34.2
+#28 12.69  + rich==15.0.0
+#28 12.69  + rich-rst==2.0.1
+#28 12.69  + rpds-py==2026.5.1
+#28 12.69  + secretstorage==3.5.0
+#28 12.69  + shellingham==1.5.4
+#28 12.69  + smmap==5.0.3
+#28 12.69  + sse-starlette==3.4.4
+#28 12.69  + starlette==1.2.1
+#28 12.69  + structlog==25.5.0
+#28 12.69  + tokenizers==0.23.1
+#28 12.69  + tqdm==4.67.3
+#28 12.69  + tree-sitter==0.25.2
+#28 12.69  + tree-sitter-c==0.24.2
+#28 12.69  + tree-sitter-c-sharp==0.23.5
+#28 12.69  + tree-sitter-cpp==0.23.4
+#28 12.69  + tree-sitter-go==0.25.0
+#28 12.69  + tree-sitter-java==0.23.5
+#28 12.69  + tree-sitter-javascript==0.25.0
+#28 12.69  + tree-sitter-python==0.25.0
+#28 12.69  + tree-sitter-rust==0.24.2
+#28 12.69  + tree-sitter-sql==0.3.11
+#28 12.69  + tree-sitter-typescript==0.23.2
+#28 12.69  + typer==0.26.7
+#28 12.69  + typing-extensions==4.15.0
+#28 12.69  + typing-inspection==0.4.2
+#28 12.69  + uncalled-for==0.3.2
+#28 12.69  + urllib3==2.7.0
+#28 12.69  + uvicorn==0.48.0
+#28 12.69  + watchfiles==1.2.0
+#28 12.69  + websockets==16.0
+#28 13.91 Resolved 9 packages in 740ms
+#28 13.97 Downloading sympy (6.0MiB)
+#28 14.02 Downloading numpy (17.1MiB)
+#28 14.11 Downloading onnxruntime-migraphx (18.8MiB)
+#28 15.83  Downloaded sympy
+#28 17.65  Downloaded numpy
+#28 18.29  Downloaded onnxruntime-migraphx
+#28 18.29 Prepared 6 packages in 4.38s
+#28 18.31 Uninstalled 1 package in 14ms
+#28 18.36 Installed 6 packages in 49ms
+#28 18.36  + coloredlogs==15.0.1
+#28 18.36  + humanfriendly==10.0
+#28 18.36  + mpmath==1.3.0
+#28 18.36  - numpy==2.4.6
+#28 18.36  + numpy==1.26.4
+#28 18.36  + onnxruntime-migraphx==1.23.2
+#28 18.36  + sympy==1.14.0
+#28 18.84 Available providers: ['MIGraphXExecutionProvider', 'CPUExecutionProvider']
+#28 18.84 MIGraphXExecutionProvider present at build time.
+#28 DONE 19.1s
+
+#29 [mcp_server builder 1/2] RUN test "rocm" = "cpu" -o "rocm" = "cuda" -o "rocm" = "rocm"     || (echo "ERROR: EMBED_DE
+EVICE must be 'cpu', 'cuda', or 'rocm', got 'rocm'" >&2 && exit 1)
+#29 DONE 0.3s
+
+#30 [mcp_server builder 2/2] RUN test "wsl" = "native" -o "wsl" = "wsl"     || (echo "ERROR: ROCM_VARIANT must be 'nativ
+ve' or 'wsl', got 'wsl'" >&2 && exit 1)
+#30 DONE 0.2s
+
+#31 [mcp_server runtime 2/6] COPY --from=builder /usr/local/bin/uv /usr/local/bin/uv
+#31 DONE 0.1s
+
+#32 [mcp_server runtime 3/6] COPY --from=builder /app /app
+#32 DONE 1.2s
+
+#33 [mcp_server runtime 4/6] COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+#33 DONE 0.1s
+
+#34 [mcp_server runtime 5/6] RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh
+#34 DONE 0.2s
+
+#35 [mcp_server runtime 6/6] RUN set -eux;     if existing="$(getent passwd 1000 | cut -d: -f1)" && [ -n "$existing" ]; 
+ then         userdel -r "$existing" 2>/dev/null || userdel "$existing";     fi;     useradd -m -u 1000 mcpuser;     chow
+wn -R mcpuser /app;     chmod +x /usr/local/bin/docker-entrypoint.sh
+#35 0.247 + getent passwd 1000
+#35 0.247 + cut -d: -f1
+#35 0.249 + existing=ubuntu
+#35 0.249 + [ -n ubuntu ]
+#35 0.250 + userdel -r ubuntu
+#35 0.304 + useradd -m -u 1000 mcpuser
+#35 0.344 + chown -R mcpuser /app
+#35 16.66 + chmod +x /usr/local/bin/docker-entrypoint.sh
+#35 DONE 16.8s
+
+#36 [mcp_server] exporting to image
+#36 exporting layers
+#36 exporting layers 107.0s done
+#36 exporting manifest sha256:e97f2388c2bb942071b3f9b2ef7a8576c95df105674e589c51f9d58a9bf081f5 0.0s done
+#36 exporting config sha256:4dcac5576108891c8a7a893037802076d50459d5cdf1a3728bc774435965bbd7 0.0s done
+#36 exporting attestation manifest sha256:861bd2a93d1d8ebd86f4cac1ee5db09d6081046f3bc62944f944be0ef5de52ea 0.0s done    
+#36 exporting manifest list sha256:1bfd2ab15e0e5515b74da2b51e7884bf3d3870eef98844ee8e287267719374b2 0.0s done
+#36 naming to docker.io/library/codebase-indexer-mcp-mcp_server:latest done
+#36 unpacking to docker.io/library/codebase-indexer-mcp-mcp_server:latest
+#36 unpacking to docker.io/library/codebase-indexer-mcp-mcp_server:latest 32.5s done
+#36 DONE 139.6s
+
+#37 [mcp_server] resolving provenance for metadata file
+#37 DONE 0.0s
+ Image codebase-indexer-mcp-mcp_server Built
+ Image codebase-indexer-mcp-cron Built
+ Container codeindexer_qdrant Running
+ Container codeindexer_mcp Recreate
+ Container codeindexer_mcp Error response from daemon: invalid volume specification: 'C:\Users\PAGH\Documents\Repositori
+ies:/workspace:ro'
+Error response from daemon: invalid volume specification: 'C:\Users\PAGH\Documents\Repositories:/workspace:ro'
+___BEGIN___COMMAND_DONE_MARKER___1
+PS C:\Users\PAGH\Documents\Repositories\codebase-indexer-mcp> 
