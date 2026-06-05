@@ -1,31 +1,13 @@
-docker : /app/.venv/bin/python: Error while finding module specification for 'codebase_indexer.main' (ModuleNotFoundError: No
-module named 'codebase_indexer')
+PS C:\Users\PAGH\Documents\Repositories\codebase-indexer-mcp>  docker logs codeindexer_mcp --tail 50 2>&1
+docker : error: exec: "/app/.venv/bin/python": stat /app/.venv/bin/python: no such file or directory
 At line:1 char:2
 +  docker logs codeindexer_mcp --tail 50 2>&1
 +  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : NotSpecified: (/app/.venv/bin/...ebase_indexer'):String) [], RemoteException
+    + CategoryInfo          : NotSpecified: (error: exec: "/...le or directory:String) [], RemoteException
     + FullyQualifiedErrorId : NativeCommandError
 
-/app/.venv/bin/python: Error while finding module specification for 'codebase_indexer.main' (ModuleNotFoundError: No module named
-'codebase_indexer')
-/app/.venv/bin/python: Error while finding module specification for 'codebase_indexer.main' (ModuleNotFoundError: No module named
-'codebase_indexer')
-/app/.venv/bin/python: Error while finding module specification for 'codebase_indexer.main' (ModuleNotFoundError: No module named
-'codebase_indexer')
-/app/.venv/bin/python: Error while finding module specification for 'codebase_indexer.main' (ModuleNotFoundError: No module named
-'codebase_indexer')
-/app/.venv/bin/python: Error while finding module specification for 'codebase_indexer.main' (ModuleNotFoundError: No module named
-'codebase_indexer')
-/app/.venv/bin/python: Error while finding module specification for 'codebase_indexer.main' (ModuleNotFoundError: No module named
-'codebase_indexer')
-/app/.venv/bin/python: Error while finding module specification for 'codebase_indexer.main' (ModuleNotFoundError: No module named
-'codebase_indexer')
-/app/.venv/bin/python: Error while finding module specification for 'codebase_indexer.main' (ModuleNotFoundError: No module named
-'codebase_indexer')
-/app/.venv/bin/python: Error while finding module specification for 'codebase_indexer.main' (ModuleNotFoundError: No module named
-'codebase_indexer')
-/app/.venv/bin/python: Error while finding module specification for 'codebase_indexer.main' (ModuleNotFoundError: No module named
-'codebase_indexer')
-What's next:
-    View and search logs for all containers in one place
-    with Docker Desktop's Logs view. docker-desktop://dashboard/logs
+error: exec: "/app/.venv/bin/python": stat /app/.venv/bin/python: no such file or directory
+error: exec: "/app/.venv/bin/python": stat /app/.venv/bin/python: no such file or directory
+error: exec: "/app/.venv/bin/python": stat /app/.venv/bin/python: no such file or directory
+error: exec: "/app/.venv/bin/python": stat /app/.venv/bin/python: no such file or directory
+error: exec: "/app/.venv/bin/python": stat /app/.venv/bin/python: no such file or directory
