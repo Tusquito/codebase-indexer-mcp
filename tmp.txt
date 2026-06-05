@@ -1,0 +1,2 @@
+EMBED_DEVICE=rocm docker compose -f docker-compose.yml -f docker-compose.amd.wsl2.yml up -d --build
+./scripts/check_amd_gpu.sh codebase-indexer-mcp-mcp_server:latest wsl
