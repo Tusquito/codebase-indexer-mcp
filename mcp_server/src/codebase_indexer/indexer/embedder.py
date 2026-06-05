@@ -48,6 +48,35 @@ def trim_memory() -> None:
         pass
 
 
+def available_onnx_providers() -> list[str]:
+    """Return ONNX Runtime's available execution providers at runtime.
+
+    Wrapped so a missing/broken onnxruntime never crashes provider selection.
+    """
+    try:
+        import onnxruntime as ort
+
+        return list(ort.get_available_providers())
+    except Exception:
+        return ["CPUExecutionProvider"]
+
+
+def filter_available_providers(
+    desired: list[str], available: list[str]
+) -> tuple[list[str], list[str]]:
+    """Intersect desired providers with available ones, preserving priority.
+
+    Always retains CPUExecutionProvider as the final fallback so the encoder
+    can always construct. Returns (kept, dropped) for logging.
+    """
+    available_set = set(available)
+    kept = [p for p in desired if p in available_set]
+    dropped = [p for p in desired if p not in available_set]
+    if "CPUExecutionProvider" not in kept:
+        kept.append("CPUExecutionProvider")
+    return kept, dropped
+
+
 def resolve_onnx_providers(embed_device: str) -> list[str]:
     """Return ONNX Runtime execution providers for the dense encoder."""
     if embed_device == "cuda":
@@ -291,7 +320,19 @@ class Embedder:
     def _get_dense_model(self):
         """Get or load fastembed dense encoder (ONNX, cached)."""
         threads = _resolve_threads(self.dense_threads)
-        cache_key = (self.dense_model, tuple(self._providers), threads)
+        effective_providers, dropped = filter_available_providers(
+            self._providers, available_onnx_providers()
+        )
+        if dropped:
+            _tlog.warning(
+                "onnx_providers_filtered embed_device=%s requested=%s dropped=%s "
+                "effective=%s — GPU providers unavailable; dense encoder will use CPU fallback",
+                self.embed_device,
+                self._providers,
+                dropped,
+                effective_providers,
+            )
+        cache_key = (self.dense_model, tuple(effective_providers), threads)
         if (
             Embedder._shared_dense_model is not None
             and Embedder._shared_dense_cache_key != cache_key
@@ -313,7 +354,7 @@ class Embedder:
             from fastembed import TextEmbedding
             _tlog.info(
                 "loading_dense_model model=%s threads=%d embed_device=%s providers=%s backend=fastembed-onnx",
-                self.dense_model, threads, self.embed_device, self._providers,
+                self.dense_model, threads, self.embed_device, effective_providers,
             )
             t0 = time.monotonic()
             # `threads` sets intra_op_num_threads on the ONNX InferenceSession directly.
@@ -321,7 +362,7 @@ class Embedder:
             Embedder._shared_dense_model = TextEmbedding(
                 model_name=self.dense_model,
                 threads=threads,
-                providers=self._providers,
+                providers=effective_providers,
             )
             Embedder._shared_dense_cache_key = cache_key
             elapsed = time.monotonic() - t0

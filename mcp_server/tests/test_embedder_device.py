@@ -1,12 +1,46 @@
 """Unit tests for ONNX embed device / provider selection."""
 
+import builtins
 import logging
 import sys
 from types import SimpleNamespace
 
+import pytest
+
 from codebase_indexer.config import Settings
 from codebase_indexer.context import AppContext
-from codebase_indexer.indexer.embedder import Embedder
+from codebase_indexer.indexer import embedder as embedder_mod
+from codebase_indexer.indexer.embedder import (
+    Embedder,
+    available_onnx_providers,
+    filter_available_providers,
+    resolve_onnx_providers,
+)
+
+_ALL_ONNX_PROVIDERS = [
+    "MIGraphXExecutionProvider",
+    "ROCMExecutionProvider",
+    "CUDAExecutionProvider",
+    "CPUExecutionProvider",
+]
+
+
+@pytest.fixture(autouse=True)
+def _default_all_providers_available(monkeypatch, request):
+    """Preserve pre-filter behavior for legacy cache-key tests on CPU-only hosts."""
+    skip_autouse = (
+        "filter_available_providers" in request.node.name
+        or "available_onnx_providers" in request.node.name
+        or "get_dense_model_passes_cpu_only" in request.node.name
+        or "onnx_providers_filtered" in request.node.name
+    )
+    if skip_autouse:
+        return
+    monkeypatch.setattr(
+        embedder_mod,
+        "available_onnx_providers",
+        lambda: list(_ALL_ONNX_PROVIDERS),
+    )
 
 
 def _embedder(**overrides) -> Embedder:
@@ -174,3 +208,134 @@ def test_log_dense_providers_warns_when_rocm_unavailable(caplog):
 
     assert active == ["CPUExecutionProvider"]
     assert "rocm_requested_but_unavailable" in caplog.text
+
+
+def test_filter_available_providers_drops_unavailable():
+    desired = resolve_onnx_providers("rocm")
+    available = ["ROCMExecutionProvider", "CPUExecutionProvider"]
+    kept, dropped = filter_available_providers(desired, available)
+    assert kept == ["ROCMExecutionProvider", "CPUExecutionProvider"]
+    assert dropped == ["MIGraphXExecutionProvider"]
+
+
+def test_filter_available_providers_preserves_priority_order():
+    desired = [
+        "MIGraphXExecutionProvider",
+        "ROCMExecutionProvider",
+        "CPUExecutionProvider",
+    ]
+    available = [
+        "CPUExecutionProvider",
+        "ROCMExecutionProvider",
+        "MIGraphXExecutionProvider",
+    ]
+    kept, dropped = filter_available_providers(desired, available)
+    assert kept == desired
+    assert dropped == []
+
+
+def test_filter_available_providers_always_retains_cpu():
+    desired = ["CUDAExecutionProvider"]
+    available = ["CUDAExecutionProvider"]
+    kept, dropped = filter_available_providers(desired, available)
+    assert kept == ["CUDAExecutionProvider", "CPUExecutionProvider"]
+    assert dropped == []
+
+
+def test_filter_available_providers_all_gpu_unavailable_degrades_to_cpu():
+    desired = resolve_onnx_providers("rocm")
+    available = ["CPUExecutionProvider"]
+    kept, dropped = filter_available_providers(desired, available)
+    assert kept == ["CPUExecutionProvider"]
+    assert dropped == [
+        "MIGraphXExecutionProvider",
+        "ROCMExecutionProvider",
+    ]
+
+
+def test_available_onnx_providers_returns_cpu_on_import_error(monkeypatch):
+    real_import = builtins.__import__
+
+    def _raise_on_onnxruntime(name, *args, **kwargs):
+        if name == "onnxruntime":
+            raise ImportError("simulated broken onnxruntime")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _raise_on_onnxruntime)
+    assert available_onnx_providers() == ["CPUExecutionProvider"]
+
+
+def test_get_dense_model_passes_cpu_only_when_gpu_unavailable(monkeypatch):
+    calls = []
+
+    class FakeSession:
+        def __init__(self, providers):
+            self._providers = providers
+
+        def get_providers(self):
+            return self._providers
+
+    class FakeInner:
+        def __init__(self, providers):
+            self.model = FakeSession(providers)
+
+    class FakeTextEmbedding:
+        def __init__(self, model_name, threads, providers):
+            calls.append({"providers": providers})
+            self.model = FakeInner(providers)
+
+    monkeypatch.setattr(
+        embedder_mod,
+        "available_onnx_providers",
+        lambda: ["CPUExecutionProvider"],
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "fastembed",
+        SimpleNamespace(TextEmbedding=FakeTextEmbedding),
+    )
+
+    try:
+        Embedder.release_models()
+        _embedder(embed_device="rocm")._get_dense_model()
+    finally:
+        Embedder.release_models()
+
+    assert calls == [{"providers": ["CPUExecutionProvider"]}]
+
+
+def test_get_dense_model_logs_onnx_providers_filtered(caplog, monkeypatch):
+    class FakeSession:
+        def __init__(self, providers):
+            self._providers = providers
+
+        def get_providers(self):
+            return self._providers
+
+    class FakeInner:
+        def __init__(self, providers):
+            self.model = FakeSession(providers)
+
+    class FakeTextEmbedding:
+        def __init__(self, model_name, threads, providers):
+            self.model = FakeInner(providers)
+
+    monkeypatch.setattr(
+        embedder_mod,
+        "available_onnx_providers",
+        lambda: ["CPUExecutionProvider"],
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "fastembed",
+        SimpleNamespace(TextEmbedding=FakeTextEmbedding),
+    )
+
+    try:
+        Embedder.release_models()
+        with caplog.at_level(logging.WARNING, logger="codebase_indexer.indexer.embedder"):
+            _embedder(embed_device="rocm")._get_dense_model()
+    finally:
+        Embedder.release_models()
+
+    assert "onnx_providers_filtered" in caplog.text
