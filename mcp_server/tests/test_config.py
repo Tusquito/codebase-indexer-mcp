@@ -190,3 +190,29 @@ def test_preload_models_defaults_true():
 def test_preload_models_from_env(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("PRELOAD_MODELS", "false")
     assert Settings().preload_models is False
+
+
+def test_qdrant_search_tuning_defaults():
+    s = Settings()
+    assert s.quant_oversampling == 2.0
+    assert s.hnsw_ef == 64
+    assert s.hnsw_m == 16
+    assert s.hnsw_ef_construct == 128
+    assert s.prefetch_multiplier == 5
+    assert s.rrf_k == 60
+
+
+def test_qdrant_search_tuning_from_env(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("QUANT_OVERSAMPLING", "3.5")
+    monkeypatch.setenv("HNSW_EF", "128")
+    monkeypatch.setenv("HNSW_M", "32")
+    monkeypatch.setenv("HNSW_EF_CONSTRUCT", "256")
+    monkeypatch.setenv("PREFETCH_MULTIPLIER", "7")
+    monkeypatch.setenv("RRF_K", "40")
+    s = Settings()
+    assert s.quant_oversampling == 3.5
+    assert s.hnsw_ef == 128
+    assert s.hnsw_m == 32
+    assert s.hnsw_ef_construct == 256
+    assert s.prefetch_multiplier == 7
+    assert s.rrf_k == 40

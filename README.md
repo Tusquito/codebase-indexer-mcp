@@ -433,6 +433,12 @@ If you change port bindings to expose the server beyond localhost, set `MCP_AUTH
 | `QUANTIZATION` | `true` | int8 scalar quantization of dense vectors (~4× less vector RAM; rescored, so search quality is preserved) |
 | `MEMMAP_THRESHOLD_KB` | `20000` | Segments above this size are memory-mapped rather than kept in RAM |
 | `PAYLOAD_INDEXES` | `true` | Create keyword payload indexes on `rel_path`, `chunk_id`, `symbol_name`, `language` for faster filtered lookups |
+| `QUANT_OVERSAMPLING` | `2.0` | Quantized dense search oversampling before rescore (when `QUANTIZATION=true`) |
+| `HNSW_EF` | `64` | Query-time HNSW search breadth (higher = better recall, slower) |
+| `HNSW_M` | `16` | HNSW graph degree at build time (higher = better recall, more RAM) |
+| `HNSW_EF_CONSTRUCT` | `128` | HNSW construction breadth (higher = better graph, slower index build) |
+| `PREFETCH_MULTIPLIER` | `5` | Hybrid prefetch limit = `top_k × multiplier` per dense/sparse channel |
+| `RRF_K` | `60` | RRF constant for multi-collection result re-fusion |
 | `RELEASE_MODELS_AFTER_INDEX` | `true` | Release ONNX models after indexing completes to reclaim ~300-500 MB. Models reload in ~1.5s from the cache volume on the next search query. Set to `false` only if you need sub-second first-search latency after indexing. |
 | `MODEL_IDLE_TIMEOUT` | `300` | Seconds of embed inactivity before ONNX models are automatically released. Covers the case where models were loaded for search but the server goes idle. `0` disables the idle timer. |
 

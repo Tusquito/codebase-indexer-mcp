@@ -152,6 +152,25 @@ class Settings(BaseSettings):
     # benchmark harness can measure the indexes-off vs indexes-on delta.
     payload_indexes: bool = Field(default=True)
 
+    # --- Qdrant search/HNSW tuning (recall vs latency) ---
+    # Oversampling factor for int8 quantized search: fetch this many more
+    # candidates on the quantized index, then rescore against full vectors to
+    # recover recall. Only applied when quantization=True.
+    quant_oversampling: float = Field(default=2.0, gt=0)
+    # Query-time HNSW search breadth (ef). Higher = better recall, slower.
+    hnsw_ef: int = Field(default=64, ge=1)
+    # HNSW graph degree (m) at build time. Higher = better recall, more RAM.
+    hnsw_m: int = Field(default=16, ge=1)
+    # HNSW construction search breadth (ef_construct). Higher = better graph,
+    # slower index build.
+    hnsw_ef_construct: int = Field(default=128, ge=1)
+    # Hybrid prefetch limit multiplier: each dense/sparse prefetch fetches
+    # top_k * this many candidates before RRF fusion. Higher = better fusion
+    # recall, slower.
+    prefetch_multiplier: int = Field(default=5, ge=1)
+    # RRF constant used when re-fusing ranked results across collections.
+    rrf_k: int = Field(default=60, ge=1)
+
     # --- Service-mapping / cross-reference tuning (project-agnostic) ---
     # Comma-separated URL path keywords used to recognise API paths in config
     # and code (e.g. "/api/...", "/rest/..."). Extend for your domain without

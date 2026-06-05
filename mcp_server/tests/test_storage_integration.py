@@ -64,8 +64,13 @@ def storage():
 async def test_ensure_collection_recreates_on_dimension_mismatch():
     """ensure_collection auto-recreates when the dense vector dimension changes."""
     coll = f"test_dim_{uuid.uuid4().hex[:8]}"
-    # Create with dim=384
-    s384 = Settings(qdrant_url=QDRANT_URL, hybrid_search=False, dense_embed_vector_size=384)
+    # Create with dim=384 (model must match KNOWN_EMBED_MODEL_DIMENSIONS).
+    s384 = Settings(
+        qdrant_url=QDRANT_URL,
+        hybrid_search=False,
+        dense_embed_model="BAAI/bge-small-en-v1.5",
+        dense_embed_vector_size=384,
+    )
     st384 = QdrantStorage(s384)
     client = await st384._get_client()
     try:
@@ -74,7 +79,12 @@ async def test_ensure_collection_recreates_on_dimension_mismatch():
         assert info.config.params.vectors["dense"].size == 384
 
         # Now call ensure_collection with dim=768 — should auto-recreate.
-        s768 = Settings(qdrant_url=QDRANT_URL, hybrid_search=False, dense_embed_vector_size=768)
+        s768 = Settings(
+            qdrant_url=QDRANT_URL,
+            hybrid_search=False,
+            dense_embed_model="nomic-ai/nomic-embed-text-v1.5",
+            dense_embed_vector_size=768,
+        )
         st768 = QdrantStorage(s768)
         st768._client = client  # share the same underlying connection
         await st768.ensure_collection(coll)

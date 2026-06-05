@@ -13,15 +13,18 @@ from qdrant_client.models import (
     Filter,
     Fusion,
     FusionQuery,
+    HnswConfigDiff,
     MatchAny,
     MatchValue,
     OptimizersConfigDiff,
     PayloadSchemaType,
     PointStruct,
     Prefetch,
+    QuantizationSearchParams,
     ScalarQuantization,
     ScalarQuantizationConfig,
     ScalarType,
+    SearchParams,
     SparseIndexParams,
     SparseVectorParams,
     VectorParams,
@@ -48,6 +51,38 @@ class SearchResult:
     symbol_type: str
     content: str
     collection: str = ""
+
+
+def fuse_cross_collection_rrf(
+    per_collection_results: list[list[SearchResult]],
+    *,
+    rrf_k: int,
+    top_k: int,
+) -> list[SearchResult]:
+    """Re-fuse per-collection ranked lists with global RRF.
+
+    Per-collection RRF scores are not comparable across collections; this
+    recomputes rank-based RRF from each list and merges globally.
+    Original ``SearchResult.score`` values are preserved for display.
+    """
+    fused_scores: dict[tuple[str, str], float] = {}
+    by_key: dict[tuple[str, str], SearchResult] = {}
+
+    for coll_results in per_collection_results:
+        for rank, result in enumerate(coll_results, start=1):
+            key = (result.collection, result.chunk_id)
+            fused_scores[key] = fused_scores.get(key, 0.0) + 1.0 / (rrf_k + rank)
+            by_key[key] = result
+
+    # Sort by fused score descending; break ties deterministically on the
+    # (collection, chunk_id) key so ranking doesn't depend on collection
+    # iteration / dict insertion order.
+    ranked_keys = sorted(
+        fused_scores,
+        key=lambda k: (fused_scores[k], k[0], k[1]),
+        reverse=True,
+    )
+    return [by_key[k] for k in ranked_keys[:top_k]]
 
 
 @dataclass
@@ -188,6 +223,10 @@ class QdrantStorage:
                     vectors_config=vectors_config,
                     sparse_vectors_config=sparse_vectors_config,
                     quantization_config=quantization_config,
+                    hnsw_config=HnswConfigDiff(
+                        m=self.settings.hnsw_m,
+                        ef_construct=self.settings.hnsw_ef_construct,
+                    ),
                     optimizers_config=OptimizersConfigDiff(
                         memmap_threshold=self.settings.memmap_threshold_kb,
                     ),
@@ -403,6 +442,16 @@ class QdrantStorage:
             return None
         return Filter(must=must)  # type: ignore[arg-type]
 
+    def _dense_search_params(self) -> SearchParams:
+        """Build dense-vector search params (HNSW ef always; quant rescoring when enabled)."""
+        quant = None
+        if self.settings.quantization:
+            quant = QuantizationSearchParams(
+                rescore=True,
+                oversampling=self.settings.quant_oversampling,
+            )
+        return SearchParams(quantization=quant, hnsw_ef=self.settings.hnsw_ef)
+
     async def _search_single(
         self,
         collection: str,
@@ -417,6 +466,8 @@ class QdrantStorage:
         query_filter = self._build_query_filter(language)
 
         used_hybrid = bool(sparse_vector and self.settings.hybrid_search)
+        dense_params = self._dense_search_params()
+        prefetch_limit = top_k * self.settings.prefetch_multiplier
 
         if used_hybrid:
             assert sparse_vector is not None
@@ -427,8 +478,17 @@ class QdrantStorage:
             results = await client.query_points(
                 collection_name=collection,
                 prefetch=[
-                    Prefetch(query=dense_vector, using="dense", limit=top_k * 3),
-                    Prefetch(query=qdrant_sparse, using="sparse", limit=top_k * 3),
+                    Prefetch(
+                        query=dense_vector,
+                        using="dense",
+                        limit=prefetch_limit,
+                        params=dense_params,
+                    ),
+                    Prefetch(
+                        query=qdrant_sparse,
+                        using="sparse",
+                        limit=prefetch_limit,
+                    ),
                 ],
                 query=FusionQuery(fusion=Fusion.RRF),
                 limit=top_k,
@@ -442,6 +502,7 @@ class QdrantStorage:
                 using="dense",
                 limit=top_k,
                 query_filter=query_filter,
+                search_params=dense_params,
                 with_payload=True,
             )
 
@@ -512,16 +573,24 @@ class QdrantStorage:
         ]
         all_results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        merged: list[SearchResult] = []
+        per_collection: list[list[SearchResult]] = []
         for r in all_results:
             if isinstance(r, BaseException):
                 log.warning("cross_collection_search_error", error=str(r))
                 continue
-            merged.extend(r)
+            per_collection.append(r)
 
-        # Sort by score descending, take top_k
-        merged.sort(key=lambda x: x.score, reverse=True)
-        return merged[:top_k]
+        if not per_collection:
+            return []
+
+        if len(per_collection) == 1:
+            return per_collection[0][:top_k]
+
+        return fuse_cross_collection_rrf(
+            per_collection,
+            rrf_k=self.settings.rrf_k,
+            top_k=top_k,
+        )
 
     async def get_chunk_by_id(self, collection: str, chunk_id: str) -> dict | None:
         """Retrieve a specific chunk by its chunk_id."""
