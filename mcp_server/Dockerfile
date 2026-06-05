@@ -73,6 +73,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ \
     curl \
     ca-certificates \
+    migraphx \
+    migraphx-dev \
+    half \
     && rm -rf /var/lib/apt/lists/* \
     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3.12 \
     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3 \
@@ -92,6 +95,7 @@ RUN uv sync --frozen --no-dev --no-editable --python /usr/local/bin/python3.12 \
     && uv pip install onnxruntime-rocm==1.21.0 \
         -f https://repo.radeon.com/rocm/manylinux/rocm-rel-6.4.4/ \
     && /app/.venv/bin/python -c "import onnxruntime; assert onnxruntime.__version__ == '1.21.0'" \
+    && /app/.venv/bin/python -c "import onnxruntime as ort; p=ort.get_available_providers(); print('Available providers:', p); ep='MIGraphXExecutionProvider'; print('NOTE: MIGraphXExecutionProvider absent at build time (no GPU visible) — expected; confirm on AMD hardware at runtime.' if ep not in p else 'MIGraphXExecutionProvider present at build time.')" \
     && /app/.venv/bin/python -c "import codebase_indexer"
 
 FROM rocm/dev-ubuntu-24.04:7.2.1 AS builder-rocm-wsl
@@ -104,6 +108,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ \
     curl \
     ca-certificates \
+    migraphx \
+    half \
     && rm -rf /var/lib/apt/lists/* \
     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3.12 \
     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3 \
@@ -123,6 +129,7 @@ RUN uv sync --frozen --no-dev --no-editable --python /usr/local/bin/python3.12 \
     && uv pip install "numpy<2" onnxruntime_migraphx==1.23.2 \
         -f https://repo.radeon.com/rocm/manylinux/rocm-rel-7.2.1/ \
     && /app/.venv/bin/python -c "import onnxruntime; assert onnxruntime.__version__ == '1.23.2'" \
+    && /app/.venv/bin/python -c "import onnxruntime as ort; p=ort.get_available_providers(); print('Available providers:', p); ep='MIGraphXExecutionProvider'; print('NOTE: MIGraphXExecutionProvider absent at build time (no GPU visible) — expected; confirm on AMD hardware at runtime.' if ep not in p else 'MIGraphXExecutionProvider present at build time.')" \
     && /app/.venv/bin/python -c "import codebase_indexer"
 
 FROM builder-rocm-${ROCM_VARIANT} AS builder-rocm
@@ -171,7 +178,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 FROM rocm/dev-ubuntu-24.04:6.4.4 AS runtime-rocm-native
 
 ENV HSA_ENABLE_DXG_DETECTION=1
-ENV LD_LIBRARY_PATH="/opt/rocm/lib:${LD_LIBRARY_PATH:-}"
+ENV LD_LIBRARY_PATH="/opt/rocm/lib:/opt/rocm/lib/migraphx/lib:${LD_LIBRARY_PATH:-}"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.12 \
@@ -180,6 +187,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     gosu \
     passwd \
+    migraphx \
+    half \
     && rm -rf /var/lib/apt/lists/* \
     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3.12 \
     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3 \
@@ -188,7 +197,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 FROM rocm/dev-ubuntu-24.04:7.2.1 AS runtime-rocm-wsl
 
 ENV HSA_ENABLE_DXG_DETECTION=1
-ENV LD_LIBRARY_PATH="/opt/rocm/lib:${LD_LIBRARY_PATH:-}"
+ENV LD_LIBRARY_PATH="/opt/rocm/lib:/opt/rocm/lib/migraphx/lib:${LD_LIBRARY_PATH:-}"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.12 \
@@ -197,6 +206,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     gosu \
     passwd \
+    migraphx \
+    half \
     && rm -rf /var/lib/apt/lists/* \
     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3.12 \
     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3 \
@@ -209,6 +220,7 @@ FROM runtime-${EMBED_DEVICE} AS runtime
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app/src
 ENV PATH="/app/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ENV LD_LIBRARY_PATH="/app/.venv/lib/python3.12/site-packages/onnxruntime/capi:${LD_LIBRARY_PATH:-}"
 
 WORKDIR /app
 # uv binary kept for the documented `docker exec ... uv run ...` stdio entrypoint.

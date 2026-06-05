@@ -12,6 +12,8 @@ services:
         ROCM_VARIANT: native
     environment:
       EMBED_DEVICE: rocm
+    # environment:
+    #   HSA_OVERRIDE_GFX_VERSION: "11.5.1"  # only for gfx1151 Strix Halo / unsupported-but-similar archs
     devices:
       - /dev/kfd
       - /dev/dri
