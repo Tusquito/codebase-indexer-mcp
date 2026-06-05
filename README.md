@@ -130,7 +130,7 @@ Some clients require an explicit `transport` field; Cursor does not (see above).
 
 ### Fallback: stdio sidecar proxy
 
-Use when localhost HTTP is blocked (e.g. corporate proxies that intercept `localhost` and return 502, which the MCP SDK misreports as `MCPOAuthError`) or when a client only supports stdio.
+Use when localhost HTTP is blocked (e.g. restrictive network proxies that intercept `localhost` and return 502, which the MCP SDK misreports as `MCPOAuthError`) or when a client only supports stdio.
 
 1. Uncomment the disabled `proxy` service in [`docker-compose.yml`](docker-compose.yml) (block labeled `FALLBACK: stdio sidecar proxy`).
 2. `docker compose up -d` to start `codeindexer_proxy`.

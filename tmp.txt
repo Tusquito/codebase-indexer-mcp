@@ -1,8 +1,0 @@
-# Default (CPU — reliable on WSL2, no GPU plumbing):
-EMBED_DEVICE=cpu docker compose -f docker-compose.yml -f docker-compose.amd.wsl2.yml up -d --build
-
-# Opt-in GPU attempt: uncomment the OPT-IN block in docker-compose.amd.wsl2.yml,
-# comment out the DEFAULT build/environment lines, confirm librocdxg.so exists
-# (find /usr/lib/wsl -name 'librocdxg.so'), then:
-# EMBED_DEVICE=rocm docker compose -f docker-compose.yml -f docker-compose.amd.wsl2.yml up -d --build
-# ./scripts/check_amd_gpu.sh codebase-indexer-mcp-mcp_server:latest wsl

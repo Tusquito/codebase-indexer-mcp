@@ -14,3 +14,8 @@ venv/
 skill-workspace/
 .cursor/debug-*.log
 .idea
+
+# Local scratch, build logs, and machine diagnostics (never publish)
+*.log
+tmp*.txt
+*_diagnostic.txt
