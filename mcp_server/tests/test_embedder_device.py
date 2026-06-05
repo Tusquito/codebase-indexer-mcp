@@ -33,6 +33,7 @@ def _default_all_providers_available(monkeypatch, request):
         or "available_onnx_providers" in request.node.name
         or "get_dense_model_passes_cpu_only" in request.node.name
         or "onnx_providers_filtered" in request.node.name
+        or "falls_back_to_cpu_when_gpu_init_fails" in request.node.name
     )
     if skip_autouse:
         return
@@ -339,3 +340,58 @@ def test_get_dense_model_logs_onnx_providers_filtered(caplog, monkeypatch):
         Embedder.release_models()
 
     assert "onnx_providers_filtered" in caplog.text
+
+
+def test_get_dense_model_falls_back_to_cpu_when_gpu_init_fails(caplog, monkeypatch):
+    calls = []
+
+    class FakeSession:
+        def __init__(self, providers):
+            self._providers = providers
+
+        def get_providers(self):
+            return self._providers
+
+    class FakeInner:
+        def __init__(self, providers):
+            self.model = FakeSession(providers)
+
+    class FakeTextEmbedding:
+        def __init__(self, model_name, threads, providers):
+            calls.append({"providers": list(providers)})
+            if any(p != "CPUExecutionProvider" for p in providers):
+                raise RuntimeError("simulated MIGraphX init failure")
+            self.model = FakeInner(providers)
+
+    monkeypatch.setattr(
+        embedder_mod,
+        "available_onnx_providers",
+        lambda: list(_ALL_ONNX_PROVIDERS),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "fastembed",
+        SimpleNamespace(TextEmbedding=FakeTextEmbedding),
+    )
+
+    cache_key_providers = None
+    try:
+        Embedder.release_models()
+        with caplog.at_level(logging.WARNING, logger="codebase_indexer.indexer.embedder"):
+            e = _embedder(embed_device="rocm")
+            model = e._get_dense_model()
+            cache_key_providers = Embedder._shared_dense_cache_key[1]
+            model_again = e._get_dense_model()
+        assert model is model_again
+    finally:
+        Embedder.release_models()
+
+    assert len(calls) == 2
+    assert calls[0]["providers"] == [
+        "MIGraphXExecutionProvider",
+        "ROCMExecutionProvider",
+        "CPUExecutionProvider",
+    ]
+    assert calls[1]["providers"] == ["CPUExecutionProvider"]
+    assert "gpu_provider_init_failed_falling_back_to_cpu" in caplog.text
+    assert cache_key_providers == ("CPUExecutionProvider",)

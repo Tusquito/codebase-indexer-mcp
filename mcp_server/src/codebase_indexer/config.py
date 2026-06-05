@@ -102,6 +102,11 @@ class Settings(BaseSettings):
     # 0 disables the idle timer (models stay until process restart or explicit release).
     model_idle_timeout: int = Field(default=300)
 
+    # Eagerly load ONNX models during startup (default: true). When false, models
+    # lazy-load on the first embed request. Set PRELOAD_MODELS=false to keep the
+    # server responsive if model init is slow or a GPU provider is non-functional.
+    preload_models: bool = Field(default=True)
+
     # --- Pipeline tuning knobs (hardware-portable; all env-overridable) ---
     # Number of chunks accumulated before an embed+upsert flush. The double
     # buffer keeps at most 2 of these in memory, so peak RAM scales with this.

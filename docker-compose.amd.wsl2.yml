@@ -1,42 +1,63 @@
-# AMD GPU override for mcp_server on Windows + WSL2. Use with the base compose file:
-#   EMBED_DEVICE=rocm docker compose -f docker-compose.yml -f docker-compose.amd.wsl2.yml up --build
+# AMD WSL2 override for mcp_server. Use with the base compose file:
+#   EMBED_DEVICE=cpu docker compose -f docker-compose.yml -f docker-compose.amd.wsl2.yml up -d --build
 #
-# Builds ROCm 7.2.1 + onnxruntime_migraphx (ROCM_VARIANT=wsl). onnxruntime 1.23 has no
-# ROCMExecutionProvider — dense embedding uses MIGraphXExecutionProvider over /dev/dxg;
-# falls back to CPU if that EP is unavailable.
+# DEFAULT (active below): CPU embedding — works on any WSL2 host with no GPU
+# plumbing. No /dev/dxg, no driver bind-mounts; `docker compose up` succeeds on
+# CPU-only or wrong-driver hosts.
 #
-# WSL2 prerequisites: Adrenalin driver 26.2.2+, ROCm 7.2.1+ on the Windows host,
-# and /dev/dxg present in WSL2.
+# For real AMD GPU acceleration, use native Linux with docker-compose.amd.yml
+# (kernel ≥6.18.4 + ROCm 7.2.1, /dev/kfd). See README § AMD GPU on Windows + WSL2.
 #
-# librocdxg.so is NOT shipped by apt — build from github.com/ROCm/librocdxg (develop
-# branch) on the WSL host and install with `sudo make install` → /opt/rocm/lib/librocdxg.so.
-# Without it the container falls back to CPU. AMD does NOT currently support
-# MIGraphX/mGPU on WSL2, so CPU fallback is expected — for real AMD GPU acceleration
-# use native Linux with docker-compose.amd.yml.
-#
-# /dev/kfd does NOT work in WSL2 — use this override instead of docker-compose.amd.yml.
+# OPT-IN GPU: uncomment the entire block at the bottom (and comment out the
+# DEFAULT build/environment lines above) to try ROCDXG/MIGraphX on WSL2.
 services:
   mcp_server:
+    # --- DEFAULT: CPU (reliable on WSL2) ---
     build:
       args:
-        EMBED_DEVICE: rocm
-        ROCM_VARIANT: wsl
+        EMBED_DEVICE: ${EMBED_DEVICE:-cpu}
     environment:
-      EMBED_DEVICE: rocm
-      HSA_ENABLE_DXG_DETECTION: "1"
+      EMBED_DEVICE: ${EMBED_DEVICE:-cpu}
+
+    # --- OPT-IN: WSL2 GPU via ROCDXG (gfx1151 / Radeon 8060S / Strix Halo) ---
+    # Uncomment this entire block AND comment out the DEFAULT build/environment
+    # lines above. A missing bind-mount source path fails container start — only
+    # enable after host prerequisites are confirmed.
+    #
+    # Prerequisites (all five on the WSL2 host):
+    #   1. Recent WSL-capable Adrenalin driver on Windows (26.2.2+).
+    #   2. ROCm 7.2.1+ in WSL Ubuntu (this image uses ROCm 7.2.1).
+    #   3. /dev/dxg present in WSL2.
+    #   4. libdxcore.so under /usr/lib/wsl/lib/ (shipped with Adrenalin WSL driver).
+    #   5. librocdxg.so on the Linux side (NOT in the Windows driver). Locate with:
+    #        find /usr/lib/wsl -name 'librocdxg.so'
+    #      Typical paths: /usr/lib/wsl/lib/librocdxg.so (Adrenalin install) or
+    #      /opt/rocm/lib/librocdxg.so (built from github.com/ROCm/librocdxg).
+    #
+    # gfx1151 (Radeon 8060S / Strix Halo, RDNA 3.5) is officially ROCm-supported
+    # since ROCm 7.2.1. Even with all prerequisites, stock onnxruntime-migraphx
+    # may OOM on WSL2: hipMallocManaged is unsupported, ROCm sees only tiny
+    # dedicated VRAM on shared-memory APUs. If GPU init fails or OOMs, fall back
+    # to EMBED_DEVICE=cpu — CPU fallback and non-fatal PRELOAD_MODELS keep the
+    # container healthy either way.
+    #
+    # build:
+    #   args:
+    #     EMBED_DEVICE: rocm
+    #     ROCM_VARIANT: wsl
     # environment:
-    #   HSA_OVERRIDE_GFX_VERSION: "11.5.1"  # only for gfx1151 Strix Halo / unsupported-but-similar archs
-    devices:
-      - /dev/dxg
-    volumes:
-      - /usr/lib/wsl/lib/libdxcore.so:/usr/lib/libdxcore.so:ro
-      # OPT-IN: uncomment ONLY after building+installing librocdxg on the WSL host
-      # (github.com/ROCm/librocdxg, develop branch → sudo make install).
-      # A bind-mount of a missing file creates a broken empty directory and breaks compose.
-      # - /opt/rocm/lib/librocdxg.so:/usr/lib/librocdxg.so:ro
-    cap_add:
-      - SYS_PTRACE
-    security_opt:
-      - seccomp:unconfined
-    ipc: host
-    shm_size: "8gb"
+    #   EMBED_DEVICE: rocm
+    #   HSA_ENABLE_DXG_DETECTION: "1"
+    #   # HSA_OVERRIDE_GFX_VERSION: "11.5.1"  # gfx1151 override — only relevant once rocminfo shows a GPU agent; won't fix missing agents
+    # devices:
+    #   - /dev/dxg
+    # volumes:
+    #   - /usr/lib/wsl/lib/libdxcore.so:/usr/lib/libdxcore.so:ro
+    #   # Adjust host path to match `find` output if not under /usr/lib/wsl/lib/:
+    #   - /usr/lib/wsl/lib/librocdxg.so:/usr/lib/librocdxg.so:ro
+    # cap_add:
+    #   - SYS_PTRACE
+    # security_opt:
+    #   - seccomp:unconfined
+    # ipc: host
+    # shm_size: "8gb"

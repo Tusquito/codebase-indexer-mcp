@@ -157,6 +157,8 @@ class Embedder:
     # Class-level model cache — loaded once, reused by all instances
     _shared_dense_model = None
     _shared_dense_cache_key: tuple[str, tuple[str, ...], int] | None = None
+    # Set when dense model loaded via GPU→CPU fallback (embed_device, model, threads).
+    _shared_dense_cpu_fallback_for: tuple[str, str, int] | None = None
     _shared_sparse_model = None
     # Tokenizers and resolved limits persist across ONNX release (lightweight).
     _shared_dense_tokenizer: Any | None = None
@@ -181,6 +183,7 @@ class Embedder:
         """
         cls._shared_dense_model = None
         cls._shared_dense_cache_key = None
+        cls._shared_dense_cpu_fallback_for = None
         cls._shared_sparse_model = None
         trim_memory()
         _tlog.info("models_released memory_freed=true")
@@ -333,9 +336,27 @@ class Embedder:
                 effective_providers,
             )
         cache_key = (self.dense_model, tuple(effective_providers), threads)
+        cpu_fallback_key = (self.dense_model, ("CPUExecutionProvider",), threads)
+        cpu_fallback_context = (self.embed_device, self.dense_model, threads)
+
+        if Embedder._shared_dense_model is not None:
+            if Embedder._shared_dense_cache_key == cache_key:
+                return Embedder._shared_dense_model
+            if (
+                Embedder._shared_dense_cache_key == cpu_fallback_key
+                and Embedder._shared_dense_cpu_fallback_for == cpu_fallback_context
+                and cache_key != cpu_fallback_key
+            ):
+                return Embedder._shared_dense_model
+
         if (
             Embedder._shared_dense_model is not None
             and Embedder._shared_dense_cache_key != cache_key
+            and not (
+                Embedder._shared_dense_cache_key == cpu_fallback_key
+                and Embedder._shared_dense_cpu_fallback_for == cpu_fallback_context
+                and cache_key != cpu_fallback_key
+            )
         ):
             _tlog.info(
                 "reloading_dense_model reason=cache_key_changed "
@@ -345,6 +366,7 @@ class Embedder:
             )
             Embedder._shared_dense_model = None
             Embedder._shared_dense_cache_key = None
+            Embedder._shared_dense_cpu_fallback_for = None
             Embedder._shared_dense_tokenizer = None
             Embedder._shared_dense_max_tokens = 0
             Embedder._shared_dense_truncation_source = "disabled"
@@ -359,12 +381,43 @@ class Embedder:
             t0 = time.monotonic()
             # `threads` sets intra_op_num_threads on the ONNX InferenceSession directly.
             # OMP_NUM_THREADS alone is insufficient — ONNX Runtime uses its own thread pool.
-            Embedder._shared_dense_model = TextEmbedding(
-                model_name=self.dense_model,
-                threads=threads,
-                providers=effective_providers,
+            actual_providers = effective_providers
+            try:
+                model = TextEmbedding(
+                    model_name=self.dense_model,
+                    threads=threads,
+                    providers=effective_providers,
+                )
+            except Exception as exc:
+                has_gpu_provider = any(
+                    p != "CPUExecutionProvider" for p in effective_providers
+                )
+                if not has_gpu_provider:
+                    raise
+                _tlog.warning(
+                    "gpu_provider_init_failed_falling_back_to_cpu error=%s "
+                    "requested_providers=%s",
+                    exc,
+                    effective_providers,
+                )
+                actual_providers = ["CPUExecutionProvider"]
+                model = TextEmbedding(
+                    model_name=self.dense_model,
+                    threads=threads,
+                    providers=actual_providers,
+                )
+            Embedder._shared_dense_model = model
+            Embedder._shared_dense_cache_key = (
+                self.dense_model,
+                tuple(actual_providers),
+                threads,
             )
-            Embedder._shared_dense_cache_key = cache_key
+            if actual_providers == ["CPUExecutionProvider"] and any(
+                p != "CPUExecutionProvider" for p in effective_providers
+            ):
+                Embedder._shared_dense_cpu_fallback_for = cpu_fallback_context
+            else:
+                Embedder._shared_dense_cpu_fallback_for = None
             elapsed = time.monotonic() - t0
             active_providers = self._log_dense_providers(Embedder._shared_dense_model)
             _tlog.info(

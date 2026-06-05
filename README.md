@@ -543,46 +543,46 @@ The `wsl` image installs `onnxruntime_migraphx` because ROCm 7.2+ no longer ship
 
 #### AMD GPU on Windows + WSL2
 
-WSL2 uses `/dev/dxg` (ROCDXG), not `/dev/kfd`. Start the WSL2 override:
+**Recommended:** `EMBED_DEVICE=cpu` in `.env` and the default `docker-compose.amd.wsl2.yml` (no GPU device mounts). ONNX Runtime may list `MIGraphXExecutionProvider` on WSL2, but without the full ROCDXG stack (`rocminfo` shows no GPU agents) dense embedding falls back to CPU. `EMBED_DEVICE=cpu` avoids a slow or failed GPU init at startup. Set `PRELOAD_MODELS=false` if model preload still delays `/health` on your host.
+
+WSL2 uses `/dev/dxg` (ROCDXG), not `/dev/kfd`. Start with the CPU-default override (works without any GPU plumbing):
 
 ```bash
-EMBED_DEVICE=rocm docker compose -f docker-compose.yml -f docker-compose.amd.wsl2.yml up -d --build
+EMBED_DEVICE=cpu docker compose -f docker-compose.yml -f docker-compose.amd.wsl2.yml up -d --build
 ```
 
-This passes `ROCM_VARIANT=wsl`, building ROCm 7.2.1 + `onnxruntime_migraphx`, and sets `HSA_ENABLE_DXG_DETECTION=1`.
+To **opt in** to a GPU attempt, uncomment the OPT-IN block in `docker-compose.amd.wsl2.yml` (and comment out the DEFAULT `build`/`environment` lines), confirm host prerequisites below, then rebuild with `EMBED_DEVICE=rocm`. See [AMD Radeon 8060S / Strix Halo (gfx1151) on WSL2](#amd-radeon-8060s--strix-halo-gfx1151-on-wsl2) for APU-specific notes.
 
-> **KNOWN LIMITATION:** AMD does **not** currently support MIGraphX/mGPU on WSL2. GPU dense-embedding may be unavailable on WSL2 and the server correctly falls back to CPU. For real AMD GPU acceleration, use native Linux with `docker-compose.amd.yml` and `/dev/kfd`.
+> **KNOWN LIMITATION:** WSL2 GPU dense-embedding is fragile. Even with ROCDXG wired up, stock `onnxruntime-migraphx` may OOM on shared-memory APUs. The server falls back to CPU automatically; for reliable AMD GPU acceleration use native Linux with [`docker-compose.amd.yml`](#amd-rocmmigraphx) and `/dev/kfd`.
 
-**Host prerequisites (user actions on Windows + WSL2 Ubuntu):**
+**Host prerequisites (all five — only for GPU opt-in):**
 
-1. Install [Adrenalin Edition 26.2.2+](https://www.amd.com/en/support) on Windows.
-2. Install [ROCm 7.2.1](https://rocm.docs.amd.com/) in WSL Ubuntu.
-3. Build and install `librocdxg` from source — it is **not** shipped by apt:
-   ```bash
-   git clone -b develop https://github.com/ROCm/librocdxg.git
-   cd librocdxg && make && sudo make install
-   ```
-4. Confirm host paths exist:
-   ```bash
-   test -e /opt/rocm/lib/librocdxg.so && test -e /dev/dxg
-   ```
-5. Ensure the WSL HSA runtime takes precedence over any native HSA install so `rocminfo` works without `hsaKmtOpenKFD` errors (ROCm 7.2.1 packages from AMD's repo should win on `PATH`/`LD_LIBRARY_PATH`).
-6. After step 3, uncomment the `librocdxg.so` volume line in `docker-compose.amd.wsl2.yml` (opt-in — a missing file breaks `docker compose up`).
+1. [Adrenalin Edition 26.2.2+](https://www.amd.com/en/support) on Windows (WSL-capable build).
+2. [ROCm 7.2.1+](https://rocm.docs.amd.com/) in WSL Ubuntu.
+3. `/dev/dxg` present in WSL2.
+4. `libdxcore.so` under `/usr/lib/wsl/lib/` (shipped with the Adrenalin WSL driver).
+5. `librocdxg.so` on the Linux side (not in the Windows driver). Locate with `find /usr/lib/wsl -name 'librocdxg.so'` — typically `/usr/lib/wsl/lib/librocdxg.so` or `/opt/rocm/lib/librocdxg.so` if built from [github.com/ROCm/librocdxg](https://github.com/ROCm/librocdxg). A missing bind-mount source **breaks** `docker compose up`.
 
 | Responsibility | Repo / image | User (WSL2 host) |
 |----------------|--------------|------------------|
-| ROCm 7.2.1 base + `onnxruntime_migraphx` in container | ✓ | |
-| `/dev/dxg` passthrough, `libdxcore.so` bind-mount, `HSA_ENABLE_DXG_DETECTION=1` | ✓ (`docker-compose.amd.wsl2.yml`) | |
-| Windows Adrenalin driver 26.2.2+ | | ✓ |
-| ROCm 7.2.1 in WSL Ubuntu | | ✓ |
-| Build + install `librocdxg` → `/opt/rocm/lib/librocdxg.so` | | ✓ |
-| Uncomment opt-in `librocdxg.so` compose volume after install | | ✓ |
-| GPU dense-embedding on WSL2 | CPU fallback (expected) | |
+| CPU-default compose (no `/dev/dxg`, no bind-mounts) | ✓ (`docker-compose.amd.wsl2.yml`) | |
+| ROCm 7.2.1 + `onnxruntime_migraphx` image (GPU opt-in) | ✓ | |
+| OPT-IN block: `/dev/dxg`, `libdxcore.so` + `librocdxg.so` mounts, `HSA_ENABLE_DXG_DETECTION=1` | ✓ (commented by default) | |
+| Windows Adrenalin driver, ROCm in WSL, `librocdxg.so` | | ✓ |
+| Reliable GPU dense-embedding | native Linux (`docker-compose.amd.yml`) | |
 
-**Verify (WSL2):**
+##### AMD Radeon 8060S / Strix Halo (gfx1151) on WSL2
+
+The Radeon 8060S (Strix Halo APU, RDNA 3.5, arch **gfx1151**) is officially ROCm-supported since **ROCm 7.2.1** (the version in the `wsl` image). WSL2 access requires AMD's **ROCDXG** bridge — all five [host prerequisites](#amd-gpu-on-windows--wsl2) above, especially `librocdxg.so` mounted into the container.
+
+- **`HSA_OVERRIDE_GFX_VERSION=11.5.1`** — gfx1151 override (commented in the OPT-IN block). Only relevant once `rocminfo` shows a GPU agent; it does **not** fix a missing agent when `librocdxg.so` is absent.
+- **`hipMallocManaged` OOM caveat** — known WSL2 bug: ROCm sees only tiny dedicated VRAM on shared-memory APUs, so stock `onnxruntime-migraphx` tends to OOM without patches. If GPU init fails, use `EMBED_DEVICE=cpu` (default); CPU fallback and non-fatal `PRELOAD_MODELS` keep the container healthy.
+- **Recommendation:** CPU is the reliable default on WSL2. For GPU acceleration, **native-Linux dual-boot** with kernel ≥6.18.4 + ROCm 7.2.1 and [`docker-compose.amd.yml`](#amd-rocmmigraphx) is the supported path.
+
+**Verify (WSL2 GPU opt-in):**
 
 ```bash
-./scripts/check_amd_gpu.sh codebase-indexer:rocm-wsl wsl
+./scripts/check_amd_gpu.sh codebase-indexer-mcp-mcp_server:latest wsl
 ```
 
 **Verify (native Linux or container logs):**

@@ -108,7 +108,7 @@ class BearerAuthMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-def create_app(settings: Settings | None = None, preload_models: bool = True) -> FastMCP:
+def create_app(settings: Settings | None = None, preload_models: bool | None = None) -> FastMCP:
     """Build and wire the FastMCP server.
 
     All side effects (logging setup, model preload, tool registration) live here
@@ -182,15 +182,25 @@ def create_app(settings: Settings | None = None, preload_models: bool = True) ->
     if settings.model_idle_timeout > 0:
         log.info("idle_timer_configured", timeout_s=settings.model_idle_timeout)
 
+    if preload_models is None:
+        preload_models = settings.preload_models
+
     if preload_models:
         # Warm the shared ONNX models so the first index/search is instant.
         # Models are cached in the fastembed_cache Docker volume.
         log.info("preloading_models")
         t0 = time.monotonic()
-        ctx.embedder._get_dense_model()
-        if settings.hybrid_search:
-            ctx.embedder._get_sparse_model()
-        log.info("models_ready", elapsed=round(time.monotonic() - t0, 2))
+        try:
+            ctx.embedder._get_dense_model()
+            if settings.hybrid_search:
+                ctx.embedder._get_sparse_model()
+            log.info("models_ready", elapsed=round(time.monotonic() - t0, 2))
+        except Exception as exc:
+            log.warning(
+                "model_preload_failed_continuing",
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
 
     mcp = FastMCP(name="codebase-indexer", instructions=_INSTRUCTIONS)
 

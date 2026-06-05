@@ -181,3 +181,12 @@ def test_jina_code_wrong_dense_embed_vector_size_rejected():
             dense_embed_vector_size=384,
             sparse_threads=2,
         )
+
+
+def test_preload_models_defaults_true():
+    assert Settings().preload_models is True
+
+
+def test_preload_models_from_env(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("PRELOAD_MODELS", "false")
+    assert Settings().preload_models is False
