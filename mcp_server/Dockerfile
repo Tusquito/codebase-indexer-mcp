@@ -164,6 +164,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gosu \
     passwd \
     && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/bin/python3.12 /usr/local/bin/python3.12 \
     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3 \
     && ln -sf /usr/bin/python3.12 /usr/local/bin/python
 
@@ -180,6 +181,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gosu \
     passwd \
     && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/bin/python3.12 /usr/local/bin/python3.12 \
     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3 \
     && ln -sf /usr/bin/python3.12 /usr/local/bin/python
 
@@ -196,6 +198,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gosu \
     passwd \
     && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/bin/python3.12 /usr/local/bin/python3.12 \
     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3 \
     && ln -sf /usr/bin/python3.12 /usr/local/bin/python
 
