@@ -2,6 +2,9 @@
 # Verify the AMD ROCm/MIGraphX GPU execution provider is available inside the
 # built container. Run this on the AMD host (native Linux or Windows+WSL2).
 #
+# All in-container Python checks target /app/.venv/bin/python (bypassing the
+# entrypoint, which resets PATH and drops the project venv).
+#
 # Usage:
 #   ./scripts/check_amd_gpu.sh [image] [mode]
 #     image  Docker image to test (default: codebase-indexer:rocm)
@@ -13,6 +16,7 @@
 #   ./scripts/check_amd_gpu.sh codebase-indexer:rocm-wsl wsl
 set -uo pipefail
 
+VENV_PY=/app/.venv/bin/python
 IMAGE="${1:-codebase-indexer:rocm}"
 MODE="${2:-native}"
 
@@ -37,33 +41,44 @@ SOPATH="/app/.venv/lib/python3.12/site-packages/onnxruntime/capi/libonnxruntime_
 PASS=0
 
 hr() { printf '%s\n' "------------------------------------------------------------"; }
-run() { echo "+ docker run --rm ${DEVICE_ARGS[*]} $IMAGE $*"; docker run --rm "${DEVICE_ARGS[@]}" "$IMAGE" "$@"; }
+run_python() {
+  echo "+ docker run --rm --entrypoint $VENV_PY ${DEVICE_ARGS[*]} $IMAGE -c ..."
+  docker run --rm --entrypoint "$VENV_PY" "${DEVICE_ARGS[@]}" "$IMAGE" -c "$1"
+}
+run_shell() {
+  echo "+ docker run --rm --entrypoint \"\" ${DEVICE_ARGS[*]} $IMAGE bash -lc ..."
+  docker run --rm --entrypoint "" "${DEVICE_ARGS[@]}" "$IMAGE" bash -lc "$1"
+}
 
 echo "Image: $IMAGE"
 echo "Mode:  $MODE"
 hr
 
-echo "[1/4] ONNX Runtime available execution providers"
-PROVIDERS="$(run python -c "import onnxruntime as ort; print(' '.join(ort.get_available_providers()))" 2>&1)"
+echo "[1/5] ONNX Runtime available execution providers (venv python)"
+PROVIDERS="$(run_python "import onnxruntime as ort; print(' '.join(ort.get_available_providers()))" 2>&1)"
 echo "$PROVIDERS"
 if echo "$PROVIDERS" | grep -qE "MIGraphXExecutionProvider|ROCMExecutionProvider"; then
   echo "RESULT: GPU execution provider IS available."
   PASS=1
 else
-  echo "RESULT: No GPU EP found — embedding will run on CPU. See checks 3 and 4 below."
+  echo "RESULT: No GPU EP found — embedding will run on CPU. See checks 3–5 below."
 fi
 hr
 
-echo "[2/4] ROCm sees the GPU (rocminfo)"
-run bash -lc 'rocminfo 2>/dev/null | grep -iE "Name:|gfx" || echo "rocminfo unavailable or no agents"'
+echo "[2/5] Venv packages (fastembed, onnxruntime)"
+run_python "import fastembed, onnxruntime; print('fastembed', fastembed.__version__, '| ort', onnxruntime.__version__, '| providers', onnxruntime.get_available_providers())"
 hr
 
-echo "[3/4] GPU status (rocm-smi)"
-run bash -lc '/opt/rocm/bin/rocm-smi 2>/dev/null || echo "rocm-smi unavailable"'
+echo "[3/5] ROCm sees the GPU (rocminfo)"
+run_shell 'rocminfo 2>/dev/null | grep -iE "Name:|gfx" || echo "rocminfo unavailable or no agents"'
 hr
 
-echo "[4/4] MIGraphX provider .so resolves its shared libraries (ldd)"
-MISSING="$(run bash -lc "ldd $SOPATH 2>/dev/null | grep -i 'not found'" 2>&1)"
+echo "[4/5] GPU status (rocm-smi)"
+run_shell '/opt/rocm/bin/rocm-smi 2>/dev/null || echo "rocm-smi unavailable"'
+hr
+
+echo "[5/5] MIGraphX provider .so resolves its shared libraries (ldd)"
+MISSING="$(run_shell "ldd $SOPATH 2>/dev/null | grep -i 'not found'" 2>&1)"
 if [ -z "$MISSING" ]; then
   echo "RESULT: all shared libraries resolved (no 'not found')."
 else
@@ -78,5 +93,5 @@ if [ "$PASS" -eq 1 ]; then
 fi
 echo "OVERALL: GPU EP NOT available (CPU fallback). Check GPU passthrough (mode),"
 echo "         that the gfx arch is supported (try HSA_OVERRIDE_GFX_VERSION for"
-echo "         gfx1151), and the [4/4] ldd output above for missing libraries."
+echo "         gfx1151), and the [5/5] ldd output above for missing libraries."
 exit 1

@@ -6,7 +6,14 @@
 # falls back to CPU if that EP is unavailable.
 #
 # WSL2 prerequisites: Adrenalin driver 26.2.2+, ROCm 7.2.1+ on the Windows host,
-# librocdxg.so available under /opt/rocm/lib, and /dev/dxg present in WSL2.
+# and /dev/dxg present in WSL2.
+#
+# librocdxg.so is NOT shipped by apt — build from github.com/ROCm/librocdxg (develop
+# branch) on the WSL host and install with `sudo make install` → /opt/rocm/lib/librocdxg.so.
+# Without it the container falls back to CPU. AMD does NOT currently support
+# MIGraphX/mGPU on WSL2, so CPU fallback is expected — for real AMD GPU acceleration
+# use native Linux with docker-compose.amd.yml.
+#
 # /dev/kfd does NOT work in WSL2 — use this override instead of docker-compose.amd.yml.
 services:
   mcp_server:
@@ -23,7 +30,10 @@ services:
       - /dev/dxg
     volumes:
       - /usr/lib/wsl/lib/libdxcore.so:/usr/lib/libdxcore.so:ro
-      - /opt/rocm/lib/librocdxg.so:/usr/lib/librocdxg.so:ro
+      # OPT-IN: uncomment ONLY after building+installing librocdxg on the WSL host
+      # (github.com/ROCm/librocdxg, develop branch → sudo make install).
+      # A bind-mount of a missing file creates a broken empty directory and breaks compose.
+      # - /opt/rocm/lib/librocdxg.so:/usr/lib/librocdxg.so:ro
     cap_add:
       - SYS_PTRACE
     security_opt:

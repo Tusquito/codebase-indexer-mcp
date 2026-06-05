@@ -523,7 +523,7 @@ Optional AMD GPU support speeds up **dense embedding** via ONNX Runtime's MIGrap
 | `native` (default) | `docker-compose.amd.yml` | 6.4.4 | `onnxruntime-rocm==1.21.0` | `/dev/kfd` + `/dev/dri` (native Linux) |
 | `wsl` | `docker-compose.amd.wsl2.yml` | 7.2.1 | `onnxruntime_migraphx==1.23.2` | `/dev/dxg` (Windows + WSL2) |
 
-The `wsl` image installs `onnxruntime_migraphx` because ROCm 7.2+ no longer ships `onnxruntime-rocm`. **MIGraphX EP is unsupported on WSL2** — dense embedding uses `ROCMExecutionProvider` there. The server requests `["MIGraphXExecutionProvider","ROCMExecutionProvider","CPUExecutionProvider"]` and falls through to the first available provider, so no runtime code changes are needed between variants.
+The `wsl` image installs `onnxruntime_migraphx` because ROCm 7.2+ no longer ships `onnxruntime-rocm`. The server requests `["MIGraphXExecutionProvider","ROCMExecutionProvider","CPUExecutionProvider"]` and falls through to the first available provider, so no runtime code changes are needed between variants. On WSL2, AMD does not currently support MIGraphX/mGPU — GPU dense-embedding is generally unavailable and CPU fallback is expected (see [AMD GPU on Windows + WSL2](#amd-gpu-on-windows--wsl2)).
 
 **Prerequisites (native Linux):**
 
@@ -541,27 +541,57 @@ The `wsl` image installs `onnxruntime_migraphx` because ROCm 7.2+ no longer ship
 
    The build selects ROCm 6.4.4 and installs `onnxruntime-rocm` while keeping plain `fastembed`. You must **rebuild** when switching between `cpu`, `cuda`, and `rocm`, or between `native` and `wsl` ROCm variants.
 
-**Enable (Windows + WSL2):**
+#### AMD GPU on Windows + WSL2
 
-WSL2 uses a different GPU passthrough path (`/dev/dxg`, not `/dev/kfd`). Prerequisites:
-
-- [Adrenalin driver 26.2.2+](https://www.amd.com/en/support) on Windows
-- ROCm 7.2.1+ with `librocdxg.so` under `/opt/rocm/lib` inside WSL2
-- `/dev/dxg` present in WSL2
+WSL2 uses `/dev/dxg` (ROCDXG), not `/dev/kfd`. Start the WSL2 override:
 
 ```bash
 EMBED_DEVICE=rocm docker compose -f docker-compose.yml -f docker-compose.amd.wsl2.yml up -d --build
 ```
 
-This passes `ROCM_VARIANT=wsl`, building ROCm 7.2.1 + `onnxruntime_migraphx`. Expect `ROCMExecutionProvider` (not MIGraphX) in logs on WSL2.
+This passes `ROCM_VARIANT=wsl`, building ROCm 7.2.1 + `onnxruntime_migraphx`, and sets `HSA_ENABLE_DXG_DETECTION=1`.
 
-**Verify:**
+> **KNOWN LIMITATION:** AMD does **not** currently support MIGraphX/mGPU on WSL2. GPU dense-embedding may be unavailable on WSL2 and the server correctly falls back to CPU. For real AMD GPU acceleration, use native Linux with `docker-compose.amd.yml` and `/dev/kfd`.
+
+**Host prerequisites (user actions on Windows + WSL2 Ubuntu):**
+
+1. Install [Adrenalin Edition 26.2.2+](https://www.amd.com/en/support) on Windows.
+2. Install [ROCm 7.2.1](https://rocm.docs.amd.com/) in WSL Ubuntu.
+3. Build and install `librocdxg` from source — it is **not** shipped by apt:
+   ```bash
+   git clone -b develop https://github.com/ROCm/librocdxg.git
+   cd librocdxg && make && sudo make install
+   ```
+4. Confirm host paths exist:
+   ```bash
+   test -e /opt/rocm/lib/librocdxg.so && test -e /dev/dxg
+   ```
+5. Ensure the WSL HSA runtime takes precedence over any native HSA install so `rocminfo` works without `hsaKmtOpenKFD` errors (ROCm 7.2.1 packages from AMD's repo should win on `PATH`/`LD_LIBRARY_PATH`).
+6. After step 3, uncomment the `librocdxg.so` volume line in `docker-compose.amd.wsl2.yml` (opt-in — a missing file breaks `docker compose up`).
+
+| Responsibility | Repo / image | User (WSL2 host) |
+|----------------|--------------|------------------|
+| ROCm 7.2.1 base + `onnxruntime_migraphx` in container | ✓ | |
+| `/dev/dxg` passthrough, `libdxcore.so` bind-mount, `HSA_ENABLE_DXG_DETECTION=1` | ✓ (`docker-compose.amd.wsl2.yml`) | |
+| Windows Adrenalin driver 26.2.2+ | | ✓ |
+| ROCm 7.2.1 in WSL Ubuntu | | ✓ |
+| Build + install `librocdxg` → `/opt/rocm/lib/librocdxg.so` | | ✓ |
+| Uncomment opt-in `librocdxg.so` compose volume after install | | ✓ |
+| GPU dense-embedding on WSL2 | CPU fallback (expected) | |
+
+**Verify (WSL2):**
+
+```bash
+./scripts/check_amd_gpu.sh codebase-indexer:rocm-wsl wsl
+```
+
+**Verify (native Linux or container logs):**
 
 ```bash
 docker logs codeindexer_mcp 2>&1 | grep -E 'dense_model_loaded|active_providers|rocm_requested'
 ```
 
-A healthy **native Linux** setup shows `embed_device=rocm` and `active_providers` containing `MIGraphXExecutionProvider` and/or `ROCMExecutionProvider`. On **WSL2**, expect `ROCMExecutionProvider` only. If ROCm libraries load but no usable GPU is found, logs include `rocm_requested_but_unavailable` and dense embedding falls back to CPU.
+A healthy **native Linux** setup shows `embed_device=rocm` and `active_providers` containing `MIGraphXExecutionProvider` and/or `ROCMExecutionProvider`. On **WSL2**, CPU fallback is normal; if ROCm libraries load but no usable GPU is found, logs include `rocm_requested_but_unavailable`.
 
 > **VRAM note:** As with CUDA, the memory-pressure guard monitors **container RAM**, not GPU VRAM. Reduce `BATCH_SIZE` and `MAX_DENSE_EMBED_TOKENS` if dense embedding fails with GPU OOM.
 
