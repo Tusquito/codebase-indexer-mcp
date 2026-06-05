@@ -155,7 +155,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 FROM rocm/dev-ubuntu-24.04:6.4.4 AS runtime-rocm-native
 
 ENV HSA_ENABLE_DXG_DETECTION=1
-ENV LD_LIBRARY_PATH="/opt/rocm/lib:${LD_LIBRARY_PATH}"
+ENV LD_LIBRARY_PATH="/opt/rocm/lib:${LD_LIBRARY_PATH:-}"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.12 \
@@ -171,7 +171,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 FROM rocm/dev-ubuntu-24.04:7.2.1 AS runtime-rocm-wsl
 
 ENV HSA_ENABLE_DXG_DETECTION=1
-ENV LD_LIBRARY_PATH="/opt/rocm/lib:${LD_LIBRARY_PATH}"
+ENV LD_LIBRARY_PATH="/opt/rocm/lib:${LD_LIBRARY_PATH:-}"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.12 \

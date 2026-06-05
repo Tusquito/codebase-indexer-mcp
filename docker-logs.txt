@@ -1,0 +1,31 @@
+docker : /app/.venv/bin/python: Error while finding module specification for 'codebase_indexer.main' (ModuleNotFoundError: No
+module named 'codebase_indexer')
+At line:1 char:2
++  docker logs codeindexer_mcp --tail 50 2>&1
++  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (/app/.venv/bin/...ebase_indexer'):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+/app/.venv/bin/python: Error while finding module specification for 'codebase_indexer.main' (ModuleNotFoundError: No module named
+'codebase_indexer')
+/app/.venv/bin/python: Error while finding module specification for 'codebase_indexer.main' (ModuleNotFoundError: No module named
+'codebase_indexer')
+/app/.venv/bin/python: Error while finding module specification for 'codebase_indexer.main' (ModuleNotFoundError: No module named
+'codebase_indexer')
+/app/.venv/bin/python: Error while finding module specification for 'codebase_indexer.main' (ModuleNotFoundError: No module named
+'codebase_indexer')
+/app/.venv/bin/python: Error while finding module specification for 'codebase_indexer.main' (ModuleNotFoundError: No module named
+'codebase_indexer')
+/app/.venv/bin/python: Error while finding module specification for 'codebase_indexer.main' (ModuleNotFoundError: No module named
+'codebase_indexer')
+/app/.venv/bin/python: Error while finding module specification for 'codebase_indexer.main' (ModuleNotFoundError: No module named
+'codebase_indexer')
+/app/.venv/bin/python: Error while finding module specification for 'codebase_indexer.main' (ModuleNotFoundError: No module named
+'codebase_indexer')
+/app/.venv/bin/python: Error while finding module specification for 'codebase_indexer.main' (ModuleNotFoundError: No module named
+'codebase_indexer')
+/app/.venv/bin/python: Error while finding module specification for 'codebase_indexer.main' (ModuleNotFoundError: No module named
+'codebase_indexer')
+What's next:
+    View and search logs for all containers in one place
+    with Docker Desktop's Logs view. docker-desktop://dashboard/logs
