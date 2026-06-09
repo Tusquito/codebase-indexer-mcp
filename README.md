@@ -155,7 +155,23 @@ The sidecar (`codeindexer_proxy`) is a lightweight `python:3.12-slim` container 
 
 ### Copilot CLI
 
-Use native HTTP when your client supports it (same `url` as Cursor). Otherwise use the [stdio sidecar proxy](#fallback-stdio-sidecar-proxy) fallback above.
+Add to `~/.copilot/mcp-config.json` (Windows: `%USERPROFILE%\.copilot\mcp-config.json`):
+
+```json
+{
+  "mcpServers": {
+    "codebase-indexer": {
+      "type": "http",
+      "url": "http://localhost:8000/mcp",
+      "tools": ["*"]
+    }
+  }
+}
+```
+
+> **Important:** Use `"type": "http"` (not `"type": "sse"`). The server uses streamable-http (POST-based) transport. Using `"sse"` causes the CLI to send an incompatible `Accept` header, resulting in HTTP 406 errors. When `MCP_AUTH_TOKEN` is set, add `"headers": {"Authorization": "Bearer <token>"}`.
+
+After editing the config, run `/restart` in the CLI to reconnect. If the connection fails, check that all containers are running with `docker compose ps` — Qdrant stopping is the most common cause. Otherwise use the [stdio sidecar proxy](#fallback-stdio-sidecar-proxy) fallback.
 
 ## MCP Tools
 
