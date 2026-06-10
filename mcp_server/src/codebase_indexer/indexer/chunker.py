@@ -3,7 +3,7 @@
 
 import hashlib
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 
 import structlog
@@ -44,6 +44,42 @@ class Chunk:
     symbol_type: str
     file_sha256: str
     file_mtime: float = 0.0
+    callees: list[str] = field(default_factory=list)
+
+
+_CALLEE_KEYWORDS = frozenset({
+    "if", "for", "while", "switch", "catch", "return", "new",
+    "synchronized", "super", "this", "do", "else", "try",
+})
+_RECEIVER_METHOD_CALL = re.compile(
+    r"([A-Za-z_][\w$]*)\s*\.\s*([A-Za-z_][\w$]*)\s*\(",
+)
+_BARE_CALL = re.compile(
+    r"\b([A-Za-z_][\w$]*)\s*\(",
+)
+
+
+def _extract_callees(content: str) -> list[str]:
+    """Extract call-expression tokens from chunk source (before import headers)."""
+    seen: set[str] = set()
+    callees: list[str] = []
+
+    def _add(token: str) -> None:
+        if token not in seen:
+            seen.add(token)
+            callees.append(token)
+
+    for receiver, method in _RECEIVER_METHOD_CALL.findall(content):
+        if method not in _CALLEE_KEYWORDS:
+            _add(method)
+        if receiver not in _CALLEE_KEYWORDS and method not in _CALLEE_KEYWORDS:
+            _add(f"{receiver}.{method}")
+
+    for name in _BARE_CALL.findall(content):
+        if name not in _CALLEE_KEYWORDS:
+            _add(name)
+
+    return callees
 
 
 def _make_chunk_id(rel_path: str, start_line: int) -> str:
@@ -155,6 +191,7 @@ def _split_large_node(
             symbol_type=symbol_type,
             file_sha256=file_sha256,
             file_mtime=file_mtime,
+            callees=_extract_callees(content),
         )]
 
     # Try splitting at first-level children
@@ -330,6 +367,7 @@ def _sliding_window_range(
             symbol_type=symbol_type,
             file_sha256=file_sha256,
             file_mtime=file_mtime,
+            callees=_extract_callees(content),
         ))
         if chunk_end >= end:
             break
@@ -817,6 +855,7 @@ def chunk_file(
                     symbol_type=_classify_symbol_type(node.type),
                     file_sha256=file_sha256,
                     file_mtime=file_mtime,
+                    callees=_extract_callees(node_content),
                 )]
 
             chunks.extend(extracted)

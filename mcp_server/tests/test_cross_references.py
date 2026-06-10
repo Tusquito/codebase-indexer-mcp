@@ -1,12 +1,23 @@
 """Unit tests for cross-reference path matching and classification."""
 
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+from fastmcp import FastMCP
+
+from codebase_indexer.indexer.chunker import chunk_file
+from codebase_indexer.storage.qdrant import SearchResult
 from codebase_indexer.tools.cross_references import (
+    UrlExtractors,
+    _build_link_summary,
     _build_url_extractors,
     _classify_reference,
     _extract_code_urls,
     _extract_route_paths,
     _paths_match,
     configure_url_keywords,
+    register_cross_references_tool,
 )
 
 
@@ -69,3 +80,208 @@ def test_classify_reference_build_dependency_csproj():
     assert config_extractors and code_extractors
     # /v2/ should match via the always-on version segment, not the keyword.
     assert code_extractors[0].search('"/v2/users/me"') is not None
+
+
+# ---------------------------------------------------------------------------
+# Call-site path (Path D) — helpers mirroring indexed callees scroll filter
+# ---------------------------------------------------------------------------
+
+_JAVA_ABSTRACT_UDH = """\
+package com.example;
+
+public abstract class AbstractUdhBusinessService {
+    protected FeatureManagmentService featureManagmentService;
+}
+"""
+
+_JAVA_CREATE_TIE = """\
+package com.example;
+
+public class CreateTieBusinessService extends AbstractUdhBusinessService {
+    public void createTie(String flag) {
+        if (featureManagmentService.isEnabled(flag)) {
+            doWork();
+        }
+    }
+}
+"""
+
+_JAVA_LOGIN = """\
+package com.example;
+
+public class LoginBusinessService extends AbstractUdhBusinessService {
+    public void login() {
+        doLogin();
+    }
+}
+"""
+
+_JAVA_OTHER_CALLER = """\
+package com.example;
+
+public class OtherCaller {
+    public void run() {
+        other.isEnabled(flag);
+    }
+}
+"""
+
+
+def _indexed_java_call_site_fixtures() -> tuple[list[SearchResult], dict[str, list[str]]]:
+    """Build SearchResult rows and a chunk_id → callees map from Java fixtures."""
+    fixtures = [
+        (_JAVA_ABSTRACT_UDH, "AbstractUdhBusinessService.java"),
+        (_JAVA_CREATE_TIE, "CreateTieBusinessService.java"),
+        (_JAVA_LOGIN, "LoginBusinessService.java"),
+        (_JAVA_OTHER_CALLER, "OtherCaller.java"),
+    ]
+    results: list[SearchResult] = []
+    callees_by_chunk_id: dict[str, list[str]] = {}
+    for source, rel_path in fixtures:
+        for chunk in chunk_file(source, rel_path, "java", "fixture"):
+            callees_by_chunk_id[chunk.chunk_id] = chunk.callees
+            results.append(
+                SearchResult(
+                    chunk_id=chunk.chunk_id,
+                    score=0.0,
+                    rel_path=chunk.rel_path,
+                    language=chunk.language,
+                    start_line=chunk.start_line,
+                    end_line=chunk.end_line,
+                    symbol_name=chunk.symbol_name,
+                    symbol_type=chunk.symbol_type,
+                    content=chunk.content,
+                    collection="udh",
+                )
+            )
+    return results, callees_by_chunk_id
+
+
+async def _setup_find_cross_references(
+    indexed_results: list[SearchResult],
+    callees_by_chunk_id: dict[str, list[str]],
+):
+    """Register find_cross_references with a fake storage scroll on callees."""
+    async def find_callers_in_collections(
+        method: str,
+        collections: list[str],
+        receiver: str | None = None,
+        limit_per_collection: int = 10,
+    ) -> list[SearchResult]:
+        token = f"{receiver}.{method}" if receiver else method
+        matched = [
+            r
+            for r in indexed_results
+            if r.collection in collections and token in callees_by_chunk_id.get(r.chunk_id, [])
+        ]
+        return matched[: limit_per_collection * len(collections)]
+
+    storage = AsyncMock()
+    storage.list_collection_stats = AsyncMock(return_value=[])
+    storage.search = AsyncMock(return_value=[])
+    storage.find_symbol_in_collections = AsyncMock(return_value=[])
+    storage.find_callers_in_collections = AsyncMock(side_effect=find_callers_in_collections)
+
+    embedder = MagicMock()
+    embedder.embed_query = AsyncMock(return_value=([], None))
+
+    ctx = SimpleNamespace(
+        storage=storage,
+        embedder=embedder,
+        url_extractors=UrlExtractors(),
+    )
+
+    mcp = FastMCP("test")
+    register_cross_references_tool(mcp, ctx)
+    tool = await mcp.get_tool("find_cross_references")
+    return tool.fn, storage
+
+
+def _call_site_symbol_names(found_in: dict) -> set[str]:
+    return {
+        row["symbol_name"]
+        for rows in found_in.values()
+        for row in rows
+        if row.get("match_type") == "call_site"
+    }
+
+
+@pytest.mark.asyncio
+async def test_find_cross_references_call_site_path_excludes_passive_inheritor():
+    indexed, callees_map = _indexed_java_call_site_fixtures()
+    find_cross_references, storage = await _setup_find_cross_references(indexed, callees_map)
+
+    result = await find_cross_references(
+        symbol_name="isEnabled",
+        member="isEnabled",
+        collections=["udh"],
+    )
+
+    call_sites = _call_site_symbol_names(result["found_in"])
+    assert "CreateTieBusinessService" in call_sites
+    assert "OtherCaller" in call_sites
+    assert "LoginBusinessService" not in call_sites
+    assert "AbstractUdhBusinessService" not in call_sites
+
+    for rows in result["found_in"].values():
+        for row in rows:
+            if row.get("match_type") == "call_site":
+                assert row["reference_type"] == "call_site"
+
+    storage.find_callers_in_collections.assert_awaited_once_with(
+        method="isEnabled",
+        collections=["udh"],
+        receiver=None,
+        limit_per_collection=10,
+    )
+
+
+@pytest.mark.asyncio
+async def test_find_cross_references_call_site_receiver_qualifier_excludes_other_receiver():
+    indexed, callees_map = _indexed_java_call_site_fixtures()
+    find_cross_references, storage = await _setup_find_cross_references(indexed, callees_map)
+
+    result = await find_cross_references(
+        symbol_name="isEnabled",
+        member="isEnabled",
+        receiver="featureManagmentService",
+        collections=["udh"],
+    )
+
+    call_sites = _call_site_symbol_names(result["found_in"])
+    assert call_sites == {"CreateTieBusinessService"}
+
+    storage.find_callers_in_collections.assert_awaited_once_with(
+        method="isEnabled",
+        collections=["udh"],
+        receiver="featureManagmentService",
+        limit_per_collection=10,
+    )
+
+
+def test_build_link_summary_links_call_site_to_definition_same_collection():
+    extractors = UrlExtractors()
+    by_collection = {
+        "udh": [
+            {
+                "rel_path": "CreateTieBusinessService.java",
+                "symbol_name": "CreateTieBusinessService",
+                "reference_type": "call_site",
+                "content": "featureManagmentService.isEnabled(flag)",
+            },
+            {
+                "rel_path": "FeatureManagmentService.java",
+                "symbol_name": "isEnabled",
+                "reference_type": "definition",
+                "content": "public boolean isEnabled(String flag) { return true; }",
+            },
+        ],
+    }
+
+    links = _build_link_summary(by_collection, extractors, member="isEnabled")
+
+    assert len(links) == 1
+    assert links[0]["type"] == "code_dependency"
+    assert links[0]["from"]["reference_type"] == "call_site"
+    assert links[0]["from"]["path"] == "CreateTieBusinessService.java"
+    assert links[0]["to"]["symbol"] == "isEnabled"

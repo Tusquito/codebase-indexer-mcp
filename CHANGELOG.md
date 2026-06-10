@@ -7,8 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Call-site cross-references** — chunks now store a `callees` payload (bare method names and `receiver.method` tokens). `find_cross_references` accepts optional `member` and `receiver` params and returns `call_site` matches via exact callee filter (not semantic search), including same-collection consumer links for inherited-field call sites (e.g. Spring `@Autowired` fields used in subclasses).
+
+### Changed
+
+- **Forced re-index required for `callees`** — existing collections need `index_codebase(..., force=True)` or `index_all(force=True)` to backfill `callees` and build the new keyword index; incremental re-index alone skips unchanged files and payloads are schemaless with no collection schema-version metadata.
+
 ### Fixed
 
+- **Member-only queries** — `find_cross_references` accepts `member` alone; no `query` or `symbol_name` required for exact call-site lookup.
+- **Call-site match promotion** — when a chunk is already in results (e.g. from import search), the callees path promotes it to `call_site`; `top_k` no longer hides call sites behind import rows.
+- **Code dependency links** — passing `symbol_name` with `member` populates `links[]` with `code_dependency` edges from call sites to the matching definition.
 - **Cursor MCP connection** — document native HTTP transport (`"url": "http://localhost:8000/mcp"`) as the recommended client config; reconnects automatically after `mcp_server` restarts without a manual MCP reload. Deprecated `docker exec` into `codeindexer_mcp` (stdio pipe broke on every container restart).
 - **`uv run` stdio startup** — removed `readme = "../README.md"` from `mcp_server/pyproject.toml` so `uv run` no longer fails with `OSError: Readme file does not exist` when re-syncing the editable package inside the container. Stdio fallback now uses the sidecar proxy (`codeindexer_proxy`) instead of exec into the main container.
 

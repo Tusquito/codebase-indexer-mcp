@@ -200,8 +200,24 @@ These tools use **zero embedding cost** (Qdrant payload scroll only). Use them f
 |------|-------------|
 | `search_codebase` | Hybrid semantic + keyword search. `top_k` capped at 20. When `HYBRID_SEARCH` is on (default), RRF ranking applies and `min_score` is ignored; see [docs/SEARCH_BEHAVIOR.md](docs/SEARCH_BEHAVIOR.md). Use `max_content_chars` to truncate content and call `get_chunk` only for results you need in full. |
 | `get_chunk` | Retrieve a specific chunk by ID from a prior search result |
-| `find_cross_references` | Discover symbol/endpoint links across multiple collections. Reference types: `definition`, `import`, `usage`, `endpoint_definition`, `http_call`, `service_config`, `build_dependency` |
+| `find_cross_references` | Discover symbol/endpoint links across multiple collections. Reference types: `definition`, `import`, `usage`, `endpoint_definition`, `http_call`, `service_config`, `build_dependency`, `call_site`. Optional `member` (method name) and `receiver` (field/var name) filter by indexed call expressions — results use `match_type`/`reference_type` `call_site` (exact callee lookup, not semantic search). To find true consumers of a method — especially inherited Spring `@Autowired` fields used in subclass bodies — pass `member="<method>"` and optionally `receiver="<field>"`; this grounds results in call sites, not imports or passive inheritance. |
 | `map_service_dependencies` | Build a full microservice dependency graph across collections. Detects HTTP/REST call chains **and** build-level dependencies (Maven, NuGet, npm, Gradle, Go, Cargo, Python). Returns `build_dependency` edges alongside `http_call`/`config_reference` edges. |
+
+#### Finding method callers (call sites)
+
+```
+# Primary: member-only — exact call sites (no query or symbol_name required)
+find_cross_references(collections=["my-service", "other-service"], member="processOrder", receiver="orderService")
+-> read rows where match_type == "call_site"
+-> receiver is optional; use it to disambiguate inherited/Spring bean fields
+
+# Optional: symbol_name adds definition/import rows and code_dependency links in links[]
+find_cross_references(collections=["my-service"], symbol_name="OrderService", member="processOrder")
+-> filter match_type == "call_site" when you only want callers
+
+# Collections indexed before callees support need a force re-index:
+index_codebase(path="my-service", force=True)
+```
 
 ### Collections
 
@@ -272,6 +288,7 @@ Chunk (Qdrant point)
 ├── end_line      78
 ├── symbol_name   "processOrder"                      ← null for sliding-window chunks
 ├── symbol_type   "method"                            ← function | class | method | other
+├── callees       ["save", "orderRepo.findById", …]   ← call-expression tokens (bare method + receiver.method)
 │
 ├── file_sha256   "a3f8b2…"                           ← used for incremental re-indexing
 ├── file_mtime    1748876400.0                        ← fast mtime pre-filter key
@@ -282,6 +299,8 @@ Chunk (Qdrant point)
 ```
 
 > **Verbose/markup languages** (YAML, JSON, XML, Markdown, SQL) use a smaller cap of 60 lines per chunk to stay within embedding token limits.
+
+> **Schema upgrades:** Payloads are schemaless and collections carry no schema-version metadata. After upgrading to a release that adds new payload fields (e.g. `callees`) or keyword indexes, run a **forced** re-index — `index_codebase(..., force=True)` or `index_all(force=True)` — to backfill existing points. Incremental re-index skips unchanged files and will not populate missing fields.
 
 ### Incremental Indexing
 
@@ -354,6 +373,8 @@ cp skill/codebase-indexer/SKILL.md ~/.agents/skills/codebase-indexer/SKILL.md
 ```
 
 Or via `/skills` inside Copilot CLI → **Install from file**.
+
+After upgrading the server, re-copy `SKILL.md` so the skill stays aligned with new tool behavior.
 
 ### What the skill does
 
@@ -483,7 +504,7 @@ If you change port bindings to expose the server beyond localhost, set `MCP_AUTH
 | `SPARSE_ON_DISK` | `true` | Store the sparse index on disk |
 | `QUANTIZATION` | `true` | int8 scalar quantization of dense vectors (~4× less vector RAM; rescored, so search quality is preserved) |
 | `MEMMAP_THRESHOLD_KB` | `20000` | Segments above this size are memory-mapped rather than kept in RAM |
-| `PAYLOAD_INDEXES` | `true` | Create keyword payload indexes on `rel_path`, `chunk_id`, `symbol_name`, `language` for faster filtered lookups |
+| `PAYLOAD_INDEXES` | `true` | Create keyword payload indexes on `rel_path`, `chunk_id`, `symbol_name`, `language`, `callees` for faster filtered lookups |
 | `QUANT_OVERSAMPLING` | `2.0` | Quantized dense search oversampling before rescore (when `QUANTIZATION=true`) |
 | `HNSW_EF` | `64` | Query-time HNSW search breadth (higher = better recall, slower) |
 | `HNSW_M` | `16` | HNSW graph degree at build time (higher = better recall, more RAM) |

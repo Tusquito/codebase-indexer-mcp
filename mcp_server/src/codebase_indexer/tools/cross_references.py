@@ -299,13 +299,19 @@ def register_cross_references_tool(mcp: FastMCP, ctx: "AppContext") -> None:
         description=(
             "Find cross-project links for a symbol, endpoint, concept, or any query "
             "across multiple indexed collections. Discovers: direct code links "
-            "(imports, class usage, interface implementations), HTTP endpoint "
-            "connections (controller in one project, client call in another), "
-            "shared DTOs/error codes, and semantic relationships. "
+            "(imports, class usage, call sites), HTTP endpoint connections "
+            "(controller in one project, client call in another), shared "
+            "DTOs/error codes, and semantic relationships. "
             "Each result is classified as: definition, import, usage, "
-            "endpoint_definition, or http_call. "
+            "endpoint_definition, http_call, or call_site. "
             "Use 'query' for semantic search (best for endpoints, concepts, "
-            "partial names) or 'symbol_name' for exact symbol matching."
+            "partial names) or 'symbol_name' for exact symbol matching. "
+            "For precise method call-site retrieval, pass 'member' (method name, "
+            "e.g. isEnabled) and optionally 'receiver' (field/var name, e.g. "
+            "featureManagmentService) to disambiguate; this uses indexed callees "
+            "rather than semantic search. Consumer accuracy for inherited fields "
+            "requires 'member' (call-expression grounding) rather than "
+            "semantic/import search."
         ),
     )
     async def find_cross_references(
@@ -313,9 +319,11 @@ def register_cross_references_tool(mcp: FastMCP, ctx: "AppContext") -> None:
         symbol_name: str | None = None,
         collections: list[str] | None = None,
         top_k: int = 10,
+        member: str | None = None,
+        receiver: str | None = None,
     ) -> dict:
-        if not query and not symbol_name:
-            return {"error": "Provide at least 'query' or 'symbol_name'."}
+        if not query and not symbol_name and not member:
+            return {"error": "Provide at least 'query', 'symbol_name', or 'member'."}
 
         if collections:
             target_collections = collections
@@ -415,17 +423,56 @@ def register_cross_references_tool(mcp: FastMCP, ctx: "AppContext") -> None:
                         "reference_type": extractors.classify_reference(r.content, symbol_name, r.rel_path),
                     })
 
+        # Path D: precise call-site retrieval via indexed callees
+        if member:
+            caller_results = await storage.find_callers_in_collections(
+                method=member,
+                collections=target_collections,
+                receiver=receiver,
+                limit_per_collection=top_k,
+            )
+            result_by_key = {
+                r["rel_path"] + str(r["start_line"]): r for r in all_results
+            }
+            for r in caller_results:
+                key = r.rel_path + str(r.start_line)
+                existing = result_by_key.get(key)
+                if existing is not None:
+                    existing["match_type"] = "call_site"
+                    existing["reference_type"] = "call_site"
+                    existing["score"] = 1.0
+                else:
+                    entry = {
+                        "rel_path": r.rel_path,
+                        "symbol_name": r.symbol_name,
+                        "symbol_type": r.symbol_type,
+                        "start_line": r.start_line,
+                        "end_line": r.end_line,
+                        "language": r.language,
+                        "content": r.content,
+                        "score": 1.0,
+                        "collection": r.collection,
+                        "match_type": "call_site",
+                        "reference_type": "call_site",
+                    }
+                    all_results.append(entry)
+                    result_by_key[key] = entry
+
         # Group by collection
         by_collection: dict[str, list[dict]] = defaultdict(list)
         for result in all_results:
             coll = result.pop("collection")
             by_collection[coll].append(result)
 
-        link_summary = _build_link_summary(by_collection, extractors)
+        link_summary = _build_link_summary(
+            by_collection, extractors, member=member, symbol_name=symbol_name
+        )
 
         return {
             "query": query,
             "symbol_name": symbol_name,
+            "member": member,
+            "receiver": receiver,
             "collection_count": len(by_collection),
             "found_in": dict(by_collection),
             "links": link_summary,
@@ -433,7 +480,10 @@ def register_cross_references_tool(mcp: FastMCP, ctx: "AppContext") -> None:
 
 
 def _build_link_summary(
-    by_collection: dict[str, list[dict]], extractors: "UrlExtractors"
+    by_collection: dict[str, list[dict]],
+    extractors: "UrlExtractors",
+    member: str | None = None,
+    symbol_name: str | None = None,
 ) -> list[dict]:
     """Build a summary of cross-collection links using URL path matching.
 
@@ -441,18 +491,16 @@ def _build_link_summary(
     all endpoint_definitions, extracts actual URL paths from both sides and
     only creates links where paths actually match.
     """
-    if len(by_collection) < 2:
-        return []
-
     links = []
 
     # Collect endpoints with their extracted route paths
     endpoints: list[tuple[str, dict, list[str]]] = []  # (collection, result, paths)
     # Collect callers: http_calls + service_configs with their URL paths
     callers: list[tuple[str, dict, list[str]]] = []
-    # Collect definitions and usages
+    # Collect definitions, usages, and precise call sites
     definitions: list[tuple[str, dict]] = []
     usages: list[tuple[str, dict]] = []
+    call_sites: list[tuple[str, dict]] = []
 
     for coll, results in by_collection.items():
         for r in results:
@@ -470,11 +518,43 @@ def _build_link_summary(
                 callers.append((coll, r, paths))
             elif ref == "definition":
                 definitions.append((coll, r))
+            elif ref == "call_site":
+                call_sites.append((coll, r))
             elif ref in ("usage", "import"):
                 usages.append((coll, r))
 
+    # definition ↔ call_site links (same-collection allowed; callees filter proves the call)
+    seen_links: set[tuple] = set()
+    for def_coll, def_r in definitions:
+        def_symbol = def_r.get("symbol_name") or ""
+        for use_coll, use_r in call_sites:
+            if member:
+                def_match = symbol_name
+                if def_match and def_symbol and def_symbol != def_match:
+                    continue
+            elif symbol_name and def_symbol and def_symbol != symbol_name:
+                continue
+            link_key = (use_coll, use_r["rel_path"], def_coll, def_r["rel_path"])
+            if link_key not in seen_links:
+                seen_links.add(link_key)
+                links.append({
+                    "type": "code_dependency",
+                    "from": {
+                        "collection": use_coll,
+                        "path": use_r["rel_path"],
+                        "reference_type": "call_site",
+                    },
+                    "to": {
+                        "collection": def_coll,
+                        "path": def_r["rel_path"],
+                        "symbol": def_symbol,
+                    },
+                })
+
+    if len(by_collection) < 2:
+        return links
+
     # Path-based endpoint matching (no more cartesian product)
-    seen_links = set()
     for call_coll, call_r, call_paths in callers:
         for ep_coll, ep_r, ep_paths in endpoints:
             if call_coll == ep_coll:

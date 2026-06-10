@@ -355,3 +355,81 @@ def test_classify_xml_under_templates_not_ops():
         )
         is None
     )
+
+
+JAVA_ABSTRACT_UDH = """\
+package com.example;
+
+public abstract class AbstractUdhBusinessService {
+    @Autowired
+    protected FeatureManagmentService featureManagmentService;
+}
+"""
+
+JAVA_CREATE_TIE = """\
+package com.example;
+
+public class CreateTieBusinessService extends AbstractUdhBusinessService {
+    public void createTie(String flag) {
+        if (featureManagmentService.isEnabled(flag)) {
+            doWork();
+        }
+    }
+}
+"""
+
+JAVA_LOGIN = """\
+package com.example;
+
+public class LoginBusinessService extends AbstractUdhBusinessService {
+    public void login() {
+        doLogin();
+    }
+}
+"""
+
+
+def _chunk_by_symbol(source: str, rel_path: str, symbol_name: str):
+    chunks = chunk_file(source, rel_path, "java", "deadbeef")
+    return next(c for c in chunks if c.symbol_name == symbol_name)
+
+
+def test_java_inheritance_callees_distinguish_caller_from_inheritor():
+    """Call sites must not be attributed to passive field holders or inheritors."""
+    abstract_chunk = _chunk_by_symbol(
+        JAVA_ABSTRACT_UDH, "AbstractUdhBusinessService.java", "AbstractUdhBusinessService"
+    )
+    create_tie_chunk = _chunk_by_symbol(
+        JAVA_CREATE_TIE, "CreateTieBusinessService.java", "CreateTieBusinessService"
+    )
+    login_chunk = _chunk_by_symbol(
+        JAVA_LOGIN, "LoginBusinessService.java", "LoginBusinessService"
+    )
+
+    assert "isEnabled" in create_tie_chunk.callees
+    assert "featureManagmentService.isEnabled" in create_tie_chunk.callees
+
+    assert "isEnabled" not in login_chunk.callees
+    assert "featureManagmentService.isEnabled" not in login_chunk.callees
+
+    assert "isEnabled" not in abstract_chunk.callees
+    assert "featureManagmentService.isEnabled" not in abstract_chunk.callees
+
+
+def test_import_header_does_not_inject_false_callees():
+    """Prepended imports must not add call tokens to declaration-only chunks."""
+    source = """\
+package com.example;
+
+import com.udh.feature.FeatureManagmentService;
+
+public class PassiveHolder {
+    private FeatureManagmentService featureManagmentService;
+}
+"""
+    chunk = _chunk_by_symbol(source, "PassiveHolder.java", "PassiveHolder")
+
+    assert "import com.udh.feature.FeatureManagmentService" in chunk.content
+    assert "isEnabled" not in chunk.callees
+    assert "featureManagmentService.isEnabled" not in chunk.callees
+    assert "FeatureManagmentService" not in chunk.callees

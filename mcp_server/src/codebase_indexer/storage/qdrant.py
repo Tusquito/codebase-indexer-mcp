@@ -111,7 +111,7 @@ class QdrantStorage:
 
     # Payload fields filtered by the query/lookup paths. Keyword indexes here
     # turn full payload scans into indexed lookups (large win as collections grow).
-    _INDEXED_PAYLOAD_FIELDS = ("rel_path", "chunk_id", "symbol_name", "language")
+    _INDEXED_PAYLOAD_FIELDS = ("rel_path", "chunk_id", "symbol_name", "language", "callees")
 
     async def _get_client(self) -> AsyncQdrantClient:
         if self._client is None:
@@ -330,6 +330,7 @@ class QdrantStorage:
                 "end_line": ec.chunk.end_line,
                 "symbol_name": ec.chunk.symbol_name,
                 "symbol_type": ec.chunk.symbol_type,
+                "callees": ec.chunk.callees or [],
                 "content": ec.chunk.content,
                 "file_sha256": ec.chunk.file_sha256,
                 "file_mtime": ec.chunk.file_mtime,
@@ -772,6 +773,55 @@ class QdrantStorage:
                 ]
             except Exception as e:
                 log.warning("symbol_scroll_error", collection=coll, error=str(e))
+                return []
+
+        tasks = [_scroll_collection(c) for c in collections]
+        results = await asyncio.gather(*tasks)
+        for r in results:
+            all_results.extend(r)
+        return all_results
+
+    async def find_callers_in_collections(
+        self,
+        method: str,
+        collections: list[str],
+        receiver: str | None = None,
+        limit_per_collection: int = 10,
+    ) -> list[SearchResult]:
+        """Find all chunks that call a method across multiple collections."""
+        client = await self._get_client()
+        all_results: list[SearchResult] = []
+        token = f"{receiver}.{method}" if receiver else method
+
+        async def _scroll_collection(coll: str) -> list[SearchResult]:
+            try:
+                points, _ = await client.scroll(
+                    collection_name=coll,
+                    scroll_filter=Filter(
+                        must=[FieldCondition(key="callees", match=MatchValue(value=token))]
+                    ),
+                    limit=limit_per_collection,
+                    with_payload=True,
+                    with_vectors=False,
+                )
+                return [
+                    SearchResult(
+                        chunk_id=p.payload.get("chunk_id", ""),
+                        score=0.0,
+                        rel_path=p.payload.get("rel_path", ""),
+                        language=p.payload.get("language", ""),
+                        start_line=p.payload.get("start_line", 0),
+                        end_line=p.payload.get("end_line", 0),
+                        symbol_name=p.payload.get("symbol_name"),
+                        symbol_type=p.payload.get("symbol_type", "other"),
+                        content=p.payload.get("content", ""),
+                        collection=coll,
+                    )
+                    for p in points
+                    if p.payload
+                ]
+            except Exception as e:
+                log.warning("callers_scroll_error", collection=coll, error=str(e))
                 return []
 
         tasks = [_scroll_collection(c) for c in collections]

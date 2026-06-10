@@ -72,7 +72,7 @@ cost.
 | `search_codebase` + `max_content_chars` | Embed + partial | Narrowing candidates |
 | `get_chunk` | Zero embed | Reading one specific chunk in full |
 | `search_codebase` (no truncation) | Embed + full content | Last resort only |
-| `find_cross_references` | Embed | Links between projects |
+| `find_cross_references` | Zero embed (member-only); embed with query/symbol_name | Precise call sites via member/receiver + cross-project links |
 | `map_service_dependencies` | Multiple embeds | Full microservice call graph |
 
 ## Common Patterns
@@ -98,8 +98,19 @@ That's often enough on its own. Resist the urge to follow up with searches.
 
 ### "Find all callers / usages of X"
 ```
-search_symbols(query="X call invocation", collection="project")
-search_codebase(query="X(", collection="project", max_content_chars=200)
+# Primary: member-only (no symbol_name) — exact call sites
+find_cross_references(collections=["project"], member="<method>", receiver="<field>")
+-> read results where match_type == "call_site"
+-> receiver is optional; use it to disambiguate inherited/Spring bean fields
+-> do NOT pass symbol_name unless you want definition/import noise or code_dependency links
+
+# Optional: symbol_name adds call sites plus links[] to the type definition
+find_cross_references(collections=["project"], symbol_name="<TypeOrService>", member="<method>", receiver="<field>")
+
+# Reindex if collection predates callees payload: index_codebase(path="project", force=True)
+
+search_symbols(query="<method> call invocation", collection="project")   <- fallback only
+search_codebase(query="<method>(", collection="project", max_content_chars=200)   <- semantic fallback
 ```
 
 ### Starting fresh -- project not yet indexed
