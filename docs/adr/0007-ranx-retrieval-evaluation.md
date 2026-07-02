@@ -1,6 +1,6 @@
 # 0007. Golden-set retrieval evaluation with ranx
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-07-02
 - **Deciders:** Maintainers
 - **Related:** [Measuring Retrieval Relevance](https://qdrant.tech/documentation/improve-search/retrieval-relevance/), [Measuring ANN Recall](https://qdrant.tech/documentation/tutorials-search-engineering/ann-recall/), [ADR 0003](0003-hybrid-search-rrf-default.md), [ADR 0006](0006-explicit-fastembed-pipeline.md)
@@ -115,7 +115,7 @@ Per the tutorial’s metric guide:
 
 ### Neutral / follow-ups
 
-- Script to suggest label candidates from `search_symbols` + maintainer confirmation
+- ~~Script to suggest label candidates from `search_symbols` + maintainer confirmation~~ → `benchmarks/suggest_labels.py` (search top-k → alias lines)
 - Multi-collection golden entries (cross-project queries)
 - `compare()` across multiple pipeline configs in one report (Qdrant course pattern)
 
@@ -124,6 +124,7 @@ Per the tutorial’s metric guide:
 ### Affected paths
 
 - `mcp_server/benchmarks/eval_retrieval.py` — new harness
+- `mcp_server/benchmarks/suggest_labels.py` — label candidate helper
 - `mcp_server/benchmarks/fixtures/golden_queries.jsonl` — starter golden set on this repo
 - `mcp_server/pyproject.toml` — optional `benchmark` extra with `ranx`
 - `docs/DEPLOYMENT.md` — ANN recall check after HNSW tuning
@@ -147,3 +148,53 @@ Success criteria:
 - Maintainers can run one command and get `recall@10`, `MRR`, `NDCG@10` JSON
 - Hybrid vs dense-only delta is measurable on the checked-in golden set
 - No new runtime dependencies in the MCP server image
+
+## Initial baseline findings (2026-07-02)
+
+First eval runs on `codebase-indexer-mcp` (727 chunks, Jina code dense + BM25, `top_k=10`) produced actionable lessons before treating the golden set as a regression gate.
+
+### Hybrid vs dense-only (after golden-set tuning)
+
+| Config | recall@10 | MRR | NDCG@10 |
+|--------|-----------|-----|---------|
+| **Hybrid RRF** (committed baseline) | **0.689** | **0.636** | **0.571** |
+| Dense-only A/B | 0.598 | 0.618 | 0.551 |
+
+**v1 golden set (generic queries):** dense-only *beat* hybrid (recall@10 0.61 vs 0.52) — misleading, caused by bad labels and vague query text, not necessarily bad hybrid config.
+
+**v2 golden set (symbol-oriented queries + alias fixes):** hybrid wins overall; per-tag breakdown shows where each mode helps:
+
+| Tag | Hybrid recall@10 | Dense recall@10 |
+|-----|------------------|-----------------|
+| symbol | 0.722 | 0.500 |
+| conceptual | 0.778 | 0.611 |
+| config | 0.500 | 0.625 |
+| cross_file | 0.667 | 0.833 |
+
+**Takeaway:** BM25 hybrid helps symbol and conceptual code lookup with Jina dense; cross-file and some config queries still favor dense-only — tune tags separately, do not rely on aggregate recall alone.
+
+### Label and query pitfalls (checklist for maintainers)
+
+1. **Collection path prefix** — indexed `rel_path` is `{collection}/mcp_server/...`; aliases in JSONL are repo-relative; the harness prepends `{collection}/` at eval time.
+2. **Duplicate symbol chunks** — tree-sitter emits many chunks per symbol (e.g. multiple `run_pipeline`, `Settings`, `Embedder` spans). Label the chunk start line that search actually returns, or use `suggest_labels.py` after drafting query text.
+3. **Field vs chunk start line** — e.g. `prefetch_multiplier` lives at source line 165 but the containing `Settings` chunk starts at line 161; aliases must use **chunk** `start_line`, not the field line.
+4. **Query wording** — natural-language questions retrieve ADR/README prose; symbol/code-shaped queries (`async def embed_query`, `def fuse_cross_collection_rrf`) match implementation chunks reliably.
+5. **Validate before eval** — `uv run python -m benchmarks.eval_retrieval --validate-labels` catches missing `chunk_id`s after re-index.
+
+### Tooling follow-ups (implemented)
+
+- `benchmarks/suggest_labels.py` — print top hits as `rel_path:start_line` alias candidates
+- `metrics_by_tag` in eval JSON + CLI table — slice metrics by `symbol` / `conceptual` / `config` / `cross_file`
+- `eval_baseline.json` stores hybrid metrics plus optional `ab_dense_only` reference and `golden_set_version`
+
+### Operational notes
+
+- Run eval from the host with `OLLAMA_URL=http://localhost:11434` when `.env` points at Docker's `http://ollama:11434`.
+- Re-index self-repo after benchmark/golden-path changes; refresh baseline only when query text, labels, or search config change intentionally.
+- Do **not** gate PR CI on recall yet; use release-branch `--compare` with a threshold when the golden set stabilizes.
+
+### Next ADR work unlocked
+
+- [ADR 0009](0009-multi-hop-retrieval-strategies.md) — add `multi_hop: true` queries; measure with this harness
+- [ADR 0008](0008-optional-colbert-reranking.md) — use baseline + tag slices to prove rerank deltas
+- [ADR 0010](0010-defer-ragas-to-client.md) — shared golden set + optional `ground_truth` field → **done** (export script + DEPLOYMENT 2×2 guide)

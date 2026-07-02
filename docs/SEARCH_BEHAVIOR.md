@@ -61,3 +61,70 @@ Same search backend as `search_codebase` but returns metadata only (no `content`
 | `RRF_K` | `60` | RRF constant for multi-collection re-fusion |
 
 Disabling hybrid requires re-creating collections whose sparse configuration no longer matches — `QdrantStorage.ensure_collection` detects hybrid mismatch and recreates when needed.
+
+## Multi-hop retrieval
+
+Many code questions need evidence from **more than one chunk or file**. The server does **not** run an in-server decomposition loop ([decision 0009](adr/0009-multi-hop-retrieval-strategies.md)); the **MCP client** orchestrates hops. Reference: [Qdrant query decomposition](https://qdrant.tech/documentation/improve-search/query-decomposition/).
+
+### Choose a strategy
+
+```mermaid
+flowchart TD
+    Q[Multi-hop question]
+    Q --> Struct{Structural edge?}
+    Struct -->|imports calls HTTP endpoints| Chain[Tool chain]
+    Struct -->|prose config narrative| Decomp[Client decomposition]
+    Struct -->|graph enabled| Graph[expand_search_context proposed]
+    Chain --> Xref[find_cross_references]
+    Chain --> Map[map_service_dependencies]
+    Chain --> Sym[search_symbols then get_chunk]
+    Decomp --> S1[search_codebase hop 1]
+    S1 --> Sub[Client sub-question]
+    Sub --> S2[search_codebase hop 2+]
+    S2 --> Fuse[Fuse all hops RRF]
+    Xref --> Fuse
+    Map --> Fuse
+    Sym --> Fuse
+    Graph --> Fuse
+```
+
+| Strategy | When to use | Typical tools | Embedding cost |
+|----------|-------------|---------------|----------------|
+| **Tool chaining** | Known relation types (symbol, xref, service map) | `search_symbols` → `get_chunk`; `find_cross_references`; `map_service_dependencies` | 0–1 embed per hop |
+| **Query decomposition** | Facts not linked in graph (config prose, comments, docs) | Repeated `search_codebase` with client-drafted sub-questions | 1 embed per `search_codebase` hop |
+| **Graph expansion** | Call/import/HTTP paths when graph layer enabled ([0002](adr/0002-graphrag-neo4j-qdrant.md)) | `expand_search_context` (proposed) | One search + graph query |
+
+Reranking or a wider single-pass `top_k` **cannot recover evidence that was never retrieved** — add hops when bridging chunks are missing from hop 1.
+
+### Client decomposition loop
+
+1. `search_codebase` with the user question (`top_k` 10–20).
+2. Client LLM reads returned chunks (use `max_content_chars` + `get_chunk` for full text).
+3. If evidence is incomplete, emit a **sub-question** targeting the missing hop (or `DONE`).
+4. `search_codebase` again (or `search_symbols` / `find_cross_references` when the hop is structural).
+5. Repeat until `DONE` or a hop budget (typically 2–4 searches).
+6. **Fuse every hop** before synthesis — not only the last result list.
+
+### Client-side RRF merge (chunk_ids)
+
+Use rank-based RRF on `chunk_id` across hops (same idea as server `rrf_k`, default 60):
+
+```
+fused[chunk_id] += 1 / (rrf_k + rank_in_hop)
+```
+
+Keep the best rank per `chunk_id` per hop, sort fused scores descending, then `get_chunk` the top entries for the answer step. Stable `chunk_id` keys are `sha256("{rel_path}:{start_line}")` in payloads.
+
+### Token-efficient hops
+
+| Step | Tool | Embed cost |
+|------|------|------------|
+| Locate symbol | `search_symbols` | yes |
+| File structure | `get_file_outline` | no |
+| Full chunk text | `get_chunk` | no |
+| Cross-project edge | `find_cross_references` | internal search |
+| Service graph | `map_service_dependencies` | batched embed |
+
+### Evaluation
+
+Multi-hop queries in `mcp_server/benchmarks/fixtures/golden_queries.jsonl` are tagged `multi_hop`. Single-pass `search_codebase` often scores lower on those queries by design; compare against a 2-hop client script using [eval_retrieval](ARCHITECTURE.md#retrieval-evaluation-adr-0007).

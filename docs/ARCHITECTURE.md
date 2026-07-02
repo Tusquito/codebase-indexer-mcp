@@ -133,7 +133,24 @@ When `HYBRID_SEARCH=false`:
 
 See [SEARCH_BEHAVIOR.md](SEARCH_BEHAVIOR.md) for tool-level caps and `min_score` semantics.
 
-Planned search-quality work from Qdrant [Improve Search](https://qdrant.tech/documentation/improve-search/): ranx golden-set eval ([ADR 0007](adr/0007-ranx-retrieval-evaluation.md)), optional ColBERT rerank ([ADR 0008](adr/0008-optional-colbert-reranking.md)), multi-hop client patterns ([ADR 0009](adr/0009-multi-hop-retrieval-strategies.md)). Full prototype map: [adr/README.md](adr/README.md#qdrant-build-prototypes--improve-search-map).
+Planned search-quality work from Qdrant [Improve Search](https://qdrant.tech/documentation/improve-search/): optional ColBERT rerank ([ADR 0008](adr/0008-optional-colbert-reranking.md)). Multi-hop client patterns are documented ([ADR 0009](adr/0009-multi-hop-retrieval-strategies.md), [SEARCH_BEHAVIOR.md](SEARCH_BEHAVIOR.md#multi-hop-retrieval)). Golden-set retrieval evaluation is implemented ([ADR 0007](adr/0007-ranx-retrieval-evaluation.md)). Full prototype map: [adr/README.md](adr/README.md#qdrant-build-prototypes--improve-search-map).
+
+### Retrieval evaluation (ADR 0007)
+
+Optional offline harness in `mcp_server/benchmarks/eval_retrieval.py` measures `recall@10`, `MRR`, and `NDCG@10` against `benchmarks/fixtures/golden_queries.jsonl` using the same `run_search` path as MCP tools. Requires optional `benchmark` extra (`ranx`); not part of the MCP runtime image.
+
+```bash
+cd mcp_server
+uv sync --extra dev --extra benchmark
+uv run python -m benchmarks.eval_retrieval --output eval-results.json
+uv run python -m benchmarks.eval_retrieval --no-hybrid --output eval-dense-only.json
+uv run python -m benchmarks.eval_retrieval --validate-labels
+uv run python -m benchmarks.suggest_labels "class Embedder embedder.py"
+```
+
+Reports include **`metrics_by_tag`** (`symbol`, `conceptual`, `config`, `cross_file`, `multi_hop`) for slice-level tuning. Baseline: `benchmarks/fixtures/eval_baseline.json`.
+
+Client-side pipeline eval (Ragas faithfulness / context precision on the same golden set) is documented in [DEPLOYMENT.md](DEPLOYMENT.md#pipeline-output-quality-client-side-ragas) ([ADR 0010](adr/0010-defer-ragas-to-client.md)).
 
 ## RAG and agent integration
 

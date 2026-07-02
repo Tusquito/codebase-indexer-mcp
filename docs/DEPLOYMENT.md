@@ -119,3 +119,68 @@ Pipeline knobs (see `.env.example` presets):
 | Faster search | Tune `HNSW_EF`, `PREFETCH_MULTIPLIER`; disable `VECTORS_ON_DISK` if RAM allows |
 
 See [README.md](../README.md) for full env reference and tuning presets.
+
+## Retrieval quality (ANN recall)
+
+After a major re-index or when tuning HNSW parameters (`HNSW_EF`, `HNSW_M`, quantization), verify **approximate nearest neighbor recall** before trusting latency or golden-set metrics:
+
+1. Open the Qdrant Web UI → select the collection → **Check Index Quality** (or use the REST API equivalent).
+2. Compare ANN results to exact kNN for a sample of points; low recall suggests raising `hnsw_ef` or reviewing index build settings.
+3. Run the golden-set harness ([ADR 0007](adr/0007-ranx-retrieval-evaluation.md)) only after ANN recall looks healthy:
+
+```bash
+cd mcp_server
+uv sync --extra dev --extra benchmark
+uv run python -m benchmarks.eval_retrieval --validate-labels
+uv run python -m benchmarks.eval_retrieval --output eval-results.json
+uv run python -m benchmarks.suggest_labels "async def run_pipeline"
+```
+
+Golden labels use `chunk_id` keys (`sha256("{rel_path}:{start_line}")`). Aliases in `golden_queries.jsonl` are repo-relative (`mcp_server/src/...`); the harness prepends the collection folder to match indexed `rel_path` values. Use **`suggest_labels`** to draft aliases from live search hits. Eval JSON includes **`metrics_by_tag`** for slice-level tuning. See [ADR 0007](adr/0007-ranx-retrieval-evaluation.md#initial-baseline-findings-2026-07-02) for baseline numbers and label pitfalls.
+
+When running the harness on the host (not inside Docker), set `OLLAMA_URL=http://localhost:11434` if `.env` points at `http://ollama:11434`.
+
+## Pipeline output quality (client-side Ragas)
+
+The MCP server is **retrieval-only** ([ADR 0010](adr/0010-defer-ragas-to-client.md), [ADR 0012](adr/0012-retrieval-only-rag-split.md)). End-to-end RAG quality (faithfulness, answer relevancy) is evaluated in the **connected client** where the generator and judge LLM live — not in indexer CI.
+
+### Evaluation split
+
+| Layer | Owner | Tooling |
+|-------|-------|---------|
+| Retrieval relevance | This repo | `eval_retrieval.py` → `recall@10`, `MRR`, `NDCG@10` |
+| Latency | This repo | `bench.py` → p50/p95 |
+| Pipeline output | MCP client / integrator | Ragas (or equivalent) on same `query_id`s |
+
+### 2×2 diagnostic
+
+After indexer changes, run retrieval eval, then run your client RAG loop on the same golden set and compare ([Qdrant pipeline eval tutorial](https://qdrant.tech/documentation/improve-search/pipeline-output-quality/)):
+
+| recall@10 (server) | faithfulness (client) | Diagnosis |
+|--------------------|------------------------|-----------|
+| High | High | Ship |
+| High | Low | Generator / prompt problem |
+| Low | Low | Fix retrieval first |
+| Low | High | Incomplete labels or non-committal answers |
+
+Use a **different model** for generator and judge (tutorial pitfall).
+
+### Shared golden set
+
+`benchmarks/fixtures/golden_queries.jsonl` includes optional **`ground_truth`** reference answers for client-side `context_precision`. Export for Ragas notebooks:
+
+```bash
+cd mcp_server
+uv run python -m benchmarks.export_ragas_dataset --output ragas-golden.json
+uv run python -m benchmarks.export_ragas_dataset --require-ground-truth --output ragas-with-ref.json
+```
+
+Client loop (pseudo):
+
+1. For each row: `search_codebase(question=row["question"], collection=row["collection"])`
+2. Map hit `content` fields → Ragas `retrieved_contexts`
+3. Generate answer with your client LLM → Ragas `response`
+4. Score with Ragas using `row.get("ground_truth")` for `context_precision`
+5. Join `query_id` with `eval-results.json` `per_query` for the 2×2 table
+
+See [ADR 0010](adr/0010-defer-ragas-to-client.md) for the full contract.

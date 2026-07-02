@@ -1,6 +1,6 @@
 # 0009. Multi-hop code retrieval strategies
 
-- **Status:** Proposed
+- **Status:** Accepted (phase 1 — client decomposition docs + golden-set tags)
 - **Date:** 2026-07-02
 - **Deciders:** Maintainers
 - **Related:** [Query Decomposition for Multi-Hop Questions](https://qdrant.tech/documentation/improve-search/query-decomposition/), [GraphRAG with Neo4j](https://qdrant.tech/documentation/examples/graphrag-qdrant-neo4j/), [ADR 0002](0002-graphrag-neo4j-qdrant.md), [ADR 0005](0005-mcp-retrieval-connector.md)
@@ -99,9 +99,10 @@ Optional future server endpoint `search_multi_hop` (server runs decomposition wi
 
 ### Neutral / follow-ups
 
-- MCP server instructions: document decomposition + RRF merge pattern with example client pseudo-flow
-- Golden set tag: `multi_hop: true` queries for [ADR 0007](0007-ranx-retrieval-evaluation.md)
+- ~~MCP server instructions: document decomposition + RRF merge pattern with example client pseudo-flow~~ → done (phase 1)
+- ~~Golden set tag: `multi_hop: true` queries for [ADR 0007](0007-ranx-retrieval-evaluation.md)~~ → `multi_hop` tag in golden set (4 queries)
 - `expand_search_context` ([ADR 0002](0002-graphrag-neo4j-qdrant.md)) as preferred path when `GRAPH_ENABLED=true`
+- Automated 2-hop client script for eval comparison vs single-pass on `multi_hop` tag slice
 
 ## Implementation notes
 
@@ -111,7 +112,11 @@ Optional future server endpoint `search_multi_hop` (server runs decomposition wi
 - `docs/SEARCH_BEHAVIOR.md` — decomposition vs GraphRAG decision tree
 - `mcp_server/benchmarks/fixtures/golden_queries.jsonl` — multi-hop labeled queries ([ADR 0007](0007-ranx-retrieval-evaluation.md))
 
-No server code required for phase 1 (client decomposition documentation).
+No server code required for phase 1 (client decomposition documentation). Phase 1 delivered:
+
+- [`main.py`](../mcp_server/src/codebase_indexer/main.py) `_INSTRUCTIONS` — multi-hop playbook
+- [`docs/SEARCH_BEHAVIOR.md`](../SEARCH_BEHAVIOR.md#multi-hop-retrieval) — strategy decision tree + client RRF merge
+- [`golden_queries.jsonl`](../mcp_server/benchmarks/fixtures/golden_queries.jsonl) — four `multi_hop`-tagged queries
 
 ### Rollout
 

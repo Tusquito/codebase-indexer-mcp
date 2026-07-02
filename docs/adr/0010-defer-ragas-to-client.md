@@ -1,6 +1,6 @@
 # 0010. Defer Ragas pipeline evaluation to MCP clients
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-07-02
 - **Deciders:** Maintainers
 - **Related:** [Evaluating Pipeline Output Quality](https://qdrant.tech/documentation/improve-search/pipeline-output-quality/), [Measuring Retrieval Relevance](https://qdrant.tech/documentation/improve-search/retrieval-relevance/), [ADR 0005](0005-mcp-retrieval-connector.md), [ADR 0007](0007-ranx-retrieval-evaluation.md)
@@ -88,17 +88,23 @@ Clients map MCP tool output to Ragas `retrieved_contexts` (chunk `content` field
 
 ### Neutral / follow-ups
 
-- Example notebook `docs/examples/client-ragas-eval.ipynb` (optional, not MCP runtime)
-- Export script: golden set → JSON for Ragas `EvaluationDataset`
+- ~~Example notebook `docs/examples/client-ragas-eval.ipynb` (optional, not MCP runtime)~~ → deferred; export script + DEPLOYMENT guide instead
+- ~~Export script: golden set → JSON for Ragas `EvaluationDataset`~~ → `benchmarks/export_ragas_dataset.py`
 - If a first-party Cursor eval harness appears, link from README
 
 ## Implementation notes
 
 ### Affected paths
 
-- `docs/DEPLOYMENT.md` or `docs/SEARCH_BEHAVIOR.md` — 2×2 diagnostic section
-- `mcp_server/benchmarks/fixtures/golden_queries.jsonl` — optional `ground_truth` field
+- [`docs/DEPLOYMENT.md`](../DEPLOYMENT.md#pipeline-output-quality-client-side-ragas) — 2×2 diagnostic + integrator workflow
+- [`mcp_server/benchmarks/fixtures/golden_queries.jsonl`](../mcp_server/benchmarks/fixtures/golden_queries.jsonl) — optional `ground_truth` on six queries
+- [`mcp_server/benchmarks/export_ragas_dataset.py`](../mcp_server/benchmarks/export_ragas_dataset.py) — JSON export for client Ragas loops
 - No changes to `main.py` tool surface
+
+Phase 1 delivered:
+
+- Golden set contract: `query_id`, `query_text`, `collection`, `labels`/`aliases`, optional `ground_truth`, `tags`
+- Export CLI for integrators; retrieval harness unchanged (no LLM keys in CI)
 
 ### Rollout
 
@@ -117,3 +123,15 @@ Success criteria:
 
 - Zero LLM env vars required for MCP server CI retrieval eval
 - Integrator doc references both Qdrant Improve Search tutorials with clear ownership split
+
+## Measured outcomes (2026-07-02)
+
+Phase 1 is documentation and export only — no Ragas scores in-repo. Retrieval baseline after ADR 0009 multi-hop queries (26 total):
+
+| Slice | recall@10 (hybrid) | Notes |
+|-------|-------------------|-------|
+| Overall | 0.66 | v3 golden set (`golden_set_version`: v3-multi-hop) |
+| multi_hop | 0.50 | Single-pass search; expect client 2-hop scripts to beat this |
+| symbol | 0.72 | Highest slice |
+
+Integrators should pair these `query_id` metrics with client-side Ragas faithfulness using the [2×2 table](#decision) above.
