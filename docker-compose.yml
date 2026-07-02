@@ -2,7 +2,7 @@ services:
   qdrant:
     # Pin a specific version for reproducible builds and supply-chain safety.
     # Bump deliberately after testing; avoid :latest which silently drifts.
-    image: qdrant/qdrant:v1.18.1
+    image: qdrant/qdrant:v1.18.2
     container_name: codeindexer_qdrant
     restart: unless-stopped
     # Bind to loopback only — Qdrant has no auth here and should never be
@@ -31,8 +31,6 @@ services:
     build:
       context: ./mcp_server
       dockerfile: Dockerfile
-      args:
-        EMBED_DEVICE: ${EMBED_DEVICE:-cpu}
     container_name: codeindexer_mcp
     restart: unless-stopped
     # Bind to loopback only so the MCP server is not exposed to the LAN. For
@@ -43,61 +41,79 @@ services:
       qdrant:
         condition: service_healthy
     environment:
-      EMBED_DEVICE: ${EMBED_DEVICE:-cpu}
-      QDRANT_URL: http://qdrant:6333
+      # --- Qdrant client ---
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      QDRANT_TIMEOUT: ${QDRANT_TIMEOUT:-30}
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-codebase}
+      HYBRID_SEARCH: ${HYBRID_SEARCH:-true}
+      # --- Embedding models (full re-index when dense model/dim changes) ---
       DENSE_EMBED_MODEL: ${DENSE_EMBED_MODEL:?Set DENSE_EMBED_MODEL in .env}
       SPARSE_EMBED_MODEL: ${SPARSE_EMBED_MODEL:?Set SPARSE_EMBED_MODEL in .env}
       DENSE_EMBED_VECTOR_SIZE: ${DENSE_EMBED_VECTOR_SIZE:?Set DENSE_EMBED_VECTOR_SIZE in .env}
-      QDRANT_COLLECTION: codebase
-      HYBRID_SEARCH: true
-      MCP_TRANSPORT: streamable-http
-      MCP_HOST: 0.0.0.0
-      MCP_PORT: 8000
-      # Optional bearer token. When set, all HTTP requests (except /health)
-      # must send `Authorization: Bearer <token>`. The in-container stdio proxy
-      # reads the same value, so stdio sessions keep working.
+      SPARSE_THREADS: ${SPARSE_THREADS:?Set SPARSE_THREADS in .env}
+      # --- Ollama dense (see docker-compose.ollama.yml for bundled service) ---
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+      OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-}
+      OLLAMA_EMBED_BATCH_SIZE: ${OLLAMA_EMBED_BATCH_SIZE:-32}
+      OLLAMA_TIMEOUT: ${OLLAMA_TIMEOUT:-120}
+      # --- MCP HTTP transport ---
+      MCP_TRANSPORT: ${MCP_TRANSPORT:-streamable-http}
+      MCP_HOST: ${MCP_HOST:-0.0.0.0}
+      MCP_PORT: ${MCP_PORT:-8000}
       MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:-}
-      MAX_CHUNK_LINES: 150
-      CHUNK_OVERLAP_LINES: 20
+      WORKSPACE_PATH: ${WORKSPACE_PATH:-/workspace}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # --- Chunking / scan ---
+      MAX_CHUNK_LINES: ${MAX_CHUNK_LINES:-150}
+      CHUNK_OVERLAP_LINES: ${CHUNK_OVERLAP_LINES:-20}
+      EXCLUDED_DIRS: ${EXCLUDED_DIRS:-node_modules,.git,__pycache__,.venv,venv,dist,build,target,bin,obj,.gradle,.mypy_cache,.pytest_cache,.ruff_cache,.github,.idea,.vscode,migrations}
+      # --- Pipeline batching ---
       BATCH_SIZE: ${BATCH_SIZE:-32}
-      LOG_LEVEL: INFO
-      # ONNX / BLAS thread caps. Keep at/below physical cores; dense + sparse
-      # encoders run concurrently, so this is per-encoder. ~12 leaves headroom
-      # on a 16-core box for Qdrant indexing and the asyncio loop.
-      OMP_NUM_THREADS: ${OMP_NUM_THREADS:?Set OMP_NUM_THREADS in .env}
-      OPENBLAS_NUM_THREADS: ${OMP_NUM_THREADS}
-      MKL_NUM_THREADS: ${OMP_NUM_THREADS}
-      # glibc tuning: cap per-thread malloc arenas (default is 8*cores) and
-      # trim aggressively so native allocations are returned to the OS instead
-      # of bloating RSS. Big RAM win under threaded ONNX with zero speed cost.
-      MALLOC_ARENA_MAX: ${MALLOC_ARENA_MAX:-2}
-      MALLOC_TRIM_THRESHOLD_: ${MALLOC_TRIM_THRESHOLD_:-131072}
-      # Pipeline tuning knobs (see config.py / .env.example).
       FLUSH_EVERY: ${FLUSH_EVERY:-1500}
       UPSERT_BATCH: ${UPSERT_BATCH:-500}
       READAHEAD_BUFFER: ${READAHEAD_BUFFER:-100}
       MAX_DENSE_EMBED_TOKENS: ${MAX_DENSE_EMBED_TOKENS:-0}
       MAX_SPARSE_EMBED_TOKENS: ${MAX_SPARSE_EMBED_TOKENS:-0}
       SEQUENTIAL_EMBED: ${SEQUENTIAL_EMBED:-false}
-      DENSE_THREADS: ${DENSE_THREADS:-0}
-      SPARSE_THREADS: ${SPARSE_THREADS:?Set SPARSE_THREADS in .env}
-      # Memory pressure thresholds — adaptive OOM prevention.
+      # --- Sparse BM25 lifecycle ---
+      RELEASE_MODELS_AFTER_INDEX: ${RELEASE_MODELS_AFTER_INDEX:-true}
+      MODEL_IDLE_TIMEOUT: ${MODEL_IDLE_TIMEOUT:-300}
+      PRELOAD_MODELS: ${PRELOAD_MODELS:-true}
+      # --- Memory pressure (cgroup-aware) ---
       MEMORY_PRESSURE_WARN_PCT: ${MEMORY_PRESSURE_WARN_PCT:-70}
       MEMORY_PRESSURE_HALT_PCT: ${MEMORY_PRESSURE_HALT_PCT:-85}
-      # Qdrant storage tuning (RAM vs search speed).
+      # --- Qdrant storage (re-index to apply collection schema changes) ---
       VECTORS_ON_DISK: ${VECTORS_ON_DISK:-true}
       SPARSE_ON_DISK: ${SPARSE_ON_DISK:-true}
       QUANTIZATION: ${QUANTIZATION:-true}
       MEMMAP_THRESHOLD_KB: ${MEMMAP_THRESHOLD_KB:-20000}
+      PAYLOAD_INDEXES: ${PAYLOAD_INDEXES:-true}
+      # --- Qdrant search / HNSW (query-time; immediate effect) ---
+      QUANT_OVERSAMPLING: ${QUANT_OVERSAMPLING:-2.0}
+      HNSW_EF: ${HNSW_EF:-64}
+      HNSW_M: ${HNSW_M:-16}
+      HNSW_EF_CONSTRUCT: ${HNSW_EF_CONSTRUCT:-128}
+      PREFETCH_MULTIPLIER: ${PREFETCH_MULTIPLIER:-5}
+      RRF_K: ${RRF_K:-60}
+      # --- Service mapping / cross-references ---
+      SERVICE_URL_KEYWORDS: ${SERVICE_URL_KEYWORDS:-rest,api,profile,service,internal,public,gateway,graphql,webhook,auth,users,accounts}
+      SERVICE_DISCOVERY_EXTRA_QUERIES: ${SERVICE_DISCOVERY_EXTRA_QUERIES:-}
+      # --- CPU / BLAS / glibc (sparse ONNX) ---
+      OMP_NUM_THREADS: ${OMP_NUM_THREADS:?Set OMP_NUM_THREADS in .env}
+      OPENBLAS_NUM_THREADS: ${OMP_NUM_THREADS}
+      MKL_NUM_THREADS: ${OMP_NUM_THREADS}
+      MALLOC_ARENA_MAX: ${MALLOC_ARENA_MAX:-2}
+      MALLOC_TRIM_THRESHOLD_: ${MALLOC_TRIM_THRESHOLD_:-131072}
+      # --- Caches (container paths) ---
       FASTEMBED_CACHE_PATH: /cache/fastembed
-      # Default 0 so first run can download models into fastembed_cache volume.
-      # Set HF_HUB_OFFLINE=1 in .env after models are cached for air-gapped use.
       HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-0}
     deploy:
       resources:
         limits:
           memory: ${MCP_MEM_LIMIT:?Set MCP_MEM_LIMIT in .env}
           cpus: "${MCP_CPUS:?Set MCP_CPUS in .env}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ${WORKSPACE_ROOT:?Set WORKSPACE_ROOT in .env to your repos directory}:/workspace:ro
       - fastembed_cache:/cache/fastembed
@@ -144,9 +160,12 @@ services:
         condition: service_healthy
     environment:
       TZ: Europe/Amsterdam
-      MCP_URL: http://mcp_server:8000
+      MCP_URL: ${MCP_URL:-http://mcp_server:8000}
       MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:-}
       WORKSPACE_ROOT: /workspace
+      INDEX_TIMEOUT: ${INDEX_TIMEOUT:-1800}
+      MCP_HTTP_TIMEOUT: ${MCP_HTTP_TIMEOUT:-300}
+      GIT_TIMEOUT: ${GIT_TIMEOUT:-120}
     volumes:
       - ${WORKSPACE_ROOT:?Set WORKSPACE_ROOT in .env to your repos directory}:/workspace
     deploy:

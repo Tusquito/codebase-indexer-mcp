@@ -1,0 +1,20 @@
+# GPU override for bundled Ollama (use with docker-compose.ollama.yml).
+# Requires NVIDIA driver + Container Toolkit. Set OLLAMA_GPU=1 in .env.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.ollama.yml \
+#     -f docker-compose.ollama.gpu.yml up -d --build
+#
+# Verify processor after loading a model:
+#   docker exec codeindexer_ollama ollama ps
+#   # GPU: PROCESSOR shows GPU or CPU/GPU mix; CPU-only: 100% CPU
+
+services:
+  ollama:
+    profiles: ["bundled-ollama"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: ${OLLAMA_GPU_COUNT:-1}
+              capabilities: [gpu]
