@@ -71,7 +71,6 @@ class TestRunPipelineExternalResult:
         settings.dense_embed_vector_size = 384
         settings.batch_size = 8
         settings.hybrid_search = True
-        settings.dense_threads = 1
         settings.sparse_threads = 1
         settings.max_dense_embed_tokens = 512
         settings.max_sparse_embed_tokens = 512
@@ -81,6 +80,7 @@ class TestRunPipelineExternalResult:
         settings.max_chunk_lines = 150
         settings.chunk_overlap_lines = 10
         settings.release_models_after_index = False
+        settings.dense_embed_backend = "ollama"
 
         with (
             patch("codebase_indexer.indexer.pipeline.scan_files", fake_scan),

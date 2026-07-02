@@ -1,0 +1,26 @@
+"""Tests for embedding backend factory."""
+
+from codebase_indexer.config import Settings
+from codebase_indexer.indexer.backends.factory import (
+    create_backends,
+    create_dense_backend,
+    create_sparse_backend,
+)
+from codebase_indexer.indexer.backends.ollama_dense import OllamaDenseBackend
+from codebase_indexer.indexer.backends.onnx_sparse import OnnxSparseBackend
+
+
+def test_factory_uses_ollama_dense():
+    settings = Settings(ollama_embed_model="nomic-embed-text")
+    assert settings.dense_embed_backend == "ollama"
+    dense = create_dense_backend(settings)
+    sparse = create_sparse_backend(settings)
+    assert isinstance(dense, OllamaDenseBackend)
+    assert isinstance(sparse, OnnxSparseBackend)
+
+
+def test_create_backends_returns_dense_and_sparse():
+    settings = Settings(ollama_embed_model="nomic-embed-text")
+    dense, sparse = create_backends(settings)
+    assert isinstance(dense, OllamaDenseBackend)
+    assert isinstance(sparse, OnnxSparseBackend)

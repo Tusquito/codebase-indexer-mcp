@@ -1,0 +1,47 @@
+"""Factory for embedding backends."""
+
+from __future__ import annotations
+
+from codebase_indexer.config import KNOWN_EMBED_MODEL_MAX_TOKENS, Settings
+from codebase_indexer.indexer.backends.base import DenseEmbedBackend, SparseEmbedBackend
+
+
+def _ollama_model_name(settings: Settings) -> str:
+    if settings.ollama_embed_model:
+        return settings.ollama_embed_model
+    name = settings.dense_embed_model
+    if "/" in name:
+        return name.rsplit("/", 1)[-1]
+    return name
+
+
+def create_dense_backend(settings: Settings) -> DenseEmbedBackend:
+    from codebase_indexer.indexer.backends.ollama_dense import OllamaDenseBackend
+
+    return OllamaDenseBackend(
+        model_name=_ollama_model_name(settings),
+        vector_size=settings.dense_embed_vector_size,
+        ollama_url=settings.ollama_url,
+        batch_size=settings.ollama_embed_batch_size,
+        timeout=float(settings.ollama_timeout),
+        max_dense_embed_tokens=settings.max_dense_embed_tokens,
+        dense_embed_model=settings.dense_embed_model,
+        known_max_tokens=KNOWN_EMBED_MODEL_MAX_TOKENS,
+    )
+
+
+def create_sparse_backend(settings: Settings) -> SparseEmbedBackend:
+    from codebase_indexer.indexer.backends.onnx_sparse import OnnxSparseBackend
+
+    return OnnxSparseBackend(
+        model_name=settings.sparse_embed_model,
+        sparse_threads=settings.sparse_threads,
+        max_sparse_embed_tokens=settings.max_sparse_embed_tokens,
+    )
+
+
+def create_backends(
+    settings: Settings,
+) -> tuple[DenseEmbedBackend, SparseEmbedBackend]:
+    """Create Ollama dense + in-process sparse ONNX backends."""
+    return create_dense_backend(settings), create_sparse_backend(settings)

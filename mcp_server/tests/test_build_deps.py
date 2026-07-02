@@ -1,7 +1,6 @@
 # tests/test_build_deps.py
 """Tests for codebase_indexer.tools.build_deps."""
 
-import pytest
 
 from codebase_indexer.tools.build_deps import (
     BuildDep,

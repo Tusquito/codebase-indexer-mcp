@@ -76,7 +76,7 @@ _INSTRUCTIONS = """
     endpoint definitions, HTTP clients, and config-based URLs, then
     matches them to produce a call chain map.
 
-    Search uses DENSE_EMBED_MODEL (dense ONNX) + SPARSE_EMBED_MODEL (sparse)
+    Search uses OLLAMA_EMBED_MODEL (dense via Ollama HTTP) + SPARSE_EMBED_MODEL (sparse BM25)
     fused via RRF when HYBRID_SEARCH is enabled.
     """
 
@@ -160,21 +160,6 @@ def create_app(settings: Settings | None = None, preload_models: bool | None = N
 
     ctx = AppContext.create(settings)
 
-    if settings.embed_device == "cuda":
-        import onnxruntime
-
-        available = onnxruntime.get_available_providers()
-        if "CUDAExecutionProvider" not in available:
-            log.warning(
-                "cuda_requested_but_unavailable",
-                embed_device=settings.embed_device,
-                available_providers=available,
-                hint=(
-                    "Rebuild with EMBED_DEVICE=cuda (GPU image), use docker-compose.gpu.yml, "
-                    "and ensure NVIDIA drivers + Container Toolkit expose a GPU."
-                ),
-            )
-
     # Configure idle-timeout so _ensure_idle_timer() picks it up lazily
     # on the first embed call (avoids needing an ASGI lifecycle hook).
     from codebase_indexer.indexer.embedder import Embedder as _Embedder
@@ -186,14 +171,13 @@ def create_app(settings: Settings | None = None, preload_models: bool | None = N
         preload_models = settings.preload_models
 
     if preload_models:
-        # Warm the shared ONNX models so the first index/search is instant.
-        # Models are cached in the fastembed_cache Docker volume.
-        log.info("preloading_models")
+        log.info(
+            "preloading_models",
+            dense_embed_backend="ollama",
+        )
         t0 = time.monotonic()
         try:
-            ctx.embedder._get_dense_model()
-            if settings.hybrid_search:
-                ctx.embedder._get_sparse_model()
+            ctx.embedder.preload()
             log.info("models_ready", elapsed=round(time.monotonic() - t0, 2))
         except Exception as exc:
             log.warning(
@@ -226,19 +210,18 @@ def create_app(settings: Settings | None = None, preload_models: bool | None = N
 def main() -> None:
     import os
 
-    from codebase_indexer.indexer.embedder import _resolve_threads
+    from codebase_indexer.indexer.backends.onnx_common import resolve_threads
 
     settings = Settings()
     mcp = create_app(settings)
     log = structlog.get_logger()
-    if settings.dense_threads == 0 and not os.environ.get("OMP_NUM_THREADS"):
-        resolved = _resolve_threads(0)
+    if not os.environ.get("OMP_NUM_THREADS"):
+        resolved = resolve_threads(0)
         log.info(
             "onnx_threads_auto",
             omp_num_threads=resolved,
-            dense_threads=settings.dense_threads,
             sparse_threads=settings.sparse_threads,
-            hint="Set OMP_NUM_THREADS or DENSE_THREADS to override dense auto threads",
+            hint="Set OMP_NUM_THREADS to tune sparse BM25 threads",
         )
     log.info("starting_mcp_server", transport=settings.mcp_transport, port=settings.mcp_port)
     if settings.mcp_transport == "stdio":

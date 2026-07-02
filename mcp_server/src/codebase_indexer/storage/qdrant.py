@@ -94,6 +94,7 @@ class CollectionStats:
     disk_size_mb: float
     dense_embed_model: str
     sparse_embed_model: str
+    dense_embed_backend: str
     hybrid: bool
 
 
@@ -172,6 +173,17 @@ class QdrantStorage:
                                 f"hybrid_search mismatch: collection has sparse={has_sparse}, "
                                 f"settings want hybrid_search={self.settings.hybrid_search}"
                             )
+
+                    if not should_recreate and collection in existing:
+                        log.debug(
+                            "collection_backend_note",
+                            name=collection,
+                            dense_embed_backend=self.settings.dense_embed_backend,
+                            hint=(
+                                "Switching OLLAMA_EMBED_MODEL or dense model requires "
+                                "force re-index; existing vectors may be incompatible."
+                            ),
+                        )
 
                     if should_recreate:
                         log.warning(
@@ -646,6 +658,7 @@ class QdrantStorage:
                     disk_size_mb=round(disk_bytes / 1024 / 1024, 2),
                     dense_embed_model=self.settings.dense_embed_model,
                     sparse_embed_model=self.settings.sparse_embed_model,
+                    dense_embed_backend=self.settings.dense_embed_backend,
                     hybrid=self.settings.hybrid_search,
                 ))
             except Exception as e:

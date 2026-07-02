@@ -1,10 +1,10 @@
 # src/codebase_indexer/indexer/pipeline.py
-"""Orchestrates scan → chunk → embed (dense+sparse) → upsert pipeline.
+"""Orchestrates scan → chunk → embed (Ollama dense + sparse BM25) → upsert pipeline.
 
 Uses double-buffered flushing: while batch N is being upserted to Qdrant
-(I/O-bound), batch N+1 is being embedded (compute-bound in thread workers;
-dense may use CUDA when EMBED_DEVICE=cuda). This overlaps the two phases
-for ~30-40% throughput improvement without extra CPU or RAM.
+(I/O-bound), batch N+1 is being embedded (Ollama HTTP + sparse BM25 in thread
+workers). This overlaps the two phases for ~30-40% throughput improvement
+without extra CPU or RAM.
 
 Additional concurrency optimizations:
 - File scanning runs in a background thread with readahead queue
@@ -24,6 +24,7 @@ import structlog
 from codebase_indexer.config import Settings
 from codebase_indexer.indexer.scanner import scan_files
 from codebase_indexer.indexer.chunker import chunk_file, Chunk
+from codebase_indexer.indexer.backends.factory import create_backends
 from codebase_indexer.indexer.embedder import Embedder, EmbeddingError, trim_memory
 from codebase_indexer.memory import check_memory_pressure, get_rss_mb
 from codebase_indexer.storage.qdrant import QdrantStorage
@@ -69,20 +70,16 @@ async def run_pipeline(
     coll = collection or settings.qdrant_collection
     await storage.ensure_collection(coll, force=force)
 
+    dense_backend, sparse_backend = create_backends(settings)
     embedder = Embedder(
-        dense_model=settings.dense_embed_model,
-        sparse_model=settings.sparse_embed_model,
+        dense_backend=dense_backend,
+        sparse_backend=sparse_backend,
         dense_embed_vector_size=settings.dense_embed_vector_size,
         batch_size=settings.batch_size,
         hybrid=settings.hybrid_search,
-        dense_threads=settings.dense_threads,
-        sparse_threads=settings.sparse_threads,
-        max_dense_embed_tokens=settings.max_dense_embed_tokens,
-        max_sparse_embed_tokens=settings.max_sparse_embed_tokens,
         memory_warn_pct=settings.memory_pressure_warn_pct,
         memory_halt_pct=settings.memory_pressure_halt_pct,
         sequential_embed=settings.sequential_embed,
-        embed_device=settings.embed_device,
     )
 
     flush_every = settings.flush_every
@@ -274,7 +271,7 @@ async def _flush_double_buffered(
 
     1. Wait for previous upsert (if any) — ensures at most 2 batches in RAM.
     2. Check memory pressure — abort early if above halt threshold.
-    3. Embed current batch (compute-bound via thread executor; dense may use CUDA).
+    3. Embed current batch (Ollama dense HTTP + sparse BM25 in thread executors).
     4. Fire upsert as background task (I/O-bound) and return the task handle.
 
     Returns the new in-flight upsert task for the caller to track.

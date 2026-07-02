@@ -1,5 +1,5 @@
 # src/codebase_indexer/config.py
-from typing import Self
+from typing import Literal, Self
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -59,10 +59,12 @@ class Settings(BaseSettings):
     sparse_embed_model: str
     dense_embed_vector_size: int
     sparse_threads: int
-    # Dense ONNX execution device: "cpu" (default), "cuda" (NVIDIA), or "rocm" (AMD).
-    # Requires a GPU-built image (EMBED_DEVICE build arg) for cuda/rocm to work.
-    # VRAM is not guarded by memory_pressure_warn_pct / memory_pressure_halt_pct.
-    embed_device: str = Field(default="cpu")
+    # Dense vectors always come from Ollama HTTP (see docker-compose.ollama.yml).
+    dense_embed_backend: Literal["ollama"] = Field(default="ollama")
+    ollama_url: str = Field(default="http://host.docker.internal:11434")
+    ollama_embed_model: str = Field(default="")
+    ollama_embed_batch_size: int = Field(default=32)
+    ollama_timeout: int = Field(default=120)
     hybrid_search: bool = Field(default=True)
     max_chunk_lines: int = Field(default=150)
     chunk_overlap_lines: int = Field(default=20)
@@ -90,21 +92,18 @@ class Settings(BaseSettings):
         )
     )
 
-    # Release the shared ONNX models after an indexing job completes. Reclaims
-    # ~300-500 MB of native ONNX/glibc memory immediately. Models reload in
-    # ~1.5s from the fastembed_cache volume on the next search query.
+    # Release sparse ONNX model after indexing completes. Ollama dense has no
+    # in-process model to release; sparse BM25 reloads from fastembed_cache.
     # Default on: indexing is infrequent, idle RAM costs more than reload latency.
     # Set to false only if you need sub-second first-search latency after indexing.
     release_models_after_index: bool = Field(default=True)
 
-    # Seconds of embed inactivity before ONNX models are automatically released.
+    # Seconds of embed inactivity before sparse ONNX is automatically released.
     # Covers cases where models were loaded for search but the server goes idle.
     # 0 disables the idle timer (models stay until process restart or explicit release).
     model_idle_timeout: int = Field(default=300)
 
-    # Eagerly load ONNX models during startup (default: true). When false, models
-    # lazy-load on the first embed request. Set PRELOAD_MODELS=false to keep the
-    # server responsive if model init is slow or a GPU provider is non-functional.
+    # Eagerly probe Ollama and load sparse BM25 during startup (default: true).
     preload_models: bool = Field(default=True)
 
     # --- Pipeline tuning knobs (hardware-portable; all env-overridable) ---
@@ -115,15 +114,11 @@ class Settings(BaseSettings):
     upsert_batch: int = Field(default=500)
     # How many scanned files may be queued ahead of the consumer.
     readahead_buffer: int = Field(default=100)
-    # Max tokens fed to the dense encoder. 0 = auto-detect from model (recommended).
-    # BGE base/small v1.5 auto-detect to 512; nomic v1.5 and jina code v2 to 8192.
-    # Set lower to reduce ONNX attention memory on long-context models.
+    # Max tokens sent to Ollama before /api/embed (word-split approximation).
+    # 0 = auto-detect from DENSE_EMBED_MODEL registry (e.g. 8192 for Jina code).
     max_dense_embed_tokens: int = Field(default=0)
     # Max tokens fed to the sparse encoder. 0 = no limit (default for Qdrant/bm25).
     max_sparse_embed_tokens: int = Field(default=0)
-    # ONNX intra-op threads for the dense encoder. 0 = auto-detect from CPU count
-    # (or OMP_NUM_THREADS). Sparse encoder threads are required via SPARSE_THREADS.
-    dense_threads: int = Field(default=0)
 
     # Force sequential (sparse then dense) embedding instead of concurrent.
     # Trades ~40-50% throughput for ~50% lower peak memory during indexing.
@@ -192,10 +187,10 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
-    def validate_embed_device(self) -> Self:
-        if self.embed_device not in ("cpu", "cuda", "rocm"):
+    def validate_dense_embed_backend(self) -> Self:
+        if self.dense_embed_backend != "ollama":
             raise ValueError(
-                f"EMBED_DEVICE must be 'cpu', 'cuda', or 'rocm', got {self.embed_device!r}"
+                f"DENSE_EMBED_BACKEND must be 'ollama', got {self.dense_embed_backend!r}"
             )
         return self
 

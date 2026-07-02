@@ -1,6 +1,5 @@
 """AST-aware chunking tests for SQL (tree-sitter-sql)."""
 
-import pytest
 
 from codebase_indexer.indexer.chunker import (
     _classify_symbol_type,

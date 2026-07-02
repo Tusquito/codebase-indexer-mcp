@@ -124,26 +124,13 @@ def test_jina_code_model_dense_embed_vector_size_valid():
     assert s.dense_embed_model == "jinaai/jina-embeddings-v2-base-code"
 
 
-def test_embed_device_defaults_to_cpu():
-    assert Settings().embed_device == "cpu"
+def test_dense_embed_backend_defaults_to_ollama():
+    assert Settings().dense_embed_backend == "ollama"
 
 
-def test_embed_device_accepts_cuda():
-    assert Settings(embed_device="cuda").embed_device == "cuda"
-
-
-def test_embed_device_accepts_rocm():
-    assert Settings(embed_device="rocm").embed_device == "rocm"
-
-
-def test_embed_device_rejects_invalid():
+def test_dense_embed_backend_rejects_non_ollama():
     with pytest.raises(ValidationError):
-        Settings(embed_device="tpu")
-
-
-def test_embed_device_from_env(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("EMBED_DEVICE", "cuda")
-    assert Settings().embed_device == "cuda"
+        Settings(dense_embed_backend="onnx")
 
 
 def test_bge_v15_official_specs_in_registry():

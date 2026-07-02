@@ -9,7 +9,7 @@ find_cross_references to surface build-level relationships alongside HTTP ones.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import PurePosixPath
 
 # ---------------------------------------------------------------------------

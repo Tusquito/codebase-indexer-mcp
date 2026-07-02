@@ -4,7 +4,6 @@ import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 
 from codebase_indexer.index_jobs import IndexJobTracker, JobStatus
 from codebase_indexer.indexer.pipeline import PipelineResult

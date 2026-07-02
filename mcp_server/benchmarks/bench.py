@@ -37,6 +37,9 @@ from typing import Any, Awaitable, Callable
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from codebase_indexer.config import Settings  # noqa: E402
+from codebase_indexer.indexer.backends.factory import (
+    create_backends,
+)
 from codebase_indexer.indexer.embedder import Embedder  # noqa: E402
 from codebase_indexer.indexer.pipeline import run_pipeline  # noqa: E402
 from codebase_indexer.memory import get_rss_mb  # noqa: E402
@@ -181,12 +184,12 @@ async def run_benchmark(
         languages = samples["languages"] or ["python"]
 
         # --- Pre-embed a query once so search timings isolate storage cost ---
+        dense_backend, sparse_backend = create_backends(settings)
         embedder = Embedder(
-            dense_model=settings.dense_embed_model,
-            sparse_model=settings.sparse_embed_model,
+            dense_backend=dense_backend,
+            sparse_backend=sparse_backend,
             dense_embed_vector_size=settings.dense_embed_vector_size,
             hybrid=settings.hybrid_search,
-            embed_device=settings.embed_device,
         )
         dense_vec, sparse_vec = await embedder.embed_query("service handler request processing")
 
