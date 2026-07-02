@@ -76,6 +76,18 @@ _INSTRUCTIONS = """
     endpoint definitions, HTTP clients, and config-based URLs, then
     matches them to produce a call chain map.
 
+    MULTI-HOP QUESTIONS (client-orchestrated — see docs/SEARCH_BEHAVIOR.md):
+    When one search cannot surface all evidence (cross-file, config→code,
+    service A→service B), use 2–4 hops; fuse ALL hops with RRF by chunk_id
+    (rank-based: score += 1/(k+rank)), not only the last search.
+    1. search_codebase(original question) OR search_symbols for zero-embed hop
+    2. Client reads chunks; draft a sub-question targeting the missing hop
+    3. search_codebase(sub-question) or find_cross_references / get_chunk
+    4. Merge chunk_ids from every hop before answering
+    Prefer find_cross_references / map_service_dependencies for structural
+    edges (imports, HTTP, endpoints); use decomposition for prose/config hops.
+    Token savers between hops: search_symbols, get_file_outline, get_chunk.
+
     Search uses OLLAMA_EMBED_MODEL (dense via Ollama HTTP) + SPARSE_EMBED_MODEL (sparse BM25)
     fused via RRF when HYBRID_SEARCH is enabled.
     """
