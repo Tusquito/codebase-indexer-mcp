@@ -1,0 +1,51 @@
+{
+  "schema": 1,
+  "params": {
+    "golden": "benchmarks/fixtures/golden_queries.jsonl",
+    "hybrid_search": true,
+    "top_k": 10,
+    "dense_embed_model": "jinaai/jina-embeddings-v2-base-code",
+    "sparse_embed_model": "Qdrant/bm25",
+    "indexed_at": "2026-07-02",
+    "golden_set_version": "v3-multi-hop",
+    "note": "Hybrid baseline with 26 queries (4 multi_hop). Six queries include ground_truth for ADR 0010 client export."
+  },
+  "metrics": {
+    "recall@10": 0.660256,
+    "mrr": 0.586538,
+    "ndcg@10": 0.538681
+  },
+  "metrics_by_tag": {
+    "conceptual": {
+      "recall@10": 0.809524,
+      "mrr": 0.630952,
+      "ndcg@10": 0.611216
+    },
+    "config": {
+      "recall@10": 0.4,
+      "mrr": 0.5,
+      "ndcg@10": 0.438009
+    },
+    "cross_file": {
+      "recall@10": 0.6,
+      "mrr": 0.466667,
+      "ndcg@10": 0.43132
+    },
+    "multi_hop": {
+      "recall@10": 0.5,
+      "mrr": 0.3125,
+      "ndcg@10": 0.359393
+    },
+    "symbol": {
+      "recall@10": 0.722222,
+      "mrr": 0.666667,
+      "ndcg@10": 0.597838
+    }
+  },
+  "ab_dense_only": {
+    "recall@10": 0.583333,
+    "mrr": 0.612903,
+    "ndcg@10": 0.543605
+  },
+  "n_queries": 26
+}

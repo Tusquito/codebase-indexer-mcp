@@ -15,7 +15,8 @@ import pytest
 # benchmarks/ is a top-level package next to tests/, not an installed module.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from benchmarks.bench import compare, qdrant_reachable, run_benchmark  # noqa: E402
+from benchmarks._connectivity import qdrant_reachable  # noqa: E402
+from benchmarks.bench import compare, run_benchmark  # noqa: E402
 
 QDRANT_URL = os.environ.get("QDRANT_URL", "http://localhost:6333")
 

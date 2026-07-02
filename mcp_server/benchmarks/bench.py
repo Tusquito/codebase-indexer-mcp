@@ -29,13 +29,13 @@ import shutil
 import sys
 import tempfile
 import time
-import urllib.request
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
 # Allow ``python benchmarks/bench.py`` as well as ``-m benchmarks.bench``.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from benchmarks._connectivity import qdrant_reachable  # noqa: E402
 from codebase_indexer.config import Settings  # noqa: E402
 from codebase_indexer.indexer.backends.factory import (
     create_backends,
@@ -46,16 +46,6 @@ from codebase_indexer.memory import get_rss_mb  # noqa: E402
 from codebase_indexer.storage.qdrant import QdrantStorage  # noqa: E402
 
 from benchmarks.corpus import generate_corpus  # noqa: E402
-
-
-def qdrant_reachable(url: str) -> bool:
-    for suffix in ("/healthz", "/"):
-        try:
-            urllib.request.urlopen(url.rstrip("/") + suffix, timeout=2)
-            return True
-        except Exception:
-            continue
-    return False
 
 
 def _pct(values: list[float], p: float) -> float:

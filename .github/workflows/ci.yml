@@ -89,6 +89,55 @@ jobs:
           name: benchmark-results
           path: mcp_server/bench-results.json
 
+  eval-retrieval:
+    # Non-blocking: validates golden-set label schema and runs eval when
+    # Qdrant + Ollama + indexed collection are available on the runner.
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: mcp_server
+    services:
+      qdrant:
+        image: qdrant/qdrant:v1.18.2
+        ports:
+          - 6333:6333
+        options: >-
+          --health-cmd "bash -c ':> /dev/tcp/127.0.0.1/6333'"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      QDRANT_URL: http://localhost:6333
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --extra dev --extra benchmark
+
+      - name: Validate golden-set labels (skip search when collection missing)
+        run: uv run python -m benchmarks.eval_retrieval --validate-labels || true
+
+      - name: Run retrieval eval vs baseline (skip when Ollama/index unavailable)
+        run: >-
+          uv run python -m benchmarks.eval_retrieval
+          --compare benchmarks/fixtures/eval_baseline.json
+          --output eval-results.json
+          || true
+
+      - name: Upload eval results
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-retrieval-results
+          path: mcp_server/eval-results.json
+        if: always()
+
   docker-image:
     # Non-blocking: validates the MCP Docker image builds successfully.
     runs-on: ubuntu-latest
