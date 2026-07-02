@@ -12,7 +12,7 @@ graph TD
     end
 
     subgraph Docker["Docker Compose"]
-        MCP["codeindexer_mcp :8000\nFastMCP + fastembed ONNX"]
+        MCP["codeindexer_mcp :8000\nFastMCP + Ollama dense + BM25 sparse"]
         QD[("codeindexer_qdrant :6333\nQdrant vector DB")]
         CRON["codeindexer_cron\ncron/reindex.py"]
     end
@@ -24,7 +24,7 @@ graph TD
     CRON -- "MCP tools/call" --> MCP
 ```
 
-Each direct subdirectory of `/workspace` is one **collection** (indexed project), named after the folder basename.
+Each direct subdirectory of `/workspace` is one **collection** (indexed project), named after the folder basename. See [ADR 0004](adr/0004-collection-per-project-isolation.md) for why we use collection-per-project instead of Qdrant payload multitenancy.
 
 ## Entry points
 
@@ -38,6 +38,8 @@ Each direct subdirectory of `/workspace` is one **collection** (indexed project)
 ## Configuration
 
 `mcp_server/src/codebase_indexer/config.py` defines `Settings` (pydantic-settings). Environment variables map case-insensitively to fields. Shared constants (`DEFAULT_SERVICE_URL_KEYWORDS`, embedding model dimension tables) live in the same module.
+
+Docker Compose passes every `Settings` field from the repo-root `.env` into `mcp_server` via explicit `${VAR:-default}` entries in `docker-compose.yml` — see [DEPLOYMENT.md](DEPLOYMENT.md#docker-compose-env-passthrough). Restart `mcp_server` after env-only changes.
 
 `mcp_server/src/codebase_indexer/context.py` builds `AppContext`: wires `Settings`, `QdrantStorage`, `Embedder`, `UrlExtractors`, and `IndexJobTracker` once per process.
 
@@ -73,10 +75,10 @@ flowchart LR
 
 ### 3. Embedder (`indexer/embedder.py`)
 
-- **Dense**: fastembed ONNX (`DENSE_EMBED_MODEL`) on CPU, CUDA, or ROCm per `EMBED_DEVICE`
-- **Sparse**: fastembed sparse (`SPARSE_EMBED_MODEL`, default BM25 lexical) on CPU
-- Class-level singleton models; `release_models_after_index` and `model_idle_timeout` reclaim RAM
-- Adaptive batch sizing and cgroup memory guard (`memory.py`)
+- **Dense**: Ollama HTTP (`OLLAMA_EMBED_MODEL`, `OLLAMA_URL`)
+- **Sparse**: fastembed BM25 (`SPARSE_EMBED_MODEL`) on CPU
+- Sparse model singleton; `release_models_after_index` and `model_idle_timeout` reclaim RAM
+- Cgroup memory guard (`memory.py`) for indexing pressure
 
 ### 4. Pipeline (`indexer/pipeline.py`)
 
@@ -89,29 +91,39 @@ flowchart LR
 
 | Layer | Module | Notes |
 |-------|--------|-------|
-| Dense ONNX | `indexer/embedder.py` | `Embedder.embed_chunks`, `embed_queries`; numpy arrays held until upsert |
-| Sparse | `indexer/embedder.py` | Always CPU; `SPARSE_THREADS` required in `.env` |
+| Dense Ollama | `indexer/backends/ollama_dense.py` | HTTP `/api/embed`; orchestrated by `Embedder` facade |
+| Sparse BM25 | `indexer/backends/onnx_sparse.py` | In-process CPU; `SPARSE_THREADS` required in `.env` |
 | Truncation | `indexer/truncation.py` | Token caps via `MAX_DENSE_EMBED_TOKENS` / `MAX_SPARSE_EMBED_TOKENS` |
-| Device selection | `config.py` + Dockerfile | `EMBED_DEVICE=cpu|cuda|rocm`; GPU images swap `fastembed` → `fastembed-gpu` |
+
+Dense embedding is Ollama-only ([ADR 0011](adr/0011-ollama-only-dense-embedding.md), [ADR 0001](adr/0001-pluggable-embed-backends.md) superseded for backend selection):
+
+| Backend | Module | When |
+|---------|--------|------|
+| Ollama | `indexer/backends/ollama_dense.py` | Always (dense); optional bundled service via `COMPOSE_PROFILES=bundled-ollama`; GPU via `docker-compose.ollama.gpu.yml` |
+| Sparse ONNX | `indexer/backends/onnx_sparse.py` | Always (BM25 hybrid search) |
+
+The `Embedder` facade in `indexer/embedder.py` orchestrates backends; factory wiring lives in `indexer/backends/factory.py`.
 
 ## Qdrant storage
 
 `mcp_server/src/codebase_indexer/storage/qdrant.py` — `QdrantStorage` class.
 
 - **Collections**: one per project folder; hybrid dense + sparse vectors when `HYBRID_SEARCH=true`
-- **Payload**: `chunk_id`, `rel_path`, `content`, `symbol_name`, `symbol_type`, `language`, line range, `file_sha256`, `file_mtime`
-- **Indexes**: optional keyword payload indexes (`PAYLOAD_INDEXES`) on `rel_path`, `chunk_id`, `symbol_name`, `language`
+- **Payload**: `chunk_id`, `rel_path`, `content`, `symbol_name`, `symbol_type`, `language`, line range, `file_sha256`, `file_mtime`, `callees`
+- **Indexes**: optional keyword payload indexes (`PAYLOAD_INDEXES`) on `rel_path`, `chunk_id`, `symbol_name`, `language`, `callees`
 - **Tuning**: `VECTORS_ON_DISK`, `SPARSE_ON_DISK`, `QUANTIZATION`, `MEMMAP_THRESHOLD_KB`
 - **Search**: hybrid RRF via `query_points` + `Fusion.RRF`, or dense-only when hybrid disabled
 
 ## Hybrid search
+
+See [ADR 0003](adr/0003-hybrid-search-rrf-default.md) (Qdrant [Hybrid Search on PDF Manuals](https://qdrant.tech/documentation/examples/hybrid-search-llamaindex-jinaai/) pattern).
 
 `mcp_server/src/codebase_indexer/tools/search_common.py` orchestrates query embedding and `QdrantStorage.search`.
 
 When `HYBRID_SEARCH=true` (default):
 
 1. Embed query → dense vector + sparse vector
-2. Parallel prefetch on dense and sparse channels (`top_k * 3` each)
+2. Parallel prefetch on dense and sparse channels (`top_k * prefetch_multiplier`, default **5**)
 3. RRF fusion → final `top_k` results
 4. `min_score` is **not** applied (RRF scores ≠ cosine scale)
 
@@ -121,7 +133,21 @@ When `HYBRID_SEARCH=false`:
 
 See [SEARCH_BEHAVIOR.md](SEARCH_BEHAVIOR.md) for tool-level caps and `min_score` semantics.
 
+Planned search-quality work from Qdrant [Improve Search](https://qdrant.tech/documentation/improve-search/): ranx golden-set eval ([ADR 0007](adr/0007-ranx-retrieval-evaluation.md)), optional ColBERT rerank ([ADR 0008](adr/0008-optional-colbert-reranking.md)), multi-hop client patterns ([ADR 0009](adr/0009-multi-hop-retrieval-strategies.md)). Full prototype map: [adr/README.md](adr/README.md#qdrant-build-prototypes--improve-search-map).
+
+## RAG and agent integration
+
+The MCP server implements the **retrieval half** of Qdrant’s RAG tutorials (Ollama dense + BM25 sparse → Qdrant → ranked context). Connected AI clients perform metaprompt assembly and LLM generation. External orchestrators (Cursor agents, CrewAI, etc.) call MCP tools instead of embedding CrewAI/CAMEL in the server. See [ADR 0012](adr/0012-retrieval-only-rag-split.md) and [ADR 0013](adr/0013-external-agent-knowledge-base.md).
+
+Optional vector discovery (Recommendation API, n8n ops workflows) is proposed in [ADR 0014](adr/0014-vector-discovery-and-ops-automation.md), inspired by [Qdrant’s n8n tutorial](https://qdrant.tech/documentation/tutorials-build-essentials/qdrant-n8n/).
+
+## GraphRAG (proposed)
+
+Optional Neo4j-backed code graph linked to Qdrant chunk IDs for vector→graph retrieval. Disabled by default; see [ADR 0002](adr/0002-graphrag-neo4j-qdrant.md). Based on [Qdrant’s GraphRAG + Neo4j pattern](https://qdrant.tech/documentation/examples/graphrag-qdrant-neo4j/#build-a-graphrag-agent-with-neo4j-and-qdrant), adapted to deterministic AST/extractor ingestion (no LLM ontology).
+
 ## MCP tools
+
+Retrieval-only surface — no in-server LLM generation ([ADR 0005](adr/0005-mcp-retrieval-connector.md), Qdrant [Cohere RAG connector](https://qdrant.tech/documentation/examples/cohere-rag-connector/) pattern).
 
 All tools register via `register_*_tool(mcp, ctx)` in `main.py`:
 

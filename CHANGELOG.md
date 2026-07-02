@@ -9,11 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Ollama-only dense embedding** ([ADR 0011](docs/adr/0011-ollama-only-dense-embedding.md)) — dense vectors via Ollama HTTP + in-process sparse BM25; `docker-compose.ollama.yml` (bundled or external Ollama; `docker-compose.ollama.gpu.yml` for NVIDIA GPU on bundled Ollama). Supersedes multi-backend scope in [ADR 0001](docs/adr/0001-pluggable-embed-backends.md).
 - **Call-site cross-references** — chunks now store a `callees` payload (bare method names and `receiver.method` tokens). `find_cross_references` accepts optional `member` and `receiver` params and returns `call_site` matches via exact callee filter (not semantic search), including same-collection consumer links for inherited-field call sites (e.g. Spring `@Autowired` fields used in subclasses).
 
 ### Changed
 
-- **Forced re-index required for `callees`** — existing collections need `index_codebase(..., force=True)` or `index_all(force=True)` to backfill `callees` and build the new keyword index; incremental re-index alone skips unchanged files and payloads are schemaless with no collection schema-version metadata.
+- **Breaking:** dense embedding is **Ollama-only** ([ADR 0011](docs/adr/0011-ollama-only-dense-embedding.md)) — removed in-process ONNX dense, embed-worker remote backend, `DENSE_EMBED_BACKEND=onnx|remote`, `EMBED_DEVICE` CUDA/ROCm MCP images, and `docker-compose.gpu.yml` / `amd*.yml` / `embed-worker.yml`; [ADR 0001](docs/adr/0001-pluggable-embed-backends.md) superseded for backend selection
+- **Forced re-index required for `callees`** — existing collections need `index_codebase(..., force=True)` or `index_all(force=True)` to backfill `callees` and build the new keyword index; incremental re-index alone skips unchanged files and payloads are schemaless with no collection schema-version metadata
+
+### Removed
+
+- In-process ONNX dense embedding, `embed_worker` remote backend, MCP CUDA/ROCm compose overrides (`docker-compose.gpu.yml`, `docker-compose.amd*.yml`, `docker-compose.embed-worker.yml`), and `EMBED_DEVICE` / `DENSE_EMBED_BACKEND=onnx|remote` configuration
 
 ### Fixed
 

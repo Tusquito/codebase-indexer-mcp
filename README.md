@@ -1,16 +1,16 @@
 # Local Codebase Indexer MCP Server
 
-A fully self-hosted, Docker-based MCP server that indexes your codebase into a local vector database using fastembed ONNX embeddings, then exposes semantic search tools to AI agents — minimising token consumption.
+A fully self-hosted, Docker-based MCP server that indexes your codebase into a local vector database using **Ollama dense embeddings** plus in-process BM25 sparse search, then exposes semantic search tools to AI agents — minimising token consumption.
 
 ## Features
 
 - **100% Local** — Zero external API calls; all processing stays on your machine
-- **Semantic Code Search** — Tree-sitter AST-based chunking with configurable fastembed ONNX dense + sparse embeddings (in-process — no external model server)
+- **Semantic Code Search** — Tree-sitter AST-based chunking with Ollama dense + in-process BM25 sparse hybrid search
 - **Incremental Indexing** — Only re-indexes changed files (SHA-256 hash comparison)
 - **Multi-Language** — Python, JavaScript, TypeScript, Go, Rust, Java, C, C++, C#
 - **Token Efficient** — Returns only relevant code chunks, not full files. Three dedicated low-cost orientation tools (`get_collection_summary`, `search_symbols`, `get_file_outline`) eliminate exploratory searches entirely.
 - **MCP Compatible** — Works with Claude Desktop, Copilot CLI, Cursor, and more
-- **Optional GPU Acceleration** — Offload dense embedding to NVIDIA CUDA (`EMBED_DEVICE=cuda`) or AMD ROCm/MIGraphX (`EMBED_DEVICE=rocm`); CPU remains the default
+- **Optional GPU Acceleration** — Offload dense embedding to Ollama on NVIDIA GPU via `docker-compose.ollama.gpu.yml`
 
 ## Documentation
 
@@ -19,7 +19,8 @@ A fully self-hosted, Docker-based MCP server that indexes your codebase into a l
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Dev setup (Python 3.12, uv), CI lint/type-check/test workflow, conventional commits |
 | [CHANGELOG.md](CHANGELOG.md) | Release history (Keep a Changelog format) |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Per-component responsibilities, indexing pipeline, embedding layer, hybrid search |
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | CPU/CUDA/ROCm/WSL2 compose matrix, memory/CPU tuning |
+| [docs/adr/](docs/adr/) | Architecture Decision Records — see [0012](docs/adr/0012-retrieval-only-rag-split.md) (retrieval-only RAG), [0011](docs/adr/0011-ollama-only-dense-embedding.md) (Ollama dense) |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Ollama dense deployment (bundled/external/GPU), memory/CPU tuning |
 | [docs/SEARCH_BEHAVIOR.md](docs/SEARCH_BEHAVIOR.md) | `search_codebase` / `search_symbols` caps, `min_score` vs RRF semantics |
 
 ## System Architecture
@@ -32,7 +33,7 @@ graph TD
     end
 
     subgraph Docker["Docker Compose"]
-        MCP["codeindexer_mcp  :8000\n────────────────────────\nFastMCP server (CPU or CUDA)\nfastembed ONNX  in-process\nTree-sitter parser\nconfigurable sparse encoder"]
+        MCP["codeindexer_mcp  :8000\n────────────────────────\nFastMCP server\nOllama dense (HTTP)\nBM25 sparse in-process\nTree-sitter parser"]
         QD[("codeindexer_qdrant  :6333\n────────────────────────\nQdrant Vector DB\npersistent  qdrant_data  volume")]
     end
 
@@ -52,8 +53,8 @@ cp .env.example .env
 # Every direct subdirectory becomes a separate indexed collection.
 # Example: WORKSPACE_ROOT=C:\Users\me\repos  (not a single project folder)
 
-# 2. Start all services (from your project directory)
-docker compose up -d --build
+# 2. Start services (Ollama required for dense embedding)
+docker compose -f docker-compose.yml -f docker-compose.ollama.yml up -d --build
 
 # 3. Confirm all services are healthy
 docker compose ps
@@ -64,16 +65,14 @@ docker logs -f codeindexer_mcp
 # 5. Add MCP client config (see below)
 ```
 
-### GPU (optional)
+### Ollama GPU (optional)
 
-Requires an NVIDIA GPU, the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html), and `EMBED_DEVICE=cuda` in `.env`. See [GPU Acceleration](#gpu-acceleration) for details.
+Requires an NVIDIA GPU, the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html), and `OLLAMA_GPU=1` in `.env`. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ```bash
-# Set EMBED_DEVICE=cuda in .env, then start with the GPU compose override
-EMBED_DEVICE=cuda docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
-
-# Confirm GPU passthrough and CUDA provider in logs
-docker logs codeindexer_mcp 2>&1 | grep -E 'embed_device|active_providers|cuda'
+docker compose -f docker-compose.yml -f docker-compose.ollama.yml \
+  -f docker-compose.ollama.gpu.yml up -d --build
+docker exec codeindexer_ollama ollama ps
 ```
 
 ## MCP Client Configuration
@@ -258,7 +257,7 @@ flowchart LR
     subgraph S3["③ Embedder"]
         direction TB
         em3["Run concurrently\nin thread executors"]
-        em1["Dense  DENSE_EMBED_MODEL\nDENSE_EMBED_VECTOR_SIZE\nONNX in-process"]
+        em1["Dense  OLLAMA_EMBED_MODEL\nDENSE_EMBED_VECTOR_SIZE\nOllama HTTP"]
         em2["Sparse  SPARSE_EMBED_MODEL\nfastembed in-process"]
         em3 --> em1 & em2
     end
@@ -341,7 +340,7 @@ flowchart LR
     Q["Query\n'find order processing logic'"]
 
     subgraph Embed["Query Embedding"]
-        DE["Dense vector\n768-dim ONNX"]
+        DE["Dense vector\n768-dim Ollama"]
         SE["Sparse vector\nconfigurable model"]
     end
 
@@ -412,6 +411,8 @@ Steps 1–3 use **zero embedding compute** (payload scroll only). Step 4 caps re
 
 Settings are environment-variable driven. **Required variables** (no Python defaults) must be set in `.env` — see the REQUIRED section in `.env.example`. Docker Compose fails fast if any are missing. Optional knobs keep defaults in `config.py` only.
 
+> **Docker note:** Compose passes every `Settings` env var from `.env` into `mcp_server` (see [DEPLOYMENT.md](docs/DEPLOYMENT.md#docker-compose-env-passthrough)). Run `docker compose restart mcp_server` after env-only edits. Local `uv run` reads `.env` in `mcp_server/` directly.
+
 ### Required (`.env` / Docker Compose)
 
 | Variable | Description |
@@ -422,12 +423,15 @@ Settings are environment-variable driven. **Required variables** (no Python defa
 | `MCP_CPUS` | CPU cap for the MCP server container |
 | `QDRANT_CPUS` | CPU cap for the Qdrant container |
 | `OMP_NUM_THREADS` | ONNX/BLAS threads (also sets `OPENBLAS`/`MKL`). Keep at/below physical cores. |
-| `DENSE_EMBED_MODEL` | fastembed ONNX dense embedding model (example: `nomic-ai/nomic-embed-text-v1.5`) |
+| `DENSE_EMBED_MODEL` | Dense model metadata for dimension validation (example: `jinaai/jina-embeddings-v2-base-code`); must match `OLLAMA_EMBED_MODEL` output size |
 | `SPARSE_EMBED_MODEL` | fastembed sparse model; default `Qdrant/bm25` (lexical BM25) |
 | `DENSE_EMBED_VECTOR_SIZE` | Dense embedding dimensions; must match `DENSE_EMBED_MODEL` (see [BGE v1.5](#baai-bge-english-v15) and nomic: 768) |
 | `SPARSE_THREADS` | ONNX threads for `SPARSE_EMBED_MODEL`; `2` for `Qdrant/bm25` (default) |
-| `EMBED_DEVICE` | Dense embedding device: `cpu` (default), `cuda` (NVIDIA), or `rocm` (AMD). `cuda` builds a GPU image (`fastembed-gpu`) and requires `docker-compose.gpu.yml` plus NVIDIA Container Toolkit. `rocm` builds a ROCm image and requires `docker-compose.amd.yml` (native Linux) or `docker-compose.amd.wsl2.yml` (Windows+WSL2). The `ROCM_VARIANT` build arg (`native` or `wsl`) selects the ROCm/onnxruntime stack — see [AMD (ROCm/MIGraphX)](#amd-rocmmigraphx). Rebuild after changing. |
-| `NVIDIA_GPU_COUNT` | GPU devices reserved by `docker-compose.gpu.yml`; defaults to `1`. Set to `all` only when the host should expose every GPU. |
+| `COMPOSE_PROFILES` | Compose profiles to activate. Set to `bundled-ollama` with `docker-compose.ollama.yml` to run Ollama inside the stack. |
+| `OLLAMA_URL` | Ollama base URL for dense embedding. Default: `http://ollama:11434` (bundled) or `http://host.docker.internal:11434` (host Ollama). |
+| `OLLAMA_EMBED_MODEL` | Ollama embedding model tag (e.g. `unclemusclez/jina-embeddings-v2-base-code`). Must match `DENSE_EMBED_VECTOR_SIZE`. |
+| `OLLAMA_GPU` | Set to `1` and add `docker-compose.ollama.gpu.yml` to reserve NVIDIA GPU for bundled Ollama. |
+| `OLLAMA_GPU_COUNT` | GPUs reserved for bundled Ollama when using `docker-compose.ollama.gpu.yml`; defaults to `1`. |
 
 ### BAAI BGE English v1.5
 
@@ -438,7 +442,7 @@ Official specs for the supported BGE dense models ([BAAI/bge-base-en-v1.5](https
 | `BAAI/bge-base-en-v1.5` | 768 | 512 |
 | `BAAI/bge-small-en-v1.5` | 384 | 512 |
 
-Set `DENSE_EMBED_MODEL` and matching `DENSE_EMBED_VECTOR_SIZE` in `.env`. Leave `MAX_DENSE_EMBED_TOKENS=0` to auto-truncate at 512, or set `512` explicitly.
+Set `DENSE_EMBED_MODEL`, `OLLAMA_EMBED_MODEL`, and matching `DENSE_EMBED_VECTOR_SIZE` in `.env`. `MAX_DENSE_EMBED_TOKENS` caps text sent to Ollama (word-split approximation); `0` auto-detects from the model registry (e.g. 8192 for Jina code, 512 for BGE).
 
 ### Workspace paths (`WORKSPACE_ROOT` vs `WORKSPACE_PATH`)
 
@@ -483,12 +487,11 @@ If you change port bindings to expose the server beyond localhost, set `MCP_AUTH
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DENSE_THREADS` | `0` (auto) | Override dense-encoder threads. `0` = `OMP_NUM_THREADS` if set, else ~75% of CPU cores. |
-| `BATCH_SIZE` | `32` | Embedding batch size (larger = faster, more RAM). Automatically halved for long chunks and under memory pressure. |
+| `BATCH_SIZE` | `32` | Chunks embedded per pipeline batch (larger = faster, more RAM). Also used as Ollama HTTP sub-batch size via `OLLAMA_EMBED_BATCH_SIZE` default. |
 | `FLUSH_EVERY` | `1500` | Chunks per embed+upsert flush. Peak RAM ≈ 2× this. |
 | `UPSERT_BATCH` | `500` | Points per Qdrant upsert sub-batch |
 | `READAHEAD_BUFFER` | `100` | Files queued ahead of the consumer during scan |
-| `MAX_DENSE_EMBED_TOKENS` | `0` (auto) | Token cap fed to the dense encoder; auto-detects (512 for BGE base/small, 8192 for nomic). Lower to reduce ONNX memory. |
+| `MAX_DENSE_EMBED_TOKENS` | `0` (auto) | Caps text sent to Ollama (word-split approximation); auto from `DENSE_EMBED_MODEL` registry when `0` |
 | `MAX_SPARSE_EMBED_TOKENS` | `0` (no limit) | Token cap for sparse input. `0` = no truncation with `Qdrant/bm25` (default). Set explicitly only for other sparse transformer models. |
 | `SEQUENTIAL_EMBED` | `false` | Run sparse then dense sequentially during indexing (~lower peak RAM, slower) |
 
@@ -511,8 +514,9 @@ If you change port bindings to expose the server beyond localhost, set `MCP_AUTH
 | `HNSW_EF_CONSTRUCT` | `128` | HNSW construction breadth (higher = better graph, slower index build) |
 | `PREFETCH_MULTIPLIER` | `5` | Hybrid prefetch limit = `top_k × multiplier` per dense/sparse channel |
 | `RRF_K` | `60` | RRF constant for multi-collection result re-fusion |
-| `RELEASE_MODELS_AFTER_INDEX` | `true` | Release ONNX models after indexing completes to reclaim ~300-500 MB. Models reload in ~1.5s from the cache volume on the next search query. Set to `false` only if you need sub-second first-search latency after indexing. |
-| `MODEL_IDLE_TIMEOUT` | `300` | Seconds of embed inactivity before ONNX models are automatically released. Covers the case where models were loaded for search but the server goes idle. `0` disables the idle timer. |
+| `PRELOAD_MODELS` | `true` | Eagerly probe Ollama and load sparse BM25 at startup. Set `false` when Ollama starts after MCP or on memory-constrained hosts. |
+| `RELEASE_MODELS_AFTER_INDEX` | `true` | Release sparse BM25 after indexing completes to reclaim ~300-500 MB. Models reload in ~1.5s from the cache volume on the next search query. Set to `false` only if you need sub-second first-search latency after indexing. |
+| `MODEL_IDLE_TIMEOUT` | `300` | Seconds of embed inactivity before sparse BM25 is automatically released. Covers the case where models were loaded for search but the server goes idle. `0` disables the idle timer. |
 
 > Qdrant storage settings (`VECTORS_ON_DISK`, `SPARSE_ON_DISK`, `QUANTIZATION`, `MEMMAP_THRESHOLD_KB`, `PAYLOAD_INDEXES`) apply when a collection is created, so they take effect on the next (re-)index of each project.
 
@@ -540,148 +544,33 @@ Env-var defaults for the async benchmark runner (also overridable via CLI flags)
 The same image scales by editing `.env` only — see the **TUNING PRESETS** section at the bottom of `.env.example` for ready-to-paste blocks:
 
 - **More RAM** → raise `MCP_MEM_LIMIT`/`QDRANT_MEM_LIMIT`, raise `FLUSH_EVERY` and `BATCH_SIZE`, and optionally set `VECTORS_ON_DISK=false` / `QUANTIZATION=false` to keep vectors in RAM for faster search.
-- **More CPU** → raise `OMP_NUM_THREADS` (or `DENSE_THREADS`) and `BATCH_SIZE`, keeping a few cores reserved for Qdrant via `QDRANT_CPUS`.
+- **More CPU** → raise `OMP_NUM_THREADS` and `BATCH_SIZE`, keeping a few cores reserved for Qdrant via `QDRANT_CPUS`.
 - **Smaller machine** → lower `MCP_MEM_LIMIT`, `FLUSH_EVERY`, `BATCH_SIZE`, and `OMP_NUM_THREADS`; keep on-disk storage and quantization enabled.
 
-### GPU Acceleration
+### Ollama dense embedding
 
-Optional NVIDIA CUDA support speeds up **dense embedding** during indexing and search. CPU is the default; no GPU is required.
+Dense vectors always come from **Ollama** (`OLLAMA_EMBED_MODEL`). Sparse BM25 stays in-process in the MCP container. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for bundled vs external Ollama and GPU setup.
 
-#### Prerequisites
-
-- NVIDIA GPU with a driver supported by [CUDA 12.8](https://developer.nvidia.com/cuda-downloads)
-- [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) installed and configured for Docker
-- On WSL2: Windows NVIDIA driver + GPU support enabled in Docker Desktop settings
-
-#### Enable
-
-1. Set `EMBED_DEVICE=cuda` in `.env` (see the GPU preset block in `.env.example`).
-2. Optionally set `NVIDIA_GPU_COUNT` in `.env` (`1` by default, `all` to expose every GPU).
-
-   > **Note:** `NVIDIA_GPU_COUNT=all` requires Docker Compose v2.3+ (Compose Specification `deploy.resources.reservations.devices`) and NVIDIA Container Toolkit 1.14+ with NVIDIA runtime configured.
-3. Start with the GPU compose override so the container receives GPU devices:
-
-   ```bash
-   EMBED_DEVICE=cuda docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
-   ```
-
-   The build arg selects a CUDA base image and installs `fastembed-gpu` instead of `fastembed`. You must **rebuild** when switching between `cpu` and `cuda`.
-
-#### What runs where
-
-| Component | Device |
-|-----------|--------|
-| Dense embedding (`DENSE_EMBED_MODEL`) | **GPU** when `EMBED_DEVICE=cuda` and CUDA provider is active |
-| Sparse embedding (`SPARSE_EMBED_MODEL`, default BM25) | **CPU** |
-| Tree-sitter chunking, file scan, Qdrant upsert/search | **CPU** |
-| MCP server / HTTP transport | **CPU** |
-
-#### Verify
-
-After the first index or search triggers model load, check logs:
+Pull your model after first start (example for Jina code):
 
 ```bash
-docker logs codeindexer_mcp 2>&1 | grep -E 'dense_model_loaded|active_providers|cuda_requested'
+docker exec codeindexer_ollama ollama pull unclemusclez/jina-embeddings-v2-base-code
 ```
 
-A healthy GPU setup shows `embed_device=cuda` and `active_providers` containing `CUDAExecutionProvider`. If the CUDA libraries load but no usable GPU is found, ONNX Runtime drops `CUDAExecutionProvider` from the active list; logs then include `cuda_requested_but_unavailable` and dense embedding runs on CPU. If the CUDA/cuDNN runtime libraries are missing entirely (e.g. wrong base image or a non-GPU build), model load can instead fail at startup rather than fall back. In either case: rebuild with `EMBED_DEVICE=cuda`, ensure the GPU override compose file is used, and confirm `nvidia-smi` works inside the container.
+GPU for bundled Ollama: set `OLLAMA_GPU=1` and add `-f docker-compose.ollama.gpu.yml`. Verify with `docker exec codeindexer_ollama ollama ps`.
 
-> **VRAM note:** The cgroup memory-pressure guard (`MEMORY_PRESSURE_WARN_PCT` / `MEMORY_PRESSURE_HALT_PCT`) monitors **container RAM**, not GPU VRAM. CUDA out-of-memory errors are not caught by that guard — reduce `BATCH_SIZE` and `MAX_DENSE_EMBED_TOKENS` if dense embedding fails with GPU OOM.
-
-#### AMD (ROCm/MIGraphX)
-
-Optional AMD GPU support speeds up **dense embedding** via ONNX Runtime's MIGraphX and ROCm execution providers. CPU remains the default. **DirectML is not supported** — the server runs in a Linux container; DirectML ships only in the Windows `onnxruntime` wheel.
-
-**Supported hardware (narrow):** RDNA3/RDNA4 discrete Radeon GPUs and Ryzen AI Max / Strix Halo APUs. Other AMD GPU architectures are not supported by the ROCm consumer stack.
-
-**ROCm build variants** (`ROCM_VARIANT` Docker build arg; runtime `EMBED_DEVICE` stays `rocm` for both):
-
-| Variant | Compose override | ROCm base | ONNX Runtime package | GPU path |
-|---------|------------------|-----------|----------------------|----------|
-| `native` (default) | `docker-compose.amd.yml` | 6.4.4 | `onnxruntime-rocm==1.21.0` | `/dev/kfd` + `/dev/dri` (native Linux) |
-| `wsl` | `docker-compose.amd.wsl2.yml` | 7.2.1 | `onnxruntime_migraphx==1.23.2` | `/dev/dxg` (Windows + WSL2) |
-
-The `wsl` image installs `onnxruntime_migraphx` because ROCm 7.2+ no longer ships `onnxruntime-rocm`. The server requests `["MIGraphXExecutionProvider","ROCMExecutionProvider","CPUExecutionProvider"]` and falls through to the first available provider, so no runtime code changes are needed between variants. On WSL2, AMD does not currently support MIGraphX/mGPU — GPU dense-embedding is generally unavailable and CPU fallback is expected (see [AMD GPU on Windows + WSL2](#amd-gpu-on-windows--wsl2)).
-
-**Prerequisites (native Linux):**
-
-- AMD GPU with [ROCm 6.4+](https://rocm.docs.amd.com/) driver on the host
-- Docker configured with `/dev/kfd` and `/dev/dri` device passthrough
-
-**Enable (native Linux):**
-
-1. Set `EMBED_DEVICE=rocm` in `.env`.
-2. Start with the AMD compose override (`ROCM_VARIANT=native` is passed automatically):
-
-   ```bash
-   EMBED_DEVICE=rocm docker compose -f docker-compose.yml -f docker-compose.amd.yml up -d --build
-   ```
-
-   The build selects ROCm 6.4.4 and installs `onnxruntime-rocm` while keeping plain `fastembed`. You must **rebuild** when switching between `cpu`, `cuda`, and `rocm`, or between `native` and `wsl` ROCm variants.
-
-#### AMD GPU on Windows + WSL2
-
-**Recommended:** `EMBED_DEVICE=cpu` in `.env` and the default `docker-compose.amd.wsl2.yml` (no GPU device mounts). ONNX Runtime may list `MIGraphXExecutionProvider` on WSL2, but without the full ROCDXG stack (`rocminfo` shows no GPU agents) dense embedding falls back to CPU. `EMBED_DEVICE=cpu` avoids a slow or failed GPU init at startup. Set `PRELOAD_MODELS=false` if model preload still delays `/health` on your host.
-
-WSL2 uses `/dev/dxg` (ROCDXG), not `/dev/kfd`. Start with the CPU-default override (works without any GPU plumbing):
-
-```bash
-EMBED_DEVICE=cpu docker compose -f docker-compose.yml -f docker-compose.amd.wsl2.yml up -d --build
-```
-
-To **opt in** to a GPU attempt, uncomment the OPT-IN block in `docker-compose.amd.wsl2.yml` (and comment out the DEFAULT `build`/`environment` lines), confirm host prerequisites below, then rebuild with `EMBED_DEVICE=rocm`. See [AMD Radeon 8060S / Strix Halo (gfx1151) on WSL2](#amd-radeon-8060s--strix-halo-gfx1151-on-wsl2) for APU-specific notes.
-
-> **KNOWN LIMITATION:** WSL2 GPU dense-embedding is fragile. Even with ROCDXG wired up, stock `onnxruntime-migraphx` may OOM on shared-memory APUs. The server falls back to CPU automatically; for reliable AMD GPU acceleration use native Linux with [`docker-compose.amd.yml`](#amd-rocmmigraphx) and `/dev/kfd`.
-
-**Host prerequisites (all five — only for GPU opt-in):**
-
-1. [Adrenalin Edition 26.2.2+](https://www.amd.com/en/support) on Windows (WSL-capable build).
-2. [ROCm 7.2.1+](https://rocm.docs.amd.com/) in WSL Ubuntu.
-3. `/dev/dxg` present in WSL2.
-4. `libdxcore.so` under `/usr/lib/wsl/lib/` (shipped with the Adrenalin WSL driver).
-5. `librocdxg.so` on the Linux side (not in the Windows driver). Locate with `find /usr/lib/wsl -name 'librocdxg.so'` — typically `/usr/lib/wsl/lib/librocdxg.so` or `/opt/rocm/lib/librocdxg.so` if built from [github.com/ROCm/librocdxg](https://github.com/ROCm/librocdxg). A missing bind-mount source **breaks** `docker compose up`.
-
-| Responsibility | Repo / image | User (WSL2 host) |
-|----------------|--------------|------------------|
-| CPU-default compose (no `/dev/dxg`, no bind-mounts) | ✓ (`docker-compose.amd.wsl2.yml`) | |
-| ROCm 7.2.1 + `onnxruntime_migraphx` image (GPU opt-in) | ✓ | |
-| OPT-IN block: `/dev/dxg`, `libdxcore.so` + `librocdxg.so` mounts, `HSA_ENABLE_DXG_DETECTION=1` | ✓ (commented by default) | |
-| Windows Adrenalin driver, ROCm in WSL, `librocdxg.so` | | ✓ |
-| Reliable GPU dense-embedding | native Linux (`docker-compose.amd.yml`) | |
-
-##### AMD Radeon 8060S / Strix Halo (gfx1151) on WSL2
-
-The Radeon 8060S (Strix Halo APU, RDNA 3.5, arch **gfx1151**) is officially ROCm-supported since **ROCm 7.2.1** (the version in the `wsl` image). WSL2 access requires AMD's **ROCDXG** bridge — all five [host prerequisites](#amd-gpu-on-windows--wsl2) above, especially `librocdxg.so` mounted into the container.
-
-- **`HSA_OVERRIDE_GFX_VERSION=11.5.1`** — gfx1151 override (commented in the OPT-IN block). Only relevant once `rocminfo` shows a GPU agent; it does **not** fix a missing agent when `librocdxg.so` is absent.
-- **`hipMallocManaged` OOM caveat** — known WSL2 bug: ROCm sees only tiny dedicated VRAM on shared-memory APUs, so stock `onnxruntime-migraphx` tends to OOM without patches. If GPU init fails, use `EMBED_DEVICE=cpu` (default); CPU fallback and non-fatal `PRELOAD_MODELS` keep the container healthy.
-- **Recommendation:** CPU is the reliable default on WSL2. For GPU acceleration, **native-Linux dual-boot** with kernel ≥6.18.4 + ROCm 7.2.1 and [`docker-compose.amd.yml`](#amd-rocmmigraphx) is the supported path.
-
-**Verify (WSL2 GPU opt-in):**
-
-```bash
-./scripts/check_amd_gpu.sh codebase-indexer-mcp-mcp_server:latest wsl
-```
-
-**Verify (native Linux or container logs):**
-
-```bash
-docker logs codeindexer_mcp 2>&1 | grep -E 'dense_model_loaded|active_providers|rocm_requested'
-```
-
-A healthy **native Linux** setup shows `embed_device=rocm` and `active_providers` containing `MIGraphXExecutionProvider` and/or `ROCMExecutionProvider`. On **WSL2**, CPU fallback is normal; if ROCm libraries load but no usable GPU is found, logs include `rocm_requested_but_unavailable`.
-
-> **VRAM note:** As with CUDA, the memory-pressure guard monitors **container RAM**, not GPU VRAM. Reduce `BATCH_SIZE` and `MAX_DENSE_EMBED_TOKENS` if dense embedding fails with GPU OOM.
+Full re-index required after changing `OLLAMA_EMBED_MODEL` or `DENSE_EMBED_VECTOR_SIZE`. See [ADR 0011](docs/adr/0011-ollama-only-dense-embedding.md).
 
 ### How indexing stays within budget
 
 - Dense vectors are kept as compact numpy arrays through the pipeline and only converted to plain lists per upsert sub-batch.
 - `malloc_trim` runs after every upsert completes so long jobs return freed native memory to the OS instead of accumulating RSS (current RSS is logged per batch as `rss_mb`).
-- **Adaptive batch sizing**: ONNX attention is O(seq_len² × batch_size). Batches containing long chunks (>1000 chars) automatically use a smaller batch size, preventing memory spikes on the last (longest) batches.
+- **Adaptive batch sizing**: long chunks are batched conservatively to limit memory spikes during embedding.
 - **Cgroup-aware memory guard**: before each embedding batch, the pipeline checks `/sys/fs/cgroup/memory.current` against the container's memory limit. At 70% usage, batch sizes are halved and dense/sparse encoding runs sequentially. At 85%, embedding is aborted with a clear error instead of being silently OOM-killed.
 - **Post-indexing memory reclamation**: after every indexing job, the pipeline releases all transient allocations (`gc.collect()` + `malloc_trim(0)`) and logs RSS before/after so you can verify the memory was freed.
-- **Model release after indexing** (`RELEASE_MODELS_AFTER_INDEX=true` default): ONNX models are dropped after each index job, returning ~300-500 MB of native memory immediately. Models reload in ~1.5s from the cache volume on the next search query.
-- **Idle-timeout model release** (`MODEL_IDLE_TIMEOUT=300` default): if the server has not run an embed in N seconds, ONNX models are automatically released. This reclaims memory when the server is idle after search queries, not just after indexing.
+- **Model release after indexing** (`RELEASE_MODELS_AFTER_INDEX=true` default): sparse BM25 is dropped after each index job, returning native memory immediately.
+- **Idle-timeout model release** (`MODEL_IDLE_TIMEOUT=300` default): if the server has not run an embed in N seconds, sparse BM25 is automatically released.
+- **Startup preload** (`PRELOAD_MODELS=true` default): Ollama reachability and sparse BM25 are probed at boot; set `false` when Ollama starts later or to defer model RAM until first use.
 - **OOM-restart detection**: on startup, the server checks for a clean-shutdown marker. If absent, it logs a warning that the previous instance may have been OOM-killed.
 - Metadata dicts from incremental indexing are released after the scan phase to free memory before the heaviest embedding batches.
 - Qdrant HNSW indexing is deferred during bulk upload (`indexing_threshold` is set to 0, then restored) so index construction doesn't compete with embedding for CPU.
@@ -717,7 +606,7 @@ docker logs -f codeindexer_cron
 ## Architecture Summary
 
 - **Qdrant** — Vector database for storing and searching embeddings
-- **MCP Server** — FastMCP-based server exposing tools over HTTP/stdio; fastembed ONNX models run in-process (no separate model server required)
+- **MCP Server** — FastMCP-based server exposing tools over HTTP/stdio; dense embedding via Ollama HTTP, sparse BM25 in-process
 - **Cron** — Scheduled git pull + incremental re-index for indexed collections
 
 All services run in Docker with persistent volumes. See [System Architecture](#system-architecture) and [How Indexing Works](#how-indexing-works) above for detailed diagrams.

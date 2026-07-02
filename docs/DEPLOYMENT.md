@@ -1,64 +1,103 @@
 # Deployment
 
-Docker Compose runs three services: Qdrant, the MCP server, and the cron reindex job. All configuration is env-var driven via `.env` (copy from `.env.example`).
+Docker Compose runs Qdrant, the MCP server, and the cron reindex job. **Dense embedding always goes through Ollama**; sparse BM25 stays in-process in the MCP container. Configuration is env-var driven via `.env` (copy from `.env.example`).
 
 ## Compose files
 
 | File | Purpose |
 |------|---------|
 | `docker-compose.yml` | Base stack: `codeindexer_qdrant`, `codeindexer_mcp`, `codeindexer_cron` |
-| `docker-compose.gpu.yml` | NVIDIA CUDA override — GPU device reservation, `EMBED_DEVICE=cuda` build |
-| `docker-compose.amd.yml` | AMD ROCm **native Linux** — `/dev/kfd` + `/dev/dri`, `ROCM_VARIANT=native` |
-| `docker-compose.amd.wsl2.yml` | AMD ROCm **Windows + WSL2** — `/dev/dxg`, `ROCM_VARIANT=wsl` |
+| `docker-compose.ollama.yml` | Optional bundled `ollama` service (`COMPOSE_PROFILES=bundled-ollama`) |
+| `docker-compose.ollama.gpu.yml` | NVIDIA GPU for bundled Ollama — use when `OLLAMA_GPU=1` in `.env` |
 
-### CPU (default)
+### Docker Compose env passthrough
 
-```bash
-cp .env.example .env
-# Edit WORKSPACE_ROOT and required vars
-docker compose up -d --build
+Compose reads your host `.env` at `docker compose up` time and injects variables into containers **explicitly** (there is no blanket `env_file: .env`). Every `Settings` field in `config.py` is wired through `docker-compose.yml` with `${VAR:-default}` so uncommented entries in `.env.example` take effect after `docker compose up -d` (or `docker compose restart mcp_server` for env-only changes).
+
+| Service | Source | Notes |
+|---------|--------|-------|
+| `mcp_server` | `docker-compose.yml` | All application `Settings` env vars |
+| `mcp_server` | `docker-compose.ollama.yml` | Overrides `OLLAMA_*` when bundled/external Ollama profile is used |
+| `cron` | `docker-compose.yml` | `INDEX_TIMEOUT`, `MCP_HTTP_TIMEOUT`, `GIT_TIMEOUT`, `MCP_URL` |
+| `qdrant` / `ollama` | compose only | Resource caps and Ollama service env — not Python `Settings` |
+
+**Not in `.env`:** `dense_embed_backend` is fixed to `ollama` in code ([ADR 0011](adr/0011-ollama-only-dense-embedding.md)). `FASTEMBED_CACHE_PATH` is set to the container cache volume path.
+
+**Compose-only variables** (not read by Python `Settings`): `WORKSPACE_ROOT`, `MCP_MEM_LIMIT`, `QDRANT_MEM_LIMIT`, `MCP_CPUS`, `QDRANT_CPUS`, `COMPOSE_PROFILES`, `OLLAMA_GPU`, `OLLAMA_GPU_COUNT`, `OLLAMA_PORT`, `OLLAMA_MEM_LIMIT`, `OLLAMA_CPUS`.
+
+For local `uv run python -m codebase_indexer.main`, pydantic reads `.env` in `mcp_server/` directly — same variable names apply.
+
+Run Ollama natively or in your own container on `127.0.0.1:11434`. Leave `COMPOSE_PROFILES` unset.
+
+`.env`:
+
+```env
+OLLAMA_URL=http://host.docker.internal:11434
+OLLAMA_EMBED_MODEL=unclemusclez/jina-embeddings-v2-base-code
+DENSE_EMBED_VECTOR_SIZE=768
 ```
 
-### NVIDIA CUDA
-
-Prerequisites: NVIDIA driver, [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html), `EMBED_DEVICE=cuda` in `.env`.
-
 ```bash
-EMBED_DEVICE=cuda docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.ollama.yml up -d --build
 ```
 
-Rebuild when switching `cpu` ↔ `cuda` — the Dockerfile selects different base images and `fastembed` vs `fastembed-gpu`.
+### Bundled Ollama in Compose (recommended)
 
-### AMD ROCm (native Linux)
+`.env`:
 
-Prerequisites: ROCm 6.4+ driver, `/dev/kfd` and `/dev/dri` passthrough, `EMBED_DEVICE=rocm` in `.env`.
-
-```bash
-EMBED_DEVICE=rocm docker compose -f docker-compose.yml -f docker-compose.amd.yml up -d --build
+```env
+COMPOSE_PROFILES=bundled-ollama
+OLLAMA_URL=http://ollama:11434
+OLLAMA_EMBED_MODEL=unclemusclez/jina-embeddings-v2-base-code
+DENSE_EMBED_VECTOR_SIZE=768
+OLLAMA_GPU=0
 ```
 
-Build arg `ROCM_VARIANT=native` → ROCm 6.4.4 + `onnxruntime-rocm`.
-
-### AMD ROCm (WSL2)
-
-Prerequisites: Adrenalin 26.2.2+ on Windows, ROCm 7.2.1+ in WSL2, `/dev/dxg` present.
-
 ```bash
-EMBED_DEVICE=rocm docker compose -f docker-compose.yml -f docker-compose.amd.wsl2.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.ollama.yml up -d --build
+docker exec codeindexer_ollama ollama pull unclemusclez/jina-embeddings-v2-base-code
+docker compose restart mcp_server
 ```
 
-Build arg `ROCM_VARIANT=wsl` → ROCm 7.2.1 + `onnxruntime_migraphx`. Dense embedding uses `ROCMExecutionProvider` on WSL2 (MIGraphX EP unsupported).
+### Ollama GPU (bundled service only)
 
-## Build matrix summary
+Requires NVIDIA driver + [Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html).
 
-| Target | `EMBED_DEVICE` | Compose override | `ROCM_VARIANT` | Dense provider |
-|--------|----------------|------------------|----------------|----------------|
-| CPU | `cpu` | *(none)* | — | `CPUExecutionProvider` |
-| NVIDIA | `cuda` | `docker-compose.gpu.yml` | — | `CUDAExecutionProvider` |
-| AMD Linux | `rocm` | `docker-compose.amd.yml` | `native` | MIGraphX / ROCm |
-| AMD WSL2 | `rocm` | `docker-compose.amd.wsl2.yml` | `wsl` | `ROCMExecutionProvider` |
+`.env`:
 
-Sparse embedding (`SPARSE_EMBED_MODEL`, default BM25) always runs on **CPU**.
+```env
+COMPOSE_PROFILES=bundled-ollama
+OLLAMA_GPU=1
+OLLAMA_GPU_COUNT=1
+OLLAMA_EMBED_MODEL=unclemusclez/jina-embeddings-v2-base-code
+```
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.ollama.yml \
+  -f docker-compose.ollama.gpu.yml up -d --build
+docker exec codeindexer_ollama ollama pull unclemusclez/jina-embeddings-v2-base-code
+```
+
+Verify GPU: `docker exec codeindexer_ollama ollama ps` — `PROCESSOR` should show `GPU` while the model is loaded. CPU-only shows `100% CPU`.
+
+| Variable | Default | Role |
+|----------|---------|------|
+| `COMPOSE_PROFILES` | *(empty)* | Set to `bundled-ollama` to start the Compose-managed Ollama service |
+| `OLLAMA_URL` | `http://host.docker.internal:11434` (base compose); `http://ollama:11434` when `-f docker-compose.ollama.yml` is merged | MCP → Ollama base URL; set explicitly in `.env` for your setup |
+| `OLLAMA_GPU` | `0` | Document only — set `1` and add `docker-compose.ollama.gpu.yml` to enable NVIDIA GPU |
+| `OLLAMA_GPU_COUNT` | `1` | GPUs reserved for bundled Ollama when using `.ollama.gpu.yml` |
+| `OLLAMA_EMBED_MODEL` | *(from `.env`)* | Ollama model tag for dense embedding (must match `DENSE_EMBED_VECTOR_SIZE`) |
+| `OLLAMA_EMBED_BATCH_SIZE` | `32` | Texts per Ollama `/api/embed` request |
+| `OLLAMA_TIMEOUT` | `120` | HTTP timeout (seconds) for Ollama calls |
+| `OLLAMA_PORT` | `11434` | Host port when bundled Ollama publishes to loopback |
+| `OLLAMA_MEM_LIMIT` | `4g` | cgroup memory cap for bundled Ollama |
+| `OLLAMA_CPUS` | `4` | CPU limit for bundled Ollama |
+
+Verify MCP: `curl http://localhost:8000/health` and logs show `ollama_embed_ready`. If Ollama is down at startup, MCP still serves `/health` but logs `model_preload_failed_continuing` until Ollama is reachable (restart `mcp_server` after Ollama is ready).
+
+**Full re-index required** after changing `OLLAMA_EMBED_MODEL` or `DENSE_EMBED_VECTOR_SIZE`. See [ADR 0011](adr/0011-ollama-only-dense-embedding.md).
+
+Sparse embedding (`SPARSE_EMBED_MODEL`, default BM25) always runs on **CPU** inside MCP.
 
 ## Memory and CPU tuning
 
@@ -66,88 +105,17 @@ Required resource caps (Docker Compose — not read by Python directly):
 
 | Variable | Role |
 |----------|------|
-| `MCP_MEM_LIMIT` | cgroup memory cap for MCP server |
-| `QDRANT_MEM_LIMIT` | cgroup memory cap for Qdrant |
-| `MCP_CPUS` | CPU limit for MCP server |
-| `QDRANT_CPUS` | CPU limit for Qdrant |
-| `OMP_NUM_THREADS` | ONNX/BLAS thread count |
+| `MCP_MEM_LIMIT` / `MCP_CPUS` | MCP container cap |
+| `QDRANT_MEM_LIMIT` / `QDRANT_CPUS` | Qdrant container cap |
+| `OMP_NUM_THREADS` | ONNX/BLAS threads for sparse BM25 |
+| `OLLAMA_MEM_LIMIT` / `OLLAMA_CPUS` | Bundled Ollama service caps |
 
-**Rule of thumb:** `MCP_MEM_LIMIT + QDRANT_MEM_LIMIT` must leave 2–3 GiB for kernel, Docker daemon, and WSL2 overhead.
+Pipeline knobs (see `.env.example` presets):
 
-Application knobs (see README Configuration and `.env.example` presets):
+| Goal | Knobs |
+|------|-------|
+| More CPU | Raise `OMP_NUM_THREADS`, `BATCH_SIZE`, `OLLAMA_CPUS`; reserve cores for Qdrant via `QDRANT_CPUS` |
+| Lower RAM | Lower `BATCH_SIZE`, `FLUSH_EVERY`, `MAX_DENSE_EMBED_TOKENS`; enable `SEQUENTIAL_EMBED` |
+| Faster search | Tune `HNSW_EF`, `PREFETCH_MULTIPLIER`; disable `VECTORS_ON_DISK` if RAM allows |
 
-| Goal | Suggested changes |
-|------|-------------------|
-| More RAM | Raise mem limits, `FLUSH_EVERY`, `BATCH_SIZE`; optionally `VECTORS_ON_DISK=false`, `QUANTIZATION=false` |
-| More CPU | Raise `OMP_NUM_THREADS` / `DENSE_THREADS`, `BATCH_SIZE`; reserve cores for Qdrant via `QDRANT_CPUS` |
-| Smaller host | Lower mem limits, `FLUSH_EVERY`, `BATCH_SIZE`, `OMP_NUM_THREADS`; keep on-disk storage + quantization |
-| GPU OOM | Lower `BATCH_SIZE`, `MAX_DENSE_EMBED_TOKENS` — memory-pressure guard tracks **container RAM**, not VRAM |
-
-## Ports and security
-
-Default bindings are loopback-only:
-
-- MCP: `127.0.0.1:8000`
-- Qdrant: `127.0.0.1:6333` / `6334`
-
-Set `MCP_AUTH_TOKEN` when exposing beyond localhost.
-
-### Connecting clients
-
-The MCP server publishes streamable HTTP on `127.0.0.1:8000` by default. **Recommended for Cursor** — add to `~/.cursor/mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "codebase-indexer": {
-      "url": "http://localhost:8000/mcp"
-    }
-  }
-}
-```
-
-When `MCP_AUTH_TOKEN` is set, include the bearer header (Cursor 3.7.12 uses `"url"` alone — no `type` field):
-
-```json
-{
-  "mcpServers": {
-    "codebase-indexer": {
-      "url": "http://localhost:8000/mcp",
-      "headers": {
-        "Authorization": "Bearer <your-token>"
-      }
-    }
-  }
-}
-```
-
-URL transport reconnects automatically after `docker compose restart mcp_server` without a manual Cursor reload.
-
-**Fallback (stdio):** when localhost HTTP is blocked or a client requires stdio, uncomment the disabled `proxy` service in `docker-compose.yml` and use `docker exec` into `codeindexer_proxy` (not `codeindexer_mcp`). The sidecar reads `MCP_AUTH_TOKEN` from env and forwards to `http://mcp_server:8000/mcp`. See [README — MCP Client Configuration](../README.md#mcp-client-configuration).
-
-`codeindexer_cron` also reads `MCP_AUTH_TOKEN` for scheduled re-index calls.
-
-## Volumes
-
-- `qdrant_data` — persistent vector storage
-- `fastembed_cache` — downloaded ONNX models (enables `HF_HUB_OFFLINE=1` after first run)
-
-## Health checks
-
-```bash
-docker compose ps
-curl http://localhost:8000/health
-docker logs -f codeindexer_mcp
-docker logs -f codeindexer_cron
-```
-
-## Local development (no Docker)
-
-```bash
-cd mcp_server
-uv sync --extra dev
-# Qdrant must be reachable at QDRANT_URL
-uv run python -m codebase_indexer.main
-```
-
-See [CONTRIBUTING.md](../CONTRIBUTING.md) for lint, type-check, and test commands.
+See [README.md](../README.md) for full env reference and tuning presets.
