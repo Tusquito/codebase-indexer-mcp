@@ -146,8 +146,8 @@ def create_app(settings: Settings | None = None, preload_models: bool | None = N
             warn_pct=settings.memory_pressure_warn_pct,
             halt_pct=settings.memory_pressure_halt_pct,
         )
-        # Warn if the cgroup limit is small relative to the workload
-        if limit_gb < 4:
+        # Dense runs in Ollama; MCP peak RSS is typically a few hundred MB (see pipeline logs).
+        if limit_gb < 1.5:
             log.warning(
                 "low_memory_limit",
                 cgroup_limit_gb=limit_gb,
