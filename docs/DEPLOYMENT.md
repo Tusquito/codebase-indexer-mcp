@@ -9,6 +9,8 @@ Docker Compose runs Qdrant, the MCP server, and the cron reindex job. **Dense em
 | `docker-compose.yml` | Base stack: `codeindexer_qdrant`, `codeindexer_mcp`, `codeindexer_cron` |
 | `docker-compose.ollama.yml` | Optional bundled `ollama` service (`COMPOSE_PROFILES=bundled-ollama`) |
 | `docker-compose.ollama.gpu.yml` | NVIDIA GPU for bundled Ollama — use when `OLLAMA_GPU=1` in `.env` |
+| `docker-compose.colbert-worker.yml` | Optional ColBERT HTTP sidecar ([ADR 0015](adr/0015-colbert-http-sidecar.md)) |
+| `docker-compose.colbert-worker.gpu.yml` | NVIDIA GPU for ColBERT sidecar — use when `COLBERT_GPU=1` in `.env` |
 
 ### Docker Compose env passthrough
 
@@ -23,7 +25,7 @@ Compose reads your host `.env` at `docker compose up` time and injects variables
 
 **Not in `.env`:** `dense_embed_backend` is fixed to `ollama` in code ([ADR 0011](adr/0011-ollama-only-dense-embedding.md)). `FASTEMBED_CACHE_PATH` is set to the container cache volume path.
 
-**Compose-only variables** (not read by Python `Settings`): `WORKSPACE_ROOT`, `MCP_MEM_LIMIT`, `QDRANT_MEM_LIMIT`, `MCP_CPUS`, `QDRANT_CPUS`, `COMPOSE_PROFILES`, `OLLAMA_GPU`, `OLLAMA_GPU_COUNT`, `OLLAMA_PORT`, `OLLAMA_MEM_LIMIT`, `OLLAMA_CPUS`.
+**Compose-only variables** (not read by Python `Settings`): `WORKSPACE_ROOT`, `MCP_MEM_LIMIT`, `QDRANT_MEM_LIMIT`, `MCP_CPUS`, `QDRANT_CPUS`, `COMPOSE_PROFILES`, `OLLAMA_GPU`, `OLLAMA_GPU_COUNT`, `OLLAMA_PORT`, `OLLAMA_MEM_LIMIT`, `OLLAMA_CPUS`, `COLBERT_GPU`, `COLBERT_GPU_COUNT`, `COLBERT_MEM_LIMIT`, `COLBERT_CPUS`.
 
 For local `uv run python -m codebase_indexer.main`, pydantic reads `.env` in `mcp_server/` directly — same variable names apply.
 
@@ -141,6 +143,60 @@ The MCP upsert path retries up to **5 times** with exponential backoff on transi
 **Verified preset** (Ollama GPU + ColBERT sidecar + rerank, ~16 GB host): see `.env.example` sidecar block — `UPSERT_BATCH=10`, `FLUSH_EVERY=96`, `MCP_MEM_LIMIT=3g`, `COLBERT_MEM_LIMIT=3g`.
 
 See [SEARCH_BEHAVIOR.md](SEARCH_BEHAVIOR.md#optional-colbert-reranking-rerank_enabledtrue) for search-path details.
+
+### ColBERT GPU sidecar
+
+Optional GPU acceleration for the ColBERT HTTP sidecar ([ADR 0015](adr/0015-colbert-http-sidecar.md) phase 2). The MCP container stays on CPU fastembed/onnxruntime; only the sidecar image swaps to `fastembed-gpu` + `onnxruntime-gpu==1.26.0` via `colbert_worker/Dockerfile.gpu`.
+
+Requires NVIDIA driver + [Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html).
+
+`.env`:
+
+```env
+RERANK_ENABLED=true
+COLBERT_EMBED_BACKEND=remote
+COLBERT_GPU=1
+COLBERT_GPU_COUNT=1
+# Optional: pin sidecar to specific GPU(s) when multiple are visible
+# COLBERT_DEVICE_IDS=1
+```
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.ollama.yml \
+  -f docker-compose.colbert-worker.yml \
+  -f docker-compose.colbert-worker.gpu.yml up -d --build
+```
+
+Verify sidecar device: `curl http://localhost:8082/health` — expect `"device":"cuda"` and `"cuda_available":true`. The worker fails at startup if `COLBERT_USE_CUDA=1` but CUDA is unavailable.
+
+**Single-GPU VRAM:** On an 8 GB GPU, running Ollama dense and ColBERT on the same device may OOM. Prefer a second GPU (`OLLAMA_GPU_COUNT=1` on GPU 0, `COLBERT_DEVICE_IDS=1` on GPU 1) or keep the CPU ColBERT sidecar (`docker-compose.colbert-worker.yml` without the GPU override). There is no automatic GPU scheduler.
+
+| Variable | Default | Role |
+|----------|---------|------|
+| `COLBERT_GPU` | `0` | Document only — set `1` and add `docker-compose.colbert-worker.gpu.yml` |
+| `COLBERT_GPU_COUNT` | `1` | GPUs reserved for ColBERT sidecar when using `.colbert-worker.gpu.yml` |
+| `COLBERT_USE_CUDA` | `0` | Worker env — set to `1` automatically by GPU compose override |
+| `COLBERT_DEVICE_IDS` | *(empty)* | Optional comma-separated GPU indices passed to fastembed |
+
+#### ColBERT sidecar throughput benchmark
+
+Compare CPU vs GPU sidecar index throughput with the dedicated harness (full pipeline, remote ColBERT, rerank enabled):
+
+```bash
+cd mcp_server
+
+# CPU sidecar (default Dockerfile)
+uv run python -m benchmarks.bench_colbert_sidecar --output /tmp/cpu-sidecar.json
+
+# GPU sidecar (after starting stack with .colbert-worker.gpu.yml)
+uv run python -m benchmarks.bench_colbert_sidecar --output /tmp/gpu-sidecar.json
+
+# Compare results (higher chunks_per_s = better)
+uv run python -m benchmarks.bench_colbert_sidecar \
+  --compare /tmp/cpu-sidecar.json /tmp/gpu-sidecar.json
+```
+
+Requires reachable Qdrant, Ollama, and ColBERT sidecar. Result JSON includes `colbert_sidecar_device` and `colbert_sidecar_cuda_available` from sidecar `/health`.
 
 See [README.md](../README.md) for full env reference and tuning presets.
 

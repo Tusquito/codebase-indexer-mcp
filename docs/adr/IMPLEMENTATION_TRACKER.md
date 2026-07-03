@@ -46,7 +46,8 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0013](0013-external-agent-knowledge-base.md) | External agent knowledge base | Accepted | all | `merged` | MCP tools surface | 2026-07-02 |
 | [0014](0014-vector-discovery-and-ops-automation.md) | Vector discovery + n8n ops | Proposed | — | `not_started` | — | — |
 | [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 1 | `merged` | Opt-in `COLBERT_EMBED_BACKEND=remote` + `colbert_worker` sidecar; default in-process ONNX unchanged; FastAPI lifespan preload; `ColbertRemoteBackend` httpx client; `docker-compose.colbert-worker.yml` with shared `fastembed_cache`; `.env.example` + `SEARCH_BEHAVIOR.md`; [PR #2](https://github.com/Tusquito/codebase-indexer-mcp/pull/2) | 2026-07-03 |
-| [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 2+ | `not_started` | GPU worker image; MCP slim when remote-only | — |
+| [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 2 | `verified` | GPU sidecar via `colbert_worker/Dockerfile.gpu` (`onnxruntime-gpu==1.26.0`, `python:3.12-slim`); compose override `docker-compose.colbert-worker.gpu.yml` (NVIDIA reservations mirroring Ollama); `COLBERT_DEVICE_IDS` → `ColbertOnnxBackend.device_ids`; worker `/health` reports `device` + `cuda_available`; fail-fast CUDA preload; `bench_colbert_sidecar.py` remote throughput bench; single-GPU 8GB OOM documented (no auto-scheduler); CI-safe mocked/skipped GPU tests + non-blocking GPU Dockerfile CI job | 2026-07-03 |
+| [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 3+ | `not_started` | MCP slim image when remote-only | — |
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
 
@@ -65,7 +66,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 |-----|------|-----------|
 | 0008 | Phase 1 — opt-in ColBERT multivector rerank ([PR #1](https://github.com/Tusquito/codebase-indexer-mcp/pull/1)) | Adaptive rerank; per-tool overrides; cross_reference/service_map rerank wiring |
 | 0009 | Phase 1 — `SEARCH_BEHAVIOR.md` multi-hop section, golden `multi_hop` tags | Phase 2+ server mechanisms; optional graph-backed hops per [0002](0002-graphrag-neo4j-qdrant.md) |
-| 0015 | Phase 1 — HTTP sidecar + remote backend ([PR #2](https://github.com/Tusquito/codebase-indexer-mcp/pull/2)) | GPU worker; MCP slim image when remote-only |
+| 0015 | Phase 1 — HTTP sidecar + remote backend ([PR #2](https://github.com/Tusquito/codebase-indexer-mcp/pull/2)); Phase 2 — GPU worker + benchmark (`verified`) | MCP slim image when remote-only (phase 3+) |
 
 ---
 
@@ -172,6 +173,40 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 ---
 
 ### ADR 0015 — ColBERT HTTP sidecar
+
+#### 2026-07-03 — verification
+- **Phase / PR:** Phase 2 — GPU ColBERT worker image + index throughput benchmark vs CPU sidecar
+- **Tracker status:** `verified`
+- **Choices:** GPU acceleration in sidecar image only (MCP stays CPU fastembed/onnxruntime); reuse `ColbertOnnxBackend` with `use_cuda`/`device_ids`; compose-only `COLBERT_GPU` doc flag; dedicated `bench_colbert_sidecar.py`; fail-fast CUDA startup; single-GPU 8GB OOM documented without auto-scheduler
+- **Deviations:** none
+- **Code evidence:** `colbert_worker/Dockerfile.gpu`, `docker-compose.colbert-worker.gpu.yml`, `mcp_server/src/codebase_indexer/colbert_worker/app.py`, `mcp_server/src/codebase_indexer/colbert_worker/settings.py`, `mcp_server/src/codebase_indexer/colbert_worker/cuda.py`, `mcp_server/src/codebase_indexer/indexer/backends/colbert_onnx.py`, `mcp_server/benchmarks/bench_colbert_sidecar.py`, `mcp_server/benchmarks/bench.py`, `docs/DEPLOYMENT.md`, `.env.example`, `.github/workflows/ci.yml`, `mcp_server/pyproject.toml`
+- **Test debt:** Docker GPU image runtime smoke; live GPU embed integration beyond provider probe; `bench_colbert_sidecar --compare` unit test; host-side sidecar reachability docs
+- **Verify:** tests run + plan compliance pass — pytest 236 passed, 3 skipped, 5 deselected; all in-scope plan requirements pass; review rounds: 1
+- **Git:** pending
+- **Changelog:** yes
+
+#### 2026-07-03 — implementation
+- **Phase / PR:** Phase 2 — GPU ColBERT worker image + index throughput benchmark vs CPU sidecar
+- **Tracker status:** `implemented`
+- **Choices:** `onnxruntime-gpu==1.26.0` pinned to match CPU lock; `python:3.12-slim` base with NVIDIA compose reservations mirroring Ollama GPU pattern; optional `COLBERT_DEVICE_IDS` env wired to `ColbertOnnxBackend.device_ids`; `/health` reports configured `device` + runtime `cuda_available`; fail-fast preload when CUDA requested but unavailable; dedicated `bench_colbert_sidecar.py` over full `run_benchmark` with remote ColBERT; single-GPU 8GB OOM documented (no auto-scheduler)
+- **Deviations:** none
+- **Code evidence:** `colbert_worker/Dockerfile.gpu`, `docker-compose.colbert-worker.gpu.yml`, `mcp_server/src/codebase_indexer/colbert_worker/app.py`, `mcp_server/src/codebase_indexer/colbert_worker/settings.py`, `mcp_server/src/codebase_indexer/indexer/backends/colbert_onnx.py`, `mcp_server/benchmarks/bench_colbert_sidecar.py`, `docs/DEPLOYMENT.md`, `.github/workflows/ci.yml`
+- **Test debt:** Docker GPU image runtime smoke; live GPU embed integration; bench compare path unit test
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no
+
+#### 2026-07-03 — plan
+- **Phase / PR:** Phase 2 — GPU ColBERT worker image + index throughput benchmark vs CPU sidecar
+- **Tracker status:** `planned`
+- **Choices:** GPU acceleration in **sidecar image only** (not MCP) to avoid fastembed/fastembed-gpu lock conflict and ADR 0011 CPU MCP model; reuse `ColbertOnnxBackend` with `use_cuda` rather than new backend class; compose-only `COLBERT_GPU` doc flag (like `OLLAMA_GPU`); dedicated benchmark script over full `run_benchmark` with `rerank_enabled=True` + `colbert_embed_backend=remote`; single PR for entire phase. **Chosen scope:** Optional GPU ColBERT sidecar via `colbert_worker/Dockerfile.gpu` (fastembed-gpu + onnxruntime-gpu, separate from MCP CPU deps); compose override `docker-compose.colbert-worker.gpu.yml` mirroring `docker-compose.ollama.gpu.yml`; compose-only `COLBERT_GPU` / `COLBERT_GPU_COUNT` and worker `COLBERT_USE_CUDA`; extend `ColbertOnnxBackend` + worker `/health` device reporting; dedicated `benchmarks/bench_colbert_sidecar.py` for remote-sidecar index throughput CPU vs GPU; CI-safe mocked/skipped GPU tests + non-blocking GPU Dockerfile CI job; `ColbertRemoteBackend` and HTTP contract unchanged
+- **Assumptions:** Phase 1 merged (PR #2); operators use existing remote sidecar preset with `UPSERT_BATCH=10`; benchmark compares two sidecar deployments (CPU image vs GPU image) with same MCP/Qdrant/Ollama stack; NVIDIA Container Toolkit available for GPU override
+- **Deviations:** none
+- **Code evidence:** —
+- **Test debt:** CI-safe mocked/skipped GPU tests + non-blocking GPU Dockerfile CI job
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing yes; entry at `verified` step
 
 #### 2026-07-03 — merge
 - **Phase / PR:** Phase 1 — HTTP sidecar + remote backend + compose override + tests + operator docs — [PR #2](https://github.com/Tusquito/codebase-indexer-mcp/pull/2)
@@ -292,3 +327,10 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-03 | 0015 | Lower `MCP_MEM_LIMIT` guidance after sidecar split? | Defer until operational validation | no |
 | 2026-07-03 | 0015 | ADR 0008 phase 2+ test debt in this phase? | Out of scope — xref/service_map rerank, golden MRR `--rerank` remain 0008 P2+ | no |
 | 2026-07-03 | 0015 | Sidecar model preload hook | FastAPI lifespan instead of deprecated `@app.on_event("startup")` | no |
+| 2026-07-03 | 0015 | `onnxruntime-gpu` version pin | `onnxruntime-gpu==1.26.0` pinned to match CPU lock | no |
+| 2026-07-03 | 0015 | Single-GPU VRAM sharing with Ollama | Single-GPU 8GB OOM documented; no auto-scheduler | no |
+| 2026-07-03 | 0015 | Optional `device_ids` env for multi-GPU hosts | Optional `COLBERT_DEVICE_IDS` env wired to `ColbertOnnxBackend.device_ids` | no |
+| 2026-07-03 | 0015 | Full-pipeline vs ColBERT-only microbench in benchmark output | Dedicated `bench_colbert_sidecar.py` over full `run_benchmark` with remote ColBERT | no |
+| 2026-07-03 | 0015 | GPU compose toggle env var | Compose-only `COLBERT_GPU` doc flag (like `OLLAMA_GPU`); no MCP-side GPU deps | no |
+| 2026-07-03 | 0015 | CUDA unavailable at sidecar startup | Fail-fast preload when CUDA requested but unavailable | no |
+| 2026-07-03 | 0015 | MCP GPU deps for ColBERT | GPU acceleration in sidecar image only; MCP stays CPU fastembed/onnxruntime | no |
