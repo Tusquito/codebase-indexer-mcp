@@ -78,6 +78,12 @@ Index-time: a third multivector field `colbert` is stored on each point (HNSW di
 | `COLBERT_EMBED_MODEL` | `colbert-ir/colbertv2.0` | fastembed ColBERT model for index + query |
 | `RERANK_PREFETCH` | `100` | Hybrid candidate pool before ColBERT rerank |
 | `RERANK_MAX_QUERY_TOKENS` | `0` | Query truncation; `0` = registry default |
+| `COLBERT_EMBED_BACKEND` | `onnx` | `onnx` (in MCP) or `remote` (HTTP sidecar) |
+| `COLBERT_URL` | `http://colbert_worker:8082` | Sidecar base URL when `remote` |
+| `COLBERT_TIMEOUT` | `300` | Per-request HTTP timeout (seconds) |
+| `COLBERT_EMBED_BATCH_SIZE` | `16` | MCP → sidecar batch size |
+
+When `COLBERT_EMBED_BACKEND=remote`, ColBERT model weights and inference run in the `colbert_worker` container (see `docker-compose.colbert-worker.yml`). MCP still holds returned multivectors per flush batch until upsert — the sidecar removes ColBERT **model and compute** RAM from MCP, not the upsert payload. Switching `onnx` ↔ `remote` with the same `COLBERT_EMBED_MODEL` does **not** require re-index.
 
 `min_score` remains disabled on hybrid and rerank paths (scores are not cosine-scale).
 

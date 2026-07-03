@@ -100,6 +100,10 @@ services:
       COLBERT_EMBED_MODEL: ${COLBERT_EMBED_MODEL:-colbert-ir/colbertv2.0}
       RERANK_PREFETCH: ${RERANK_PREFETCH:-100}
       RERANK_MAX_QUERY_TOKENS: ${RERANK_MAX_QUERY_TOKENS:-0}
+      COLBERT_EMBED_BACKEND: ${COLBERT_EMBED_BACKEND:-onnx}
+      COLBERT_URL: ${COLBERT_URL:-http://colbert_worker:8082}
+      COLBERT_TIMEOUT: ${COLBERT_TIMEOUT:-300}
+      COLBERT_EMBED_BATCH_SIZE: ${COLBERT_EMBED_BATCH_SIZE:-16}
       # --- Service mapping / cross-references ---
       SERVICE_URL_KEYWORDS: ${SERVICE_URL_KEYWORDS:-rest,api,profile,service,internal,public,gateway,graphql,webhook,auth,users,accounts}
       SERVICE_DISCOVERY_EXTRA_QUERIES: ${SERVICE_DISCOVERY_EXTRA_QUERIES:-}

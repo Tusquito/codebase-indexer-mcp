@@ -102,7 +102,8 @@ class Embedder(metaclass=_EmbedderMeta):
                 colbert.release()
                 released_colbert = True
         OnnxSparseBackend.release_shared()
-        ColbertOnnxBackend.release_shared()
+        if ColbertOnnxBackend._shared_model is not None:
+            ColbertOnnxBackend.release_shared()
         trim_memory()
         _tlog.info(
             "models_released dense=%s sparse=%s colbert=%s memory_freed=true",
@@ -118,10 +119,7 @@ class Embedder(metaclass=_EmbedderMeta):
                 return True
             if colbert is not None and colbert.is_loaded():
                 return True
-        return (
-            OnnxSparseBackend._shared_model is not None
-            or ColbertOnnxBackend._shared_model is not None
-        )
+        return OnnxSparseBackend._shared_model is not None
 
     @classmethod
     def start_idle_timer(cls, timeout_s: int) -> None:
