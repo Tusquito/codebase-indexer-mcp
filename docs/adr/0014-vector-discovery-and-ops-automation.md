@@ -1,6 +1,6 @@
 # 0014. Adopt Qdrant vector discovery APIs and optional n8n ops hooks
 
-- **Status:** Proposed
+- **Status:** Accepted (phase 1 — recommendation search tool)
 - **Date:** 2026-07-02
 - **Deciders:** Maintainers
 - **Related:** [Qdrant n8n Workflow Automation](https://qdrant.tech/documentation/tutorials-build-essentials/qdrant-n8n/), [Qdrant n8n platform docs](https://qdrant.tech/documentation/platforms/n8n/), [ADR 0012](0012-retrieval-only-rag-split.md)
