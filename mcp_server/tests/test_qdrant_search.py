@@ -163,3 +163,175 @@ async def test_search_rerank_uses_rerank_prefetch_limit(monkeypatch):
     assert prefetch[0].limit == 77
     assert prefetch[1].limit == 77
 
+
+def _mock_point(score: float, chunk_id: str = "c1"):
+    from unittest.mock import MagicMock
+
+    point = MagicMock()
+    point.score = score
+    point.payload = {
+        "chunk_id": chunk_id,
+        "rel_path": "a.py",
+        "language": "python",
+        "start_line": 1,
+        "end_line": 2,
+        "symbol_name": None,
+        "symbol_type": "other",
+        "content": "x",
+    }
+    return point
+
+
+@pytest.mark.asyncio
+async def test_adaptive_rerank_skips_colbert_on_large_gap(monkeypatch):
+    """Large RRF gap → hybrid probe only, no ColBERT query."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    settings = Settings(
+        rerank_enabled=True,
+        rerank_adaptive_enabled=True,
+        rerank_adaptive_gap=0.02,
+    )
+    storage = QdrantStorage(settings)
+    calls: list[dict] = []
+
+    async def fake_query_points(**kwargs):
+        calls.append(kwargs)
+        result = MagicMock()
+        if kwargs.get("using") == "colbert":
+            result.points = [_mock_point(0.9)]
+        else:
+            result.points = [_mock_point(0.10), _mock_point(0.05)]
+        return result
+
+    mock_client = MagicMock()
+    mock_client.query_points = AsyncMock(side_effect=fake_query_points)
+    monkeypatch.setattr(storage, "_get_client", AsyncMock(return_value=mock_client))
+
+    dense = [0.1] * 768
+    sparse = SparseVector(indices=[1], values=[0.5])
+    colbert = [[1.0] * 128]
+
+    await storage._search_single(
+        "coll", dense, sparse, top_k=5, language=None, min_score=0.5, colbert_vector=colbert
+    )
+
+    assert len(calls) == 1
+    assert calls[0].get("using") != "colbert"
+    assert "using" not in calls[0]
+    stats = storage.adaptive_rerank_stats
+    assert stats.total == 1
+    assert stats.skipped == 1
+    assert stats.reranked == 0
+
+
+@pytest.mark.asyncio
+async def test_adaptive_rerank_runs_colbert_on_small_gap(monkeypatch):
+    """Small RRF gap → hybrid probe then ColBERT rerank."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    settings = Settings(
+        rerank_enabled=True,
+        rerank_adaptive_enabled=True,
+        rerank_adaptive_gap=0.02,
+    )
+    storage = QdrantStorage(settings)
+    calls: list[dict] = []
+
+    async def fake_query_points(**kwargs):
+        calls.append(kwargs)
+        result = MagicMock()
+        if kwargs.get("using") == "colbert":
+            result.points = [_mock_point(0.9)]
+        else:
+            result.points = [_mock_point(0.10), _mock_point(0.09)]
+        return result
+
+    mock_client = MagicMock()
+    mock_client.query_points = AsyncMock(side_effect=fake_query_points)
+    monkeypatch.setattr(storage, "_get_client", AsyncMock(return_value=mock_client))
+
+    dense = [0.1] * 768
+    sparse = SparseVector(indices=[1], values=[0.5])
+    colbert = [[1.0] * 128]
+
+    await storage._search_single(
+        "coll", dense, sparse, top_k=5, language=None, min_score=0.5, colbert_vector=colbert
+    )
+
+    assert len(calls) == 2
+    assert calls[0].get("using") != "colbert"
+    assert calls[1]["using"] == "colbert"
+    stats = storage.adaptive_rerank_stats
+    assert stats.total == 1
+    assert stats.skipped == 0
+    assert stats.reranked == 1
+
+
+@pytest.mark.asyncio
+async def test_adaptive_rerank_disabled_uses_colbert_only(monkeypatch):
+    """Adaptive off → single ColBERT call (existing rerank path)."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    settings = Settings(
+        rerank_enabled=True,
+        rerank_adaptive_enabled=False,
+        rerank_prefetch=77,
+        prefetch_multiplier=5,
+    )
+    storage = QdrantStorage(settings)
+    calls: list[dict] = []
+
+    async def fake_query_points(**kwargs):
+        calls.append(kwargs)
+        result = MagicMock()
+        result.points = [_mock_point(0.9)]
+        return result
+
+    mock_client = MagicMock()
+    mock_client.query_points = AsyncMock(side_effect=fake_query_points)
+    monkeypatch.setattr(storage, "_get_client", AsyncMock(return_value=mock_client))
+
+    dense = [0.1] * 768
+    sparse = SparseVector(indices=[1], values=[0.5])
+    colbert = [[1.0] * 128, [0.5] * 128]
+
+    await storage._search_single(
+        "coll", dense, sparse, top_k=5, language=None, min_score=0.5, colbert_vector=colbert
+    )
+
+    assert len(calls) == 1
+    assert calls[0]["using"] == "colbert"
+    assert storage.adaptive_rerank_stats.total == 0
+
+
+@pytest.mark.asyncio
+async def test_adaptive_rerank_stats_reset(monkeypatch):
+    from unittest.mock import AsyncMock, MagicMock
+
+    settings = Settings(rerank_enabled=True, rerank_adaptive_enabled=True)
+    storage = QdrantStorage(settings)
+
+    async def fake_query_points(**kwargs):
+        result = MagicMock()
+        result.points = [_mock_point(0.10), _mock_point(0.05)]
+        return result
+
+    mock_client = MagicMock()
+    mock_client.query_points = AsyncMock(side_effect=fake_query_points)
+    monkeypatch.setattr(storage, "_get_client", AsyncMock(return_value=mock_client))
+
+    dense = [0.1] * 768
+    sparse = SparseVector(indices=[1], values=[0.5])
+    colbert = [[1.0] * 128]
+
+    await storage._search_single(
+        "coll", dense, sparse, top_k=5, language=None, min_score=0.5, colbert_vector=colbert
+    )
+    assert storage.adaptive_rerank_stats.total == 1
+
+    storage.reset_adaptive_stats()
+    assert storage.adaptive_rerank_stats.total == 0
+    assert storage.adaptive_rerank_stats.skipped == 0
+    assert storage.adaptive_rerank_stats.reranked == 0
+

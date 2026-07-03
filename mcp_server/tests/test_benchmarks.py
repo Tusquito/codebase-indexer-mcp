@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from benchmarks._connectivity import qdrant_reachable  # noqa: E402
 from benchmarks.bench import compare, run_benchmark  # noqa: E402
+from codebase_indexer.storage.qdrant import AdaptiveRerankStats  # noqa: E402
 
 QDRANT_URL = os.environ.get("QDRANT_URL", "http://localhost:6333")
 
@@ -56,6 +57,25 @@ async def test_benchmark_runs_and_is_self_consistent():
         assert stats["p50"] >= 0 and stats["p95"] >= stats["p50"]
 
     assert result["delete_by_paths_ms"]["elapsed_ms"] >= 0
+
+
+def test_adaptive_rerank_stats_as_dict_schema():
+    stats = AdaptiveRerankStats(total=10, skipped=3, reranked=7)
+    block = stats.as_dict()
+    assert block == {
+        "total": 10,
+        "skipped": 3,
+        "reranked": 7,
+        "skip_rate": 0.3,
+    }
+
+
+def test_benchmark_adaptive_rerank_json_keys():
+    """Schema smoke: rerank benchmark result includes adaptive_rerank block."""
+    stats = AdaptiveRerankStats(total=5, skipped=2, reranked=3)
+    result = {"adaptive_rerank": stats.as_dict(), "params": {"rerank_enabled": True}}
+    assert set(result["adaptive_rerank"]) == {"total", "skipped", "reranked", "skip_rate"}
+    assert result["params"]["rerank_enabled"] is True
 
 
 def test_compare_reports_no_regression_against_itself():

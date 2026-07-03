@@ -104,6 +104,8 @@ Index-time: a third multivector field `colbert` is stored on each point (HNSW di
 | `COLBERT_EMBED_MODEL` | `colbert-ir/colbertv2.0` | fastembed ColBERT model for index + query |
 | `RERANK_PREFETCH` | `100` | Hybrid candidate pool before ColBERT rerank |
 | `RERANK_MAX_QUERY_TOKENS` | `0` | Query truncation; `0` = registry default |
+| `RERANK_ADAPTIVE_ENABLED` | `true` | Probe hybrid RRF scores before ColBERT (when rerank on) |
+| `RERANK_ADAPTIVE_GAP` | `0.02` | Skip ColBERT when rank-1 minus rank-2 RRF gap ≥ threshold |
 | `COLBERT_EMBED_BACKEND` | `onnx` | `onnx` (in MCP) or `remote` (HTTP sidecar) |
 | `COLBERT_URL` | `http://colbert_worker:8082` | Sidecar base URL when `remote` |
 | `COLBERT_TIMEOUT` | `300` | Per-request HTTP timeout (seconds) |
@@ -121,6 +123,18 @@ ColBERT multivectors make each Qdrant point much larger than dense+sparse alone.
 | `FLUSH_EVERY` | `1500` | **`64`–`128`** typical |
 
 `min_score` remains disabled on hybrid and rerank paths (scores are not cosine-scale). This applies to `search_codebase`, `search_symbols`, `find_cross_references`, and `map_service_dependencies`.
+
+### Adaptive ColBERT skip (`RERANK_ADAPTIVE_ENABLED=true`)
+
+When rerank is enabled and adaptive skip is on (default **on**), each per-collection search first runs the same hybrid prefetch + RRF fusion used for non-rerank hybrid search (probe limit `max(top_k, 2)`, prefetch pool `RERANK_PREFETCH`). If at least two candidates are returned and the RRF score gap between rank 1 and rank 2 is at or above `RERANK_ADAPTIVE_GAP` (default **0.02**), ColBERT MAX_SIM rerank is skipped and hybrid RRF results are returned (trimmed to `top_k`). Otherwise the full ColBERT rerank query runs unchanged.
+
+- Gap is measured on **per-collection** hybrid RRF scores before ColBERT, matching Qdrant's confident-winner pattern.
+- Multi-collection searches apply adaptive logic independently in each `_search_single` call, then existing global `fuse_cross_collection_rrf` merges per-collection lists.
+- Fewer than two probe hits always runs ColBERT (no skip).
+- ColBERT **query embedding** in `Embedder.embed_query` still runs when rerank is on; track 2a saves Qdrant MAX_SIM latency only. Per-tool `rerank=false` overrides are deferred to track 2b.
+- `QdrantStorage.adaptive_rerank_stats` exposes skip/rerank counters for `bench.py` and `eval_retrieval.py`.
+
+Tune `RERANK_ADAPTIVE_GAP` upward to skip more often (lower latency, possible quality loss); downward to rerank more often. Validate with `eval_retrieval --rerank` on your golden set.
 
 ## Multi-hop retrieval
 

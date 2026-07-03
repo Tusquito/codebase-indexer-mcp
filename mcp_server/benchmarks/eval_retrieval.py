@@ -225,6 +225,9 @@ async def run_evaluation(
         rerank=settings.rerank_enabled,
     )
 
+    if settings.rerank_enabled:
+        storage.reset_adaptive_stats()
+
     run: dict[str, dict[str, float]] = {}
     qrels: dict[str, dict[str, int]] = {}
     per_query: list[dict[str, Any]] = []
@@ -276,7 +279,7 @@ async def run_evaluation(
 
     metrics_by_tag = compute_tag_metrics(entries, qrels, run)
 
-    return {
+    result: dict[str, Any] = {
         "schema": 1,
         "params": {
             "golden": str(golden_path),
@@ -292,6 +295,11 @@ async def run_evaluation(
         "per_query": per_query,
         "n_queries": len(entries),
     }
+    if rerank_enabled:
+        result["params"]["rerank_adaptive_enabled"] = settings.rerank_adaptive_enabled
+        result["params"]["rerank_adaptive_gap"] = settings.rerank_adaptive_gap
+        result["adaptive_rerank"] = storage.adaptive_rerank_stats.as_dict()
+    return result
 
 
 def render_table(result: dict[str, Any]) -> str:
@@ -313,6 +321,13 @@ def render_table(result: dict[str, Any]) -> str:
             recall = tag_metrics.get("recall@10", 0.0)
             mrr = tag_metrics.get("mrr", 0.0)
             lines.append(f"    {tag:<16} recall@10={recall:.4f}  mrr={mrr:.4f}")
+    adaptive = result.get("adaptive_rerank")
+    if adaptive is not None:
+        lines.append("-" * 64)
+        lines.append(
+            f"  adaptive_rerank skip_rate: {adaptive['skip_rate'] * 100:.1f}%  "
+            f"({adaptive['skipped']}/{adaptive['total']} skipped)"
+        )
     lines.append("=" * 64)
     return "\n".join(lines)
 

@@ -211,6 +211,40 @@ def test_rerank_defaults_disabled():
     assert s.colbert_embed_model == "colbert-ir/colbertv2.0"
     assert s.rerank_prefetch == 100
     assert s.rerank_max_query_tokens == 0
+    assert s.rerank_adaptive_enabled is False
+
+
+def test_rerank_adaptive_defaults_when_rerank_enabled():
+    s = Settings(
+        dense_embed_model="nomic-ai/nomic-embed-text-v1.5",
+        sparse_embed_model="Qdrant/bm25",
+        dense_embed_vector_size=768,
+        sparse_threads=2,
+        rerank_enabled=True,
+    )
+    assert s.rerank_adaptive_enabled is True
+    assert s.rerank_adaptive_gap == 0.02
+
+
+def test_rerank_adaptive_settings_from_env(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("RERANK_ENABLED", "true")
+    monkeypatch.setenv("RERANK_ADAPTIVE_ENABLED", "false")
+    monkeypatch.setenv("RERANK_ADAPTIVE_GAP", "0.05")
+    s = Settings()
+    assert s.rerank_adaptive_enabled is False
+    assert s.rerank_adaptive_gap == 0.05
+
+
+def test_rerank_adaptive_gap_rejects_negative():
+    with pytest.raises(ValidationError):
+        Settings(
+            dense_embed_model="nomic-ai/nomic-embed-text-v1.5",
+            sparse_embed_model="Qdrant/bm25",
+            dense_embed_vector_size=768,
+            sparse_threads=2,
+            rerank_enabled=True,
+            rerank_adaptive_gap=-0.01,
+        )
 
 
 def test_rerank_settings_from_env(monkeypatch: pytest.MonkeyPatch):
