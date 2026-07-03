@@ -30,7 +30,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 
 | ADR | Title | ADR status | Phase | Tracker | Chosen scope | Last updated |
 |-----|-------|------------|-------|---------|--------------|--------------|
-| [0002](0002-graphrag-neo4j-qdrant.md) | Optional GraphRAG (Neo4j + Qdrant) | Proposed | Phase 1 — Neo4j storage + index-time graph writer | `verified` | Shipped: `storage/neo4j.py` async driver wrapper (neo4j driver 6.2.0) with idempotent schema; `indexer/graph_writer.py` writing ADR ontology from index batches (reuses `UrlExtractors`, `extract_build_deps`/`match_deps_to_collections`, public `extract_imported_names`); `pipeline.py` hooks mirroring Qdrant flush/delete cadence; best-effort graph errors to `PipelineResult.errors`; `context.py` optional `Neo4jStorage`; config (`GRAPH_ENABLED=false` default, `NEO4J_*`, `GRAPH_WRITER_BATCH`, `GRAPH_SCHEMA_VERSION=1`); `docker-compose.neo4j.yml` override only; mock driver CI unit tests; `.env.example` + `ARCHITECTURE.md`; no MCP tools Phase 1; endpoint `method` inference best-effort; defer Phase 2 Qdrant `graph_node_ids`, Phase 3 `expand_search_context`, Phase 4 Neo4j cross-project queries | 2026-07-03 |
+| [0002](0002-graphrag-neo4j-qdrant.md) | Optional GraphRAG (Neo4j + Qdrant) | Accepted (phase 1 — Neo4j storage + index-time graph writer) | Phase 1 — Neo4j storage + index-time graph writer | `merged` | Shipped: `storage/neo4j.py` async driver wrapper (neo4j driver 6.2.0) with idempotent schema; `indexer/graph_writer.py` writing ADR ontology from index batches (reuses `UrlExtractors`, `extract_build_deps`/`match_deps_to_collections`, public `extract_imported_names`); `pipeline.py` hooks mirroring Qdrant flush/delete cadence; best-effort graph errors to `PipelineResult.errors`; `context.py` optional `Neo4jStorage`; config (`GRAPH_ENABLED=false` default, `NEO4J_*`, `GRAPH_WRITER_BATCH`, `GRAPH_SCHEMA_VERSION=1`); `docker-compose.neo4j.yml` override only; mock driver CI unit tests; `.env.example` + `ARCHITECTURE.md`; no MCP tools Phase 1; endpoint `method` inference best-effort; defer Phase 2 Qdrant `graph_node_ids`, Phase 3 `expand_search_context`, Phase 4 Neo4j cross-project queries; [PR #10](https://github.com/Tusquito/codebase-indexer-mcp/pull/10) | 2026-07-03 |
 | [0003](0003-hybrid-search-rrf-default.md) | Hybrid search RRF default | Accepted | all | `merged` | Shipped | 2026-07-02 |
 | [0004](0004-collection-per-project-isolation.md) | Collection-per-project isolation | Accepted | all | `merged` | Shipped | 2026-07-02 |
 | [0005](0005-mcp-retrieval-connector.md) | MCP retrieval connector | Accepted | all | `merged` | Shipped | 2026-07-02 |
@@ -60,11 +60,12 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 
 | ADR | Notes |
 |-----|-------|
-| 0002 | Phase 1 `verified` — Neo4j storage + index-time graph writer; ready for git/PR; four phases total; default deploy stays Qdrant-only (`GRAPH_ENABLED=false`) |
+| — | — |
 ### Partial acceptance
 
 | ADR | Done | Remaining |
 |-----|------|-----------|
+| 0002 | Phase 1 — Neo4j storage + index-time graph writer ([PR #10](https://github.com/Tusquito/codebase-indexer-mcp/pull/10)) | Phases 2–4 (Qdrant `graph_node_ids`, `expand_search_context`, Neo4j cross-project queries) |
 | 0014 | Track A Phase 1 — recommendation search tool ([PR #5](https://github.com/Tusquito/codebase-indexer-mcp/pull/5)); Track A Phase 2 — outlier helper ([PR #9](https://github.com/Tusquito/codebase-indexer-mcp/pull/9)) | Track B (n8n compose) deferred |
 | 0009 | Phase 1 — `SEARCH_BEHAVIOR.md` multi-hop section, golden `multi_hop` tags; Phase 2 — automated 2-hop client eval script ([PR #8](https://github.com/Tusquito/codebase-indexer-mcp/pull/8)) | Phase 3+ server mechanisms; optional graph-backed hops per [0002](0002-graphrag-neo4j-qdrant.md) |
 | 0015 | Phase 1 — HTTP sidecar + remote backend ([PR #2](https://github.com/Tusquito/codebase-indexer-mcp/pull/2)); Phase 2 — GPU worker + benchmark ([PR #3](https://github.com/Tusquito/codebase-indexer-mcp/pull/3)) | MCP slim image when remote-only (phase 3+) |
@@ -320,6 +321,17 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 ---
 
 ### ADR 0002 — GraphRAG (Neo4j + Qdrant)
+
+#### 2026-07-03 — merge
+- **Phase / PR:** Phase 1 — Neo4j storage + index-time graph writer — [PR #10](https://github.com/Tusquito/codebase-indexer-mcp/pull/10)
+- **Tracker status:** `merged`
+- **Choices:** squash merge `c511c6f` on feature branch `adr/0002-phase-1-neo4j-graph-writer`; ADR accepted as `Accepted (phase 1 — Neo4j storage + index-time graph writer)` (docs commit `a48dd97`); release skipped; Phases 2–4 deferred
+- **Deviations:** none
+- **Code evidence:** merged via PR #10 (`adr/0002-phase-1-neo4j-graph-writer`; squash `c511c6f`)
+- **Test debt:** carried from verification — live Neo4j incremental delete integration; compose override smoke; graph-failure-during-index scenario; pipeline-level delete hook assertion
+- **Verify:** carried from verification — 17 graph unit tests pass + plan compliance pass; Docker integration pass per integration report; review rounds: 1
+- **Git:** [PR #10](https://github.com/Tusquito/codebase-indexer-mcp/pull/10) merged (squash `c511c6f`)
+- **Changelog:** no — release skipped; `[Unreleased]` bullet retained from verification step
 
 #### 2026-07-03 — verification
 - **Phase / PR:** Phase 1 — Neo4j storage + index-time graph writer
@@ -744,8 +756,10 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-03 | 0008 | Dedicated unit test for single-probe-hit ColBERT path (< 2 probe hits) | Open — test debt at verification | no |
 | 2026-07-03 | 0008 | Golden-set gap threshold sweep for `RERANK_ADAPTIVE_GAP` tuning | Open — test debt at verification (`eval_retrieval --rerank`) | no |
 | 2026-07-03 | 0009 | Whether 0009 Phase 2 eval script runs parallel or next cycle | Prioritized 2026-07-03 — Phase 2 automated 2-hop client eval script is `planned` | no |
-| 2026-07-03 | 0008 | Accept Proposed 0002 or 0014 in a subsequent cycle for greenfield work? | 0014 Track A complete (P1+P2 merged); 0002 Phase 1 prioritized 2026-07-03 — `verified` | no |
-| 2026-07-03 | 0002 | Accept ADR 0002 (Proposed → Accepted) before dev? | Open — required before implementation; pre-merge Accept timing — orchestrator decision | no |
+| 2026-07-03 | 0008 | Accept Proposed 0002 or 0014 in a subsequent cycle for greenfield work? | 0014 Track A complete (P1+P2 merged); 0002 Phase 1 merged ([PR #10](https://github.com/Tusquito/codebase-indexer-mcp/pull/10)) | no |
+| 2026-07-03 | 0002 | Accept ADR 0002 (Proposed → Accepted) before dev? | `Accepted (phase 1 — Neo4j storage + index-time graph writer)` after PR #10 merge (docs commit `a48dd97`) | no |
+| 2026-07-03 | 0002 | ADR index wording after Phase 1 merge | `Accepted (phase 1 — Neo4j storage + index-time graph writer)` after PR #10 merge (docs commit `a48dd97`) | no |
+| 2026-07-03 | 0002 | Accept ADR 0002 phase 1 at merge? | `Accepted (phase 1 — Neo4j storage + index-time graph writer)` after PR #10 merge | no |
 | 2026-07-03 | 0002 | Testcontainers Neo4j vs bolt mock for CI | Decided at implementation — mock driver CI default | no |
 | 2026-07-03 | 0002 | Graph write fail-fast vs best-effort | Decided at plan — best-effort: graph write errors append to `PipelineResult.errors` while Qdrant upsert succeeds | no |
 | 2026-07-03 | 0002 | Endpoint `method` inference depth | Decided at implementation — best-effort only | no |
