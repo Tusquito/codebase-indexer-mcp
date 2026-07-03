@@ -3,9 +3,11 @@
 from codebase_indexer.config import Settings
 from codebase_indexer.indexer.backends.factory import (
     create_backends,
+    create_colbert_backend,
     create_dense_backend,
     create_sparse_backend,
 )
+from codebase_indexer.indexer.backends.colbert_remote import ColbertRemoteBackend
 from codebase_indexer.indexer.backends.ollama_dense import OllamaDenseBackend
 from codebase_indexer.indexer.backends.onnx_sparse import OnnxSparseBackend
 
@@ -24,3 +26,15 @@ def test_create_backends_returns_dense_and_sparse():
     dense, sparse = create_backends(settings)
     assert isinstance(dense, OllamaDenseBackend)
     assert isinstance(sparse, OnnxSparseBackend)
+
+
+def test_factory_uses_remote_colbert_when_configured():
+    settings = Settings(
+        ollama_embed_model="nomic-embed-text",
+        colbert_embed_backend="remote",
+        colbert_url="http://colbert_worker:8082",
+    )
+    backend = create_colbert_backend(settings)
+    assert isinstance(backend, ColbertRemoteBackend)
+    assert backend.colbert_url == "http://colbert_worker:8082"
+

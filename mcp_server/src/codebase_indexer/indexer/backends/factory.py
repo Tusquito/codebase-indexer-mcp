@@ -45,6 +45,16 @@ def create_sparse_backend(settings: Settings) -> SparseEmbedBackend:
 
 
 def create_colbert_backend(settings: Settings) -> LateInteractionEmbedBackend:
+    if settings.colbert_embed_backend == "remote":
+        from codebase_indexer.indexer.backends.colbert_remote import ColbertRemoteBackend
+
+        return ColbertRemoteBackend(
+            model_name=settings.colbert_embed_model,
+            colbert_url=settings.colbert_url,
+            batch_size=settings.colbert_embed_batch_size,
+            timeout=float(settings.colbert_timeout),
+        )
+
     from codebase_indexer.indexer.backends.colbert_onnx import ColbertOnnxBackend
 
     return ColbertOnnxBackend(
