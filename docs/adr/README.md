@@ -46,7 +46,7 @@ Invoke the full pipeline with **`adr-orchestrator`**; resume a phase with `Resum
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
 | [0001](0001-pluggable-embed-backends.md) | Introduce pluggable embedding backends | Superseded | 2026-07-02 |
-| [0002](0002-graphrag-neo4j-qdrant.md) | Add optional GraphRAG with Neo4j and Qdrant | Proposed | 2026-07-02 |
+| [0002](0002-graphrag-neo4j-qdrant.md) | Add optional GraphRAG with Neo4j and Qdrant | Accepted (phase 1 — Neo4j storage + index-time graph writer) | 2026-07-02 |
 | [0003](0003-hybrid-search-rrf-default.md) | Default hybrid search with prefetch and RRF fusion | Accepted | 2026-07-02 |
 | [0004](0004-collection-per-project-isolation.md) | Collection-per-project isolation over payload multitenancy | Accepted | 2026-07-02 |
 | [0005](0005-mcp-retrieval-connector.md) | MCP as external RAG retrieval connector | Accepted | 2026-07-02 |
