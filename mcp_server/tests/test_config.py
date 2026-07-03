@@ -26,9 +26,9 @@ def test_auth_token_defaults_empty():
 
 def test_embed_settings_loaded_from_env():
     s = Settings()
-    assert s.dense_embed_model == "Qwen/Qwen3-Embedding-4B"
+    assert s.dense_embed_model == "jinaai/jina-embeddings-v2-base-code"
     assert s.sparse_embed_model == "Qdrant/bm25"
-    assert s.dense_embed_vector_size == 1024
+    assert s.dense_embed_vector_size == 768
     assert s.sparse_threads == 2
 
 
