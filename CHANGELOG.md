@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+> **Note:** The MCP surface is **13 tools** when `RECOMMEND_ENABLED=true` (default). Historical release `[0.1.0]` below lists **12 tools** from before `recommend_code` shipped.
+
 ### Added
 
 - **`recommend_code` MCP tool** ([ADR 0014](docs/adr/0014-vector-discovery-and-ops-automation.md)) — find code chunks similar to positive examples and dissimilar from negative examples via Qdrant Recommendation API (dense-only, AVERAGE_VECTOR). Gated by `RECOMMEND_ENABLED` (default on); example count capped by `RECOMMEND_MAX_EXAMPLES`. Single-collection; optional `path_glob` post-filter. No re-index required.

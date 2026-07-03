@@ -20,7 +20,7 @@ The codebase-indexer MCP server today focuses on **similarity search for code na
 |------------------|---------------|
 | Payload indexes on metadata | `PAYLOAD_INDEXES=true` → keyword indexes on `rel_path`, `chunk_id`, `symbol_name`, `language` in `storage/qdrant.py` |
 | Filtered hybrid search | Payload filters in search tools |
-| Recommendation / dissimilarity | **Not implemented** |
+| Recommendation / dissimilarity | **Phase 1 shipped** — `recommend_code` ([ADR 0014](0014-vector-discovery-and-ops-automation.md)); Track A P2 outlier helper deferred |
 | Low-code ops automation | **Cron sidecar only** (`cron/reindex.py`); no n8n compose |
 
 Code intelligence use cases that similarity-only search handles poorly:
@@ -30,6 +30,8 @@ Code intelligence use cases that similarity-only search handles poorly:
 - “Alert when index health degrades” or “trigger re-index on webhook” (ops automation beyond daily cron)
 
 We need a decision on which n8n-tutorial capabilities belong in the MCP product vs external ops tooling.
+
+> **As of Phase 1 merge (2026-07-03):** `recommend_code` is shipped (`tools/recommend.py`, `QdrantStorage.recommend`). Track A P2 (outlier helper) and Track B (n8n compose) remain deferred.
 
 ## Decision
 
@@ -41,7 +43,7 @@ Add Qdrant **Recommendation API** and selective **dissimilarity / context discov
 
 **Phase 1 — Recommendation search tool**
 
-- New tool: `recommend_code` (name TBD)
+- New tool: `recommend_code`
 - Inputs: `collection`, `positive_chunk_ids` or `positive_query`, optional `negative_chunk_ids` / `negative_query`, `limit`, payload filters (`language`, path glob)
 - Implementation: embed positive/negative texts via existing `Embedder`; call `QdrantClient.recommend` (or `query_points` with `RecommendQuery`) on dense vector; optionally fuse with sparse channel in a follow-up
 - Use cases: “similar utility, not in `*_test.go`”, “patterns like this handler, exclude legacy folder”
@@ -116,7 +118,7 @@ MCP **does not** embed n8n or replace `cron/reindex.py` by default. n8n is for t
 - Phase 1–2: `mcp_server/src/codebase_indexer/tools/recommend.py` (new), `storage/qdrant.py` (`recommend` helper), `main.py` registration, tests
 - Phase 3: `docker-compose.n8n.yml`, `docs/DEPLOYMENT.md`, example workflow JSON under `docs/examples/n8n/`
 
-### Configuration (proposed)
+### Configuration
 
 | Variable | Phase | Default | Purpose |
 |----------|-------|---------|---------|

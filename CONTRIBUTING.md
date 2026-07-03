@@ -43,6 +43,17 @@ uv run pytest -q
 
 Set `QDRANT_URL` when running tests against a local or containerized Qdrant instance.
 
+### Integration smoke tests
+
+Optional scripts under `mcp_server/scripts/` exercise live Qdrant + Ollama (skipped when services are unreachable):
+
+```bash
+cd mcp_server
+python scripts/smoke_recommend_code.py   # recommend_code end-to-end
+```
+
+Requires an indexed collection (default `codebase-indexer-mcp`). Set `COLLECTION` to target another project. When running on the host against Docker, the script falls back to `localhost` for Ollama/Qdrant if `.env` uses in-compose hostnames.
+
 ## Commit conventions
 
 Use [Conventional Commits](https://www.conventionalcommits.org/):
@@ -69,3 +80,5 @@ When you add, remove, or change an MCP tool (signature, behavior, or description
 2. `.github/copilot-instructions.md` — tool table and Key conventions
 
 Search-tool description changes should also stay aligned with `docs/SEARCH_BEHAVIOR.md`.
+
+When adding discovery or orientation tools, also update `skill/codebase-indexer/SKILL.md` and `docs/ARCHITECTURE.md` MCP tools table.

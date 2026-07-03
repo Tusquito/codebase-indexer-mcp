@@ -9,6 +9,7 @@ A fully self-hosted, Docker-based MCP server that indexes your codebase into a l
 - **Incremental Indexing** — Only re-indexes changed files (SHA-256 hash comparison)
 - **Multi-Language** — Python, JavaScript, TypeScript, Go, Rust, Java, C, C++, C#
 - **Token Efficient** — Returns only relevant code chunks, not full files. Three dedicated low-cost orientation tools (`get_collection_summary`, `search_symbols`, `get_file_outline`) eliminate exploratory searches entirely.
+- **Vector Discovery** — `recommend_code` finds chunks similar to positive examples and dissimilar from negatives (Qdrant Recommendation API)
 - **MCP Compatible** — Works with Claude Desktop, Copilot CLI, Cursor, and more
 - **Optional GPU Acceleration** — Offload dense embedding to Ollama on NVIDIA GPU via `docker-compose.ollama.gpu.yml`
 
@@ -19,9 +20,9 @@ A fully self-hosted, Docker-based MCP server that indexes your codebase into a l
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Dev setup (Python 3.12, uv), CI lint/type-check/test workflow, conventional commits |
 | [CHANGELOG.md](CHANGELOG.md) | Release history (Keep a Changelog format) |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Per-component responsibilities, indexing pipeline, embedding layer, hybrid search |
-| [docs/adr/](docs/adr/) | Architecture Decision Records — see [0012](docs/adr/0012-retrieval-only-rag-split.md) (retrieval-only RAG), [0011](docs/adr/0011-ollama-only-dense-embedding.md) (Ollama dense) |
+| [docs/adr/](docs/adr/) | Architecture Decision Records — see [0012](docs/adr/0012-retrieval-only-rag-split.md) (retrieval-only RAG), [0011](docs/adr/0011-ollama-only-dense-embedding.md) (Ollama dense), [0008](docs/adr/0008-optional-colbert-reranking.md) (ColBERT rerank), [0014](docs/adr/0014-vector-discovery-and-ops-automation.md) (recommendation search), [0015](docs/adr/0015-colbert-http-sidecar.md) (ColBERT sidecar) |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Ollama dense deployment (bundled/external/GPU), memory/CPU tuning |
-| [docs/SEARCH_BEHAVIOR.md](docs/SEARCH_BEHAVIOR.md) | `search_codebase` / `search_symbols` caps, `min_score` vs RRF semantics |
+| [docs/SEARCH_BEHAVIOR.md](docs/SEARCH_BEHAVIOR.md) | `search_codebase` / `search_symbols` caps, `min_score` vs RRF, `recommend_code`, ColBERT rerank |
 
 ## System Architecture
 
@@ -199,8 +200,14 @@ These tools use **zero embedding cost** (Qdrant payload scroll only). Use them f
 |------|-------------|
 | `search_codebase` | Hybrid semantic + keyword search. `top_k` capped at 20. When `HYBRID_SEARCH` is on (default), RRF ranking applies and `min_score` is ignored; see [docs/SEARCH_BEHAVIOR.md](docs/SEARCH_BEHAVIOR.md). Use `max_content_chars` to truncate content and call `get_chunk` only for results you need in full. |
 | `get_chunk` | Retrieve a specific chunk by ID from a prior search result |
-| `find_cross_references` | Discover symbol/endpoint links across multiple collections. Reference types: `definition`, `import`, `usage`, `endpoint_definition`, `http_call`, `service_config`, `build_dependency`, `call_site`. Optional `member` (method name) and `receiver` (field/var name) filter by indexed call expressions — results use `match_type`/`reference_type` `call_site` (exact callee lookup, not semantic search). To find true consumers of a method — especially inherited Spring `@Autowired` fields used in subclass bodies — pass `member="<method>"` and optionally `receiver="<field>"`; this grounds results in call sites, not imports or passive inheritance. |
-| `map_service_dependencies` | Build a full microservice dependency graph across collections. Detects HTTP/REST call chains **and** build-level dependencies (Maven, NuGet, npm, Gradle, Go, Cargo, Python). Returns `build_dependency` edges alongside `http_call`/`config_reference` edges. |
+| `find_cross_references` | Discover symbol/endpoint links across multiple collections. Reference types: `definition`, `import`, `usage`, `endpoint_definition`, `http_call`, `service_config`, `build_dependency`, `call_site`. Optional `member` (method name) and `receiver` (field/var name) filter by indexed call expressions — results use `match_type`/`reference_type` `call_site` (exact callee lookup, not semantic search). When `RERANK_ENABLED=true`, semantic paths participate in ColBERT rerank. To find true consumers of a method — especially inherited Spring `@Autowired` fields used in subclass bodies — pass `member="<method>"` and optionally `receiver="<field>"`; this grounds results in call sites, not imports or passive inheritance. |
+| `map_service_dependencies` | Build a full microservice dependency graph across collections. Detects HTTP/REST call chains **and** build-level dependencies (Maven, NuGet, npm, Gradle, Go, Cargo, Python). When `RERANK_ENABLED=true`, participates in ColBERT rerank like `search_codebase`. |
+
+### Vector discovery
+
+| Tool | Description |
+|------|-------------|
+| `recommend_code` | Find chunks **similar to positive examples** and **dissimilar from negative examples** via Qdrant Recommendation API (dense-only, `AVERAGE_VECTOR`). Provide `positive_chunk_ids` and/or `positive_query`; optional negatives. Single collection; `path_glob` post-filter uses indexed `rel_path` prefix (e.g. `my-project/src/**/*.py`). Gated by `RECOMMEND_ENABLED` (default on). See [docs/SEARCH_BEHAVIOR.md](docs/SEARCH_BEHAVIOR.md#recommend_code). |
 
 #### Finding method callers (call sites)
 
@@ -379,6 +386,7 @@ After upgrading the server, re-copy `SKILL.md` so the skill stays aligned with n
 
 - **Auto-indexes on load** — when you invoke the skill, it checks whether the current repository is indexed. If not, it calls `index_codebase` immediately without you having to ask.
 - **Enforces the tool ladder** — the agent always starts with the cheapest tool and stops as soon as it has enough information, avoiding expensive full-content searches.
+- **Discovery patterns** — uses `recommend_code` for “like this, not that” queries (e.g. similar handlers excluding tests).
 
 ### Performance impact
 
@@ -526,6 +534,28 @@ If you change port bindings to expose the server beyond localhost, set `MCP_AUTH
 |----------|---------|-------------|
 | `SERVICE_URL_KEYWORDS` | `rest,api,profile,service,…` | Comma-separated URL path keywords for API path extraction in config and code |
 | `SERVICE_DISCOVERY_EXTRA_QUERIES` | *(empty)* | Extra natural-language queries for `map_service_dependencies`; separate with `\|` or newlines |
+
+### Recommendation search (ADR 0014)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `RECOMMEND_ENABLED` | `true` | Register `recommend_code` MCP tool; set `false` to omit |
+| `RECOMMEND_MAX_EXAMPLES` | `10` | Cap on positive + negative examples (chunk IDs + text queries) per request |
+
+### Optional ColBERT reranking (ADR 0008 / 0015)
+
+Requires **full re-index** when enabling. See [DEPLOYMENT.md](docs/DEPLOYMENT.md#colbert-rerank-qdrant-upsert-batching) for `FLUSH_EVERY` / `UPSERT_BATCH` tuning with multivectors.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `RERANK_ENABLED` | `false` | Index-time ColBERT multivector + query-time MAX_SIM rerank |
+| `COLBERT_EMBED_MODEL` | `colbert-ir/colbertv2.0` | Late-interaction model |
+| `RERANK_PREFETCH` | `100` | Hybrid candidate pool size before rerank |
+| `RERANK_MAX_QUERY_TOKENS` | `0` | Query token cap (`0` = model registry default) |
+| `COLBERT_EMBED_BACKEND` | `onnx` | `onnx` (in-process) or `remote` (HTTP sidecar) |
+| `COLBERT_URL` | `http://colbert_worker:8082` | Sidecar URL when `COLBERT_EMBED_BACKEND=remote` |
+| `COLBERT_TIMEOUT` | `300` | Sidecar HTTP timeout (seconds) |
+| `COLBERT_EMBED_BATCH_SIZE` | `16` | ColBERT embed batch size |
 
 ### Benchmark harness (`mcp_server/benchmarks/bench.py`)
 

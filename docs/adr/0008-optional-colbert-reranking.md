@@ -33,7 +33,7 @@ We will add **optional ColBERT multivector reranking** as an **opt-in query-time
 
 ### Index-time (when `RERANK_ENABLED=true`)
 
-- Store a third named vector `colbert` on each point as **multivector** config (`m=768`, `hnsw` disabled — rerank-only, not ANN index), matching the Qdrant tutorial
+- Store a third named vector `colbert` on each point as **multivector** config with `HnswConfigDiff(m=0)` — rerank-only, not ANN-indexed at the multivector level (Qdrant reranking pattern; see `storage/qdrant.py`). The upstream tutorial sometimes shows `m=768`; we disable HNSW on the ColBERT vector because candidates come from hybrid prefetch, not ANN search on `colbert`.
 - Embed via a ColBERT-capable backend (e.g. fastembed `colbert-…` ONNX) in the indexing pipeline, batched like dense/sparse
 - Collection metadata records `rerank_enabled` and model id; mismatch triggers recreate warning (same pattern as hybrid toggle)
 
@@ -57,13 +57,13 @@ flowchart LR
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `RERANK_ENABLED` | `false` | Master switch |
-| `COLBERT_EMBED_MODEL` | TBD fastembed id | Late-interaction model |
+| `COLBERT_EMBED_MODEL` | `colbert-ir/colbertv2.0` | Late-interaction model |
 | `RERANK_PREFETCH` | `100` | Hybrid candidate pool size |
 | `RERANK_MAX_QUERY_TOKENS` | model default | Truncate long code queries |
 
 ### Scope limits
 
-- **In scope:** `search_codebase`, `search_symbols` (when vector-backed), internal `QdrantStorage.search`
+- **In scope:** `search_codebase`, `search_symbols` (when vector-backed), `find_cross_references`, `map_service_dependencies` (Phase 2 track 1), internal `QdrantStorage.search`
 - **Out of scope:** reranking in `get_file_outline` / payload-only lookups; Qdrant Cloud Inference path
 - **Phase 1:** query-time rerank with multivectors stored at index time; no separate rerank worker in scope ([ADR 0011](0011-ollama-only-dense-embedding.md))
 

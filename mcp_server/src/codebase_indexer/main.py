@@ -77,6 +77,19 @@ _INSTRUCTIONS = """
     endpoint definitions, HTTP clients, and config-based URLs, then
     matches them to produce a call chain map.
 
+    VECTOR DISCOVERY (recommend_code):
+    Find chunks similar to positive examples and dissimilar from negatives
+    via Qdrant Recommendation API (dense-only). Use when the user wants
+    "like this handler, not in tests" rather than a single search query.
+    Requires at least one positive (positive_chunk_ids and/or positive_query).
+    path_glob must match indexed rel_path prefix (e.g. my-project/src/**/*.py).
+    Gated by RECOMMEND_ENABLED (default on). See docs/SEARCH_BEHAVIOR.md.
+
+    COLBERT RERANK (RERANK_ENABLED=true):
+    search_codebase, search_symbols, find_cross_references, and
+    map_service_dependencies participate in hybrid prefetch → MAX_SIM rerank
+    when rerank is enabled and collections were indexed with colbert multivectors.
+
     MULTI-HOP QUESTIONS (client-orchestrated — see docs/SEARCH_BEHAVIOR.md):
     When one search cannot surface all evidence (cross-file, config→code,
     service A→service B), use 2–4 hops; fuse ALL hops with RRF by chunk_id

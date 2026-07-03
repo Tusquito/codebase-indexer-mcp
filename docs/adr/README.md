@@ -52,7 +52,7 @@ Invoke the full pipeline with **`adr-orchestrator`**; resume a phase with `Resum
 | [0005](0005-mcp-retrieval-connector.md) | MCP as external RAG retrieval connector | Accepted | 2026-07-02 |
 | [0006](0006-explicit-fastembed-pipeline.md) | Explicit FastEmbed pipeline over qdrant-client convenience API | Accepted | 2026-07-02 |
 | [0007](0007-ranx-retrieval-evaluation.md) | Golden-set retrieval evaluation with ranx | Accepted | 2026-07-02 |
-| [0008](0008-optional-colbert-reranking.md) | Optional ColBERT late-interaction reranking | Accepted (phase 1) | 2026-07-02 |
+| [0008](0008-optional-colbert-reranking.md) | Optional ColBERT late-interaction reranking | Accepted (phase 1; phase 2 track 1 merged) | 2026-07-02 |
 | [0009](0009-multi-hop-retrieval-strategies.md) | Multi-hop code retrieval strategies | Accepted (phase 1) | 2026-07-02 |
 | [0010](0010-defer-ragas-to-client.md) | Defer Ragas pipeline evaluation to MCP clients | Accepted | 2026-07-02 |
 | [0011](0011-ollama-only-dense-embedding.md) | Ollama-only dense embedding | Accepted | 2026-07-02 |
@@ -78,6 +78,7 @@ Cross-reference for [Build Prototypes](https://qdrant.tech/documentation/example
 | Measuring Retrieval Relevance (ranx) | Yes | [0007](0007-ranx-retrieval-evaluation.md) |
 | Evaluating Pipeline Output Quality (Ragas) | Partial | [0010](0010-defer-ragas-to-client.md) — client-side only; export via `export_ragas_dataset.py` |
 | Query Decomposition (multi-hop) | Yes | [0009](0009-multi-hop-retrieval-strategies.md) |
+| Recommendation API (like / not like) | Yes | [0014](0014-vector-discovery-and-ops-automation.md) — Phase 1: `recommend_code` |
 | Movie / song / image search notebooks | No | Wrong modality (recommendations, audio, vision) |
 | Extractive QA | No | In-server answer generation conflicts with [0005](0005-mcp-retrieval-connector.md) |
 

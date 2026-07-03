@@ -72,8 +72,9 @@ cost.
 | `search_codebase` + `max_content_chars` | Embed + partial | Narrowing candidates |
 | `get_chunk` | Zero embed | Reading one specific chunk in full |
 | `search_codebase` (no truncation) | Embed + full content | Last resort only |
-| `find_cross_references` | Zero embed (member-only); embed with query/symbol_name | Precise call sites via member/receiver + cross-project links |
-| `map_service_dependencies` | Multiple embeds | Full microservice call graph |
+| `find_cross_references` | Zero embed (member-only); embed with query/symbol_name | Precise call sites via member/receiver + cross-project links; ColBERT rerank when `RERANK_ENABLED=true` |
+| `map_service_dependencies` | Multiple embeds | Full microservice call graph; ColBERT rerank when `RERANK_ENABLED=true` |
+| `recommend_code` | Embed per text example | "Like this, not that" discovery via Qdrant Recommendation API (dense-only) |
 
 ## Common Patterns
 
@@ -113,6 +114,20 @@ search_symbols(query="<method> call invocation", collection="project")   <- fall
 search_codebase(query="<method>(", collection="project", max_content_chars=200)   <- semantic fallback
 ```
 
+### "Find code like X but not Y"
+```
+# Use chunk IDs from a prior search, or positive/negative text queries
+recommend_code(
+  collection="project",
+  positive_query="handler pattern similar to OrderService",
+  negative_query="test utilities mock fixtures",
+  path_glob="project/src/**/*.py",
+  limit=5,
+  max_content_chars=200,
+)
+-> get_chunk for the top 1-2 results
+```
+
 ### Starting fresh -- project not yet indexed
 ```
 list_collections()                          <- check what exists
@@ -134,7 +149,7 @@ map_service_dependencies(collections=["project-a", "project-b"])
   not `C:\Users\me\repos\my-project` and never `/`.
 - After indexing, `rel_path` values in results are **prefixed** with the collection
   name: `my-project/src/main.py`. Use the full prefixed path for `get_file_outline`.
-- `collection` is always the folder basename.
+- **`path_glob`** on `recommend_code` must match indexed **`rel_path`** including the collection prefix (e.g. `my-project/src/**/*.py`, not bare `src/**/*.py`).
 
 ## When to Skip Ahead
 
@@ -143,4 +158,5 @@ map_service_dependencies(collections=["project-a", "project-b"])
 - User just needs a file list or language stats -> `get_collection_summary` is
   the complete answer.
 - User asks about cross-service HTTP calls -> jump to `map_service_dependencies`.
+- User wants similar code excluding tests or legacy folders -> `recommend_code` with `path_glob` and optional negative examples.
 - Collection doesn't exist -> index first, then re-enter the ladder at step 1.

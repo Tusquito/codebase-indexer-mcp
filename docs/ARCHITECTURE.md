@@ -77,6 +77,7 @@ flowchart LR
 
 - **Dense**: Ollama HTTP (`OLLAMA_EMBED_MODEL`, `OLLAMA_URL`)
 - **Sparse**: fastembed BM25 (`SPARSE_EMBED_MODEL`) on CPU
+- **ColBERT** (optional): multivector late-interaction when `RERANK_ENABLED=true` — in-process ONNX (`colbert_onnx.py`) or HTTP sidecar (`colbert_remote.py`, [ADR 0015](adr/0015-colbert-http-sidecar.md))
 - Sparse model singleton; `release_models_after_index` and `model_idle_timeout` reclaim RAM
 - Cgroup memory guard (`memory.py`) for indexing pressure
 
@@ -93,6 +94,7 @@ flowchart LR
 |-------|--------|-------|
 | Dense Ollama | `indexer/backends/ollama_dense.py` | HTTP `/api/embed`; orchestrated by `Embedder` facade |
 | Sparse BM25 | `indexer/backends/onnx_sparse.py` | In-process CPU; `SPARSE_THREADS` required in `.env` |
+| ColBERT (opt-in) | `indexer/backends/colbert_onnx.py`, `colbert_remote.py` | Multivector at index time when `RERANK_ENABLED=true`; MAX_SIM rerank at query time |
 | Truncation | `indexer/truncation.py` | Token caps via `MAX_DENSE_EMBED_TOKENS` / `MAX_SPARSE_EMBED_TOKENS` |
 
 Dense embedding is Ollama-only ([ADR 0011](adr/0011-ollama-only-dense-embedding.md), [ADR 0001](adr/0001-pluggable-embed-backends.md) superseded for backend selection):
@@ -108,11 +110,12 @@ The `Embedder` facade in `indexer/embedder.py` orchestrates backends; factory wi
 
 `mcp_server/src/codebase_indexer/storage/qdrant.py` — `QdrantStorage` class.
 
-- **Collections**: one per project folder; hybrid dense + sparse vectors when `HYBRID_SEARCH=true`
+- **Collections**: one per project folder; hybrid dense + sparse vectors when `HYBRID_SEARCH=true`; optional `colbert` multivector when `RERANK_ENABLED=true`
 - **Payload**: `chunk_id`, `rel_path`, `content`, `symbol_name`, `symbol_type`, `language`, line range, `file_sha256`, `file_mtime`, `callees`
 - **Indexes**: optional keyword payload indexes (`PAYLOAD_INDEXES`) on `rel_path`, `chunk_id`, `symbol_name`, `language`, `callees`
 - **Tuning**: `VECTORS_ON_DISK`, `SPARSE_ON_DISK`, `QUANTIZATION`, `MEMMAP_THRESHOLD_KB`
-- **Search**: hybrid RRF via `query_points` + `Fusion.RRF`, or dense-only when hybrid disabled
+- **Search**: hybrid RRF via `query_points` + `Fusion.RRF`, or dense-only when hybrid disabled; optional ColBERT MAX_SIM rerank over prefetch pool ([ADR 0008](adr/0008-optional-colbert-reranking.md))
+- **Recommendation**: dense-only Qdrant Recommendation API (`RecommendStrategy.AVERAGE_VECTOR`) via `QdrantStorage.recommend` ([ADR 0014](adr/0014-vector-discovery-and-ops-automation.md))
 
 ## Hybrid search
 
@@ -133,7 +136,7 @@ When `HYBRID_SEARCH=false`:
 
 See [SEARCH_BEHAVIOR.md](SEARCH_BEHAVIOR.md) for tool-level caps and `min_score` semantics.
 
-Planned search-quality work from Qdrant [Improve Search](https://qdrant.tech/documentation/improve-search/): optional ColBERT rerank ([ADR 0008](adr/0008-optional-colbert-reranking.md)). Multi-hop client patterns are documented ([ADR 0009](adr/0009-multi-hop-retrieval-strategies.md), [SEARCH_BEHAVIOR.md](SEARCH_BEHAVIOR.md#multi-hop-retrieval)). Golden-set retrieval evaluation is implemented ([ADR 0007](adr/0007-ranx-retrieval-evaluation.md)). Full prototype map: [adr/README.md](adr/README.md#qdrant-build-prototypes--improve-search-map).
+**Implemented** opt-in ColBERT rerank ([ADR 0008](adr/0008-optional-colbert-reranking.md), [ADR 0015](adr/0015-colbert-http-sidecar.md)): set `RERANK_ENABLED=true` and re-index; hybrid prefetch → RRF → MAX_SIM rerank on `search_codebase`, `search_symbols`, `find_cross_references`, and `map_service_dependencies`. **Vector discovery** Phase 1 shipped: `recommend_code` via Qdrant Recommendation API ([ADR 0014](adr/0014-vector-discovery-and-ops-automation.md), [SEARCH_BEHAVIOR.md](SEARCH_BEHAVIOR.md#recommend_code)). Remaining Improve Search work: ADR 0008 Phase 2 track 2 (adaptive rerank skip / per-tool overrides), ADR 0014 Track A P2 (outlier helper), multi-hop client patterns ([ADR 0009](adr/0009-multi-hop-retrieval-strategies.md), [SEARCH_BEHAVIOR.md](SEARCH_BEHAVIOR.md#multi-hop-retrieval)). Golden-set retrieval evaluation is implemented ([ADR 0007](adr/0007-ranx-retrieval-evaluation.md)). Full prototype map: [adr/README.md](adr/README.md#qdrant-build-prototypes--improve-search-map).
 
 ### Retrieval evaluation (ADR 0007)
 
@@ -145,6 +148,7 @@ uv sync --extra dev --extra benchmark
 uv run python -m benchmarks.eval_retrieval --output eval-results.json
 uv run python -m benchmarks.eval_retrieval --no-hybrid --output eval-dense-only.json
 uv run python -m benchmarks.eval_retrieval --validate-labels
+uv run python -m benchmarks.eval_retrieval --rerank --output eval-rerank.json
 uv run python -m benchmarks.suggest_labels "class Embedder embedder.py"
 ```
 
@@ -156,7 +160,7 @@ Client-side pipeline eval (Ragas faithfulness / context precision on the same go
 
 The MCP server implements the **retrieval half** of Qdrant’s RAG tutorials (Ollama dense + BM25 sparse → Qdrant → ranked context). Connected AI clients perform metaprompt assembly and LLM generation. External orchestrators (Cursor agents, CrewAI, etc.) call MCP tools instead of embedding CrewAI/CAMEL in the server. See [ADR 0012](adr/0012-retrieval-only-rag-split.md) and [ADR 0013](adr/0013-external-agent-knowledge-base.md).
 
-Optional vector discovery (Recommendation API, n8n ops workflows) is proposed in [ADR 0014](adr/0014-vector-discovery-and-ops-automation.md), inspired by [Qdrant’s n8n tutorial](https://qdrant.tech/documentation/tutorials-build-essentials/qdrant-n8n/).
+Vector discovery Phase 1 is shipped: `recommend_code` (Qdrant Recommendation API, dense-only) per [ADR 0014](adr/0014-vector-discovery-and-ops-automation.md). Track A P2 (outlier helper) and Track B (optional n8n compose) remain deferred, inspired by [Qdrant’s n8n tutorial](https://qdrant.tech/documentation/tutorials-build-essentials/qdrant-n8n/).
 
 ## GraphRAG (proposed)
 
@@ -172,6 +176,7 @@ All tools register via `register_*_tool(mcp, ctx)` in `main.py`:
 |----------|--------|
 | Indexing | `tools/index.py` |
 | Search | `tools/search.py`, `tools/symbols.py`, `tools/search_common.py` |
+| Discovery | `tools/recommend.py` (`recommend_code`; gated by `RECOMMEND_ENABLED`) |
 | Orientation | `tools/summary.py`, `tools/outline.py` |
 | Retrieval | `tools/chunk.py`, `tools/collections.py` |
 | Cross-project | `tools/cross_references.py`, `tools/service_map.py`, `tools/build_deps.py` |

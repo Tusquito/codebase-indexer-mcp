@@ -84,8 +84,9 @@ Each tool is a `register_*_tool(mcp, ctx)` function — register all of them in 
 | `search_codebase` | `search.py` | Hybrid RRF search (dense + sparse) across one or more collections. `top_k` capped at 20. When `HYBRID_SEARCH` is on (default), RRF ranking applies and `min_score` is ignored; see `docs/SEARCH_BEHAVIOR.md`. Use `max_content_chars` to truncate results; then call `get_chunk` for the 1–2 results you actually need in full. |
 | `get_chunk` | `chunk.py` | Retrieve a specific chunk by ID — use after `search_symbols` or truncated `search_codebase` |
 | `list_collections` | `collections.py` | List all indexed collections with stats |
-| `find_cross_references` | `cross_references.py` | Discover symbol/endpoint links across collections. Reference types: `definition`, `import`, `usage`, `endpoint_definition`, `http_call`, `service_config`, `build_dependency` |
-| `map_service_dependencies` | `service_map.py` | Build a full microservice dependency graph. Detects HTTP call chains **and** build-level dependencies (Maven, NuGet, npm, Gradle, Go, Cargo, Python). Returns `build_dependency` edges alongside `http_call`/`config_reference` edges. |
+| `find_cross_references` | `cross_references.py` | Discover symbol/endpoint links across collections. Reference types: `definition`, `import`, `usage`, `endpoint_definition`, `http_call`, `service_config`, `build_dependency`, `call_site`. Optional `member`/`receiver` for exact call-site lookup. When `RERANK_ENABLED=true`, semantic paths use ColBERT rerank |
+| `map_service_dependencies` | `service_map.py` | Build a full microservice dependency graph. Detects HTTP call chains **and** build-level dependencies (Maven, NuGet, npm, Gradle, Go, Cargo, Python). When `RERANK_ENABLED=true`, batched discovery uses ColBERT rerank |
+| `recommend_code` | `recommend.py` | **Vector discovery**: chunks similar to positive examples and dissimilar from negatives (Qdrant Recommendation API, dense-only). Gated by `RECOMMEND_ENABLED` (default on); capped by `RECOMMEND_MAX_EXAMPLES`. Single collection; see `docs/SEARCH_BEHAVIOR.md` |
 
 ### Token-efficient workflow
 
@@ -97,7 +98,10 @@ Always follow this order to minimize tokens consumed per task:
 3. get_file_outline         → inspect file structure                [zero embed cost]
 4. search_codebase(..., max_content_chars=300) → narrow candidates  [truncated content]
 5. get_chunk(chunk_id)      → read only the 1-2 chunks you need     [full content]
+6. recommend_code(...)      → "like this, not that" discovery       [embed per text example]
 ```
+
+For **similar-to-X but not-in-tests** discovery, prefer `recommend_code` over a negated `search_codebase` query.
 
 Never call `search_codebase` without `max_content_chars` when you only need symbol locations — use `search_symbols` instead.
 
@@ -114,6 +118,8 @@ Never call `search_codebase` without `max_content_chars` when you only need symb
 - **Documentation**: whenever you add, remove, or change an MCP tool (signature, behaviour, description), you **must** also update:
   1. `README.md` — the tool table and any relevant sections (Quick Start, Configuration, Architecture)
   2. `.github/copilot-instructions.md` — the tool table and Key conventions
+  3. `skill/codebase-indexer/SKILL.md` — tool ladder / quick reference when user-facing workflow changes
+  4. `mcp_server/src/codebase_indexer/main.py` — `_INSTRUCTIONS` for MCP clients
 
 ## MCP transport modes
 
