@@ -24,12 +24,24 @@ JINA_CODE_EMBED_V2_SPECS: dict[str, tuple[int, int]] = {
     "jinaai/jina-embeddings-v2-base-code": (768, 8192),
 }
 
+# Qwen3 Embedding — Matryoshka (MRL) models via Ollama (native_dim, max_tokens).
+# https://huggingface.co/Qwen/Qwen3-Embedding-4B
+QWEN3_EMBED_SPECS: dict[str, tuple[int, int]] = {
+    "Qwen/Qwen3-Embedding-0.6B": (1024, 32768),
+    "Qwen/Qwen3-Embedding-4B": (2560, 32768),
+    "Qwen/Qwen3-Embedding-8B": (4096, 32768),
+}
+
+QWEN3_MRL_MIN_DIMENSIONS = 32
+
 # Known dense embedding models and their output dimensions. When listed,
 # DENSE_EMBED_VECTOR_SIZE must match exactly (set both in .env — see .env.example).
+# Qwen3 models use MRL validation instead (32 <= size <= native).
 KNOWN_EMBED_MODEL_DIMENSIONS: dict[str, int] = {
     "nomic-ai/nomic-embed-text-v1.5": 768,
     **{model: dims for model, (dims, _) in BGE_EN_V1_5_SPECS.items()},
     **{model: dims for model, (dims, _) in JINA_CODE_EMBED_V2_SPECS.items()},
+    **{model: dims for model, (dims, _) in QWEN3_EMBED_SPECS.items()},
 }
 
 # Known dense transformer models and max input tokens (embedding truncation).
@@ -37,7 +49,33 @@ KNOWN_EMBED_MODEL_MAX_TOKENS: dict[str, int] = {
     "nomic-ai/nomic-embed-text-v1.5": 8192,
     **{model: max_tokens for model, (_, max_tokens) in BGE_EN_V1_5_SPECS.items()},
     **{model: max_tokens for model, (_, max_tokens) in JINA_CODE_EMBED_V2_SPECS.items()},
+    **{model: max_tokens for model, (_, max_tokens) in QWEN3_EMBED_SPECS.items()},
 }
+
+
+def qwen3_native_dimensions(model_id: str) -> int | None:
+    spec = QWEN3_EMBED_SPECS.get(model_id)
+    return spec[0] if spec else None
+
+
+def ollama_embed_dimensions(dense_embed_model: str, vector_size: int) -> int | None:
+    """Return Ollama MRL ``dimensions`` when ``vector_size`` is below native."""
+    native = qwen3_native_dimensions(dense_embed_model)
+    if native is None or vector_size >= native:
+        return None
+    return vector_size
+
+
+def validate_qwen3_mrl_vector_size(model_id: str, vector_size: int) -> None:
+    native = qwen3_native_dimensions(model_id)
+    if native is None:
+        return
+    if vector_size < QWEN3_MRL_MIN_DIMENSIONS or vector_size > native:
+        raise ValueError(
+            f"DENSE_EMBED_VECTOR_SIZE={vector_size} invalid for "
+            f"DENSE_EMBED_MODEL={model_id!r} "
+            f"(MRL: {QWEN3_MRL_MIN_DIMENSIONS}..{native})."
+        )
 
 # ColBERT late-interaction models (token dimension, max sequence length in tokens).
 # https://huggingface.co/colbert-ir/colbertv2.0
@@ -234,6 +272,11 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_dense_embed_vector_size_matches_model(self) -> Self:
+        if self.dense_embed_model in QWEN3_EMBED_SPECS:
+            validate_qwen3_mrl_vector_size(
+                self.dense_embed_model, self.dense_embed_vector_size
+            )
+            return self
         expected = KNOWN_EMBED_MODEL_DIMENSIONS.get(self.dense_embed_model)
         if expected is not None and self.dense_embed_vector_size != expected:
             raise ValueError(
