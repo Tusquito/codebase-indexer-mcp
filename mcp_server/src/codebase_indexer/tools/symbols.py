@@ -32,7 +32,9 @@ def register_search_symbols_tool(mcp: FastMCP, ctx: "AppContext") -> None:
             "Use when you only need to know WHERE a symbol is defined/used, "
             "not what its code looks like. Call get_chunk for full content "
             "of any specific result. Saves ~90% tokens vs search_codebase "
-            "for orientation and symbol-location tasks."
+            "for orientation and symbol-location tasks. "
+            "When RERANK_ENABLED=true, pass rerank=false to skip ColBERT "
+            "query embed and MAX_SIM rerank (hybrid RRF only)."
         ),
     )
     async def search_symbols(
@@ -42,6 +44,7 @@ def register_search_symbols_tool(mcp: FastMCP, ctx: "AppContext") -> None:
         collections: list[str] | None = None,
         language: str | None = None,
         min_score: float = 0.4,
+        rerank: bool | None = None,
     ) -> dict:
         if top_k > 30:
             top_k = 30
@@ -50,7 +53,14 @@ def register_search_symbols_tool(mcp: FastMCP, ctx: "AppContext") -> None:
             collection or settings.qdrant_collection, collections
         )
         results = await run_search(
-            storage, embedder, query, target_collections, top_k, language, min_score
+            storage,
+            embedder,
+            query,
+            target_collections,
+            top_k,
+            language,
+            min_score,
+            rerank=rerank,
         )
 
         return {

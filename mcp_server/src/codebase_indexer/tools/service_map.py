@@ -66,12 +66,15 @@ def register_service_map_tool(mcp: FastMCP, ctx: "AppContext") -> None:
             "npm package.json, Gradle build files, go.mod, Cargo.toml, pyproject.toml). "
             "Returns a dependency graph showing which service calls which or depends on which, "
             "with matched endpoint paths and package references. Use this to understand "
-            "microservice architecture and build E2E call chain maps."
+            "microservice architecture and build E2E call chain maps. "
+            "When RERANK_ENABLED=true, pass rerank=false to skip ColBERT query "
+            "embed and MAX_SIM on discovery searches (hybrid RRF only)."
         ),
     )
     async def map_service_dependencies(
         collections: list[str] | None = None,
         top_k: int = 30,
+        rerank: bool | None = None,
     ) -> dict:
         """Map service dependencies across collections.
 
@@ -95,7 +98,7 @@ def register_service_map_tool(mcp: FastMCP, ctx: "AppContext") -> None:
         # Embed every discovery query in a single batched pass (one Ollama dense
         # call + one sparse embed run) instead of N sequential round-trips.
         queries = _DISCOVERY_QUERIES + settings.service_discovery_extra_query_list
-        query_vectors = await embedder.embed_queries(queries)
+        query_vectors = await embedder.embed_queries(queries, rerank=rerank)
 
         endpoints_by_coll: dict[str, list[dict]] = defaultdict(list)
         callers_by_coll: dict[str, list[dict]] = defaultdict(list)

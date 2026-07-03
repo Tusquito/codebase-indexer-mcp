@@ -41,7 +41,9 @@ def register_search_tool(mcp: FastMCP, ctx: "AppContext") -> None:
             "showing symbols that appear across collection boundaries (shared classes, "
             "interfaces, error codes, etc.). "
             "Set 'max_content_chars' to truncate chunk content in results and save "
-            "tokens — use get_chunk to fetch full content of a specific chunk."
+            "tokens — use get_chunk to fetch full content of a specific chunk. "
+            "When RERANK_ENABLED=true, pass rerank=false to skip ColBERT query "
+            "embed and MAX_SIM rerank for lower latency (hybrid RRF only)."
         ),
     )
     async def search_codebase(
@@ -52,6 +54,7 @@ def register_search_tool(mcp: FastMCP, ctx: "AppContext") -> None:
         language: str | None = None,
         min_score: float = 0.5,
         max_content_chars: int | None = None,
+        rerank: bool | None = None,
     ) -> dict:
         if top_k > 20:
             top_k = 20
@@ -60,7 +63,14 @@ def register_search_tool(mcp: FastMCP, ctx: "AppContext") -> None:
             collection or settings.qdrant_collection, collections
         )
         results = await run_search(
-            storage, embedder, query, target_collections, top_k, language, min_score
+            storage,
+            embedder,
+            query,
+            target_collections,
+            top_k,
+            language,
+            min_score,
+            rerank=rerank,
         )
 
         result_items = []

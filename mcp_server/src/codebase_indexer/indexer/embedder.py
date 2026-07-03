@@ -186,7 +186,7 @@ class Embedder(metaclass=_EmbedderMeta):
         return await self.dense_backend.embed_batch(texts)
 
     async def embed_query(
-        self, text: str
+        self, text: str, *, rerank: bool | None = None
     ) -> tuple[list[float], SparseVector | None, list[list[float]] | None]:
         Embedder._last_embed_time = time.monotonic()
         Embedder._ensure_idle_timer()
@@ -200,14 +200,15 @@ class Embedder(metaclass=_EmbedderMeta):
             dense_list = await self.dense_backend.embed_batch([text])
             dense_vec, sparse_vec = dense_list[0], None
 
+        use_rerank = self.rerank and rerank is not False
         colbert_vec: list[list[float]] | None = None
-        if self.rerank and self.colbert_backend is not None:
+        if use_rerank and self.colbert_backend is not None:
             colbert_list = await self.colbert_backend.embed_batch([text])
             colbert_vec = colbert_list[0]
         return dense_vec, sparse_vec, colbert_vec
 
     async def embed_queries(
-        self, texts: list[str]
+        self, texts: list[str], *, rerank: bool | None = None
     ) -> list[tuple[list[float], SparseVector | None, list[list[float]] | None]]:
         Embedder._last_embed_time = time.monotonic()
         Embedder._ensure_idle_timer()
@@ -220,8 +221,9 @@ class Embedder(metaclass=_EmbedderMeta):
             dense_list = await self.dense_backend.embed_batch(texts)
             sparse_list = [None] * len(texts)  # type: ignore[list-item]
 
+        use_rerank = self.rerank and rerank is not False
         colbert_list: list[list[list[float]] | None]
-        if self.rerank and self.colbert_backend is not None:
+        if use_rerank and self.colbert_backend is not None:
             colbert_raw = await self.colbert_backend.embed_batch(texts)
             colbert_list = colbert_raw
         else:

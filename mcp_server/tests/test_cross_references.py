@@ -293,6 +293,41 @@ async def test_find_cross_references_semantic_path_passes_colbert_vector():
     assert storage.search.await_args.kwargs["colbert_vector"] == colbert
 
 
+@pytest.mark.asyncio
+async def test_find_cross_references_rerank_false_skips_colbert_on_semantic_paths():
+    storage = AsyncMock()
+    storage.list_collection_stats = AsyncMock(return_value=[])
+    storage.search = AsyncMock(return_value=[])
+    storage.find_symbol_in_collections = AsyncMock(return_value=[])
+    storage.find_callers_in_collections = AsyncMock(return_value=[])
+
+    embedder = MagicMock()
+    embedder.embed_query = AsyncMock(return_value=([0.5], SparseVector(indices=[1], values=[1.0]), None))
+
+    ctx = SimpleNamespace(
+        storage=storage,
+        embedder=embedder,
+        url_extractors=UrlExtractors(),
+    )
+
+    mcp = FastMCP("test")
+    register_cross_references_tool(mcp, ctx)
+    find_cross_references = (await mcp.get_tool("find_cross_references")).fn
+
+    await find_cross_references(
+        query="HTTP client RestTemplate",
+        symbol_name="MyService",
+        collections=["svc-a", "svc-b"],
+        rerank=False,
+    )
+
+    assert embedder.embed_query.await_count == 2
+    for call in embedder.embed_query.await_args_list:
+        assert call.kwargs["rerank"] is False
+    for call in storage.search.await_args_list:
+        assert call.kwargs["colbert_vector"] is None
+
+
 def test_build_link_summary_links_call_site_to_definition_same_collection():
     extractors = UrlExtractors()
     by_collection = {
