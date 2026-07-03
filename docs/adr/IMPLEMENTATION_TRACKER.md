@@ -55,7 +55,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0016](0016-qwen3-embedding-default-dense-model.md) | Adopt Qwen3-Embedding-4B as default Ollama dense model | Accepted (all phases complete) | Phase 1 — Config, Ollama MRL, docs, tests | `merged` | Qwen3 0.6B/4B/8B in `KNOWN_EMBED_MODEL_*` (max tokens 32768); MRL `dimensions` passthrough (32≤size≤native) in `OllamaDenseBackend` + `factory.py`; Qwen3 GPU defaults in `.env.example`; compose generator Qwen3 (`scripts/run_compose_integration.py`); `benchmarks/_settings.py`; unit tests; docs; defer Phase 2 eval baseline + `num_ctx`; generator-only compose env; [PR #12](https://github.com/Tusquito/codebase-indexer-mcp/pull/12) | 2026-07-03 |
 | [0016](0016-qwen3-embedding-default-dense-model.md) | Adopt Qwen3-Embedding-4B as default Ollama dense model | Accepted (all phases complete) | Phase 2 — Eval baseline refresh (final phase) | `merged` | Jina comparison baseline; recall@10 gate waived with per-tag analysis (−63.1% vs Jina); refreshed `eval_baseline.json` + `golden_queries.jsonl`; alias line remapping; operational compose/env eval overrides not committed; final ADR 0016 phase complete; defer CI validate-labels gate, compose WORKSPACE_ROOT eval preset, optional non-blocking recall benchmark job, compose host-env URL isolation, `num_ctx`; [PR #14](https://github.com/Tusquito/codebase-indexer-mcp/pull/14) | 2026-07-03 |
 | [0018](0018-telemetry-observability-otel-prometheus.md) | Adopt OpenTelemetry instrumentation with Prometheus metrics and optional OTLP export | Accepted (phase 1 — Application Prometheus metrics (MCP + ColBERT worker)) | Phase 1 — Application Prometheus metrics (MCP + ColBERT worker) | `merged` | Opt-in `METRICS_ENABLED=false` default; `prometheus_client` on dedicated `CollectorRegistry`; metrics-only `@observe_tool` on all MCP tool handlers; no collection/rel_path labels; application counters/histograms + truncation counter; index metrics via IndexJobTracker; `GET /metrics` on MCP and ColBERT worker HTTP layer; unit tests (`test_telemetry_metrics.py`); `DEPLOYMENT.md` scrape docs; defer `METRICS_PORT`, docker-compose scrape wiring, Phase 2 OTel traces, Phase 3 observability compose stack; [PR #13](https://github.com/Tusquito/codebase-indexer-mcp/pull/13) | 2026-07-03 |
-| [0020](0020-qwen3-code-finetune-jina-quality-gate.md) | Fine-tune Qwen3 for code retrieval with Jina quality gate | Proposed | Phase 1 — Dataset + training pipeline | `verified` | Shipped: `mcp_server/benchmarks/train/` (`export_golden_pairs.py`, `mine_hard_negatives.py`, `finetune_qwen3_code.py`, `_schema.py`, `_split.py`, `_positives.py`, `README.md`); optional `[train]` pyproject extra isolated from runtime/CI; default validation holdout = all four `multi_hop` golden queries; hard-negative mining via base Qwen3 hybrid `run_search` (rerank off); LoRA via PEFT + sentence-transformers (TripletLoss when all pairs have mined negatives, else MnRL in-batch); outputs under `benchmarks/train/outputs/` gitignored; unit tests (export/split/mining + `test_finetune_mrr.py`); `DEPLOYMENT.md` training stub. Deviations: `resolve_positive_passage` (singular); single-pass checkpoint save (baseline + final val MRR in `train_summary.json`) vs per-epoch best (documented at verification). Verified: 17 scoped unit tests pass; plan compliance pass. Defer Ollama export/registry (P2), Jina quality gate + baseline update (P3), CI observation job (P4); no Docker/runtime/registry changes. | 2026-07-03 |
+| [0020](0020-qwen3-code-finetune-jina-quality-gate.md) | Fine-tune Qwen3 for code retrieval with Jina quality gate | Accepted (phase 1 — Dataset + training pipeline) | Phase 1 — Dataset + training pipeline | `merged` | Shipped: `mcp_server/benchmarks/train/` (`export_golden_pairs.py`, `mine_hard_negatives.py`, `finetune_qwen3_code.py`, `_schema.py`, `_split.py`, `_positives.py`, `README.md`); optional `[train]` pyproject extra isolated from runtime/CI; default validation holdout = all four `multi_hop` golden queries; hard-negative mining via base Qwen3 hybrid `run_search` (rerank off); LoRA via PEFT + sentence-transformers (TripletLoss when all pairs have mined negatives, else MnRL in-batch); outputs under `benchmarks/train/outputs/` gitignored; unit tests (export/split/mining + `test_finetune_mrr.py`); `DEPLOYMENT.md` training stub. Deviations: `resolve_positive_passage` (singular); single-pass checkpoint save (baseline + final val MRR in `train_summary.json`) vs per-epoch best (documented at verification). Defer Ollama export/registry (P2), Jina quality gate + baseline update (P3), CI observation job (P4); no Docker/runtime/registry changes; [PR #15](https://github.com/Tusquito/codebase-indexer-mcp/pull/15) | 2026-07-03 |
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
 
@@ -71,12 +71,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 | 0015 | Phase 1 — HTTP sidecar + remote backend ([PR #2](https://github.com/Tusquito/codebase-indexer-mcp/pull/2)); Phase 2 — GPU worker + benchmark ([PR #3](https://github.com/Tusquito/codebase-indexer-mcp/pull/3)) | MCP slim image when remote-only (phase 3+) |
 | 0017 | Phase 1 — loader + Ollama backend ([PR #11](https://github.com/Tusquito/codebase-indexer-mcp/pull/11)) | Phase 2 observability + ADR 0011 body edit |
 | 0018 | Phase 1 — Application Prometheus metrics (MCP + ColBERT worker) ([PR #13](https://github.com/Tusquito/codebase-indexer-mcp/pull/13)) | Phase 2 OTel traces; Phase 3 observability compose stack; `METRICS_PORT`, docker-compose scrape wiring |
-
-### Planned (Proposed ADR)
-
-| ADR | Phase | Tracker | Notes |
-|-----|-------|---------|-------|
-| 0020 | Phase 1 — Dataset + training pipeline | `verified` | `[train]` extra isolated from runtime/CI; default holdout = all four `multi_hop` queries; mining via base Qwen3 hybrid `run_search` (rerank off); PEFT + sentence-transformers (TripletLoss/MnRL); outputs gitignored under `benchmarks/train/outputs/`; single-pass checkpoint + `train_summary.json`; no Docker/runtime/registry changes; 17 scoped unit tests pass; plan compliance pass (documented checkpoint deviation); ready for git/merge; defer Ollama export (P2), Jina gate (P3), CI observation (P4) |
+| 0020 | Phase 1 — Dataset + training pipeline ([PR #15](https://github.com/Tusquito/codebase-indexer-mcp/pull/15)) | Phases 2–4 (Ollama export/registry, Jina quality gate + baseline update, CI observation job) |
 
 ---
 
@@ -906,6 +901,17 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 
 ### ADR 0020 — Fine-tune Qwen3 for code retrieval with Jina quality gate
 
+#### 2026-07-03 — merge
+- **Phase / PR:** Phase 1 — Dataset + training pipeline — [PR #15](https://github.com/Tusquito/codebase-indexer-mcp/pull/15)
+- **Tracker status:** `merged`
+- **Choices:** squash merge `02b8794` on feature branch `adr/0020-phase-1-qwen3-code-finetune` (6 commits); ADR accepted as **Accepted (phase 1 — Dataset + training pipeline)**; release skipped; Phases 2–4 deferred (Ollama export/registry P2, Jina quality gate P3, CI observation P4)
+- **Deviations:** none
+- **Code evidence:** merged via [PR #15](https://github.com/Tusquito/codebase-indexer-mcp/pull/15) (`adr/0020-phase-1-qwen3-code-finetune`; squash `02b8794`)
+- **Test debt:** carried from verification — GPU smoke for `train_lora`; live Qdrant/Ollama integration for export + mine; per-epoch best-checkpoint selection; `[train]` extra co-install verification on maintainer GPU host
+- **Verify:** carried from verification — 17 scoped unit tests pass; plan compliance pass (documented checkpoint deviation); review rounds: 1
+- **Git:** [PR #15](https://github.com/Tusquito/codebase-indexer-mcp/pull/15) merged (squash `02b8794`)
+- **Changelog:** no — user-facing no; release skipped
+
 #### 2026-07-03 — verification
 - **Phase / PR:** Phase 1 — Dataset + training pipeline
 - **Tracker status:** `verified`
@@ -1162,7 +1168,7 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-03 | 0016 | Phase 2 test debt | CI validate-labels gate; compose WORKSPACE_ROOT eval preset; optional non-blocking recall benchmark job; compose host-env URL isolation | no |
 | 2026-07-03 | 0016 | Accept ADR 0016 (all phases complete) at merge? | **Accepted (all phases complete)** after [PR #14](https://github.com/Tusquito/codebase-indexer-mcp/pull/14) merge | no |
 | 2026-07-03 | 0016 | Phase 2 merge confirmed | [PR #14](https://github.com/Tusquito/codebase-indexer-mcp/pull/14) merged on `adr/0016-phase-2-eval-baseline`; release skipped; final ADR 0016 phase complete; `num_ctx` deferred (Phase 1 deviation) | no |
-| 2026-07-03 | 0020 | Accept ADR 0020 (Proposed → Accepted) before dev? | Open — requires formal Accept of Proposed ADR 0020 before implementation | no |
+| 2026-07-03 | 0020 | Accept ADR 0020 (Proposed → Accepted) before dev? | **Accepted (phase 1 — Dataset + training pipeline)** after [PR #15](https://github.com/Tusquito/codebase-indexer-mcp/pull/15) merge | no |
 | 2026-07-03 | 0020 | Maintainer GPU availability for first fine-tune run? | Open | no |
 | 2026-07-03 | 0020 | If Phase 3 gate fails — expand training data vs Jina revert preset (ADR 0020 §Rollout)? | Open | no |
 | 2026-07-03 | 0020 | Prioritize 0020 Phase 1 over 0002 P2, 0018 P2, 0017 P2, 0019 P1? | **Prioritized** at 2026-07-03 prioritization — 0020 P1 `candidate`; embed-quality-first over GraphRAG payload linking; over OTel traces (tie ~25.5); over truncation logging (can parallel); over YAML tracker (meta-tooling) | no |
@@ -1183,3 +1189,5 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-03 | 0020 | Phase 1 test debt | GPU smoke for `train_lora`; live Qdrant/Ollama integration for export + mine; per-epoch best-checkpoint selection; `[train]` extra install verification on maintainer GPU host | no |
 | 2026-07-03 | 0020 | Phase 1 implementation complete? | **Implemented** at 2026-07-03 implementation — tracker `implemented`; awaiting verification | no |
 | 2026-07-03 | 0020 | Phase 1 verification complete? | **Verified** at 2026-07-03 verification — tracker `verified`; 17 scoped unit tests pass; plan compliance pass (documented checkpoint deviation); ready for git/merge | no |
+| 2026-07-03 | 0020 | Accept ADR 0020 phase 1 at merge? | **Accepted (phase 1 — Dataset + training pipeline)** after [PR #15](https://github.com/Tusquito/codebase-indexer-mcp/pull/15) merge | no |
+| 2026-07-03 | 0020 | Phase 1 merge confirmed | [PR #15](https://github.com/Tusquito/codebase-indexer-mcp/pull/15) merged on `adr/0020-phase-1-qwen3-code-finetune` (squash `02b8794`; 6 commits); release skipped; Phases 2–4 deferred (Ollama export/registry P2, Jina quality gate P3, CI observation P4) | no |
