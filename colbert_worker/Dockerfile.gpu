@@ -2,6 +2,10 @@
 
 # GPU ColBERT HTTP sidecar — build context: mcp_server/ (see docker-compose.colbert-worker.gpu.yml)
 # Swaps CPU fastembed/onnxruntime for fastembed-gpu/onnxruntime-gpu==1.26.0 (matches MCP CPU lock).
+# Runtime stage copies CUDA 12 + cuDNN 9 libs from NVIDIA image (required by ORT CUDA EP).
+
+ARG CUDA_IMAGE=nvidia/cuda:12.6.3-cudnn-runtime-ubuntu22.04
+FROM ${CUDA_IMAGE} AS cuda_runtime
 
 FROM python:3.12-slim AS builder
 
@@ -32,10 +36,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+COPY --from=cuda_runtime /usr/local/cuda /usr/local/cuda
+COPY --from=cuda_runtime /usr/lib/x86_64-linux-gnu/libcudnn*.so.9* /usr/lib/x86_64-linux-gnu/
+
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app/src
 ENV PATH="/app/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-ENV LD_LIBRARY_PATH="/app/.venv/lib/python3.12/site-packages/onnxruntime/capi:${LD_LIBRARY_PATH:-}"
+ENV LD_LIBRARY_PATH="/usr/local/cuda/lib64:/usr/lib/x86_64-linux-gnu:/app/.venv/lib/python3.12/site-packages/onnxruntime/capi:${LD_LIBRARY_PATH:-}"
 
 WORKDIR /app
 COPY --from=builder /app /app

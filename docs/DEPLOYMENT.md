@@ -146,7 +146,7 @@ See [SEARCH_BEHAVIOR.md](SEARCH_BEHAVIOR.md#optional-colbert-reranking-rerank_en
 
 ### ColBERT GPU sidecar
 
-Optional GPU acceleration for the ColBERT HTTP sidecar ([ADR 0015](adr/0015-colbert-http-sidecar.md) phase 2). The MCP container stays on CPU fastembed/onnxruntime; only the sidecar image swaps to `fastembed-gpu` + `onnxruntime-gpu==1.26.0` via `colbert_worker/Dockerfile.gpu`.
+Optional GPU acceleration for the ColBERT HTTP sidecar ([ADR 0015](adr/0015-colbert-http-sidecar.md) phase 2). The MCP container stays on CPU fastembed/onnxruntime; only the sidecar image swaps to `fastembed-gpu` + `onnxruntime-gpu==1.26.0` via `colbert_worker/Dockerfile.gpu`. The GPU runtime stage copies CUDA 12 + cuDNN 9 libraries from `nvidia/cuda:12.6.3-cudnn-runtime-ubuntu22.04` into the slim Python image (required for ORT's CUDA execution provider).
 
 Requires NVIDIA driver + [Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html).
 
@@ -167,7 +167,7 @@ docker compose -f docker-compose.yml -f docker-compose.ollama.yml \
   -f docker-compose.colbert-worker.gpu.yml up -d --build
 ```
 
-Verify sidecar device: `curl http://localhost:8082/health` — expect `"device":"cuda"` and `"cuda_available":true`. The worker fails at startup if `COLBERT_USE_CUDA=1` but CUDA is unavailable.
+Verify sidecar device: `curl http://localhost:8082/health` — expect `"device":"cuda"`, `"cuda_available":true`, and `"execution_providers"` containing `CUDAExecutionProvider`. The worker fails at startup if `COLBERT_USE_CUDA=1` but CUDA libraries or the ORT CUDA provider are unavailable, or if the model loads on CPU despite CUDA being requested.
 
 **Single-GPU VRAM:** On an 8 GB GPU, running Ollama dense and ColBERT on the same device may OOM. Prefer a second GPU (`OLLAMA_GPU_COUNT=1` on GPU 0, `COLBERT_DEVICE_IDS=1` on GPU 1) or keep the CPU ColBERT sidecar (`docker-compose.colbert-worker.yml` without the GPU override). There is no automatic GPU scheduler.
 

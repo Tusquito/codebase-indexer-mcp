@@ -9,7 +9,7 @@
 #
 # Verify device after sidecar is healthy:
 #   curl http://localhost:8082/health
-#   # GPU: "device":"cuda" and "cuda_available":true
+#   # GPU: "device":"cuda", "cuda_available":true, execution_providers includes CUDAExecutionProvider
 
 services:
   colbert_worker:
