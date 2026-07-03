@@ -1,6 +1,6 @@
 # 0018. Adopt OpenTelemetry instrumentation with Prometheus metrics and optional OTLP export
 
-- **Status:** Proposed
+- **Status:** Accepted (phase 1 — Application Prometheus metrics (MCP + ColBERT worker))
 - **Date:** 2026-07-03
 - **Deciders:** Maintainers
 - **Related:** [FastMCP OpenTelemetry](https://gofastmcp.com/servers/telemetry), [Qdrant observability](https://qdrant.tech/documentation/observability/), [0014](0014-vector-discovery-and-ops-automation.md) (Track B n8n ops hooks), [0015](0015-colbert-http-sidecar.md) (multi-container topology), [0017](0017-model-tokenizer-ollama-dense-truncation.md) (Phase 2 truncation observability), [0004](0004-collection-per-project-isolation.md) (collection-per-project ↔ Qdrant per-collection metrics), [0007](0007-ranx-retrieval-evaluation.md) (offline retrieval quality — out of scope here)
