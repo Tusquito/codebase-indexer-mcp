@@ -1,9 +1,11 @@
 """Unit tests for token-aware truncation helpers."""
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
+from codebase_indexer.indexer.tokenizer_loader import load_dense_tokenizer, resolve_hf_cache_dir
 from codebase_indexer.indexer.truncation import (
     read_model_max_tokens_from_dir,
     resolve_max_embed_tokens,
@@ -112,3 +114,49 @@ def test_truncate_for_embedding_bm25_dispatch():
     )
     assert result == "alpha beta"
     assert count == 2
+
+
+def test_resolve_hf_cache_dir_hf_hub_cache(monkeypatch):
+    monkeypatch.setenv("HF_HUB_CACHE", "/data/hub")
+    monkeypatch.delenv("HF_HOME", raising=False)
+    monkeypatch.delenv("TRANSFORMERS_CACHE", raising=False)
+    assert resolve_hf_cache_dir() == Path("/data/hub")
+
+
+def test_resolve_hf_cache_dir_hf_home(monkeypatch):
+    monkeypatch.delenv("HF_HUB_CACHE", raising=False)
+    monkeypatch.setenv("HF_HOME", "/data/hf")
+    monkeypatch.delenv("TRANSFORMERS_CACHE", raising=False)
+    assert resolve_hf_cache_dir() == Path("/data/hf/hub")
+
+
+def test_resolve_hf_cache_dir_transformers_cache(monkeypatch):
+    monkeypatch.delenv("HF_HUB_CACHE", raising=False)
+    monkeypatch.delenv("HF_HOME", raising=False)
+    monkeypatch.setenv("TRANSFORMERS_CACHE", "/legacy/cache")
+    assert resolve_hf_cache_dir() == Path("/legacy/cache")
+
+
+def test_resolve_hf_cache_dir_unset(monkeypatch):
+    monkeypatch.delenv("HF_HUB_CACHE", raising=False)
+    monkeypatch.delenv("HF_HOME", raising=False)
+    monkeypatch.delenv("TRANSFORMERS_CACHE", raising=False)
+    assert resolve_hf_cache_dir() is None
+
+
+def test_load_dense_tokenizer_returns_none_on_failure():
+    pytest.importorskip("tokenizers")
+    with patch(
+        "tokenizers.Tokenizer.from_pretrained",
+        side_effect=OSError("network down"),
+    ):
+        assert load_dense_tokenizer("org/model") is None
+
+
+@pytest.mark.slow
+def test_load_dense_tokenizer_real_nomic():
+    pytest.importorskip("tokenizers")
+    tok = load_dense_tokenizer("nomic-ai/nomic-embed-text-v1.5")
+    assert tok is not None
+    enc = tok.encode("def hello(): pass", add_special_tokens=False)
+    assert len(enc.ids) > 0
