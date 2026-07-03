@@ -42,10 +42,14 @@ class ColbertOnnxBackend:
         model_name: str,
         sparse_threads: int = 0,
         max_query_tokens: int = 0,
+        use_cuda: bool = False,
+        device_ids: list[int] | None = None,
     ) -> None:
         self.model_name = model_name
         self.sparse_threads = sparse_threads
         self._max_query_tokens_cfg = max_query_tokens
+        self.use_cuda = use_cuda
+        self.device_ids = device_ids
         self._truncation_ready = False
         expected = KNOWN_COLBERT_TOKEN_DIMENSIONS.get(model_name)
         self.token_dimension = expected if expected is not None else 128
@@ -98,11 +102,18 @@ class ColbertOnnxBackend:
 
             threads = resolve_threads(self.sparse_threads)
             _tlog.info(
-                "loading_colbert_model model=%s threads=%d", self.model_name, threads
+                "loading_colbert_model model=%s threads=%d cuda=%s device_ids=%s",
+                self.model_name,
+                threads,
+                self.use_cuda,
+                self.device_ids,
             )
             t0 = time.monotonic()
             cls._shared_model = LateInteractionTextEmbedding(
-                model_name=self.model_name, threads=threads
+                model_name=self.model_name,
+                threads=threads,
+                cuda=self.use_cuda,
+                device_ids=self.device_ids,
             )
             _tlog.info(
                 "colbert_model_loaded model=%s elapsed_s=%.2f",

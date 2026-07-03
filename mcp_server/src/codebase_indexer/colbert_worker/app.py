@@ -10,6 +10,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
+from codebase_indexer.colbert_worker.cuda import cuda_available
 from codebase_indexer.colbert_worker.settings import WorkerSettings
 from codebase_indexer.indexer.backends.base import EmbeddingError
 from codebase_indexer.indexer.backends.colbert_onnx import ColbertOnnxBackend
@@ -26,6 +27,10 @@ class ColbertEmbedResponse(BaseModel):
     token_dimension: int
 
 
+def _configured_device(settings: WorkerSettings) -> str:
+    return "cuda" if settings.colbert_use_cuda else "cpu"
+
+
 def create_app(
     *,
     settings: WorkerSettings | None = None,
@@ -37,10 +42,16 @@ def create_app(
             model_name=settings.colbert_embed_model,
             sparse_threads=settings.sparse_threads,
             max_query_tokens=settings.rerank_max_query_tokens,
+            use_cuda=settings.colbert_use_cuda,
+            device_ids=settings.colbert_device_ids,
         )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        if settings.colbert_use_cuda and not cuda_available():
+            raise RuntimeError(
+                "COLBERT_USE_CUDA=1 but CUDAExecutionProvider is not available"
+            )
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, backend.preload)
         yield
@@ -55,6 +66,8 @@ def create_app(
             "model": settings.colbert_embed_model,
             "token_dimension": backend.token_dimension,
             "loaded": backend.is_loaded(),
+            "device": _configured_device(settings),
+            "cuda_available": cuda_available(),
         }
 
     @app.post("/v1/embed/colbert", response_model=ColbertEmbedResponse)
