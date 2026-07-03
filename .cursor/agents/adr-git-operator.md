@@ -352,9 +352,9 @@ After orchestrator applies `merged` tracker append on **main**:
 2. Inspect git status — paths from input (default: docs/adr/IMPLEMENTATION_TRACKER.md, CHANGELOG.md)
 3. If tracker/changelog modified → commit: docs(adr): record NNNN phase N merge
 4. git push origin main
-5. git branch -d <feature_branch>  (ignore error if already deleted)
+5. git branch -d <feature_branch>  → if fails (squash merge), git branch -D <feature_branch>
 6. git fetch --prune origin
-7. Delete other local branches tracking gone remotes when safe (same ADR phase only)
+7. Delete other stale local branches for this ADR phase when safe (gone remote + PR merged)
 8. Emit git report — Workspace clean: yes | no
 ```
 

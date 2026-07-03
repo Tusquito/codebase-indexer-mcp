@@ -489,7 +489,7 @@ Task(
 - [ ] On **main** (or repo default base)
 - [ ] **Workspace cleanup result** is `clean` (or `partial` with documented reason — STOP unless invoker waives)
 - [ ] Tracker commit created and **pushed** when `IMPLEMENTATION_TRACKER.md` was modified by step 6 tracker
-- [ ] Feature branch **deleted** locally when merge completed (`git branch -d`)
+- [ ] Feature branch **deleted** locally (`-d`, then `-D` if squash-merged)
 - [ ] `git fetch --prune` run
 - [ ] **Workspace clean:** yes — no unstaged tracker or ADR accept files
 
