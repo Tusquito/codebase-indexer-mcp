@@ -58,7 +58,7 @@ Invoke the full pipeline with **`adr-orchestrator`**; resume a phase with `Resum
 | [0011](0011-ollama-only-dense-embedding.md) | Ollama-only dense embedding | Accepted | 2026-07-02 |
 | [0012](0012-retrieval-only-rag-split.md) | Keep MCP as retrieval-only RAG layer | Accepted | 2026-07-02 |
 | [0013](0013-external-agent-knowledge-base.md) | Expose Qdrant retrieval via MCP for external agent orchestrators | Accepted | 2026-07-02 |
-| [0014](0014-vector-discovery-and-ops-automation.md) | Adopt Qdrant vector discovery APIs and optional n8n ops hooks | Accepted (phase 1) | 2026-07-02 |
+| [0014](0014-vector-discovery-and-ops-automation.md) | Adopt Qdrant vector discovery APIs and optional n8n ops hooks | Accepted (phase 1; phase 2 — outlier / diversity helper) | 2026-07-02 |
 | [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 2026-07-03 |
 
 ## Qdrant Build Prototypes & Improve Search map
