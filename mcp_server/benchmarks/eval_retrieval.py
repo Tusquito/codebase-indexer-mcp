@@ -28,7 +28,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from codebase_indexer.config import Settings  # noqa: E402
-from codebase_indexer.indexer.backends.factory import create_backends  # noqa: E402
+from codebase_indexer.indexer.backends.factory import create_backends, create_colbert_backend  # noqa: E402
 from codebase_indexer.indexer.chunker import _make_chunk_id  # noqa: E402
 from codebase_indexer.indexer.embedder import Embedder  # noqa: E402
 from codebase_indexer.storage.qdrant import QdrantStorage, SearchResult  # noqa: E402
@@ -205,12 +205,14 @@ async def run_evaluation(
     ollama_url: str | None,
     golden_path: Path,
     hybrid_search: bool,
+    rerank_enabled: bool,
     top_k: int,
     collection_override: str | None,
 ) -> dict[str, Any]:
     overrides: dict[str, object] = {
         "qdrant_url": qdrant_url,
         "hybrid_search": hybrid_search,
+        "rerank_enabled": rerank_enabled,
         "release_models_after_index": False,
     }
     if ollama_url:
@@ -219,11 +221,14 @@ async def run_evaluation(
     entries = load_golden(golden_path)
     storage = QdrantStorage(settings)
     dense_backend, sparse_backend = create_backends(settings)
+    colbert_backend = create_colbert_backend(settings) if settings.rerank_enabled else None
     embedder = Embedder(
         dense_backend=dense_backend,
         sparse_backend=sparse_backend,
         dense_embed_vector_size=settings.dense_embed_vector_size,
         hybrid=settings.hybrid_search,
+        colbert_backend=colbert_backend,
+        rerank=settings.rerank_enabled,
     )
 
     run: dict[str, dict[str, float]] = {}
@@ -282,6 +287,7 @@ async def run_evaluation(
         "params": {
             "golden": str(golden_path),
             "hybrid_search": hybrid_search,
+            "rerank_enabled": rerank_enabled,
             "top_k": top_k,
             "dense_embed_model": settings.dense_embed_model,
             "sparse_embed_model": settings.sparse_embed_model,
@@ -299,7 +305,8 @@ def render_table(result: dict[str, Any]) -> str:
     lines = [
         "=" * 64,
         f"Retrieval eval  queries={result['n_queries']}  "
-        f"hybrid={params['hybrid_search']}  top_k={params['top_k']}",
+        f"hybrid={params['hybrid_search']}  rerank={params.get('rerank_enabled', False)}  "
+        f"top_k={params['top_k']}",
         "-" * 64,
     ]
     for name, value in result["metrics"].items():
@@ -369,6 +376,11 @@ def main() -> int:
         help="Disable hybrid search (dense-only A/B).",
     )
     parser.add_argument(
+        "--rerank",
+        action="store_true",
+        help="Enable ColBERT reranking (requires indexed colbert multivectors).",
+    )
+    parser.add_argument(
         "--validate-labels",
         action="store_true",
         help="Check labeled chunk_ids exist in Qdrant; skip search.",
@@ -411,6 +423,7 @@ def main() -> int:
             ollama_url=args.ollama_url,
             golden_path=args.golden,
             hybrid_search=not args.no_hybrid,
+            rerank_enabled=args.rerank,
             top_k=args.top_k,
             collection_override=args.collection,
         )
