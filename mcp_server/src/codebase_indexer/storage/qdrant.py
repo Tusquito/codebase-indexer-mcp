@@ -3,6 +3,7 @@
 
 import asyncio
 import fnmatch
+import math
 import uuid
 from dataclasses import dataclass
 
@@ -1220,4 +1221,221 @@ class QdrantStorage:
             search_results = search_results[:limit]
 
         return search_results
+
+    @staticmethod
+    def _extract_dense_vector(vector) -> list[float]:
+        """Extract the dense channel from a Qdrant point/record vector field."""
+        if vector is None:
+            return []
+        if isinstance(vector, dict):
+            dense = vector.get("dense")
+            if dense is None:
+                return []
+            return list(dense)
+        return list(vector)
+
+    @staticmethod
+    def _compute_centroid(vectors: list[list[float]]) -> list[float]:
+        """Mean of dense vectors (zero vector when empty)."""
+        if not vectors:
+            return []
+        dim = len(vectors[0])
+        centroid = [0.0] * dim
+        for vec in vectors:
+            for i, val in enumerate(vec):
+                centroid[i] += val
+        n = float(len(vectors))
+        return [v / n for v in centroid]
+
+    @staticmethod
+    def _cosine_similarity(a: list[float], b: list[float]) -> float:
+        """Cosine similarity between two dense vectors."""
+        if not a or not b or len(a) != len(b):
+            return 0.0
+        dot = sum(x * y for x, y in zip(a, b, strict=True))
+        norm_a = math.sqrt(sum(x * x for x in a))
+        norm_b = math.sqrt(sum(x * x for x in b))
+        if norm_a == 0.0 or norm_b == 0.0:
+            return 0.0
+        return dot / (norm_a * norm_b)
+
+    async def sample_context_dense_vectors(
+        self,
+        collection: str,
+        *,
+        context_chunk_ids: list[str] | None = None,
+        path_glob: str | None = None,
+        max_samples: int,
+    ) -> list[tuple[str, str, list[float]]]:
+        """Sample context dense vectors as (chunk_id, point_id, vector) tuples.
+
+        Starts from explicit ``context_chunk_ids``, then scrolls the collection
+        (optionally filtered by ``path_glob``) until ``max_samples`` is reached.
+        """
+        client = await self._get_client()
+        samples: list[tuple[str, str, list[float]]] = []
+        seen_chunk_ids: set[str] = set()
+
+        chunk_ids = context_chunk_ids or []
+        if chunk_ids:
+            point_ids = [self.chunk_id_to_point_id(cid) for cid in chunk_ids]
+            records = await client.retrieve(
+                collection_name=collection,
+                ids=point_ids,
+                with_payload=True,
+                with_vectors=["dense"],
+            )
+            record_by_id = {str(r.id): r for r in records}
+            for cid, pid in zip(chunk_ids, point_ids, strict=True):
+                record = record_by_id.get(str(pid))
+                if record is None:
+                    continue
+                dense = self._extract_dense_vector(record.vector)
+                if not dense:
+                    continue
+                samples.append((cid, str(pid), dense))
+                seen_chunk_ids.add(cid)
+                if len(samples) >= max_samples:
+                    return samples
+
+        remaining = max_samples - len(samples)
+        if remaining <= 0:
+            return samples
+
+        # Supplement via scroll only when scoped by path_glob or when no explicit
+        # context_chunk_ids were given (whole-collection context sample).
+        if chunk_ids and not path_glob:
+            return samples
+
+        offset = None
+        while remaining > 0:
+            points, next_offset = await client.scroll(
+                collection_name=collection,
+                offset=offset,
+                limit=min(remaining * 2, 256),
+                with_payload=True,
+                with_vectors=["dense"],
+            )
+            if not points:
+                break
+            for point in points:
+                payload = point.payload or {}
+                cid = payload.get("chunk_id", "")
+                if not cid or cid in seen_chunk_ids:
+                    continue
+                rel_path = payload.get("rel_path", "")
+                if path_glob and not fnmatch.fnmatch(rel_path, path_glob):
+                    continue
+                dense = self._extract_dense_vector(point.vector)
+                if not dense:
+                    continue
+                samples.append((cid, str(point.id), dense))
+                seen_chunk_ids.add(cid)
+                remaining -= 1
+                if remaining <= 0:
+                    break
+            if next_offset is None:
+                break
+            offset = next_offset
+
+        return samples
+
+    async def find_outlier_chunks(
+        self,
+        collection: str,
+        *,
+        context_chunk_ids: list[str] | None = None,
+        limit: int = 5,
+        language: str | None = None,
+        path_glob: str | None = None,
+        max_similarity: float | None = None,
+        max_context_samples: int | None = None,
+    ) -> list[SearchResult]:
+        """Find chunks semantically distant from a context (centroid of samples).
+
+        Uses Qdrant RecommendQuery with ``RecommendStrategy.BEST_SCORE`` and
+        negative-only context examples, then filters and scores by cosine
+        similarity to the context centroid (ascending = most distant first).
+        """
+        max_sim = (
+            max_similarity
+            if max_similarity is not None
+            else self.settings.outlier_max_similarity
+        )
+        max_ctx = (
+            max_context_samples
+            if max_context_samples is not None
+            else self.settings.outlier_max_context_samples
+        )
+
+        context_samples = await self.sample_context_dense_vectors(
+            collection,
+            context_chunk_ids=context_chunk_ids,
+            path_glob=path_glob,
+            max_samples=max_ctx,
+        )
+        if not context_samples:
+            raise ValueError(
+                f"No context vectors found in collection {collection!r}. "
+                "Provide context_chunk_ids and/or ensure the collection has indexed chunks."
+            )
+
+        context_chunk_id_set = {cid for cid, _, _ in context_samples}
+        context_vectors = [vec for _, _, vec in context_samples]
+        negative_ids = [pid for _, pid, _ in context_samples]
+        centroid = self._compute_centroid(context_vectors)
+
+        client = await self._get_client()
+        query_filter = self._build_query_filter(language)
+        fetch_limit = limit * 3 if path_glob else limit * 2
+        dense_params = self._dense_search_params()
+
+        results = await client.query_points(
+            collection_name=collection,
+            query=RecommendQuery(
+                recommend=RecommendInput(
+                    positive=[],
+                    negative=negative_ids,
+                    strategy=RecommendStrategy.BEST_SCORE,
+                )
+            ),
+            using="dense",
+            limit=fetch_limit,
+            query_filter=query_filter,
+            search_params=dense_params,
+            with_payload=True,
+            with_vectors=["dense"],
+        )
+
+        candidates: list[SearchResult] = []
+        for point in results.points:
+            payload = point.payload or {}
+            chunk_id = payload.get("chunk_id", "")
+            if chunk_id in context_chunk_id_set:
+                continue
+            dense = self._extract_dense_vector(point.vector)
+            similarity = self._cosine_similarity(dense, centroid)
+            if similarity > max_sim:
+                continue
+            candidates.append(
+                SearchResult(
+                    chunk_id=chunk_id,
+                    score=similarity,
+                    rel_path=payload.get("rel_path", ""),
+                    language=payload.get("language", ""),
+                    start_line=payload.get("start_line", 0),
+                    end_line=payload.get("end_line", 0),
+                    symbol_name=payload.get("symbol_name"),
+                    symbol_type=payload.get("symbol_type", "other"),
+                    content=payload.get("content", ""),
+                    collection=collection,
+                )
+            )
+
+        candidates.sort(key=lambda r: r.score)
+        if path_glob:
+            candidates = [
+                r for r in candidates if fnmatch.fnmatch(r.rel_path, path_glob)
+            ]
+        return candidates[:limit]
 

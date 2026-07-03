@@ -109,6 +109,8 @@ services:
       # --- Recommendation search (ADR 0014; dense-only) ---
       RECOMMEND_ENABLED: ${RECOMMEND_ENABLED:-true}
       RECOMMEND_MAX_EXAMPLES: ${RECOMMEND_MAX_EXAMPLES:-10}
+      OUTLIER_MAX_CONTEXT_SAMPLES: ${OUTLIER_MAX_CONTEXT_SAMPLES:-200}
+      OUTLIER_MAX_SIMILARITY: ${OUTLIER_MAX_SIMILARITY:-0.55}
       # --- Service mapping / cross-references ---
       SERVICE_URL_KEYWORDS: ${SERVICE_URL_KEYWORDS:-rest,api,profile,service,internal,public,gateway,graphql,webhook,auth,users,accounts}
       SERVICE_DISCOVERY_EXTRA_QUERIES: ${SERVICE_DISCOVERY_EXTRA_QUERIES:-}

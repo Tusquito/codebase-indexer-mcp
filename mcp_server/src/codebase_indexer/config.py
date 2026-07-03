@@ -201,6 +201,8 @@ class Settings(BaseSettings):
     # --- Recommendation search (ADR 0014) ---
     recommend_enabled: bool = Field(default=True)
     recommend_max_examples: int = Field(default=10, ge=1)
+    outlier_max_context_samples: int = Field(default=200, ge=1)
+    outlier_max_similarity: float = Field(default=0.55, ge=0.0, le=1.0)
 
     # --- Service-mapping / cross-reference tuning (project-agnostic) ---
     # Comma-separated URL path keywords used to recognise API paths in config
