@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from codebase_indexer.config import KNOWN_EMBED_MODEL_MAX_TOKENS, Settings
+from codebase_indexer.config import (
+    KNOWN_EMBED_MODEL_MAX_TOKENS,
+    Settings,
+    ollama_embed_dimensions,
+)
 from codebase_indexer.indexer.backends.base import (
     DenseEmbedBackend,
     LateInteractionEmbedBackend,
@@ -31,6 +35,9 @@ def create_dense_backend(settings: Settings) -> DenseEmbedBackend:
         max_dense_embed_tokens=settings.max_dense_embed_tokens,
         dense_embed_model=settings.dense_embed_model,
         known_max_tokens=KNOWN_EMBED_MODEL_MAX_TOKENS,
+        mrl_dimensions=ollama_embed_dimensions(
+            settings.dense_embed_model, settings.dense_embed_vector_size
+        ),
     )
 
 
