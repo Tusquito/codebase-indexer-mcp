@@ -488,8 +488,8 @@ If you change port bindings to expose the server beyond localhost, set `MCP_AUTH
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `BATCH_SIZE` | `32` | Chunks embedded per pipeline batch (larger = faster, more RAM). Also used as Ollama HTTP sub-batch size via `OLLAMA_EMBED_BATCH_SIZE` default. |
-| `FLUSH_EVERY` | `1500` | Chunks per embed+upsert flush. Peak RAM ≈ 2× this. |
-| `UPSERT_BATCH` | `500` | Points per Qdrant upsert sub-batch |
+| `FLUSH_EVERY` | `1500` | Chunks per embed+upsert flush. Peak RAM ≈ 2× this. With ColBERT rerank, use **64–128** (see [DEPLOYMENT.md](docs/DEPLOYMENT.md#colbert-rerank-qdrant-upsert-batching)). |
+| `UPSERT_BATCH` | `500` | Points per Qdrant upsert sub-batch. With **`RERANK_ENABLED=true`**, use **10–25** — large ColBERT multivectors exceed HTTP body limits at the default. |
 | `READAHEAD_BUFFER` | `100` | Files queued ahead of the consumer during scan |
 | `MAX_DENSE_EMBED_TOKENS` | `0` (auto) | Caps text sent to Ollama (word-split approximation); auto from `DENSE_EMBED_MODEL` registry when `0` |
 | `MAX_SPARSE_EMBED_TOKENS` | `0` (no limit) | Token cap for sparse input. `0` = no truncation with `Qdrant/bm25` (default). Set explicitly only for other sparse transformer models. |

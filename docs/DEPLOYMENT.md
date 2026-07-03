@@ -118,6 +118,30 @@ Pipeline knobs (see `.env.example` presets):
 | Lower RAM | Lower `BATCH_SIZE`, `FLUSH_EVERY`, `MAX_DENSE_EMBED_TOKENS`; enable `SEQUENTIAL_EMBED` |
 | Faster search | Tune `HNSW_EF`, `PREFETCH_MULTIPLIER`; disable `VECTORS_ON_DISK` if RAM allows |
 
+### ColBERT rerank: Qdrant upsert batching
+
+When `RERANK_ENABLED=true`, each point carries a **ColBERT multivector** (hundreds of 128-d token vectors per chunk, plus dense, sparse, and payload). Upserts go to Qdrant over **HTTP**; a single request body can exceed what the client or server accepts.
+
+**Symptom:** indexing logs show `upsert_retry` / `prev_upsert_error` with an **empty** `error=` field, or `ResponseHandlingException` / `httpx.ReadError` in debug output. Qdrant access logs may show `PUT .../points` **400** or the connection may drop mid-response. Failed upserts leave **gaps** in the collection (`points_count` < `total_chunks`) and MCP RSS climbs because `trim_memory` does not run until upsert succeeds.
+
+**Cause:** `UPSERT_BATCH` too large for ColBERT payload size (not a schema or dimension mismatch). The default **`UPSERT_BATCH=500`** is fine for dense+sparse only; with rerank enabled, use a **much smaller** sub-batch.
+
+**Mitigation:**
+
+| Knob | Dense+sparse only | ColBERT rerank enabled |
+|------|-------------------|-------------------------|
+| `UPSERT_BATCH` | `50`–`500` | **`10`–`25`** (start at `10`) |
+| `FLUSH_EVERY` | up to `1500` | **`64`–`128`** (MCP holds full flush until upsert) |
+| `COLBERT_EMBED_BATCH_SIZE` | — | `16`–`32` (sidecar HTTP batching; independent of upsert) |
+
+The MCP upsert path retries up to **5 times** with exponential backoff on transient failures (`qdrant.py`). If errors persist, lower `UPSERT_BATCH` first.
+
+**Remote ColBERT sidecar** ([ADR 0015](adr/0015-colbert-http-sidecar.md)): offloading inference does **not** shrink upsert payloads — MCP still holds dense + sparse + returned ColBERT multivectors per flush until Qdrant accepts them. Tune `UPSERT_BATCH` the same way.
+
+**Verified preset** (Ollama GPU + ColBERT sidecar + rerank, ~16 GB host): see `.env.example` sidecar block — `UPSERT_BATCH=10`, `FLUSH_EVERY=96`, `MCP_MEM_LIMIT=3g`, `COLBERT_MEM_LIMIT=3g`.
+
+See [SEARCH_BEHAVIOR.md](SEARCH_BEHAVIOR.md#optional-colbert-reranking-rerank_enabledtrue) for search-path details.
+
 See [README.md](../README.md) for full env reference and tuning presets.
 
 ## Retrieval quality (ANN recall)

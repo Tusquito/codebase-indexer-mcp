@@ -85,6 +85,15 @@ Index-time: a third multivector field `colbert` is stored on each point (HNSW di
 
 When `COLBERT_EMBED_BACKEND=remote`, ColBERT model weights and inference run in the `colbert_worker` container (see `docker-compose.colbert-worker.yml`). MCP still holds returned multivectors per flush batch until upsert — the sidecar removes ColBERT **model and compute** RAM from MCP, not the upsert payload. Switching `onnx` ↔ `remote` with the same `COLBERT_EMBED_MODEL` does **not** require re-index.
 
+### Index-time tuning (upsert batch size)
+
+ColBERT multivectors make each Qdrant point much larger than dense+sparse alone. If `UPSERT_BATCH` is too high, upserts fail with connection errors (often logged as empty `Upsert error:` strings). Lower **`UPSERT_BATCH`** to **`10`–`25`** when rerank is enabled; see [DEPLOYMENT.md](DEPLOYMENT.md#colbert-rerank-qdrant-upsert-batching) for symptoms, cause, and presets.
+
+| Variable | Default (no rerank) | With rerank |
+|----------|---------------------|-------------|
+| `UPSERT_BATCH` | `500` | **`10`–`25`** recommended |
+| `FLUSH_EVERY` | `1500` | **`64`–`128`** typical |
+
 `min_score` remains disabled on hybrid and rerank paths (scores are not cosine-scale).
 
 ## Multi-hop retrieval
