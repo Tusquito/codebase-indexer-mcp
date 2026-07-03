@@ -1,0 +1,27 @@
+# GPU override for ColBERT sidecar (use with docker-compose.colbert-worker.yml).
+# Requires NVIDIA driver + Container Toolkit. Set COLBERT_GPU=1 in .env.
+#
+#   docker compose -f docker-compose.yml \
+#     -f docker-compose.ollama.yml \
+#     -f docker-compose.ollama.gpu.yml \
+#     -f docker-compose.colbert-worker.yml \
+#     -f docker-compose.colbert-worker.gpu.yml up -d --build
+#
+# Verify device after sidecar is healthy:
+#   curl http://localhost:8082/health
+#   # GPU: "device":"cuda" and "cuda_available":true
+
+services:
+  colbert_worker:
+    build:
+      dockerfile: ../colbert_worker/Dockerfile.gpu
+    environment:
+      COLBERT_USE_CUDA: "1"
+      COLBERT_DEVICE_IDS: ${COLBERT_DEVICE_IDS:-}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: ${COLBERT_GPU_COUNT:-1}
+              capabilities: [gpu]

@@ -1,4 +1,5 @@
 # Optional: offload ColBERT inference to a dedicated HTTP sidecar (ADR 0015).
+# GPU sidecar: add -f docker-compose.colbert-worker.gpu.yml (see DEPLOYMENT.md).
 #
 # Usage (Ollama GPU + ColBERT sidecar + rerank):
 #   Set in .env:
