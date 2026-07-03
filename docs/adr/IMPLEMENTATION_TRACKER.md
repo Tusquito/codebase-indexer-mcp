@@ -30,7 +30,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 
 | ADR | Title | ADR status | Phase | Tracker | Chosen scope | Last updated |
 |-----|-------|------------|-------|---------|--------------|--------------|
-| [0002](0002-graphrag-neo4j-qdrant.md) | Optional GraphRAG (Neo4j + Qdrant) | Proposed | — | `not_started` | — | — |
+| [0002](0002-graphrag-neo4j-qdrant.md) | Optional GraphRAG (Neo4j + Qdrant) | Proposed | Phase 1 — Neo4j storage + index-time graph writer | `verified` | Shipped: `storage/neo4j.py` async driver wrapper (neo4j driver 6.2.0) with idempotent schema; `indexer/graph_writer.py` writing ADR ontology from index batches (reuses `UrlExtractors`, `extract_build_deps`/`match_deps_to_collections`, public `extract_imported_names`); `pipeline.py` hooks mirroring Qdrant flush/delete cadence; best-effort graph errors to `PipelineResult.errors`; `context.py` optional `Neo4jStorage`; config (`GRAPH_ENABLED=false` default, `NEO4J_*`, `GRAPH_WRITER_BATCH`, `GRAPH_SCHEMA_VERSION=1`); `docker-compose.neo4j.yml` override only; mock driver CI unit tests; `.env.example` + `ARCHITECTURE.md`; no MCP tools Phase 1; endpoint `method` inference best-effort; defer Phase 2 Qdrant `graph_node_ids`, Phase 3 `expand_search_context`, Phase 4 Neo4j cross-project queries | 2026-07-03 |
 | [0003](0003-hybrid-search-rrf-default.md) | Hybrid search RRF default | Accepted | all | `merged` | Shipped | 2026-07-02 |
 | [0004](0004-collection-per-project-isolation.md) | Collection-per-project isolation | Accepted | all | `merged` | Shipped | 2026-07-02 |
 | [0005](0005-mcp-retrieval-connector.md) | MCP retrieval connector | Accepted | all | `merged` | Shipped | 2026-07-02 |
@@ -60,7 +60,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 
 | ADR | Notes |
 |-----|-------|
-| 0002 | Four phases; default deploy stays Qdrant-only |
+| 0002 | Phase 1 `verified` — Neo4j storage + index-time graph writer; ready for git/PR; four phases total; default deploy stays Qdrant-only (`GRAPH_ENABLED=false`) |
 ### Partial acceptance
 
 | ADR | Done | Remaining |
@@ -321,7 +321,50 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 
 ### ADR 0002 — GraphRAG (Neo4j + Qdrant)
 
-*No implementation log yet.*
+#### 2026-07-03 — verification
+- **Phase / PR:** Phase 1 — Neo4j storage + index-time graph writer
+- **Tracker status:** `verified`
+- **Choices:** Mock-driver CI default; best-effort graph errors to `PipelineResult.errors`; neo4j driver 6.2.0; endpoint `method` inference best-effort; compose override only; no MCP tools Phase 1
+- **Deviations:** none
+- **Code evidence:** `mcp_server/src/codebase_indexer/storage/neo4j.py`, `mcp_server/src/codebase_indexer/indexer/graph_writer.py`, `mcp_server/src/codebase_indexer/indexer/pipeline.py`, `mcp_server/src/codebase_indexer/context.py`, `mcp_server/src/codebase_indexer/config.py`, `mcp_server/src/codebase_indexer/tools/index.py`, `docker-compose.neo4j.yml`, `.env.example`, `docs/ARCHITECTURE.md`
+- **Test debt:** Live Neo4j incremental delete integration; compose override smoke; graph-failure-during-index scenario; pipeline-level delete hook assertion
+- **Verify:** 17 graph unit tests pass + plan compliance pass; Docker integration pass per integration report; review rounds: 1
+- **Git:** pending
+- **Changelog:** yes
+
+#### 2026-07-03 — implementation
+- **Phase / PR:** Phase 1 — Neo4j storage + index-time graph writer
+- **Tracker status:** `implemented`
+- **Choices:** mock driver CI; best-effort graph errors to `PipelineResult.errors`; BUILD_DEPENDS via on-disk re-read; Neo4j compose override only; no MCP tools Phase 1; public `extract_imported_names` in chunker
+- **Deviations:** neo4j driver resolved to 6.2.0 (5.x planned); endpoint `method` inference best-effort only
+- **Code evidence:** `mcp_server/pyproject.toml`, `mcp_server/src/codebase_indexer/config.py`, `mcp_server/src/codebase_indexer/storage/neo4j.py`, `mcp_server/src/codebase_indexer/indexer/graph_writer.py`, `mcp_server/src/codebase_indexer/indexer/chunker.py`, `mcp_server/src/codebase_indexer/indexer/pipeline.py`, `mcp_server/src/codebase_indexer/context.py`, `mcp_server/src/codebase_indexer/tools/index.py`, `mcp_server/src/codebase_indexer/main.py`, `docker-compose.neo4j.yml`, `.env.example`, `docs/ARCHITECTURE.md`, `mcp_server/tests/test_config.py`, `mcp_server/tests/test_neo4j_storage.py`, `mcp_server/tests/test_graph_writer.py`, `mcp_server/tests/test_pipeline_graph.py`
+- **Test debt:** live Neo4j incremental delete integration; compose override smoke; graph-failure-during-index scenario
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing yes; entry at `verified` step
+
+#### 2026-07-03 — plan
+- **Phase / PR:** Phase 1 — Neo4j storage + index-time graph writer
+- **Tracker status:** `planned`
+- **Choices:** Single PR for entire Phase 1; default CI uses bolt/session mocks (not Testcontainers); graph write errors append to `PipelineResult.errors` while Qdrant upsert succeeds; manifest `BUILD_DEPENDS` via on-disk re-read for full file content; promote `_extract_imported_names` to public API; Neo4j only in compose override (not base `docker-compose.yml`); no new MCP tools in Phase 1. **Chosen scope:** `storage/neo4j.py` async driver wrapper with idempotent schema (`Chunk.chunk_id`, `File(collection,rel_path)`, `Symbol.qualified_name`, `Endpoint`, `Collection` constraints); `indexer/graph_writer.py` writing ADR ontology from index batches reusing `UrlExtractors`, `extract_build_deps`/`match_deps_to_collections`, and public `extract_imported_names` from chunker; `pipeline.py` hooks mirroring Qdrant flush/delete cadence; `context.py` optional `Neo4jStorage`; config (`GRAPH_ENABLED=false` default, `NEO4J_*`, `GRAPH_WRITER_BATCH`, `GRAPH_SCHEMA_VERSION=1`); optional `docker-compose.neo4j.yml`; unit tests (mock driver CI + optional slow live Neo4j); `.env.example` + `ARCHITECTURE.md`; defer Phase 2 Qdrant `graph_node_ids`, Phase 3 `expand_search_context`, Phase 4 Neo4j cross-project queries. **Requires formal Accept of Proposed ADR 0002 before implementation.**
+- **Assumptions:** `neo4j` Python driver 5.x; Neo4j Community 5 in compose; collection name = folder basename; full re-index required when enabling graph on existing collections; prerequisites ADR 0003/0004/0005/0009 satisfied in code
+- **Deviations:** none
+- **Code evidence:** —
+- **Test debt:** unit tests (mock driver CI + optional slow live Neo4j); Testcontainers vs mock-only CI open (recommend mock default)
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing yes; entry at `verified` step
+
+#### 2026-07-03 — prioritization
+- **Phase / PR:** Phase 1 — Neo4j storage + index-time graph writer
+- **Tracker status:** `candidate`
+- **Choices:** Prioritize 0002 Phase 1 over 0009 eval_multihop CI gate (closest alternative, −1.0 weighted score, benchmark-only; tie within ~10% but lower unlock); over 0008 test-debt closure PR (QA-only, no capability); over 0015 Phase 3 slim image and 0014 Track B n8n (ops-only, deferred twice); single phase per pipeline rule; begin GraphRAG foundation after Improve Search + vector discovery arcs complete. **Chosen scope:** `storage/neo4j.py` async driver wrapper; `indexer/graph_writer.py` reusing chunk/xref/build extractors; `pipeline.py` post-flush invocation; config (`GRAPH_ENABLED`, `NEO4J_*`, `GRAPH_WRITER_BATCH`); optional `docker-compose.neo4j.yml`; idempotent Neo4j constraints/indexes; unit tests per ADR Validation §Phase 1; `.env.example` + `ARCHITECTURE.md` sync; defer Phase 2 payload linking, Phase 3 `expand_search_context`, Phase 4 Neo4j cross-project queries. **Requires formal Accept of Proposed ADR 0002 before implementation.** **Why now:** ColBERT arc (0008 all phases, 0015 P1–P2), vector discovery Track A (0014 P1–P2), and multi-hop client eval (0009 Phase 2) are merged; ADR 0002 is the sole Proposed ADR and the largest remaining capability gap for structural multi-hop queries; ADR 0009 and 0013 explicitly defer graph-backed retrieval to 0002; no `GRAPH_ENABLED`/Neo4j code exists (`config.py` grep empty, no `storage/neo4j.py`); Phase 1 is opt-in (`GRAPH_ENABLED=false` default) with defined Testcontainers/bolt-mock validation; unlocks Phases 2–4 and 0009 server-side graph expansion path. **Suggested scope:** one phase (= one PR).
+- **Deviations:** none
+- **Code evidence:** no `GRAPH_ENABLED`/Neo4j code exists (`config.py` grep empty, no `storage/neo4j.py`)
+- **Test debt:** —
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing unknown
 
 ---
 
@@ -701,7 +744,18 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-03 | 0008 | Dedicated unit test for single-probe-hit ColBERT path (< 2 probe hits) | Open — test debt at verification | no |
 | 2026-07-03 | 0008 | Golden-set gap threshold sweep for `RERANK_ADAPTIVE_GAP` tuning | Open — test debt at verification (`eval_retrieval --rerank`) | no |
 | 2026-07-03 | 0009 | Whether 0009 Phase 2 eval script runs parallel or next cycle | Prioritized 2026-07-03 — Phase 2 automated 2-hop client eval script is `planned` | no |
-| 2026-07-03 | 0008 | Accept Proposed 0002 or 0014 in a subsequent cycle for greenfield work? | 0014 prioritized this cycle (Track A P1 `planned`); 0002 still deferred | no |
+| 2026-07-03 | 0008 | Accept Proposed 0002 or 0014 in a subsequent cycle for greenfield work? | 0014 Track A complete (P1+P2 merged); 0002 Phase 1 prioritized 2026-07-03 — `verified` | no |
+| 2026-07-03 | 0002 | Accept ADR 0002 (Proposed → Accepted) before dev? | Open — required before implementation; pre-merge Accept timing — orchestrator decision | no |
+| 2026-07-03 | 0002 | Testcontainers Neo4j vs bolt mock for CI | Decided at implementation — mock driver CI default | no |
+| 2026-07-03 | 0002 | Graph write fail-fast vs best-effort | Decided at plan — best-effort: graph write errors append to `PipelineResult.errors` while Qdrant upsert succeeds | no |
+| 2026-07-03 | 0002 | Endpoint `method` inference depth | Decided at implementation — best-effort only | no |
+| 2026-07-03 | 0002 | Neo4j Python driver version | Shipped `neo4j` 6.2.0 (ADR/plan assumed 5.x) | no |
+| 2026-07-03 | 0002 | Neo4j in base compose vs override only | Decided at plan — compose override only (`docker-compose.neo4j.yml`); not base `docker-compose.yml` | no |
+| 2026-07-03 | 0002 | Promote `_extract_imported_names` to public chunker API | Decided at plan — yes; public `extract_imported_names` | no |
+| 2026-07-03 | 0002 | Manifest `BUILD_DEPENDS` source for graph writer | Decided at plan — on-disk re-read for full file content | no |
+| 2026-07-03 | 0002 | New MCP tools in Phase 1? | Decided at plan — no; index-time graph writer only | no |
+| 2026-07-03 | 0002 | Full re-index when enabling graph on existing collections | Decided at plan — yes; document in `.env.example` + `ARCHITECTURE.md` | no |
+| 2026-07-03 | 0002 | Whether to run 0009 CI gate or 0008 test-debt PR in parallel with Accept/plan | Open — orchestrator decision | no |
 | 2026-07-03 | 0014 | Accept ADR 0014? | `Accepted (phase 1 — recommendation search tool)` after PR #5 merge | no |
 | 2026-07-03 | 0014 | Lock tool name/schema | Tool name `recommend_code`; RecommendStrategy AVERAGE_VECTOR only | no |
 | 2026-07-03 | 0014 | Confirm dense-only Phase 1 | Dense-only confirmed; sparse fusion deferred | no |
