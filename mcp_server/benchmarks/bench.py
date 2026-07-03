@@ -128,15 +128,24 @@ async def run_benchmark(
     payload_indexes: bool,
     rerank_enabled: bool,
     keep: bool,
+    colbert_url: str | None = None,
+    colbert_embed_backend: str | None = None,
+    colbert_sidecar_health: dict[str, object] | None = None,
 ) -> dict[str, Any]:
-    settings = load_settings(
-        qdrant_url=qdrant_url,
-        payload_indexes=payload_indexes,
-        hybrid_search=True,
-        rerank_enabled=rerank_enabled,
+    settings_overrides: dict[str, object] = {
+        "qdrant_url": qdrant_url,
+        "payload_indexes": payload_indexes,
+        "hybrid_search": True,
+        "rerank_enabled": rerank_enabled,
         # Keep models resident across the run (we index then search).
-        release_models_after_index=False,
-    )
+        "release_models_after_index": False,
+    }
+    if colbert_embed_backend is not None:
+        settings_overrides["colbert_embed_backend"] = colbert_embed_backend
+    if colbert_url is not None:
+        settings_overrides["colbert_url"] = colbert_url
+
+    settings = load_settings(**settings_overrides)
 
     tmp = Path(tempfile.mkdtemp(prefix="bench_corpus_"))
     sub_path = "/" + collection
@@ -243,17 +252,27 @@ async def run_benchmark(
         delete_ms = round((time.perf_counter() - t0) * 1000.0, 3)
 
         total_chunks = full.total_chunks or 1
+        params: dict[str, Any] = {
+            "files": files,
+            "seed": seed,
+            "iterations": iterations,
+            "payload_indexes": payload_indexes,
+            "hybrid_search": settings.hybrid_search,
+            "rerank_enabled": settings.rerank_enabled,
+            "dense_embed_model": settings.dense_embed_model,
+        }
+        if settings.rerank_enabled:
+            params["colbert_embed_backend"] = settings.colbert_embed_backend
+            if settings.colbert_embed_backend == "remote":
+                params["colbert_url"] = settings.colbert_url
+                if colbert_sidecar_health is not None:
+                    params["colbert_sidecar_device"] = colbert_sidecar_health.get("device")
+                    params["colbert_sidecar_cuda_available"] = colbert_sidecar_health.get(
+                        "cuda_available"
+                    )
         result = {
             "schema": 1,
-            "params": {
-                "files": files,
-                "seed": seed,
-                "iterations": iterations,
-                "payload_indexes": payload_indexes,
-                "hybrid_search": settings.hybrid_search,
-                "rerank_enabled": settings.rerank_enabled,
-                "dense_embed_model": settings.dense_embed_model,
-            },
+            "params": params,
             "corpus": {
                 "n_files": corpus.n_files,
                 "files_by_ext": corpus.files_by_ext,
