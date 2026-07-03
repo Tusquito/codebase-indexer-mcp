@@ -92,12 +92,12 @@ flowchart LR
 
 | Layer | Module | Notes |
 |-------|--------|-------|
-| Dense Ollama | `indexer/backends/ollama_dense.py` | HTTP `/api/embed`; orchestrated by `Embedder` facade |
+| Dense Ollama | `indexer/backends/ollama_dense.py` | HTTP `/api/embed`; MRL `dimensions` for Qwen3 when below native size; orchestrated by `Embedder` facade |
 | Sparse BM25 | `indexer/backends/onnx_sparse.py` | In-process CPU; `SPARSE_THREADS` required in `.env` |
 | ColBERT (opt-in) | `indexer/backends/colbert_onnx.py`, `colbert_remote.py` | Multivector at index time when `RERANK_ENABLED=true`; MAX_SIM rerank at query time |
 | Truncation | `indexer/truncation.py`, `indexer/tokenizer_loader.py` | Dense: model tokenizer from `DENSE_EMBED_MODEL` via `tokenizers` (Ollama path); sparse/ColBERT: FastEmbed cache tokenizer; caps via `MAX_DENSE_EMBED_TOKENS` / `MAX_SPARSE_EMBED_TOKENS` |
 
-Dense embedding is Ollama-only ([ADR 0011](adr/0011-ollama-only-dense-embedding.md), [ADR 0001](adr/0001-pluggable-embed-backends.md) superseded for backend selection):
+Dense embedding is Ollama-only ([ADR 0011](adr/0011-ollama-only-dense-embedding.md), [ADR 0001](adr/0001-pluggable-embed-backends.md) superseded for backend selection). Default dense model is **Qwen3-Embedding-4B** at 1024 dimensions via Matryoshka truncation ([ADR 0016](adr/0016-qwen3-embedding-default-dense-model.md)); Nomic remains a documented CPU/low-VRAM preset.
 
 | Backend | Module | When |
 |---------|--------|------|

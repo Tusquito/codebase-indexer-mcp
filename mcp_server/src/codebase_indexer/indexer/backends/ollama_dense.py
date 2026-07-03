@@ -39,9 +39,11 @@ class OllamaDenseBackend:
         max_dense_embed_tokens: int = 0,
         dense_embed_model: str = "",
         known_max_tokens: dict[str, int] | None = None,
+        mrl_dimensions: int | None = None,
     ) -> None:
         self.model_name = model_name
         self.vector_size = vector_size
+        self._mrl_dimensions = mrl_dimensions
         self.ollama_url = ollama_url.rstrip("/")
         self.batch_size = batch_size
         self.timeout = timeout
@@ -90,7 +92,7 @@ class OllamaDenseBackend:
                     )
                 probe_resp = client.post(
                     "/api/embed",
-                    json={"model": self.model_name, "input": ["."]},
+                    json=self._embed_payload(["."]),
                 )
                 probe_resp.raise_for_status()
                 data = probe_resp.json()
@@ -170,9 +172,15 @@ class OllamaDenseBackend:
                 )
         return results
 
+    def _embed_payload(self, texts: list[str]) -> dict[str, Any]:
+        payload: dict[str, Any] = {"model": self.model_name, "input": texts}
+        if self._mrl_dimensions is not None:
+            payload["dimensions"] = self._mrl_dimensions
+        return payload
+
     async def _embed_http(self, texts: list[str]) -> list[list[float]]:
         client = self._get_async_client()
-        payload: dict[str, Any] = {"model": self.model_name, "input": texts}
+        payload = self._embed_payload(texts)
         last_exc: Exception | None = None
         for attempt in range(self.max_retries):
             try:

@@ -1,6 +1,6 @@
 # 0016. Adopt Qwen3-Embedding-4B as default Ollama dense model
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-07-03
 - **Deciders:** Maintainers
 - **Related:** [0011](0011-ollama-only-dense-embedding.md) — Ollama-only dense path; [0017](0017-model-tokenizer-ollama-dense-truncation.md) — model-accurate pre-truncation for long Qwen3 inputs; [0007](0007-ranx-retrieval-evaluation.md) — golden-set eval; [0003](0003-hybrid-search-rrf-default.md) — hybrid dense + BM25; [CoIR leaderboard](https://mteb-leaderboard.hf.space/benchmarks?q=code) — code retrieval benchmark used for comparison

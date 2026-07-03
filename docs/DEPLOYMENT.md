@@ -35,12 +35,15 @@ Run Ollama natively or in your own container on `127.0.0.1:11434`. Leave `COMPOS
 
 ```env
 OLLAMA_URL=http://host.docker.internal:11434
-OLLAMA_EMBED_MODEL=unclemusclez/jina-embeddings-v2-base-code
-DENSE_EMBED_VECTOR_SIZE=768
+OLLAMA_EMBED_MODEL=qwen3-embedding:4b
+DENSE_EMBED_MODEL=Qwen/Qwen3-Embedding-4B
+DENSE_EMBED_VECTOR_SIZE=1024
 ```
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.ollama.yml up -d --build
+docker exec codeindexer_ollama ollama pull qwen3-embedding:4b
+docker compose restart mcp_server
 ```
 
 ### Bundled Ollama in Compose (recommended)
@@ -50,14 +53,15 @@ docker compose -f docker-compose.yml -f docker-compose.ollama.yml up -d --build
 ```env
 COMPOSE_PROFILES=bundled-ollama
 OLLAMA_URL=http://ollama:11434
-OLLAMA_EMBED_MODEL=unclemusclez/jina-embeddings-v2-base-code
-DENSE_EMBED_VECTOR_SIZE=768
+OLLAMA_EMBED_MODEL=qwen3-embedding:4b
+DENSE_EMBED_MODEL=Qwen/Qwen3-Embedding-4B
+DENSE_EMBED_VECTOR_SIZE=1024
 OLLAMA_GPU=0
 ```
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.ollama.yml up -d --build
-docker exec codeindexer_ollama ollama pull unclemusclez/jina-embeddings-v2-base-code
+docker exec codeindexer_ollama ollama pull qwen3-embedding:4b
 docker compose restart mcp_server
 ```
 
@@ -71,13 +75,15 @@ Requires NVIDIA driver + [Container Toolkit](https://docs.nvidia.com/datacenter/
 COMPOSE_PROFILES=bundled-ollama
 OLLAMA_GPU=1
 OLLAMA_GPU_COUNT=1
-OLLAMA_EMBED_MODEL=unclemusclez/jina-embeddings-v2-base-code
+OLLAMA_EMBED_MODEL=qwen3-embedding:4b
+DENSE_EMBED_MODEL=Qwen/Qwen3-Embedding-4B
+DENSE_EMBED_VECTOR_SIZE=1024
 ```
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.ollama.yml \
   -f docker-compose.ollama.gpu.yml up -d --build
-docker exec codeindexer_ollama ollama pull unclemusclez/jina-embeddings-v2-base-code
+docker exec codeindexer_ollama ollama pull qwen3-embedding:4b
 ```
 
 Verify GPU: `docker exec codeindexer_ollama ollama ps` — `PROCESSOR` should show `GPU` while the model is loaded. CPU-only shows `100% CPU`.

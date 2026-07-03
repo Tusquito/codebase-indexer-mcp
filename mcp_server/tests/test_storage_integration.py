@@ -36,12 +36,17 @@ pytestmark = pytest.mark.skipif(
 )
 
 
+def _dense_dim() -> int:
+    return Settings().dense_embed_vector_size
+
+
 def _make_embedded(
     rel_path: str,
     start_line: int,
     text: str,
     *,
     dense_scale: float = 1.0,
+    dense_dim: int | None = None,
     colbert: list[list[float]] | None = None,
 ) -> EmbeddedChunk:
     chunk = Chunk(
@@ -56,8 +61,8 @@ def _make_embedded(
         file_sha256="hash123",
         file_mtime=1.0,
     )
-    # Deterministic non-zero dense vector (768 dims) + tiny sparse vector.
-    dense = [0.01 * dense_scale * ((start_line + i) % 7 + 1) for i in range(768)]
+    dim = dense_dim if dense_dim is not None else _dense_dim()
+    dense = [0.01 * dense_scale * ((start_line + i) % 7 + 1) for i in range(dim)]
     sparse = SparseVector(indices=[1, 5, 9], values=[0.5, 0.3, 0.2])
     return EmbeddedChunk(
         chunk=chunk,
@@ -111,13 +116,14 @@ async def test_ensure_collection_recreates_on_dimension_mismatch():
 async def test_ensure_collection_force_recreates_matching_dimension():
     """ensure_collection with force=True always recreates even when dims match."""
     coll = f"test_force_{uuid.uuid4().hex[:8]}"
-    s = Settings(qdrant_url=QDRANT_URL, hybrid_search=True, dense_embed_vector_size=768)
+    dim = _dense_dim()
+    s = Settings(qdrant_url=QDRANT_URL, hybrid_search=True, dense_embed_vector_size=dim)
     st = QdrantStorage(s)
     client = await st._get_client()
     try:
         await st.ensure_collection(coll)
         # Upsert one chunk so we can verify the collection was wiped.
-        embedded = [_make_embedded("x.py", 1, "hello")]
+        embedded = [_make_embedded("x.py", 1, "hello", dense_dim=dim)]
         await st.upsert_chunks(coll, embedded)
         meta_before = await st.get_file_metadata(coll)
         assert "x.py" in meta_before
@@ -129,7 +135,7 @@ async def test_ensure_collection_force_recreates_matching_dimension():
 
         # Verify the collection still has the right dimension.
         info = await client.get_collection(coll)
-        assert info.config.params.vectors["dense"].size == 768
+        assert info.config.params.vectors["dense"].size == dim
     finally:
         await client.delete_collection(coll)
 
@@ -138,8 +144,9 @@ async def test_ensure_collection_force_recreates_matching_dimension():
 async def test_ensure_collection_recreates_on_hybrid_mismatch():
     """ensure_collection auto-recreates when hybrid_search flag changes."""
     coll = f"test_hybrid_{uuid.uuid4().hex[:8]}"
+    dim = _dense_dim()
     # Create without sparse vectors.
-    s_dense = Settings(qdrant_url=QDRANT_URL, hybrid_search=False, dense_embed_vector_size=768)
+    s_dense = Settings(qdrant_url=QDRANT_URL, hybrid_search=False, dense_embed_vector_size=dim)
     st_dense = QdrantStorage(s_dense)
     client = await st_dense._get_client()
     try:
@@ -148,7 +155,7 @@ async def test_ensure_collection_recreates_on_hybrid_mismatch():
         assert "sparse" not in (info.config.params.vectors or {})
 
         # Now request hybrid — should recreate with sparse vectors.
-        s_hybrid = Settings(qdrant_url=QDRANT_URL, hybrid_search=True, dense_embed_vector_size=768)
+        s_hybrid = Settings(qdrant_url=QDRANT_URL, hybrid_search=True, dense_embed_vector_size=dim)
         st_hybrid = QdrantStorage(s_hybrid)
         st_hybrid._client = client
         await st_hybrid.ensure_collection(coll)
@@ -206,13 +213,14 @@ def _unit_vec(dim: int, index: int, scale: float = 1.0) -> list[float]:
 async def test_colbert_rerank_reorders_hybrid_candidates():
     """Synthetic multivectors: ColBERT rerank should promote the better MAX_SIM match."""
     coll = f"test_rerank_{uuid.uuid4().hex[:8]}"
-    dim = 128
+    colbert_dim = 128
+    dense_dim = _dense_dim()
     s = Settings(
         qdrant_url=QDRANT_URL,
         hybrid_search=True,
         rerank_enabled=True,
         rerank_prefetch=20,
-        dense_embed_vector_size=768,
+        dense_embed_vector_size=dense_dim,
     )
     st = QdrantStorage(s)
     client = await st._get_client()
@@ -220,14 +228,14 @@ async def test_colbert_rerank_reorders_hybrid_candidates():
         await st.ensure_collection(coll)
 
         # Identical dense/sparse so hybrid RRF cannot distinguish them.
-        shared_dense = [0.01] * 768
+        shared_dense = [0.01] * dense_dim
         shared_sparse = SparseVector(indices=[1, 2], values=[0.4, 0.6])
-        colbert_a = [_unit_vec(dim, 0), _unit_vec(dim, 1)]
-        colbert_b = [_unit_vec(dim, 2)]
+        colbert_a = [_unit_vec(colbert_dim, 0), _unit_vec(colbert_dim, 1)]
+        colbert_b = [_unit_vec(colbert_dim, 2)]
 
         embedded = [
-            _make_embedded("a.py", 1, "alpha chunk", colbert=colbert_a),
-            _make_embedded("b.py", 1, "beta chunk", colbert=colbert_b),
+            _make_embedded("a.py", 1, "alpha chunk", dense_dim=dense_dim, colbert=colbert_a),
+            _make_embedded("b.py", 1, "beta chunk", dense_dim=dense_dim, colbert=colbert_b),
         ]
         embedded[0] = EmbeddedChunk(
             chunk=embedded[0].chunk,
@@ -243,7 +251,7 @@ async def test_colbert_rerank_reorders_hybrid_candidates():
         )
         await st.upsert_chunks(coll, embedded)
 
-        query_colbert = [_unit_vec(dim, 2)]
+        query_colbert = [_unit_vec(colbert_dim, 2)]
         reranked = await st.search(
             collection=coll,
             dense_vector=shared_dense,
@@ -277,13 +285,14 @@ async def test_recommend_excludes_negative_paths_with_path_glob(storage):
     try:
         await storage.ensure_collection(coll)
 
-        main_dense = [1.0 if i < 10 else 0.01 * (i % 7) for i in range(768)]
-        util_dense = [0.95 if i < 10 else 0.01 * ((i + 1) % 7) for i in range(768)]
-        test_dense = [0.01 * (i % 7) for i in range(768)]
+        dense_dim = _dense_dim()
+        main_dense = [1.0 if i < 10 else 0.01 * (i % 7) for i in range(dense_dim)]
+        util_dense = [0.95 if i < 10 else 0.01 * ((i + 1) % 7) for i in range(dense_dim)]
+        test_dense = [0.01 * (i % 7) for i in range(dense_dim)]
 
-        main_chunk = _make_embedded("src/main.py", 1, "def main(): pass", dense_scale=0.0)
-        util_chunk = _make_embedded("src/util.py", 1, "def util(): pass", dense_scale=0.0)
-        test_chunk = _make_embedded("tests/test_main.py", 1, "def test_main(): pass", dense_scale=0.0)
+        main_chunk = _make_embedded("src/main.py", 1, "def main(): pass", dense_scale=0.0, dense_dim=dense_dim)
+        util_chunk = _make_embedded("src/util.py", 1, "def util(): pass", dense_scale=0.0, dense_dim=dense_dim)
+        test_chunk = _make_embedded("tests/test_main.py", 1, "def test_main(): pass", dense_scale=0.0, dense_dim=dense_dim)
 
         embedded = [
             EmbeddedChunk(chunk=main_chunk.chunk, dense_vector=main_dense, sparse_vector=main_chunk.sparse_vector),
@@ -319,18 +328,19 @@ async def test_find_outlier_chunks_returns_orthogonal_vector(storage):
     try:
         await storage.ensure_collection(coll)
 
-        cluster_dense = [1.0 if i < 20 else 0.01 * (i % 5) for i in range(768)]
-        outlier_dense = [0.01 * (i % 5) if i < 20 else 1.0 for i in range(768)]
+        dense_dim = _dense_dim()
+        cluster_dense = [1.0 if i < 20 else 0.01 * (i % 5) for i in range(dense_dim)]
+        outlier_dense = [0.01 * (i % 5) if i < 20 else 1.0 for i in range(dense_dim)]
 
         cluster_chunks = [
-            _make_embedded(f"src/module_{n}.py", 1, f"def fn{n}(): pass", dense_scale=0.0)
+            _make_embedded(f"src/module_{n}.py", 1, f"def fn{n}(): pass", dense_scale=0.0, dense_dim=dense_dim)
             for n in range(3)
         ]
         for ec in cluster_chunks:
             ec.dense_vector = cluster_dense
 
         outlier_chunk = _make_embedded(
-            "src/orphan.py", 1, "def orphan(): pass", dense_scale=0.0
+            "src/orphan.py", 1, "def orphan(): pass", dense_scale=0.0, dense_dim=dense_dim
         )
         outlier_chunk.dense_vector = outlier_dense
 

@@ -26,9 +26,9 @@ def test_auth_token_defaults_empty():
 
 def test_embed_settings_loaded_from_env():
     s = Settings()
-    assert s.dense_embed_model == "nomic-ai/nomic-embed-text-v1.5"
+    assert s.dense_embed_model == "Qwen/Qwen3-Embedding-4B"
     assert s.sparse_embed_model == "Qdrant/bm25"
-    assert s.dense_embed_vector_size == 768
+    assert s.dense_embed_vector_size == 1024
     assert s.sparse_threads == 2
 
 
@@ -168,6 +168,59 @@ def test_jina_code_wrong_dense_embed_vector_size_rejected():
             dense_embed_vector_size=384,
             sparse_threads=2,
         )
+
+
+def test_qwen3_specs_in_registry():
+    from codebase_indexer.config import (
+        KNOWN_EMBED_MODEL_DIMENSIONS,
+        KNOWN_EMBED_MODEL_MAX_TOKENS,
+        QWEN3_EMBED_SPECS,
+    )
+
+    assert QWEN3_EMBED_SPECS["Qwen/Qwen3-Embedding-4B"] == (2560, 32768)
+    assert QWEN3_EMBED_SPECS["Qwen/Qwen3-Embedding-0.6B"] == (1024, 32768)
+    assert QWEN3_EMBED_SPECS["Qwen/Qwen3-Embedding-8B"] == (4096, 32768)
+    for model, (dim, max_tokens) in QWEN3_EMBED_SPECS.items():
+        assert KNOWN_EMBED_MODEL_DIMENSIONS[model] == dim
+        assert KNOWN_EMBED_MODEL_MAX_TOKENS[model] == max_tokens
+
+
+def test_qwen3_4b_mrl_1024_valid():
+    s = Settings(
+        dense_embed_model="Qwen/Qwen3-Embedding-4B",
+        sparse_embed_model="Qdrant/bm25",
+        dense_embed_vector_size=1024,
+        sparse_threads=2,
+    )
+    assert s.dense_embed_vector_size == 1024
+
+
+def test_qwen3_mrl_rejects_below_minimum():
+    with pytest.raises(ValueError, match="MRL"):
+        Settings(
+            dense_embed_model="Qwen/Qwen3-Embedding-4B",
+            sparse_embed_model="Qdrant/bm25",
+            dense_embed_vector_size=16,
+            sparse_threads=2,
+        )
+
+
+def test_qwen3_mrl_rejects_above_native():
+    with pytest.raises(ValueError, match="MRL"):
+        Settings(
+            dense_embed_model="Qwen/Qwen3-Embedding-4B",
+            sparse_embed_model="Qdrant/bm25",
+            dense_embed_vector_size=4096,
+            sparse_threads=2,
+        )
+
+
+def test_ollama_embed_dimensions_mrl():
+    from codebase_indexer.config import ollama_embed_dimensions
+
+    assert ollama_embed_dimensions("Qwen/Qwen3-Embedding-4B", 1024) == 1024
+    assert ollama_embed_dimensions("Qwen/Qwen3-Embedding-4B", 2560) is None
+    assert ollama_embed_dimensions("nomic-ai/nomic-embed-text-v1.5", 768) is None
 
 
 def test_preload_models_defaults_true():

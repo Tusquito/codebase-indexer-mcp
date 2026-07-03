@@ -20,7 +20,7 @@ A fully self-hosted, Docker-based MCP server that indexes your codebase into a l
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Dev setup (Python 3.12, uv), CI lint/type-check/test workflow, conventional commits |
 | [CHANGELOG.md](CHANGELOG.md) | Release history (Keep a Changelog format) |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Per-component responsibilities, indexing pipeline, embedding layer, hybrid search |
-| [docs/adr/](docs/adr/) | Architecture Decision Records — see [0012](docs/adr/0012-retrieval-only-rag-split.md) (retrieval-only RAG), [0011](docs/adr/0011-ollama-only-dense-embedding.md) (Ollama dense), [0008](docs/adr/0008-optional-colbert-reranking.md) (ColBERT rerank), [0014](docs/adr/0014-vector-discovery-and-ops-automation.md) (recommendation search), [0015](docs/adr/0015-colbert-http-sidecar.md) (ColBERT sidecar) |
+| [docs/adr/](docs/adr/) | Architecture Decision Records — see [0016](docs/adr/0016-qwen3-embedding-default-dense-model.md) (Qwen3 default dense), [0012](docs/adr/0012-retrieval-only-rag-split.md) (retrieval-only RAG), [0011](docs/adr/0011-ollama-only-dense-embedding.md) (Ollama dense), [0008](docs/adr/0008-optional-colbert-reranking.md) (ColBERT rerank), [0014](docs/adr/0014-vector-discovery-and-ops-automation.md) (recommendation search), [0015](docs/adr/0015-colbert-http-sidecar.md) (ColBERT sidecar) |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Ollama dense deployment (bundled/external/GPU), memory/CPU tuning |
 | [docs/SEARCH_BEHAVIOR.md](docs/SEARCH_BEHAVIOR.md) | `search_codebase` / `search_symbols` caps, `min_score` vs RRF, `recommend_code`, `find_outlier_chunks`, ColBERT rerank |
 
@@ -432,15 +432,28 @@ Settings are environment-variable driven. **Required variables** (no Python defa
 | `MCP_CPUS` | CPU cap for the MCP server container |
 | `QDRANT_CPUS` | CPU cap for the Qdrant container |
 | `OMP_NUM_THREADS` | ONNX/BLAS threads (also sets `OPENBLAS`/`MKL`). Keep at/below physical cores. |
-| `DENSE_EMBED_MODEL` | Dense model metadata for dimension validation (example: `jinaai/jina-embeddings-v2-base-code`); must match `OLLAMA_EMBED_MODEL` output size |
+| `DENSE_EMBED_MODEL` | Dense model metadata for dimension validation; default `Qwen/Qwen3-Embedding-4B` — must match `OLLAMA_EMBED_MODEL` output size |
 | `SPARSE_EMBED_MODEL` | fastembed sparse model; default `Qdrant/bm25` (lexical BM25) |
-| `DENSE_EMBED_VECTOR_SIZE` | Dense embedding dimensions; must match `DENSE_EMBED_MODEL` (see [BGE v1.5](#baai-bge-english-v15) and nomic: 768) |
+| `DENSE_EMBED_VECTOR_SIZE` | Dense embedding dimensions; default `1024` for Qwen3-4B MRL (see [Qwen3](#qwen3-embedding-via-ollama) and [BGE v1.5](#baai-bge-english-v15)) |
 | `SPARSE_THREADS` | ONNX threads for `SPARSE_EMBED_MODEL`; `2` for `Qdrant/bm25` (default) |
 | `COMPOSE_PROFILES` | Compose profiles to activate. Set to `bundled-ollama` with `docker-compose.ollama.yml` to run Ollama inside the stack. |
 | `OLLAMA_URL` | Ollama base URL for dense embedding. Default: `http://ollama:11434` (bundled) or `http://host.docker.internal:11434` (host Ollama). |
-| `OLLAMA_EMBED_MODEL` | Ollama embedding model tag (e.g. `unclemusclez/jina-embeddings-v2-base-code`). Must match `DENSE_EMBED_VECTOR_SIZE`. |
+| `OLLAMA_EMBED_MODEL` | Ollama embedding model tag (default: `qwen3-embedding:4b`). Must match `DENSE_EMBED_VECTOR_SIZE`. |
 | `OLLAMA_GPU` | Set to `1` and add `docker-compose.ollama.gpu.yml` to reserve NVIDIA GPU for bundled Ollama. |
 | `OLLAMA_GPU_COUNT` | GPUs reserved for bundled Ollama when using `docker-compose.ollama.gpu.yml`; defaults to `1`. |
+
+### Qwen3 Embedding (via Ollama)
+
+Default dense model ([ADR 0016](docs/adr/0016-qwen3-embedding-default-dense-model.md)). Uses Matryoshka (MRL) truncation — set `DENSE_EMBED_VECTOR_SIZE` between 32 and the model's native dimension.
+
+| Preset | `DENSE_EMBED_MODEL` | `OLLAMA_EMBED_MODEL` | `DENSE_EMBED_VECTOR_SIZE` | When |
+|--------|---------------------|----------------------|---------------------------|------|
+| **Default (GPU)** | `Qwen/Qwen3-Embedding-4B` | `qwen3-embedding:4b` | `1024` | Code search with GPU Ollama |
+| Max quality | `Qwen/Qwen3-Embedding-8B` | `qwen3-embedding:8b` | `1024` or `4096` | 16 GB+ VRAM |
+| Low VRAM | `Qwen/Qwen3-Embedding-0.6B` | `qwen3-embedding:0.6b` | `1024` | ~8 GB GPU |
+| CPU / minimal | `nomic-ai/nomic-embed-text-v1.5` | `nomic-embed-text` | `768` | No GPU; smallest download |
+
+Native dimensions: 0.6B → 1024, 4B → 2560, 8B → 4096. `MAX_DENSE_EMBED_TOKENS=0` auto-detects **32768** for Qwen3 models.
 
 ### BAAI BGE English v1.5
 
@@ -451,7 +464,7 @@ Official specs for the supported BGE dense models ([BAAI/bge-base-en-v1.5](https
 | `BAAI/bge-base-en-v1.5` | 768 | 512 |
 | `BAAI/bge-small-en-v1.5` | 384 | 512 |
 
-Set `DENSE_EMBED_MODEL`, `OLLAMA_EMBED_MODEL`, and matching `DENSE_EMBED_VECTOR_SIZE` in `.env`. `MAX_DENSE_EMBED_TOKENS` caps text sent to Ollama (word-split approximation); `0` auto-detects from the model registry (e.g. 8192 for Jina code, 512 for BGE).
+Set `DENSE_EMBED_MODEL`, `OLLAMA_EMBED_MODEL`, and matching `DENSE_EMBED_VECTOR_SIZE` in `.env`. `MAX_DENSE_EMBED_TOKENS` caps text sent to Ollama via model tokenizer ([ADR 0017](docs/adr/0017-model-tokenizer-ollama-dense-truncation.md)); `0` auto-detects from the model registry (e.g. 32768 for Qwen3, 8192 for Nomic, 512 for BGE).
 
 ### Workspace paths (`WORKSPACE_ROOT` vs `WORKSPACE_PATH`)
 
@@ -582,13 +595,15 @@ The same image scales by editing `.env` only — see the **TUNING PRESETS** sect
 
 ### Ollama dense embedding
 
-Dense vectors always come from **Ollama** (`OLLAMA_EMBED_MODEL`). Sparse BM25 stays in-process in the MCP container. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for bundled vs external Ollama and GPU setup.
+Dense vectors always come from **Ollama** (`OLLAMA_EMBED_MODEL`, default `qwen3-embedding:4b`). Sparse BM25 stays in-process in the MCP container. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for bundled vs external Ollama and GPU setup.
 
-Pull your model after first start (example for Jina code):
+Pull the default model after first start:
 
 ```bash
-docker exec codeindexer_ollama ollama pull unclemusclez/jina-embeddings-v2-base-code
+docker exec codeindexer_ollama ollama pull qwen3-embedding:4b
 ```
+
+For CPU-only hosts, use the Nomic preset documented in `.env.example` instead (`ollama pull nomic-embed-text`).
 
 GPU for bundled Ollama: set `OLLAMA_GPU=1` and add `-f docker-compose.ollama.gpu.yml`. Verify with `docker exec codeindexer_ollama ollama ps`.
 
