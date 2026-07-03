@@ -16,6 +16,8 @@ def mock_backend():
     backend.model_name = "colbert-ir/colbertv2.0"
     backend.token_dimension = 128
     backend.is_loaded.return_value = True
+    backend.active_device.return_value = "cpu"
+    backend.execution_providers.return_value = ["CPUExecutionProvider"]
     backend.preload = MagicMock()
     backend.embed_batch = AsyncMock(
         return_value=[
@@ -53,11 +55,31 @@ def test_health_reports_cuda_device_when_configured(mock_backend):
         colbert_embed_model="colbert-ir/colbertv2.0",
         colbert_use_cuda=True,
     )
+    mock_backend.active_device.return_value = "cuda"
+    mock_backend.execution_providers.return_value = [
+        "CUDAExecutionProvider",
+        "CPUExecutionProvider",
+    ]
     app = create_app(settings=settings, backend=mock_backend)
     with patch("codebase_indexer.colbert_worker.app.cuda_available", return_value=True):
         with TestClient(app, raise_server_exceptions=False) as client:
             data = client.get("/health").json()
     assert data["device"] == "cuda"
+    assert "CUDAExecutionProvider" in data["execution_providers"]
+
+
+def test_startup_fails_when_cuda_requested_but_model_loads_on_cpu(mock_backend):
+    settings = WorkerSettings(
+        colbert_embed_model="colbert-ir/colbertv2.0",
+        colbert_use_cuda=True,
+    )
+    mock_backend.active_device.return_value = "cpu"
+    mock_backend.execution_providers.return_value = ["CPUExecutionProvider"]
+    app = create_app(settings=settings, backend=mock_backend)
+    with patch("codebase_indexer.colbert_worker.app.cuda_available", return_value=True):
+        with pytest.raises(RuntimeError, match="loaded on CPU"):
+            with TestClient(app, raise_server_exceptions=True):
+                pass
 
 
 def test_startup_fails_when_cuda_requested_but_unavailable(mock_backend):

@@ -54,6 +54,12 @@ def create_app(
             )
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, backend.preload)
+        if settings.colbert_use_cuda and backend.active_device() != "cuda":
+            providers = backend.execution_providers()
+            raise RuntimeError(
+                "COLBERT_USE_CUDA=1 but ColBERT loaded on CPU "
+                f"(execution_providers={providers or ['CPUExecutionProvider']})"
+            )
         yield
 
     app = FastAPI(title="colbert_worker", version="0.1.0", lifespan=lifespan)
@@ -62,11 +68,17 @@ def create_app(
 
     @app.get("/health")
     def health() -> dict[str, Any]:
+        device = (
+            backend.active_device()
+            if backend.is_loaded()
+            else _configured_device(settings)
+        )
         return {
             "model": settings.colbert_embed_model,
             "token_dimension": backend.token_dimension,
             "loaded": backend.is_loaded(),
-            "device": _configured_device(settings),
+            "device": device,
+            "execution_providers": backend.execution_providers(),
             "cuda_available": cuda_available(),
         }
 

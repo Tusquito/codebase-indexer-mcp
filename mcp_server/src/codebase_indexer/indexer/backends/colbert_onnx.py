@@ -13,6 +13,7 @@ from codebase_indexer.config import (
 )
 from codebase_indexer.indexer.backends.base import trim_memory
 from codebase_indexer.indexer.backends.onnx_common import (
+    extract_execution_providers,
     extract_model_dir,
     extract_tokenizer,
     resolve_threads,
@@ -62,6 +63,20 @@ class ColbertOnnxBackend:
 
     def is_loaded(self) -> bool:
         return self._shared_model is not None
+
+    def active_device(self) -> str:
+        """Return the device ORT actually uses after the model is loaded."""
+        if not self.is_loaded():
+            return "cpu"
+        providers = extract_execution_providers(self._shared_model)
+        if any("CUDA" in provider for provider in providers):
+            return "cuda"
+        return "cpu"
+
+    def execution_providers(self) -> list[str]:
+        if not self.is_loaded():
+            return []
+        return extract_execution_providers(self._shared_model)
 
     def preload(self) -> None:
         self._get_model()

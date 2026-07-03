@@ -37,3 +37,22 @@ def extract_model_dir(fastembed_wrapper: Any) -> Any:
     if inner is None:
         return None
     return getattr(inner, "_model_dir", None)
+
+
+def extract_onnx_session(fastembed_wrapper: Any) -> Any | None:
+    """Return the underlying onnxruntime InferenceSession, if exposed."""
+    inner = extract_onnx_inner(fastembed_wrapper)
+    if inner is None:
+        return None
+    for attr in ("model", "session", "_session"):
+        session = getattr(inner, attr, None)
+        if session is not None and hasattr(session, "get_providers"):
+            return session
+    return None
+
+
+def extract_execution_providers(fastembed_wrapper: Any) -> list[str]:
+    session = extract_onnx_session(fastembed_wrapper)
+    if session is None:
+        return []
+    return list(session.get_providers())
