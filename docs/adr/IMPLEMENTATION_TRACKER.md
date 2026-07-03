@@ -51,6 +51,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 1 | `merged` | Opt-in `COLBERT_EMBED_BACKEND=remote` + `colbert_worker` sidecar; default in-process ONNX unchanged; FastAPI lifespan preload; `ColbertRemoteBackend` httpx client; `docker-compose.colbert-worker.yml` with shared `fastembed_cache`; `.env.example` + `SEARCH_BEHAVIOR.md`; [PR #2](https://github.com/Tusquito/codebase-indexer-mcp/pull/2) | 2026-07-03 |
 | [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 2 | `merged` | GPU sidecar via `colbert_worker/Dockerfile.gpu` (`onnxruntime-gpu==1.26.0`, `python:3.12-slim`); compose override `docker-compose.colbert-worker.gpu.yml` (NVIDIA reservations mirroring Ollama); `COLBERT_DEVICE_IDS` → `ColbertOnnxBackend.device_ids`; worker `/health` reports `device` + `cuda_available`; fail-fast CUDA preload; `bench_colbert_sidecar.py` remote throughput bench; single-GPU 8GB OOM documented (no auto-scheduler); CI-safe mocked/skipped GPU tests + non-blocking GPU Dockerfile CI job; [PR #3](https://github.com/Tusquito/codebase-indexer-mcp/pull/3) | 2026-07-03 |
 | [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 3+ | `not_started` | MCP slim image when remote-only | — |
+| [0017](0017-model-tokenizer-ollama-dense-truncation.md) | Model-accurate tokenizer for Ollama dense truncation | Proposed | Phase 1 — loader + Ollama backend | `verified` | `load_dense_tokenizer(model_id)` in `tokenizer_loader.py` via `tokenizers.Tokenizer.from_pretrained` + HF env cache dirs; shared class-level `Tokenizer` in `OllamaDenseBackend` at `preload()` via `_ensure_truncation()`; `_truncate_batch` uses `truncate_for_embedding` (sparse BM25 path untouched); fallback = log WARNING + pass text through unchanged; unit tests (mock + optional slow Nomic); `ARCHITECTURE.md`, `.env.example`, `docker-compose.yml` HF_HOME; defer Phase 2 observability + ADR 0011 body edit; user-facing: yes | 2026-07-03 |
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
 
@@ -60,7 +61,8 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 
 | ADR | Notes |
 |-----|-------|
-| — | — |
+| [0016](0016-qwen3-embedding-default-dense-model.md) | Adopt Qwen3-Embedding-4B as default Ollama dense model — Proposed; deprioritized vs 0017 P1 at 2026-07-03 prioritization; sequential PR after 0017 P1 recommended |
+| [0017](0017-model-tokenizer-ollama-dense-truncation.md) | Model-accurate tokenizer for Ollama dense truncation — `verified` Phase 1; ready for git / merge |
 ### Partial acceptance
 
 | ADR | Done | Remaining |
@@ -666,6 +668,54 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 
 ---
 
+### ADR 0017 — Model-accurate tokenizer for Ollama dense truncation
+
+#### 2026-07-03 — verification
+- **Phase / PR:** Phase 1 — loader + Ollama backend
+- **Tracker status:** `verified`
+- **Choices:** tokenizers.Tokenizer.from_pretrained; HF env cache dirs; shared class-level tokenizer; fallback = log WARNING + pass text through unchanged; sparse BM25 untouched; Phase 2 observability + ADR 0011 edit deferred
+- **Deviations:** none
+- **Code evidence:** `mcp_server/src/codebase_indexer/indexer/tokenizer_loader.py`, `mcp_server/src/codebase_indexer/indexer/backends/ollama_dense.py`, `mcp_server/src/codebase_indexer/config.py`, `mcp_server/tests/test_ollama_dense_backend.py`, `mcp_server/tests/test_truncation.py`, `docs/ARCHITECTURE.md`, `.env.example`, `docker-compose.yml`
+- **Test debt:** slow real-Nomic tokenizer test; no golden-set truncation accuracy fixture; Phase 2 metrics not implemented
+- **Verify:** 22 unit tests pass; integration report pass (8 storage integration, compose deploy OK); plan compliance pass; review rounds: 1
+- **Git:** pending
+- **Changelog:** yes
+
+#### 2026-07-03 — implementation
+- **Phase / PR:** Phase 1 — loader + Ollama backend
+- **Tracker status:** `implemented`
+- **Choices:** Used `tokenizers.Tokenizer.from_pretrained`; cache dir from HF env vars; shared class-level tokenizer; fallback = log WARNING and pass text through unchanged; sparse BM25 path untouched; Phase 2 observability and ADR 0011 edit deferred
+- **Deviations:** none
+- **Code evidence:** `mcp_server/src/codebase_indexer/indexer/tokenizer_loader.py`, `mcp_server/src/codebase_indexer/indexer/backends/ollama_dense.py`, `mcp_server/src/codebase_indexer/config.py`, `docs/ARCHITECTURE.md`, `.env.example`, `docker-compose.yml`, `mcp_server/tests/test_ollama_dense_backend.py`, `mcp_server/tests/test_truncation.py`
+- **Test debt:** Compose integration not smoke-run; slow real-nomic tokenizer test; no golden-set truncation accuracy fixture; Phase 2 metrics not implemented
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no
+
+#### 2026-07-03 — plan
+- **Phase / PR:** Phase 1 — loader + Ollama backend (single PR)
+- **Tracker status:** `planned`
+- **Choices:** Single PR for Phase 1; mirror `OnnxSparseBackend` shared-tokenizer + `truncate_for_embedding` pattern; use `tokenizers.Tokenizer.from_pretrained` not `transformers.AutoTokenizer`; fallback = pass-through on load failure (log warning; not BM25, not char heuristic); no new mandatory infra; explicit `tokenizers` dep optional; ADR Accept before dev. **Chosen scope:** Add `indexer/tokenizer_loader.py` with `load_dense_tokenizer(model_id)` (HF Hub download + `HF_HOME`/`HF_HUB_CACHE`/`TRANSFORMERS_CACHE` resolution); class-level shared `tokenizers.Tokenizer` in `OllamaDenseBackend` loaded at `preload()` via `_ensure_truncation()`; replace `truncate_bm25_text` in `_truncate_batch` with `truncate_for_embedding`; fallback on load failure = log warning + pass text through unchanged (no BM25 fallback); unit tests with mock `Tokenizer` in `test_ollama_dense_backend.py` and loader/fallback in `test_truncation.py`; optional `@pytest.mark.slow` real Nomic tokenizer test; update `docs/ARCHITECTURE.md` and `.env.example` `HF_HOME` note; optional `docker-compose.yml` `HF_HOME` passthrough; defer Phase 2 observability and ADR 0011 body edit to finisher. **Assumptions:** `DENSE_EMBED_MODEL` is valid HF repo with tokenizer files; `tokenizers` remains transitive via fastembed; Phase 2 and ADR 0016 default switch are separate PRs; compose integration required for verification.
+- **Deviations:** none
+- **Code evidence:** —
+- **Test debt:** optional `@pytest.mark.slow` real Nomic tokenizer test
+- **Verify:** compose integration required for verification
+- **Git:** pending
+- **Changelog:** no — user-facing yes but status not yet verified
+
+#### 2026-07-03 — prioritization
+- **Phase / PR:** Phase 1 — loader + Ollama backend
+- **Tracker status:** `candidate`
+- **Choices:** Prioritize 0017 Phase 1 over Proposed 0016 Phase 1 (closest alternative, −1.2 weighted score but higher scope/risk and breaking defaults); over 0002 Phase 2 GraphRAG payload linking (capability arc next but optional Neo4j + index payload work); over 0008 test-debt closure PR (QA-only, no capability); over 0009 eval_multihop CI gate (benchmark-only); over 0015 Phase 3 slim image and 0014 Track B n8n (ops-only, deferred twice); single phase per pipeline rule; embedding correctness before Qwen3 default switch; tie-breaker vs 0016: lower scope/risk. **Chosen scope:** Add `load_dense_tokenizer(model_id)` helper with HF Hub download + cache dir resolution; lazy-load shared `tokenizers.Tokenizer` in `OllamaDenseBackend` at preload; replace `truncate_bm25_text` in `_truncate_batch` with `truncate_for_embedding`; graceful fallback when tokenizer load fails (log warning; document behavior at plan); unit tests with mock `Tokenizer` in `test_ollama_dense_backend.py` and loader/fallback cases in `test_truncation.py`; optional `.env.example` `HF_HOME` note; update `docs/ARCHITECTURE.md` dense truncation behavior; defer Phase 2 observability (truncation metrics / token_count logs) and ADR 0011 body edit to finisher/plan; **requires formal Accept of Proposed ADR 0017 before dev**. **Why now:** Major arcs merged (0008 complete, 0015 P1–P2, 0014 Track A P1–P2, 0002 P1, 0009 P2); two new Proposed ADRs (0016/0017) form an embedding-quality track; code still uses BM25 word-split truncation in `OllamaDenseBackend._truncate_batch` (`truncate_bm25_text`) while `truncate_for_embedding`/`truncate_with_tokenizer` exist unused on the Ollama path; ADR 0016 Qwen3 default at 32K+ makes approximation errors material; 0017 Phase 1 is non-breaking (no re-index), satisfies ADR 0011 prerequisites, measurable via unit tests, no new mandatory infra; unlocks safe 0016 Phase 1 rollout next cycle. **Suggested scope:** one phase (= one PR).
+- **Deviations:** none
+- **Code evidence:** `OllamaDenseBackend._truncate_batch` uses `truncate_bm25_text`; `truncate_for_embedding`/`truncate_with_tokenizer` exist unused on Ollama path
+- **Test debt:** —
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing unknown
+
+---
+
 ## How to update
 
 Pipeline steps output a **Tracker append** block; the **invoker** (or a dedicated tracker specialist) applies file edits. ADR pipeline steps do not edit tracker or changelog files directly.
@@ -818,3 +868,9 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-03 | 0014 | Accept ADR 0014 phase 2 at merge? | `Accepted (phase 1; phase 2 — outlier / diversity helper)` after PR #9 merge | no |
 | 2026-07-03 | 0014 | ADR index wording after Phase 2 merge | `Accepted (phase 1; phase 2 — outlier / diversity helper)` after PR #9 merge | no |
 | 2026-07-03 | 0014 | Track A completion at Phase 2 merge | Track A Phase 1 + Phase 2 merged ([PR #5](https://github.com/Tusquito/codebase-indexer-mcp/pull/5), [PR #9](https://github.com/Tusquito/codebase-indexer-mcp/pull/9)); Track B n8n compose remains deferred | no |
+| 2026-07-03 | 0017 | Accept ADR 0017 (Proposed → Accepted) before dev? | Open — Phase 1 implementation landed 2026-07-03 at `implemented`; formal Accept deferred to finisher | no |
+| 2026-07-03 | 0017 | Phase 1 implementation choices confirmed | `tokenizers.Tokenizer.from_pretrained`; HF env cache dirs; shared class-level tokenizer; fallback WARNING + pass-through; sparse BM25 untouched; Phase 2 observability + ADR 0011 edit deferred | no |
+| 2026-07-03 | 0017 | Tokenizer load-failure fallback behavior | Decided at plan — log warning + pass text through unchanged (no BM25 fallback, not char heuristic) | no |
+| 2026-07-03 | 0017 | 0016 Phase 1 sequencing after 0017 P1 | Prioritized 0017 P1 over 0016 P1 at 2026-07-03; plan confirms 0016 Phase 1 follows after 0017 P1 merge (sequential PRs) | no |
+| 2026-07-03 | 0017 | Air-gap HF cache pre-seeding policy for operators | Decided at plan — document only in Phase 1 (pre-populate `HF_HOME` or mount tokenizer files; no implementation) | no |
+| 2026-07-03 | 0016 | Whether 0016 Phase 1 runs this cycle | Deprioritized vs 0017 P1 at 2026-07-03 prioritization; sequential PR after 0017 P1 recommended | no |
