@@ -95,6 +95,11 @@ services:
       HNSW_EF_CONSTRUCT: ${HNSW_EF_CONSTRUCT:-128}
       PREFETCH_MULTIPLIER: ${PREFETCH_MULTIPLIER:-5}
       RRF_K: ${RRF_K:-60}
+      # --- Optional ColBERT reranking (requires re-index when enabling) ---
+      RERANK_ENABLED: ${RERANK_ENABLED:-false}
+      COLBERT_EMBED_MODEL: ${COLBERT_EMBED_MODEL:-colbert-ir/colbertv2.0}
+      RERANK_PREFETCH: ${RERANK_PREFETCH:-100}
+      RERANK_MAX_QUERY_TOKENS: ${RERANK_MAX_QUERY_TOKENS:-0}
       # --- Service mapping / cross-references ---
       SERVICE_URL_KEYWORDS: ${SERVICE_URL_KEYWORDS:-rest,api,profile,service,internal,public,gateway,graphql,webhook,auth,users,accounts}
       SERVICE_DISCOVERY_EXTRA_QUERIES: ${SERVICE_DISCOVERY_EXTRA_QUERIES:-}

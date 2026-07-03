@@ -39,6 +39,20 @@ KNOWN_EMBED_MODEL_MAX_TOKENS: dict[str, int] = {
     **{model: max_tokens for model, (_, max_tokens) in JINA_CODE_EMBED_V2_SPECS.items()},
 }
 
+# ColBERT late-interaction models (token dimension, max sequence length in tokens).
+# https://huggingface.co/colbert-ir/colbertv2.0
+COLBERT_EMBED_SPECS: dict[str, tuple[int, int]] = {
+    "colbert-ir/colbertv2.0": (128, 512),
+}
+
+KNOWN_COLBERT_TOKEN_DIMENSIONS: dict[str, int] = {
+    model: token_dim for model, (token_dim, _) in COLBERT_EMBED_SPECS.items()
+}
+
+KNOWN_COLBERT_MODEL_MAX_TOKENS: dict[str, int] = {
+    model: max_tokens for model, (_, max_tokens) in COLBERT_EMBED_SPECS.items()
+}
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -166,6 +180,16 @@ class Settings(BaseSettings):
     # RRF constant used when re-fusing ranked results across collections.
     rrf_k: int = Field(default=60, ge=1)
 
+    # --- Optional ColBERT late-interaction reranking (ADR 0008) ---
+    # Master switch; requires HYBRID_SEARCH=true and a full re-index to populate
+    # multivector ``colbert`` payloads on existing collections.
+    rerank_enabled: bool = Field(default=False)
+    colbert_embed_model: str = Field(default="colbert-ir/colbertv2.0")
+    # Hybrid candidate pool size before ColBERT MAX_SIM rerank (not top_k).
+    rerank_prefetch: int = Field(default=100, ge=1)
+    # Max tokens for ColBERT query embedding. 0 = model registry default.
+    rerank_max_query_tokens: int = Field(default=0)
+
     # --- Service-mapping / cross-reference tuning (project-agnostic) ---
     # Comma-separated URL path keywords used to recognise API paths in config
     # and code (e.g. "/api/...", "/rest/..."). Extend for your domain without
@@ -191,6 +215,15 @@ class Settings(BaseSettings):
         if self.dense_embed_backend != "ollama":
             raise ValueError(
                 f"DENSE_EMBED_BACKEND must be 'ollama', got {self.dense_embed_backend!r}"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def validate_rerank_requires_hybrid(self) -> Self:
+        if self.rerank_enabled and not self.hybrid_search:
+            raise ValueError(
+                "RERANK_ENABLED=true requires HYBRID_SEARCH=true "
+                "(ColBERT rerank runs over hybrid prefetch candidates)."
             )
         return self
 
