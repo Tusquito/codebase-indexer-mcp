@@ -169,9 +169,8 @@ Pipeline steps output a **Tracker append** block; the **invoker** (or a dedicate
 | 3b | Bug fix | — (loop) | no |
 | 4 | Verification (review clean) | `verified` | yes **only if** user-facing |
 | 5 | Git operator (prepare) | — | no |
-| 5a | PR review | — | no |
-| 5b | Git operator (record merge) | `merged` + PR link | no |
-| 6 | Release | optional | move `[Unreleased]` → versioned section |
+| 5a–5b | PR review ↔ PR babysit (cloud) | — | no |
+| 6 | Finisher (merge + accept + optional release) | `merged` + PR link | no |
 
 1. **Prioritization** — append log; summary row → `candidate`.
 2. **Planning** — append log; summary row → `planned`; set chosen scope + user-facing flag.
@@ -179,11 +178,24 @@ Pipeline steps output a **Tracker append** block; the **invoker** (or a dedicate
 3a–3b. **Review / fix loop** — invoker passes `## Review findings` (`Verdict: needs_fix`) to bug fix; passes `## ADR bug fix report` back to code review. Repeat until `Verdict: clean`. No tracker append during the loop.
 4. **Verification** — when review is clean, apply Tracker append (`verified`); if user-facing, add CHANGELOG `[Unreleased]` bullet when applying the append.
 5. **Git prepare** — feature branch `adr/NNNN-phase-N-<slug>`, grouped conventional commits, push, **PR into `main`**. No tracker append.
-5a. **PR review** — validate PR diff and description against plan; `approve` before merge. No tracker append.
-5b. **Record merge** — when PR merged, apply Tracker append (`merged`) with PR link.
-6. **Release** — version CHANGELOG; do not duplicate tracker logs in changelog prose.
+5a–5b. **PR review / babysit loop** — `adr-pr-review`; on `request_changes`, cloud `adr-pr-babysit` fixes branch; repeat until `approve` (max 5 rounds). No tracker append.
+6. **Finish** — `adr-finisher` merges PR when gates pass, accepts ADR when eligible (`Proposed` → `Accepted` or partial), optionally cuts CHANGELOG when version supplied; apply Tracker append (`merged`) with PR link.
 
-Apply steps 1–5 by passing each step's **Tracker append** output to the tracker update process (invoker or orchestrator).
+Apply steps 1–6 by passing each step's **Tracker append** output to the tracker update process (invoker or orchestrator).
+
+### Orchestrator resume
+
+When a phase is mid-pipeline (e.g. PR open or merged but tracker still `verified`), invoke **`adr-orchestrator`** with resume fields instead of restarting at prioritization:
+
+```
+Resume from: 6
+ADR id: 0008
+Phase / track: Phase 1
+PR reference: #1
+Release version: 0.4.0   # optional
+```
+
+Orchestrator bootstraps context from this tracker file + ADR index, re-runs PR review if needed, then runs **`adr-finisher`**.
 
 ## Open decisions queue
 
