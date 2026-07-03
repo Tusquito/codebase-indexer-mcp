@@ -43,6 +43,14 @@ dev = [
 benchmark = [
     "ranx>=0.3.16",
 ]
+train = [
+    "torch>=2.2.0",
+    "transformers>=4.44.0",
+    "peft>=0.12.0",
+    "accelerate>=0.33.0",
+    "datasets>=2.20.0",
+    "sentence-transformers>=3.0.0",
+]
 
 [build-system]
 requires = ["hatchling"]
