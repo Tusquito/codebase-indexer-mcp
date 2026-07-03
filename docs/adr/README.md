@@ -20,6 +20,11 @@ Skip ADRs for routine bug fixes, refactors with no design change, or dependency 
 3. Fill in all sections; leave **Status** as `Proposed` until reviewed
 4. Add a row to the index table below
 5. Link the ADR from related docs (e.g. [`ARCHITECTURE.md`](../ARCHITECTURE.md)) when relevant
+6. Record implementation progress in [`IMPLEMENTATION_TRACKER.md`](IMPLEMENTATION_TRACKER.md) — do not use ADR bodies as a task log
+
+## Implementation tracker
+
+[`IMPLEMENTATION_TRACKER.md`](IMPLEMENTATION_TRACKER.md) tracks **phases, choices, and delivery status** without editing ADR decision text. The invoker applies **Tracker append** blocks from pipeline steps to update it. User-facing shipped changes go in [`CHANGELOG.md`](../../CHANGELOG.md).
 
 ## Status lifecycle
 
