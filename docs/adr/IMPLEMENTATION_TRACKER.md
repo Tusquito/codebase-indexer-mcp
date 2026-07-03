@@ -53,17 +53,11 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 3+ | `not_started` | MCP slim image when remote-only | — |
 | [0017](0017-model-tokenizer-ollama-dense-truncation.md) | Model-accurate tokenizer for Ollama dense truncation | Accepted (phase 1 — loader + Ollama backend) | Phase 1 — loader + Ollama backend | `merged` | `load_dense_tokenizer(model_id)` in `tokenizer_loader.py` via `tokenizers.Tokenizer.from_pretrained` + HF env cache dirs; shared class-level `Tokenizer` in `OllamaDenseBackend` at `preload()` via `_ensure_truncation()`; `_truncate_batch` uses `truncate_for_embedding` (sparse BM25 path untouched); fallback = log WARNING + pass text through unchanged; unit tests (mock + optional slow Nomic); `ARCHITECTURE.md`, `.env.example`, `docker-compose.yml` HF_HOME; defer Phase 2 observability + ADR 0011 body edit; [PR #11](https://github.com/Tusquito/codebase-indexer-mcp/pull/11) | 2026-07-03 |
 | [0016](0016-qwen3-embedding-default-dense-model.md) | Adopt Qwen3-Embedding-4B as default Ollama dense model | Accepted (phase 1 — config, Ollama MRL, docs, tests) | Phase 1 — Config, Ollama MRL, docs, tests | `merged` | Qwen3 0.6B/4B/8B in `KNOWN_EMBED_MODEL_*` (max tokens 32768); MRL `dimensions` passthrough (32≤size≤native) in `OllamaDenseBackend` + `factory.py`; Qwen3 GPU defaults in `.env.example`; compose generator Qwen3 (`scripts/run_compose_integration.py`); `benchmarks/_settings.py`; unit tests; docs; defer Phase 2 eval baseline + `num_ctx`; generator-only compose env; [PR #12](https://github.com/Tusquito/codebase-indexer-mcp/pull/12) | 2026-07-03 |
-| [0018](0018-telemetry-observability-otel-prometheus.md) | Adopt OpenTelemetry instrumentation with Prometheus metrics and optional OTLP export | Proposed | Phase 1 — Application Prometheus metrics (MCP + ColBERT worker) | `verified` | Opt-in `METRICS_ENABLED=false` default; `prometheus_client` on dedicated `CollectorRegistry`; metrics-only `@observe_tool` on all MCP tool handlers; no collection/rel_path labels; application counters/histograms + truncation counter; index metrics via IndexJobTracker; `GET /metrics` on MCP and ColBERT worker HTTP layer; unit tests (`test_telemetry_metrics.py`); `DEPLOYMENT.md` scrape docs; defer `METRICS_PORT`, docker-compose scrape wiring, Phase 2 OTel traces, Phase 3 observability compose stack; **ADR Accept at finisher after merge** | 2026-07-03 |
+| [0018](0018-telemetry-observability-otel-prometheus.md) | Adopt OpenTelemetry instrumentation with Prometheus metrics and optional OTLP export | Accepted (phase 1 — Application Prometheus metrics (MCP + ColBERT worker)) | Phase 1 — Application Prometheus metrics (MCP + ColBERT worker) | `merged` | Opt-in `METRICS_ENABLED=false` default; `prometheus_client` on dedicated `CollectorRegistry`; metrics-only `@observe_tool` on all MCP tool handlers; no collection/rel_path labels; application counters/histograms + truncation counter; index metrics via IndexJobTracker; `GET /metrics` on MCP and ColBERT worker HTTP layer; unit tests (`test_telemetry_metrics.py`); `DEPLOYMENT.md` scrape docs; defer `METRICS_PORT`, docker-compose scrape wiring, Phase 2 OTel traces, Phase 3 observability compose stack; [PR #13](https://github.com/Tusquito/codebase-indexer-mcp/pull/13) | 2026-07-03 |
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
 
 ## Active and upcoming work
-
-### Proposed ADRs (not started)
-
-| ADR | Phase | Tracker | Notes |
-|-----|-------|---------|-------|
-| [0018](0018-telemetry-observability-otel-prometheus.md) | Phase 1 — Application Prometheus metrics (MCP + ColBERT worker) | `verified` | Verification 2026-07-03; 329 tests pass; plan compliance pass; ready for git/release |
 
 ### Partial acceptance
 
@@ -75,6 +69,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 | 0015 | Phase 1 — HTTP sidecar + remote backend ([PR #2](https://github.com/Tusquito/codebase-indexer-mcp/pull/2)); Phase 2 — GPU worker + benchmark ([PR #3](https://github.com/Tusquito/codebase-indexer-mcp/pull/3)) | MCP slim image when remote-only (phase 3+) |
 | 0017 | Phase 1 — loader + Ollama backend ([PR #11](https://github.com/Tusquito/codebase-indexer-mcp/pull/11)) | Phase 2 observability + ADR 0011 body edit |
 | 0016 | Phase 1 — config, Ollama MRL, docs, tests ([PR #12](https://github.com/Tusquito/codebase-indexer-mcp/pull/12)) | Phase 2 eval baseline refresh (`eval_baseline.json`, `multi_hop_2hop` snapshot) |
+| 0018 | Phase 1 — Application Prometheus metrics (MCP + ColBERT worker) ([PR #13](https://github.com/Tusquito/codebase-indexer-mcp/pull/13)) | Phase 2 OTel traces; Phase 3 observability compose stack; `METRICS_PORT`, docker-compose scrape wiring |
 
 ---
 
@@ -792,6 +787,17 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 
 ### ADR 0018 — Adopt OpenTelemetry instrumentation with Prometheus metrics and optional OTLP export
 
+#### 2026-07-03 — merge
+- **Phase / PR:** Phase 1 — Application Prometheus metrics (MCP + ColBERT worker) — [PR #13](https://github.com/Tusquito/codebase-indexer-mcp/pull/13)
+- **Tracker status:** `merged`
+- **Choices:** merge on feature branch `adr/0018-phase-1-prometheus-metrics`; ADR accepted as `Accepted (phase 1 — Application Prometheus metrics (MCP + ColBERT worker))`; release skipped; Phase 2 OTel traces, Phase 3 observability compose stack deferred
+- **Deviations:** none
+- **Code evidence:** merged via [PR #13](https://github.com/Tusquito/codebase-indexer-mcp/pull/13) (`adr/0018-phase-1-prometheus-metrics`; `516b5feee19a81214b47dfaf135fa46391021a9b`)
+- **Test debt:** carried from verification — Bearer-auth /metrics test; truncated_chunks helper test; in-process ColBERT embed metrics; memory pressure edge-trigger
+- **Verify:** carried from verification — 329 tests pass; plan compliance pass; review rounds: 1
+- **Git:** [PR #13](https://github.com/Tusquito/codebase-indexer-mcp/pull/13) merged (`516b5feee19a81214b47dfaf135fa46391021a9b`)
+- **Changelog:** no — already in `[Unreleased]` from verified step
+
 #### 2026-07-03 — verification
 - **Phase / PR:** Phase 1 — Application Prometheus metrics (MCP + ColBERT worker)
 - **Tracker status:** `verified`
@@ -1007,7 +1013,7 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-03 | 0016 | Whether 0002 Phase 2 supersedes if GraphRAG adoption is active | Open — orchestrator decision | no |
 | 2026-07-03 | 0016 | Phase 1 implementation choices confirmed | Max tokens 32768; MRL 32≤size≤native; Qwen3 GPU defaults in `.env.example`; compose generator Qwen3; ADR Accepted pre-merge; `num_ctx` deferred; generator-only compose env (no `.env.compose.integration` file) | no |
 | 2026-07-03 | 0016 | Phase 2 recall@10 gate strictness | Open — plan or verification decision | no |
-| 2026-07-03 | 0018 | Accept ADR 0018 (Proposed → Accepted) before dev? | Open — ADR Accept at finisher after merge (assumed at plan) | no |
+| 2026-07-03 | 0018 | Accept ADR 0018 (Proposed → Accepted) before dev? | **Accepted (phase 1 — Application Prometheus metrics (MCP + ColBERT worker))** after PR #13 merge | no |
 | 2026-07-03 | 0018 | Whether 0017 P2 truncation logging ships in same PR or after 0018 P1 merge? | **Resolved** at 2026-07-03 plan — deferred until after 0018 P1 merge (orchestrator resolved) | no |
 | 2026-07-03 | 0018 | Single PR per phase for 0018? | Decided at plan — yes; one PR for Phase 1 | no |
 | 2026-07-03 | 0018 | MCP tool instrumentation approach | Decided at plan — metrics-only `@observe_tool` decorator on all MCP tool handlers; defer custom OTel spans to Phase 2 | no |
@@ -1026,3 +1032,5 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-03 | 0018 | Phase 1 implementation choices confirmed | Opt-in `METRICS_ENABLED=false`; dedicated registry; metrics-only `@observe_tool`; no collection/rel_path labels; `METRICS_PORT` + compose deferred | no |
 | 2026-07-03 | 0018 | Index metrics instrumentation location | Decided at verification — index metrics via IndexJobTracker | no |
 | 2026-07-03 | 0018 | Phase 1 verification confirmed | Dedicated CollectorRegistry; ColBERT ONNX at worker HTTP layer; index metrics via IndexJobTracker; Docker skip per plan; 329 tests pass; test debt: Bearer-auth /metrics, truncated_chunks helper, in-process ColBERT embed metrics, memory pressure edge-trigger | no |
+| 2026-07-03 | 0018 | Accept ADR 0018 phase 1 at merge? | `Accepted (phase 1 — Application Prometheus metrics (MCP + ColBERT worker))` after PR #13 merge | no |
+| 2026-07-03 | 0018 | Phase 1 merge confirmed | [PR #13](https://github.com/Tusquito/codebase-indexer-mcp/pull/13) merged on `adr/0018-phase-1-prometheus-metrics`; release skipped; Phase 2 OTel traces + Phase 3 compose stack deferred | no |
