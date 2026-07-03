@@ -3,9 +3,9 @@
 import pytest
 
 # Values mirror .env.example (single place for deployment defaults).
-_TEST_DENSE_EMBED_MODEL = "nomic-ai/nomic-embed-text-v1.5"
+_TEST_DENSE_EMBED_MODEL = "Qwen/Qwen3-Embedding-4B"
 _TEST_SPARSE_EMBED_MODEL = "Qdrant/bm25"
-_TEST_DENSE_EMBED_VECTOR_SIZE = "768"
+_TEST_DENSE_EMBED_VECTOR_SIZE = "1024"
 _TEST_SPARSE_THREADS = "2"
 
 

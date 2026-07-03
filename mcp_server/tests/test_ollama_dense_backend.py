@@ -266,3 +266,65 @@ async def test_embed_batch_retries_on_503():
     with patch("asyncio.sleep", new_callable=AsyncMock):
         result = await backend.embed_batch(["hello"])
     assert result == [[1.0, 2.0]]
+
+
+def test_preload_sends_dimensions_when_mrl():
+    backend = _backend(
+        vector_size=1024,
+        mrl_dimensions=1024,
+        dense_embed_model="Qwen/Qwen3-Embedding-4B",
+    )
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"models": [{"name": "qwen3-embedding:4b"}]}
+
+    embed_resp = MagicMock()
+    embed_resp.raise_for_status = MagicMock()
+    embed_resp.json.return_value = {"embeddings": [[0.1] * 1024]}
+
+    mock_client = MagicMock()
+    mock_client.get.return_value = FakeResponse()
+    mock_client.post.return_value = embed_resp
+    mock_client.__enter__ = MagicMock(return_value=mock_client)
+    mock_client.__exit__ = MagicMock(return_value=False)
+
+    with patch(
+        "codebase_indexer.indexer.backends.ollama_dense.load_dense_tokenizer",
+        return_value=None,
+    ):
+        with patch(
+            "codebase_indexer.indexer.backends.ollama_dense.httpx.Client",
+            return_value=mock_client,
+        ):
+            backend.preload()
+
+    payload = mock_client.post.call_args.kwargs["json"]
+    assert payload["dimensions"] == 1024
+
+
+@pytest.mark.asyncio
+async def test_embed_http_sends_dimensions_when_mrl():
+    backend = _backend(vector_size=1024, mrl_dimensions=1024)
+    backend._ready = True
+
+    captured: list[dict] = []
+
+    async def fake_post(url, json=None):
+        captured.append(json)
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.raise_for_status = MagicMock()
+        resp.json = MagicMock(return_value={"embeddings": [[0.1] * 1024]})
+        return resp
+
+    mock_client = MagicMock()
+    mock_client.post = AsyncMock(side_effect=fake_post)
+    backend._async_client = mock_client
+
+    await backend.embed_batch(["hello"])
+    assert captured
+    assert captured[0]["dimensions"] == 1024
