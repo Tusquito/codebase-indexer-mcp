@@ -14,6 +14,7 @@ from codebase_indexer.tools.build_deps import (
     match_deps_to_collections,
 )
 from codebase_indexer.tools.cross_references import _paths_match
+from codebase_indexer.tools.search_common import dispatch_search
 
 if TYPE_CHECKING:
     from codebase_indexer.context import AppContext
@@ -104,14 +105,16 @@ def register_service_map_tool(mcp: FastMCP, ctx: "AppContext") -> None:
 
         seen_chunks: set[str] = set()
 
-        for dense_vector, sparse_vector, _colbert in query_vectors:
-            results = await storage.search(
-                collection=None,
-                dense_vector=dense_vector,
-                sparse_vector=sparse_vector,
-                top_k=top_k,
+        for dense_vector, sparse_vector, colbert_vector in query_vectors:
+            results = await dispatch_search(
+                storage,
+                dense_vector,
+                sparse_vector,
+                colbert_vector,
+                target_collections,
+                top_k,
+                language=None,
                 min_score=0.25,
-                restrict_collections=target_collections,
             )
 
             for r in results:

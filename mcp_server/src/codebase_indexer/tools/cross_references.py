@@ -11,6 +11,7 @@ from fastmcp import FastMCP
 
 from codebase_indexer.config import DEFAULT_SERVICE_URL_KEYWORDS
 from codebase_indexer.tools.build_deps import extract_build_deps, is_build_manifest
+from codebase_indexer.tools.search_common import run_search
 
 if TYPE_CHECKING:
     from codebase_indexer.context import AppContext
@@ -339,15 +340,14 @@ def register_cross_references_tool(mcp: FastMCP, ctx: "AppContext") -> None:
 
         # Semantic search
         if query:
-            dense_vector, sparse_vector, _colbert = await embedder.embed_query(query)
-
-            semantic_results = await storage.search(
-                collection=None,
-                dense_vector=dense_vector,
-                sparse_vector=sparse_vector,
-                top_k=top_k,
+            semantic_results = await run_search(
+                storage,
+                embedder,
+                query,
+                target_collections,
+                top_k,
+                language=None,
                 min_score=0.3,
-                restrict_collections=target_collections,
             )
             for r in semantic_results:
                 all_results.append({
@@ -395,14 +395,14 @@ def register_cross_references_tool(mcp: FastMCP, ctx: "AppContext") -> None:
             # With import headers now prepended to every AST chunk, this search
             # reliably finds consumer files that reference the library type.
             import_query = f"import {symbol_name}"
-            import_dense, import_sparse, _colbert = await embedder.embed_query(import_query)
-            import_results = await storage.search(
-                collection=None,
-                dense_vector=import_dense,
-                sparse_vector=import_sparse,
-                top_k=top_k,
+            import_results = await run_search(
+                storage,
+                embedder,
+                import_query,
+                target_collections,
+                top_k,
+                language=None,
                 min_score=0.3,
-                restrict_collections=target_collections,
             )
             seen_chunks = {r["rel_path"] + str(r["start_line"]) for r in all_results}
             for r in import_results:
