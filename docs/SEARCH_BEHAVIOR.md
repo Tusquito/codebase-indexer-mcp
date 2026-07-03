@@ -131,10 +131,27 @@ When rerank is enabled and adaptive skip is on (default **on**), each per-collec
 - Gap is measured on **per-collection** hybrid RRF scores before ColBERT, matching Qdrant's confident-winner pattern.
 - Multi-collection searches apply adaptive logic independently in each `_search_single` call, then existing global `fuse_cross_collection_rrf` merges per-collection lists.
 - Fewer than two probe hits always runs ColBERT (no skip).
-- ColBERT **query embedding** in `Embedder.embed_query` still runs when rerank is on; track 2a saves Qdrant MAX_SIM latency only. Per-tool `rerank=false` overrides are deferred to track 2b.
+- ColBERT **query embedding** in `Embedder.embed_query` still runs when rerank is on unless the caller passes **`rerank=false`** on a search tool (see below).
 - `QdrantStorage.adaptive_rerank_stats` exposes skip/rerank counters for `bench.py` and `eval_retrieval.py`.
 
 Tune `RERANK_ADAPTIVE_GAP` upward to skip more often (lower latency, possible quality loss); downward to rerank more often. Validate with `eval_retrieval --rerank` on your golden set.
+
+### Per-tool rerank override (`rerank=false`)
+
+When `RERANK_ENABLED=true`, these tools accept an optional **`rerank: bool | None = None`** parameter:
+
+| Tool | Effect of `rerank=false` |
+|------|-------------------------|
+| `search_codebase` | Skips ColBERT query embed and MAX_SIM; hybrid RRF only |
+| `search_symbols` | Same |
+| `find_cross_references` | Applies to semantic and import-phrased `run_search` paths only (exact symbol / call_site paths unchanged) |
+| `map_service_dependencies` | Skips ColBERT on batched discovery query embed |
+
+- **`rerank=None`** (default): follow global `RERANK_ENABLED` behavior.
+- **`rerank=false`**: skip ColBERT query embed and Qdrant MAX_SIM for that call (`colbert_vector=None`).
+- **`rerank=true`**: does **not** enable ColBERT when `RERANK_ENABLED=false`; cannot bypass adaptive skip logic when effective rerank is on.
+
+Use `rerank=false` on orientation hops (`search_symbols`, wide `top_k` probes) or latency-sensitive multi-hop loops where hybrid RRF quality is sufficient.
 
 ## Multi-hop retrieval
 
