@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 
 from fastmcp import FastMCP
 
+from codebase_indexer.telemetry.metrics import observe_tool
+
 if TYPE_CHECKING:
     from codebase_indexer.context import AppContext
 
@@ -32,6 +34,7 @@ def register_recommend_tool(mcp: FastMCP, ctx: "AppContext") -> None:
             "limit is capped at 20. See docs/SEARCH_BEHAVIOR.md."
         ),
     )
+    @observe_tool("recommend_code")
     async def recommend_code(
         collection: str,
         positive_chunk_ids: list[str] | None = None,

@@ -12,6 +12,7 @@ from fastmcp import FastMCP
 from codebase_indexer.storage.qdrant import QdrantStorage
 from codebase_indexer.tools.cross_references import UrlExtractors
 from codebase_indexer.tools.search_common import resolve_collections, run_search
+from codebase_indexer.telemetry.metrics import observe_tool
 
 if TYPE_CHECKING:
     from codebase_indexer.context import AppContext
@@ -46,6 +47,7 @@ def register_search_tool(mcp: FastMCP, ctx: "AppContext") -> None:
             "embed and MAX_SIM rerank for lower latency (hybrid RRF only)."
         ),
     )
+    @observe_tool("search_codebase")
     async def search_codebase(
         query: str,
         top_k: int = 5,
