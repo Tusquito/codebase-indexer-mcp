@@ -47,7 +47,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0012](0012-retrieval-only-rag-split.md) | Retrieval-only RAG split | Accepted | all | `merged` | Shipped | 2026-07-02 |
 | [0013](0013-external-agent-knowledge-base.md) | External agent knowledge base | Accepted | all | `merged` | MCP tools surface | 2026-07-02 |
 | [0014](0014-vector-discovery-and-ops-automation.md) | Vector discovery + n8n ops | Accepted (phase 1 — recommendation search tool) | Track A — Phase 1 (Recommendation search tool) | `merged` | Tool `recommend_code`; `QdrantStorage.recommend`; config (`RECOMMEND_ENABLED`, `RECOMMEND_MAX_EXAMPLES`); RecommendStrategy AVERAGE_VECTOR; dense-only; path_glob fnmatch + limit×3; missing chunk IDs fail fast; single-collection; defer outlier helper (Track A P2), n8n compose (Track B), sparse fusion, multi-collection; [PR #5](https://github.com/Tusquito/codebase-indexer-mcp/pull/5) | 2026-07-03 |
-| [0014](0014-vector-discovery-and-ops-automation.md) | Vector discovery + n8n ops | Accepted (phase 1 — recommendation search tool) | Track A — Phase 2 (outlier / diversity helper) | `verified` | Tool `find_outlier_chunks`; `QdrantStorage.find_outlier_chunks`; `RecommendStrategy.BEST_SCORE` negative-only; cosine-to-centroid + `OUTLIER_MAX_SIMILARITY` (0.55); gate via `RECOMMEND_ENABLED` (no `OUTLIER_ENABLED`); `OUTLIER_MAX_CONTEXT_SAMPLES` (200); scroll supplement only when `path_glob` or no explicit `context_chunk_ids`; bounded `limit` (cap 20); dense-only single-collection; defer sparse fusion, multi-collection, Track B n8n, Discovery API context pairs | 2026-07-03 |
+| [0014](0014-vector-discovery-and-ops-automation.md) | Vector discovery + n8n ops | Accepted (phase 1; phase 2 — outlier / diversity helper) | Track A — Phase 2 (outlier / diversity helper) | `merged` | Tool `find_outlier_chunks`; `QdrantStorage.find_outlier_chunks`; `RecommendStrategy.BEST_SCORE` negative-only; cosine-to-centroid + `OUTLIER_MAX_SIMILARITY` (0.55); gate via `RECOMMEND_ENABLED` (no `OUTLIER_ENABLED`); `OUTLIER_MAX_CONTEXT_SAMPLES` (200); scroll supplement only when `path_glob` or no explicit `context_chunk_ids`; bounded `limit` (cap 20); dense-only single-collection; defer sparse fusion, multi-collection, Track B n8n, Discovery API context pairs; [PR #9](https://github.com/Tusquito/codebase-indexer-mcp/pull/9) | 2026-07-03 |
 | [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 1 | `merged` | Opt-in `COLBERT_EMBED_BACKEND=remote` + `colbert_worker` sidecar; default in-process ONNX unchanged; FastAPI lifespan preload; `ColbertRemoteBackend` httpx client; `docker-compose.colbert-worker.yml` with shared `fastembed_cache`; `.env.example` + `SEARCH_BEHAVIOR.md`; [PR #2](https://github.com/Tusquito/codebase-indexer-mcp/pull/2) | 2026-07-03 |
 | [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 2 | `merged` | GPU sidecar via `colbert_worker/Dockerfile.gpu` (`onnxruntime-gpu==1.26.0`, `python:3.12-slim`); compose override `docker-compose.colbert-worker.gpu.yml` (NVIDIA reservations mirroring Ollama); `COLBERT_DEVICE_IDS` → `ColbertOnnxBackend.device_ids`; worker `/health` reports `device` + `cuda_available`; fail-fast CUDA preload; `bench_colbert_sidecar.py` remote throughput bench; single-GPU 8GB OOM documented (no auto-scheduler); CI-safe mocked/skipped GPU tests + non-blocking GPU Dockerfile CI job; [PR #3](https://github.com/Tusquito/codebase-indexer-mcp/pull/3) | 2026-07-03 |
 | [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 3+ | `not_started` | MCP slim image when remote-only | — |
@@ -65,7 +65,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 
 | ADR | Done | Remaining |
 |-----|------|-----------|
-| 0014 | Track A Phase 1 — recommendation search tool ([PR #5](https://github.com/Tusquito/codebase-indexer-mcp/pull/5)) | Track A P2 (outlier helper) `verified`; Track B (n8n compose) deferred |
+| 0014 | Track A Phase 1 — recommendation search tool ([PR #5](https://github.com/Tusquito/codebase-indexer-mcp/pull/5)); Track A Phase 2 — outlier helper ([PR #9](https://github.com/Tusquito/codebase-indexer-mcp/pull/9)) | Track B (n8n compose) deferred |
 | 0009 | Phase 1 — `SEARCH_BEHAVIOR.md` multi-hop section, golden `multi_hop` tags; Phase 2 — automated 2-hop client eval script ([PR #8](https://github.com/Tusquito/codebase-indexer-mcp/pull/8)) | Phase 3+ server mechanisms; optional graph-backed hops per [0002](0002-graphrag-neo4j-qdrant.md) |
 | 0015 | Phase 1 — HTTP sidecar + remote backend ([PR #2](https://github.com/Tusquito/codebase-indexer-mcp/pull/2)); Phase 2 — GPU worker + benchmark ([PR #3](https://github.com/Tusquito/codebase-indexer-mcp/pull/3)) | MCP slim image when remote-only (phase 3+) |
 
@@ -392,6 +392,17 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 ---
 
 ### ADR 0014 — Vector discovery and ops automation
+
+#### 2026-07-03 — merge
+- **Phase / PR:** Track A — Phase 2 (outlier / diversity helper) — [PR #9](https://github.com/Tusquito/codebase-indexer-mcp/pull/9)
+- **Tracker status:** `merged`
+- **Choices:** squash merge `b97c29b` on feature branch `adr/0014-phase-2-outlier-helper`; ADR accepted as `Accepted (phase 1; phase 2 — outlier / diversity helper)`; release skipped; Track B (n8n compose) deferred
+- **Deviations:** none
+- **Code evidence:** merged via PR #9 (`adr/0014-phase-2-outlier-helper`; squash `b97c29b`; branch commits `5a691ab`, `7032668`, `22a9d76`)
+- **Test debt:** carried from verification — scroll-supplement restriction unit test; `main.py` positive registration gate; combined `path_glob`+`context_chunk_ids` integration; live HTTP/Ollama e2e for `find_outlier_chunks`; golden-set outlier quality eval; multi-collection/sparse fusion deferred
+- **Verify:** carried from verification — 287 unit tests passed; 17 targeted outlier tests passed; ruff clean; Docker integration report pass (8 pytest integration, smoke_recommend); review rounds: 1
+- **Git:** [PR #9](https://github.com/Tusquito/codebase-indexer-mcp/pull/9) merged (squash `b97c29b`)
+- **Changelog:** no — release skipped; `[Unreleased]` bullet retained from verification step
 
 #### 2026-07-03 — verification
 - **Phase / PR:** Track A — Phase 2 (outlier / diversity helper)
@@ -736,3 +747,6 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-03 | 0014 | Parallel vs sequential with 0008 test-debt PR | Open — orchestrator decision | no |
 | 2026-07-03 | 0014 | Scroll supplement when only `context_chunk_ids` provided | Restricted at implementation — no whole-collection scroll fill; prevents outlier candidates polluting context centroid; verified at 2026-07-03 verification | no |
 | 2026-07-03 | 0014 | `OUTLIER_MAX_SIMILARITY` default after golden-set tuning | Shipped `0.55`; golden-set outlier quality eval still open — test debt at verification | no |
+| 2026-07-03 | 0014 | Accept ADR 0014 phase 2 at merge? | `Accepted (phase 1; phase 2 — outlier / diversity helper)` after PR #9 merge | no |
+| 2026-07-03 | 0014 | ADR index wording after Phase 2 merge | `Accepted (phase 1; phase 2 — outlier / diversity helper)` after PR #9 merge | no |
+| 2026-07-03 | 0014 | Track A completion at Phase 2 merge | Track A Phase 1 + Phase 2 merged ([PR #5](https://github.com/Tusquito/codebase-indexer-mcp/pull/5), [PR #9](https://github.com/Tusquito/codebase-indexer-mcp/pull/9)); Track B n8n compose remains deferred | no |
