@@ -45,8 +45,8 @@ Same search backend as `search_codebase` but returns metadata only (no `content`
 | `get_collection_summary` | Zero | Payload scroll only |
 | `get_file_outline` | Zero | Payload scroll by `rel_path` |
 | `get_chunk` | Zero | Lookup by `chunk_id` |
-| `find_cross_references` | Per internal search | Uses fixed internal `min_score` values |
-| `map_service_dependencies` | Batched query embed | Uses `min_score=0.25` internally |
+| `find_cross_references` | Per internal search | Participates in ColBERT rerank when `RERANK_ENABLED=true`; internal `min_score=0.3` ignored on hybrid/rerank paths |
+| `map_service_dependencies` | Batched query embed | Participates in ColBERT rerank when `RERANK_ENABLED=true`; internal `min_score=0.25` ignored on hybrid/rerank paths |
 
 ## Configuration
 
@@ -94,7 +94,7 @@ ColBERT multivectors make each Qdrant point much larger than dense+sparse alone.
 | `UPSERT_BATCH` | `500` | **`10`–`25`** recommended |
 | `FLUSH_EVERY` | `1500` | **`64`–`128`** typical |
 
-`min_score` remains disabled on hybrid and rerank paths (scores are not cosine-scale).
+`min_score` remains disabled on hybrid and rerank paths (scores are not cosine-scale). This applies to `search_codebase`, `search_symbols`, `find_cross_references`, and `map_service_dependencies`.
 
 ## Multi-hop retrieval
 
