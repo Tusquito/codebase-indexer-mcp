@@ -120,6 +120,7 @@ For **every** pipeline step:
 | 1 | `adr-prioritizer` | `candidate` → apply |
 | 2 | `adr-planner` | `planned` → apply |
 | 3 | `adr-developer` | `implemented` → apply |
+| 3.5 | `adr-integration-tester` | none |
 | 3a–4 | `adr-code-reviewer` ↔ `adr-bug-fixer` loop | `verified` when clean → apply |
 | 5 | `adr-git-operator` (`prepare`) | none |
 | 5a–5b | `adr-pr-review` ↔ `adr-pr-babysit` (cloud) loop | none |
@@ -188,7 +189,7 @@ Do not pass ADR id, phase, constraints, or focus — prioritizer discovers and d
 - [ ] Plan has **Pull request (this phase)** with path/task table (not empty)
 - [ ] Plan has **Execution order** or ordered implementation steps
 - [ ] **Open questions** empty, or orchestrator stops and escalates
-- [ ] Plan **Target** includes **Final phase** and **Accept after merge**
+- Plan **Target** includes **Final phase**, **Accept after merge**, and **Docker integration**
 - [ ] Tracker append: `Tracker status: planned`, `Event: plan`, ADR id matches
 - [ ] `User-facing` set to yes or no (not missing)
 - [ ] Scope is one phase only — no multi-phase creep
@@ -228,6 +229,36 @@ Do not pass ADR id, phase, constraints, or focus — prioritizer discovers and d
 
 ---
 
+### 3.5 — `adr-integration-tester`
+
+**Aim:** Deploy Docker Compose stack and run integration checks against live containers.
+
+**Provide as input:**
+
+| Field | Value |
+|-------|-------|
+| Implementation plan | stored from step 2 |
+| Implementation report | stored from step 3 |
+| ADR id, Phase / track | pipeline state |
+
+**Expect as output:**
+
+| Section | Required |
+|---------|----------|
+| `## ADR integration report` | yes |
+
+**Acceptance criteria:**
+
+- [ ] **Required** matches plan **Docker integration** (`required` / `skip` / `auto`)
+- [ ] When required: harness `scripts/run_compose_integration.py` executed (deploy + live Qdrant pytest + MCP `/health`)
+- [ ] **Verdict** is `pass`, `fail`, or `skipped` with reason
+- [ ] If required and `fail` → orchestrator STOP (do not enter code review)
+- [ ] If `skipped` → document why (no deploy paths, Docker unavailable, plan `skip`)
+
+**On accept → store:** integration report. Proceed to step 3a (code review).
+
+---
+
 ### 3a/4 — `adr-code-reviewer`
 
 **Aim:** Review implementation against plan + ADR; run tests; emit verdict.
@@ -238,6 +269,7 @@ Do not pass ADR id, phase, constraints, or focus — prioritizer discovers and d
 |-------|-------|
 | Implementation plan | stored plan |
 | Implementation report | stored report |
+| Integration report | stored from step 3.5 |
 | Bug fix report | prior round's report (round > 1 only) |
 | Review round | loop counter |
 
@@ -254,7 +286,8 @@ Do not pass ADR id, phase, constraints, or focus — prioritizer discovers and d
 - [ ] **Review findings** has `Verdict: needs_fix` or `Verdict: clean`
 - [ ] **Issues** table present (may be empty only if clean)
 - [ ] **Plan compliance** table present with pass/fail per requirement
-- [ ] **Test results** table present — tests were run or skip justified
+- [ ] If integration was **required** and verdict not `pass` → cannot be `clean` (should not reach review — gate blocks)
+- [ ] **Test results** include unit tests **and** reference integration report when required
 - [ ] If `needs_fix`: every critical/warning issue has ID, path, severity, repro evidence
 - [ ] If `clean`: zero open critical/warning issues; plan compliance passes
 - [ ] If `clean`: Tracker append with `verified`, ADR id matches, `Verify` filled
@@ -580,7 +613,8 @@ No tracker append during loop iterations.
 | Prioritize | No ADRs in repo |
 | Plan | Prioritizer acceptance failed; Proposed ADR without Accept note in prioritizer report |
 | Implement | Open questions in plan; missing PR section |
-| Review | No implementation report or paths |
+| Integration | Plan `Docker integration: required` and step 3.5 not run or verdict `fail` |
+| Review | No implementation report or paths; required integration verdict not `pass` |
 | Fix | Verdict not `needs_fix` |
 | Git prepare | Review verdict not `clean`; verified tracker not applied |
 | PR review | No PR URL; git prepare not accepted |
@@ -631,6 +665,7 @@ release_version
 prioritization_report, prioritization_append
 implementation_plan, planned_append, user_facing
 implementation_report, implemented_append, changed_paths
+integration_report
 code_review, review_findings, verified_append
 bug_fix_reports[], review_round
 git_report, pr_url, pr_number, pr_branch

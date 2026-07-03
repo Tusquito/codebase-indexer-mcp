@@ -7,6 +7,7 @@ build/
 .venv/
 venv/
 .env
+.env.compose.integration
 *.egg
 .mypy_cache/
 .pytest_cache/

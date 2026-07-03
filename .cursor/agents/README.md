@@ -12,6 +12,7 @@ Orchestrator and Tasks read definitions from `.cursor/agents/<name>.md` in the w
 | 1 | `adr-prioritizer` | Pick next ADR/phase → `candidate` |
 | 2 | `adr-planner` | Code-ready plan → `planned` |
 | 3 | `adr-developer` | Implement phase → `implemented` |
+| 3.5 | `adr-integration-tester` | Compose deploy + live integration tests |
 | 3a–4 | `adr-code-reviewer` ↔ `adr-bug-fixer` | Review loop → `verified` |
 | 5 | `adr-git-operator` | Branch, commits, PR → main |
 | 5a–5b | `adr-pr-review` ↔ `adr-pr-babysit` | PR review loop (babysit: cloud) |
@@ -25,6 +26,7 @@ Orchestrator and Tasks read definitions from `.cursor/agents/<name>.md` in the w
 |---------|----------|----------|
 | `## Tracker append` | prioritizer, planner, developer, code-reviewer, finisher | orchestrator → tracker |
 | `## Review findings` | code-reviewer | bug-fixer, orchestrator |
+| `## ADR integration report` | integration-tester | code-reviewer, orchestrator |
 | `## PR review findings` | pr-review | pr-babysit, finisher, orchestrator |
 
 ## Docs

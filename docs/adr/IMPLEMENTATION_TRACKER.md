@@ -451,6 +451,7 @@ Pipeline steps output a **Tracker append** block; the **invoker** (or a dedicate
 | 1 | Prioritization | `candidate` | no |
 | 2 | Planning | `planned` | no (record **user-facing: yes/no**) |
 | 3 | Implementation | `implemented` | no |
+| 3.5 | Docker integration (compose deploy + live tests) | — | no |
 | 3a | Code review | — (loop) | no |
 | 3b | Bug fix | — (loop) | no |
 | 4 | Verification (review clean) | `verified` | yes **only if** user-facing |
@@ -462,6 +463,7 @@ Pipeline steps output a **Tracker append** block; the **invoker** (or a dedicate
 1. **Prioritization** — append log; summary row → `candidate`.
 2. **Planning** — append log; summary row → `planned`; set chosen scope + user-facing flag.
 3. **Implementation** — append log; summary row → `implemented`; code evidence + test debt.
+3.5. **Docker integration** — `adr-integration-tester` deploys Compose stack, runs live Qdrant pytest + MCP health; required when plan touches deploy/runtime (see plan **Docker integration**).
 3a–3b. **Review / fix loop** — invoker passes `## Review findings` (`Verdict: needs_fix`) to bug fix; passes `## ADR bug fix report` back to code review. Repeat until `Verdict: clean`. No tracker append during the loop.
 4. **Verification** — when review is clean, apply Tracker append (`verified`); if user-facing, add CHANGELOG `[Unreleased]` bullet when applying the append.
 5. **Git prepare** — feature branch `adr/NNNN-phase-N-<slug>`, grouped conventional commits, push, **PR into `main`**. No tracker append.

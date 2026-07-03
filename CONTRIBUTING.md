@@ -43,6 +43,20 @@ uv run pytest -q
 
 Set `QDRANT_URL` when running tests against a local or containerized Qdrant instance.
 
+### Docker Compose integration (ADR pipeline)
+
+Deploy the real stack and run integration checks from the **repository root**:
+
+```bash
+python scripts/run_compose_integration.py
+python scripts/run_compose_integration.py --json    # machine-readable report
+python scripts/run_compose_integration.py --keep    # leave stack up for debugging
+```
+
+This builds `mcp_server`, starts Qdrant + bundled Ollama + MCP via Compose, waits for health, runs `tests/test_storage_integration.py` against live Qdrant, and checks `http://127.0.0.1:8000/health`. Uses generated `.env.compose.integration` (does not overwrite your `.env`).
+
+The ADR pipeline runs this via **`adr-integration-tester`** (step 3.5) before code review when the plan marks **Docker integration** as `required` or `auto` with deploy-touching changes.
+
 ### Integration smoke tests
 
 Optional scripts under `mcp_server/scripts/` exercise live Qdrant + Ollama (skipped when services are unreachable):
