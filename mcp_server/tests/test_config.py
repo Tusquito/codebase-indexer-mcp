@@ -281,3 +281,17 @@ def test_colbert_remote_settings_from_env(monkeypatch: pytest.MonkeyPatch):
     assert s.colbert_timeout == 600
     assert s.colbert_embed_batch_size == 8
 
+
+def test_recommend_defaults_enabled():
+    s = Settings()
+    assert s.recommend_enabled is True
+    assert s.recommend_max_examples == 10
+
+
+def test_recommend_settings_from_env(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("RECOMMEND_ENABLED", "false")
+    monkeypatch.setenv("RECOMMEND_MAX_EXAMPLES", "5")
+    s = Settings()
+    assert s.recommend_enabled is False
+    assert s.recommend_max_examples == 5
+
