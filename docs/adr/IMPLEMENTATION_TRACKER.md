@@ -45,7 +45,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0012](0012-retrieval-only-rag-split.md) | Retrieval-only RAG split | Accepted | all | `merged` | Shipped | 2026-07-02 |
 | [0013](0013-external-agent-knowledge-base.md) | External agent knowledge base | Accepted | all | `merged` | MCP tools surface | 2026-07-02 |
 | [0014](0014-vector-discovery-and-ops-automation.md) | Vector discovery + n8n ops | Proposed | — | `not_started` | — | — |
-| [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 1 | `verified` | Opt-in `COLBERT_EMBED_BACKEND=remote` + `colbert_worker` sidecar; default in-process ONNX unchanged; FastAPI lifespan preload; `ColbertRemoteBackend` httpx client; `docker-compose.colbert-worker.yml` with shared `fastembed_cache`; `.env.example` + `SEARCH_BEHAVIOR.md` | 2026-07-03 |
+| [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 1 | `merged` | Opt-in `COLBERT_EMBED_BACKEND=remote` + `colbert_worker` sidecar; default in-process ONNX unchanged; FastAPI lifespan preload; `ColbertRemoteBackend` httpx client; `docker-compose.colbert-worker.yml` with shared `fastembed_cache`; `.env.example` + `SEARCH_BEHAVIOR.md`; [PR #2](https://github.com/Tusquito/codebase-indexer-mcp/pull/2) | 2026-07-03 |
 | [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 2+ | `not_started` | GPU worker image; MCP slim when remote-only | — |
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
@@ -65,7 +65,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 |-----|------|-----------|
 | 0008 | Phase 1 — opt-in ColBERT multivector rerank ([PR #1](https://github.com/Tusquito/codebase-indexer-mcp/pull/1)) | Adaptive rerank; per-tool overrides; cross_reference/service_map rerank wiring |
 | 0009 | Phase 1 — `SEARCH_BEHAVIOR.md` multi-hop section, golden `multi_hop` tags | Phase 2+ server mechanisms; optional graph-backed hops per [0002](0002-graphrag-neo4j-qdrant.md) |
-| 0015 | Phase 1 — HTTP sidecar + remote backend (this ADR) | GPU worker; MCP slim image when remote-only |
+| 0015 | Phase 1 — HTTP sidecar + remote backend ([PR #2](https://github.com/Tusquito/codebase-indexer-mcp/pull/2)) | GPU worker; MCP slim image when remote-only |
 
 ---
 
@@ -172,6 +172,17 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 ---
 
 ### ADR 0015 — ColBERT HTTP sidecar
+
+#### 2026-07-03 — merge
+- **Phase / PR:** Phase 1 — HTTP sidecar + remote backend + compose override + tests + operator docs — [PR #2](https://github.com/Tusquito/codebase-indexer-mcp/pull/2)
+- **Tracker status:** `merged`
+- **Choices:** squash merge `e16dc59` on feature branch `adr/0015-phase-1-colbert-sidecar`; ADR accept skipped (already Accepted); release skipped; phase 2+ deferred (GPU worker; MCP slim when remote-only)
+- **Deviations:** none
+- **Code evidence:** merged via PR #2 (`adr/0015-phase-1-colbert-sidecar`)
+- **Test debt:** carried from verification — optional slow onnx vs remote parity; operational memory-halt manual validation
+- **Verify:** carried from verification — pytest 229 passed, 3 skipped; 45 targeted ColBERT tests passed; review rounds: 1
+- **Git:** [PR #2](https://github.com/Tusquito/codebase-indexer-mcp/pull/2) merged (squash `e16dc59`)
+- **Changelog:** no — already added at verified step
 
 #### 2026-07-03 — verification
 - **Phase / PR:** Phase 1 — HTTP sidecar + remote backend
