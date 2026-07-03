@@ -44,7 +44,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0011](0011-ollama-only-dense-embedding.md) | Ollama-only dense embedding | Accepted | all | `merged` | See CHANGELOG [Unreleased] | 2026-07-02 |
 | [0012](0012-retrieval-only-rag-split.md) | Retrieval-only RAG split | Accepted | all | `merged` | Shipped | 2026-07-02 |
 | [0013](0013-external-agent-knowledge-base.md) | External agent knowledge base | Accepted | all | `merged` | MCP tools surface | 2026-07-02 |
-| [0014](0014-vector-discovery-and-ops-automation.md) | Vector discovery + n8n ops | Proposed | Track A — Phase 1 (Recommendation search tool) | `verified` | Tool `recommend_code`; `QdrantStorage.recommend`; config (`RECOMMEND_ENABLED`, `RECOMMEND_MAX_EXAMPLES`); RecommendStrategy AVERAGE_VECTOR; dense-only; path_glob fnmatch + limit×3; missing chunk IDs fail fast; single-collection; defer outlier helper (Track A P2), n8n compose (Track B), sparse fusion, multi-collection | 2026-07-03 |
+| [0014](0014-vector-discovery-and-ops-automation.md) | Vector discovery + n8n ops | Accepted (phase 1 — recommendation search tool) | Track A — Phase 1 (Recommendation search tool) | `merged` | Tool `recommend_code`; `QdrantStorage.recommend`; config (`RECOMMEND_ENABLED`, `RECOMMEND_MAX_EXAMPLES`); RecommendStrategy AVERAGE_VECTOR; dense-only; path_glob fnmatch + limit×3; missing chunk IDs fail fast; single-collection; defer outlier helper (Track A P2), n8n compose (Track B), sparse fusion, multi-collection; [PR #5](https://github.com/Tusquito/codebase-indexer-mcp/pull/5) | 2026-07-03 |
 | [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 1 | `merged` | Opt-in `COLBERT_EMBED_BACKEND=remote` + `colbert_worker` sidecar; default in-process ONNX unchanged; FastAPI lifespan preload; `ColbertRemoteBackend` httpx client; `docker-compose.colbert-worker.yml` with shared `fastembed_cache`; `.env.example` + `SEARCH_BEHAVIOR.md`; [PR #2](https://github.com/Tusquito/codebase-indexer-mcp/pull/2) | 2026-07-03 |
 | [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 2 | `merged` | GPU sidecar via `colbert_worker/Dockerfile.gpu` (`onnxruntime-gpu==1.26.0`, `python:3.12-slim`); compose override `docker-compose.colbert-worker.gpu.yml` (NVIDIA reservations mirroring Ollama); `COLBERT_DEVICE_IDS` → `ColbertOnnxBackend.device_ids`; worker `/health` reports `device` + `cuda_available`; fail-fast CUDA preload; `bench_colbert_sidecar.py` remote throughput bench; single-GPU 8GB OOM documented (no auto-scheduler); CI-safe mocked/skipped GPU tests + non-blocking GPU Dockerfile CI job; [PR #3](https://github.com/Tusquito/codebase-indexer-mcp/pull/3) | 2026-07-03 |
 | [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 3+ | `not_started` | MCP slim image when remote-only | — |
@@ -58,12 +58,11 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 | ADR | Notes |
 |-----|-------|
 | 0002 | Four phases; default deploy stays Qdrant-only |
-| 0014 | Track A P1 (`verified`) — recommendation tool ready for git/PR; Track A P2 (outlier helper) + Track B (n8n compose) deferred |
-
 ### Partial acceptance
 
 | ADR | Done | Remaining |
 |-----|------|-----------|
+| 0014 | Track A Phase 1 — recommendation search tool ([PR #5](https://github.com/Tusquito/codebase-indexer-mcp/pull/5)) | Track A P2 (outlier helper) + Track B (n8n compose) deferred |
 | 0008 | Phase 1 — opt-in ColBERT multivector rerank ([PR #1](https://github.com/Tusquito/codebase-indexer-mcp/pull/1)); Phase 2 track 1 — xref/service_map rerank wiring ([PR #4](https://github.com/Tusquito/codebase-indexer-mcp/pull/4)) | Phase 2 track 2 — adaptive rerank vs per-tool override (TBD); per-tool overrides |
 | 0009 | Phase 1 — `SEARCH_BEHAVIOR.md` multi-hop section, golden `multi_hop` tags | Phase 2+ server mechanisms; optional graph-backed hops per [0002](0002-graphrag-neo4j-qdrant.md) |
 | 0015 | Phase 1 — HTTP sidecar + remote backend ([PR #2](https://github.com/Tusquito/codebase-indexer-mcp/pull/2)); Phase 2 — GPU worker + benchmark ([PR #3](https://github.com/Tusquito/codebase-indexer-mcp/pull/3)) | MCP slim image when remote-only (phase 3+) |
@@ -223,6 +222,17 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 ---
 
 ### ADR 0014 — Vector discovery and ops automation
+
+#### 2026-07-03 — merge
+- **Phase / PR:** Track A — Phase 1 (Recommendation search tool) — [PR #5](https://github.com/Tusquito/codebase-indexer-mcp/pull/5)
+- **Tracker status:** `merged`
+- **Choices:** merge on feature branch `adr/0014-phase-1-recommend-code`; ADR accepted as `Accepted (phase 1 — recommendation search tool)`; release skipped; Track A P2 (outlier helper) + Track B (n8n compose) deferred
+- **Deviations:** none
+- **Code evidence:** merged via PR #5 (`adr/0014-phase-1-recommend-code`)
+- **Test debt:** carried from verification — `main.py` registration gate; live HTTP/Ollama e2e; golden-set eval; multi-collection deferred
+- **Verify:** carried from verification — 258 pytest passed, ruff clean; review rounds: 2
+- **Git:** [PR #5](https://github.com/Tusquito/codebase-indexer-mcp/pull/5) merged
+- **Changelog:** no — release skipped; `[Unreleased]` bullet retained from verification step
 
 #### 2026-07-03 — verification
 - **Phase / PR:** Track A — Phase 1 (Recommendation search tool)
@@ -450,7 +460,7 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-03 | 0008 | service_map batched discovery rerank wiring | Route through `dispatch_search()` with pre-embedded colbert vectors | no |
 | 2026-07-03 | 0008 | Order of remaining Phase 2 tracks (adaptive skip vs per-tool override) | Open — track 1 merged ([PR #4](https://github.com/Tusquito/codebase-indexer-mcp/pull/4)); decide at next prioritization | no |
 | 2026-07-03 | 0008 | Accept Proposed 0002 or 0014 in a subsequent cycle for greenfield work? | 0014 prioritized this cycle (Track A P1 `planned`); 0002 still deferred | no |
-| 2026-07-03 | 0014 | Accept ADR 0014? | ADR Accept at merge via finisher | no |
+| 2026-07-03 | 0014 | Accept ADR 0014? | `Accepted (phase 1 — recommendation search tool)` after PR #5 merge | no |
 | 2026-07-03 | 0014 | Lock tool name/schema | Tool name `recommend_code`; RecommendStrategy AVERAGE_VECTOR only | no |
 | 2026-07-03 | 0014 | Confirm dense-only Phase 1 | Dense-only confirmed; sparse fusion deferred | no |
 | 2026-07-03 | 0014 | path_glob post-filter strategy | fnmatch post-filter with limit*3 over-fetch | no |
