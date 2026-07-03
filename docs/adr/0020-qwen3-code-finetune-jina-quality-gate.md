@@ -1,6 +1,6 @@
 # 0020. Fine-tune Qwen3 for code retrieval with Jina quality gate
 
-- **Status:** Proposed
+- **Status:** Accepted (phase 1 — Dataset + training pipeline)
 - **Date:** 2026-07-03
 - **Deciders:** Maintainers
 - **Related:** [0016](0016-qwen3-embedding-default-dense-model.md) — Qwen3 default and measured Jina regression; [0011](0011-ollama-only-dense-embedding.md) — Ollama-only dense inference; [0007](0007-ranx-retrieval-evaluation.md) — golden-set eval harness; [0017](0017-model-tokenizer-ollama-dense-truncation.md) — tokenizer-accurate truncation; [CoIR leaderboard](https://mteb-leaderboard.hf.space/benchmarks?q=code) — public code-retrieval benchmark
