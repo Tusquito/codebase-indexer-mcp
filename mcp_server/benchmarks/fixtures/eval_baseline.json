@@ -4,54 +4,56 @@
     "golden": "benchmarks/fixtures/golden_queries.jsonl",
     "hybrid_search": true,
     "top_k": 10,
-    "dense_embed_model": "jinaai/jina-embeddings-v2-base-code",
+    "dense_embed_model": "Qwen/Qwen3-Embedding-4B",
+    "ollama_embed_model": "qwen3-embedding:4b",
+    "dense_embed_vector_size": 1024,
     "sparse_embed_model": "Qdrant/bm25",
-    "indexed_at": "2026-07-02",
+    "indexed_at": "2026-07-03",
     "golden_set_version": "v3-multi-hop",
-    "note": "Hybrid baseline with 26 queries (4 multi_hop). Six queries include ground_truth for ADR 0010 client export."
+    "note": "Hybrid baseline with 26 queries (4 multi_hop). Re-indexed codebase-indexer-mcp via bundled Ollama qwen3-embedding:4b @ 1024 MRL (GPU). Six queries include ground_truth for ADR 0010 client export. Prior baseline (2026-07-02) used jinaai/jina-embeddings-v2-base-code."
   },
   "metrics": {
-    "recall@10": 0.660256,
-    "mrr": 0.586538,
-    "ndcg@10": 0.538681
+    "recall@10": 0.24359,
+    "mrr": 0.262286,
+    "ndcg@10": 0.190977
   },
   "metrics_by_tag": {
     "conceptual": {
-      "recall@10": 0.809524,
-      "mrr": 0.630952,
-      "ndcg@10": 0.611216
+      "recall@10": 0.190476,
+      "mrr": 0.301587,
+      "ndcg@10": 0.131462
     },
     "config": {
-      "recall@10": 0.4,
-      "mrr": 0.5,
-      "ndcg@10": 0.438009
+      "recall@10": 0.0,
+      "mrr": 0.0,
+      "ndcg@10": 0.0
     },
     "cross_file": {
-      "recall@10": 0.6,
-      "mrr": 0.466667,
-      "ndcg@10": 0.43132
+      "recall@10": 0.5,
+      "mrr": 0.566667,
+      "ndcg@10": 0.466341
     },
     "multi_hop": {
-      "recall@10": 0.5,
-      "mrr": 0.3125,
-      "ndcg@10": 0.359393
+      "recall@10": 0.333333,
+      "mrr": 0.361111,
+      "ndcg@10": 0.28131
     },
     "symbol": {
-      "recall@10": 0.722222,
-      "mrr": 0.666667,
-      "ndcg@10": 0.597838
+      "recall@10": 0.277778,
+      "mrr": 0.208333,
+      "ndcg@10": 0.190385
     }
   },
   "ab_dense_only": {
-    "recall@10": 0.583333,
-    "mrr": 0.612903,
-    "ndcg@10": 0.543605
+    "recall@10": 0.230769,
+    "mrr": 0.219178,
+    "ndcg@10": 0.185149
   },
   "multi_hop_2hop": {
-    "recall@10": 0.333333,
-    "mrr": 0.140278,
-    "ndcg@10": 0.192975,
-    "note": "Two-hop client RRF (eval_multihop.py) on 4 multi_hop queries; hop1+hop2 fused vs single-pass multi_hop recall@10 0.5 in metrics_by_tag"
+    "recall@10": 0.166667,
+    "mrr": 0.277778,
+    "ndcg@10": 0.172924,
+    "note": "Two-hop client RRF (eval_multihop.py) on 4 multi_hop queries; hop1+hop2 fused vs single-pass multi_hop recall@10 0.333333 in metrics_by_tag. Prior Jina baseline (2026-07-02) multi_hop_2hop recall@10 was 0.333333."
   },
   "n_queries": 26
 }

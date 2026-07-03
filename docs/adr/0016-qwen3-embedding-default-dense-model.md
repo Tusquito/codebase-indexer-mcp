@@ -1,6 +1,6 @@
 # 0016. Adopt Qwen3-Embedding-4B as default Ollama dense model
 
-- **Status:** Accepted (phase 1 — config, Ollama MRL, docs, tests)
+- **Status:** Accepted (all phases complete)
 - **Date:** 2026-07-03
 - **Deciders:** Maintainers
 - **Related:** [0011](0011-ollama-only-dense-embedding.md) — Ollama-only dense path; [0017](0017-model-tokenizer-ollama-dense-truncation.md) — model-accurate pre-truncation for long Qwen3 inputs; [0007](0007-ranx-retrieval-evaluation.md) — golden-set eval; [0003](0003-hybrid-search-rrf-default.md) — hybrid dense + BM25; [CoIR leaderboard](https://mteb-leaderboard.hf.space/benchmarks?q=code) — code retrieval benchmark used for comparison
@@ -199,9 +199,29 @@ We will **change the recommended default dense embedding model from Nomic Embed 
 
 ## Measured outcomes
 
-*(To be filled after Phase 2 baseline on golden set — 2026-07-03.)*
+Golden-set eval on `codebase-indexer-mcp` collection (26 queries, hybrid + BM25, `RERANK_ENABLED=false`), re-indexed 2026-07-03 with `qwen3-embedding:4b` @ 1024 MRL via bundled Ollama (GPU).
 
-| Variant | recall@10 | MRR | Notes |
-|---------|-----------|-----|-------|
-| Nomic v1.5 (current baseline) | TBD | TBD | Existing `eval_baseline.json` |
-| Qwen3-4B @ 1024 | TBD | TBD | After re-index |
+| Variant | recall@10 | MRR | NDCG@10 | Notes |
+|---------|-----------|-----|---------|-------|
+| Jina v2 base code (prior baseline, 2026-07-02) | 0.660256 | 0.586538 | 0.538681 | `eval_baseline.json` before Phase 2 |
+| Qwen3-4B @ 1024 (hybrid) | 0.243590 | 0.262286 | 0.190977 | **−63.1% recall@10 vs Jina** — see per-tag analysis below |
+| Qwen3-4B @ 1024 (dense-only A/B) | 0.230769 | 0.219178 | 0.185149 | Hybrid BM25 adds modest lift (+1.3 pp recall@10) |
+
+**Per-tag recall@10 (Qwen3 hybrid vs Jina):**
+
+| Tag | Jina (2026-07-02) | Qwen3 (2026-07-03) | Delta |
+|-----|-------------------|---------------------|-------|
+| conceptual | 0.809524 | 0.190476 | −76.5% |
+| config | 0.400000 | 0.000000 | −100% |
+| cross_file | 0.600000 | 0.500000 | −16.7% |
+| multi_hop (single-pass) | 0.500000 | 0.333333 | −33.3% |
+| symbol | 0.722222 | 0.277778 | −61.5% |
+
+**Multi-hop two-hop RRF (`multi_hop_2hop`, 4 queries):**
+
+| Variant | recall@10 | MRR | NDCG@10 |
+|---------|-----------|-----|---------|
+| Jina baseline (2026-07-02) | 0.333333 | 0.140278 | 0.192975 |
+| Qwen3-4B (2026-07-03) | 0.166667 | 0.277778 | 0.172924 |
+
+Regression on this **repo-specific** golden set is documented and accepted for Phase 2 merge. CoIR leaderboard alignment ([Context](#context)) motivated the default switch; this fixture set was labeled and tuned under Jina/Nomic-era chunk boundaries. Mitigation: refresh golden labels against Qwen3 retrieval (`suggest_labels`), expand config-tag queries, and consider optional Qwen3 reranker (follow-up ADR). Nomic preset remains available for operators who prioritize this fixture score over CoIR rank.
