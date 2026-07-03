@@ -330,3 +330,19 @@ Optional JSON probes (not Prometheus): `GET /telemetry`, `GET /cluster/telemetry
 
 FastMCP already emits OpenTelemetry spans for MCP tool calls when an OTel SDK is configured — see [FastMCP telemetry](https://gofastmcp.com/servers/telemetry). OTLP export and custom domain spans are Phase 2 of ADR 0018; Phase 1 adds **Prometheus metrics only**.
 
+## Fine-tuned embedding model (maintainer / offline)
+
+Production dense inference remains **Ollama-only** ([ADR 0011](adr/0011-ollama-only-dense-embedding.md)). Optional supervised fine-tuning of Qwen3 for this repo’s golden set is **maintainer-run outside Docker** — not part of the default MCP image or CI ([ADR 0020](adr/0020-qwen3-code-finetune-jina-quality-gate.md)).
+
+| Step | Where | Notes |
+|------|-------|-------|
+| Export golden pairs | `mcp_server/benchmarks/train/export_golden_pairs.py` | Requires indexed Qdrant collection |
+| Mine hard negatives | `mcp_server/benchmarks/train/mine_hard_negatives.py` | Uses **base** `qwen3-embedding:4b` hybrid search |
+| LoRA train | `mcp_server/benchmarks/train/finetune_qwen3_code.py` | `uv sync --extra train`; CUDA GPU recommended |
+| Ollama packaging | Phase 2 (not yet) | Merge LoRA → custom Ollama model tag |
+| Quality gate | Phase 3 (not yet) | `eval_retrieval` vs `eval_baseline_jina.json` |
+
+Full workflow: [`mcp_server/benchmarks/train/README.md`](../mcp_server/benchmarks/train/README.md).
+
+**Default operator config is unchanged** until Phase 3 gate passes — keep `OLLAMA_EMBED_MODEL=qwen3-embedding:4b` in `.env`.
+
