@@ -1,6 +1,6 @@
 """Unit tests for colbert_worker FastAPI app."""
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -44,6 +44,32 @@ def test_health_returns_model_info(client, mock_backend):
     assert data["model"] == "colbert-ir/colbertv2.0"
     assert data["token_dimension"] == 128
     assert data["loaded"] is True
+    assert data["device"] == "cpu"
+    assert "cuda_available" in data
+
+
+def test_health_reports_cuda_device_when_configured(mock_backend):
+    settings = WorkerSettings(
+        colbert_embed_model="colbert-ir/colbertv2.0",
+        colbert_use_cuda=True,
+    )
+    app = create_app(settings=settings, backend=mock_backend)
+    with patch("codebase_indexer.colbert_worker.app.cuda_available", return_value=True):
+        with TestClient(app, raise_server_exceptions=False) as client:
+            data = client.get("/health").json()
+    assert data["device"] == "cuda"
+
+
+def test_startup_fails_when_cuda_requested_but_unavailable(mock_backend):
+    settings = WorkerSettings(
+        colbert_embed_model="colbert-ir/colbertv2.0",
+        colbert_use_cuda=True,
+    )
+    app = create_app(settings=settings, backend=mock_backend)
+    with patch("codebase_indexer.colbert_worker.app.cuda_available", return_value=False):
+        with pytest.raises(RuntimeError, match="COLBERT_USE_CUDA"):
+            with TestClient(app, raise_server_exceptions=True):
+                pass
 
 
 def test_embed_colbert_returns_multivectors(client, mock_backend):
@@ -61,3 +87,8 @@ def test_embed_colbert_returns_multivectors(client, mock_backend):
 def test_embed_colbert_rejects_empty_texts(client):
     resp = client.post("/v1/embed/colbert", json={"texts": []})
     assert resp.status_code == 422
+
+
+def test_worker_settings_parses_device_ids():
+    settings = WorkerSettings(colbert_device_ids="0,1")
+    assert settings.colbert_device_ids == [0, 1]
