@@ -114,3 +114,8 @@ def test_embed_colbert_rejects_empty_texts(client):
 def test_worker_settings_parses_device_ids():
     settings = WorkerSettings(colbert_device_ids="0,1")
     assert settings.colbert_device_ids == [0, 1]
+
+
+def test_worker_metrics_enabled_defaults_false():
+    assert WorkerSettings().metrics_enabled is False
+

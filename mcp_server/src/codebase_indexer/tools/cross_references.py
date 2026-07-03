@@ -12,6 +12,7 @@ from fastmcp import FastMCP
 from codebase_indexer.config import DEFAULT_SERVICE_URL_KEYWORDS
 from codebase_indexer.tools.build_deps import extract_build_deps, is_build_manifest
 from codebase_indexer.tools.search_common import run_search
+from codebase_indexer.telemetry.metrics import observe_tool
 
 if TYPE_CHECKING:
     from codebase_indexer.context import AppContext
@@ -317,6 +318,7 @@ def register_cross_references_tool(mcp: FastMCP, ctx: "AppContext") -> None:
             "query embed and MAX_SIM on semantic search paths (hybrid RRF only)."
         ),
     )
+    @observe_tool("find_cross_references")
     async def find_cross_references(
         query: str | None = None,
         symbol_name: str | None = None,

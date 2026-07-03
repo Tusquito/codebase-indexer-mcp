@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 
 from fastmcp import FastMCP
 
+from codebase_indexer.telemetry.metrics import observe_tool
+
 if TYPE_CHECKING:
     from codebase_indexer.context import AppContext
 
@@ -18,6 +20,7 @@ def register_chunk_tool(mcp: FastMCP, ctx: "AppContext") -> None:
         name="get_chunk",
         description="Retrieve a specific chunk by ID from a prior search result.",
     )
+    @observe_tool("get_chunk")
     async def get_chunk(
         chunk_id: str,
         collection: str | None = None,

@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 
 from fastmcp import FastMCP
 
+from codebase_indexer.telemetry.metrics import observe_tool
+
 if TYPE_CHECKING:
     from codebase_indexer.context import AppContext
 
@@ -25,6 +27,7 @@ def register_file_outline_tool(mcp: FastMCP, ctx: "AppContext") -> None:
             "fetch with get_chunk. Saves tokens vs reading full file content."
         ),
     )
+    @observe_tool("get_file_outline")
     async def get_file_outline(
         rel_path: str,
         collection: str | None = None,

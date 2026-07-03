@@ -13,6 +13,7 @@ from codebase_indexer.tools.build_deps import (
     is_build_manifest,
     match_deps_to_collections,
 )
+from codebase_indexer.telemetry.metrics import observe_tool
 
 if TYPE_CHECKING:
     from codebase_indexer.context import AppContext
@@ -48,6 +49,7 @@ def register_collection_summary_tool(mcp: FastMCP, ctx: "AppContext") -> None:
             "before running searches. Replaces 3-5 exploratory search_codebase calls."
         ),
     )
+    @observe_tool("get_collection_summary")
     async def get_collection_summary(
         collection: str | None = None,
     ) -> dict:

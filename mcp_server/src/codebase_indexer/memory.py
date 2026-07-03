@@ -110,8 +110,14 @@ def check_memory_pressure(
     if pct <= 0:
         return ("ok", 0.0)
     if pct >= halt_pct:
+        from codebase_indexer.telemetry.metrics import record_memory_pressure
+
+        record_memory_pressure("halt")
         return ("halt", pct)
     if pct >= warn_pct:
+        from codebase_indexer.telemetry.metrics import record_memory_pressure
+
+        record_memory_pressure("warn")
         return ("warn", pct)
     return ("ok", pct)
 

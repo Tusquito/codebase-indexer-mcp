@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 
 from fastmcp import FastMCP
 
+from codebase_indexer.telemetry.metrics import observe_tool
+
 if TYPE_CHECKING:
     from codebase_indexer.context import AppContext
 
@@ -33,6 +35,7 @@ def register_find_outlier_chunks_tool(mcp: FastMCP, ctx: "AppContext") -> None:
             "See docs/SEARCH_BEHAVIOR.md."
         ),
     )
+    @observe_tool("find_outlier_chunks")
     async def find_outlier_chunks(
         collection: str,
         context_chunk_ids: list[str] | None = None,

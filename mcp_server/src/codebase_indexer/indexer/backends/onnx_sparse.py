@@ -19,6 +19,7 @@ from codebase_indexer.indexer.truncation import (
     resolve_max_embed_tokens,
     truncate_for_embedding,
 )
+from codebase_indexer.telemetry.metrics import record_embed_request, record_truncated_chunks
 
 _tlog = logging.getLogger(__name__)
 
@@ -126,6 +127,7 @@ class OnnxSparseBackend:
                 1 for orig, tr in zip(texts, truncated) if len(orig) != len(tr)
             )
             if truncated_count:
+                record_truncated_chunks("sparse", truncated_count)
                 _tlog.warning(
                     "sparse_chunks_truncated count=%d max_tokens=%d source=%s",
                     truncated_count,
@@ -135,10 +137,15 @@ class OnnxSparseBackend:
             texts = truncated
         _tlog.info("sparse_embed_start chunks=%d", len(texts))
         t0 = time.monotonic()
-        result = [
-            SparseVector(indices=r.indices.tolist(), values=r.values.tolist())
-            for r in model.embed(texts)
-        ]
+        try:
+            result = [
+                SparseVector(indices=r.indices.tolist(), values=r.values.tolist())
+                for r in model.embed(texts)
+            ]
+            record_embed_request("sparse", "success")
+        except Exception:
+            record_embed_request("sparse", "error")
+            raise
         _tlog.info(
             "sparse_embed_done chunks=%d elapsed_s=%.2f",
             len(result),

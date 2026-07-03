@@ -131,6 +131,9 @@ class Settings(BaseSettings):
     workspace_path: str = Field(default="/workspace")
     log_level: str = Field(default="INFO")
 
+    # Application Prometheus metrics at GET /metrics (ADR 0018 Phase 1).
+    metrics_enabled: bool = Field(default=False)
+
     # Directory names pruned during the scan walk (build artifacts, VCS, caches,
     # migration history, editor metadata). Comma-separated and env-overridable.
     # Project-specific or

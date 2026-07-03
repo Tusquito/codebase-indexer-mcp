@@ -439,3 +439,12 @@ def test_graph_enabled_requires_password():
             neo4j_password="",
         )
 
+
+def test_metrics_enabled_defaults_false():
+    assert Settings().metrics_enabled is False
+
+
+def test_metrics_enabled_from_env(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("METRICS_ENABLED", "true")
+    assert Settings().metrics_enabled is True
+

@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 from fastmcp import FastMCP
 
 from codebase_indexer.tools.search_common import resolve_collections, run_search
+from codebase_indexer.telemetry.metrics import observe_tool
 
 if TYPE_CHECKING:
     from codebase_indexer.context import AppContext
@@ -37,6 +38,7 @@ def register_search_symbols_tool(mcp: FastMCP, ctx: "AppContext") -> None:
             "query embed and MAX_SIM rerank (hybrid RRF only)."
         ),
     )
+    @observe_tool("search_symbols")
     async def search_symbols(
         query: str,
         top_k: int = 10,

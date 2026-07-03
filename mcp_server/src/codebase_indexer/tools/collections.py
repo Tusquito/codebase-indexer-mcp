@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 
 from fastmcp import FastMCP
 
+from codebase_indexer.telemetry.metrics import observe_tool
+
 if TYPE_CHECKING:
     from codebase_indexer.context import AppContext
 
@@ -18,6 +20,7 @@ def register_collections_tool(mcp: FastMCP, ctx: "AppContext") -> None:
         name="list_collections",
         description="List all indexed collections with statistics.",
     )
+    @observe_tool("list_collections")
     async def list_collections() -> list[dict]:
         stats = await storage.list_collection_stats()
         return [

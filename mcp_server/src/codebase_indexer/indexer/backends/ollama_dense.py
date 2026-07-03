@@ -15,6 +15,7 @@ from codebase_indexer.indexer.truncation import (
     resolve_max_embed_tokens,
     truncate_for_embedding,
 )
+from codebase_indexer.telemetry.metrics import record_embed_request, record_truncated_chunks
 
 _tlog = logging.getLogger(__name__)
 
@@ -147,6 +148,7 @@ class OllamaDenseBackend:
                 truncated_count += 1
             truncated.append(new_text)
         if truncated_count:
+            record_truncated_chunks("ollama", truncated_count)
             _tlog.info(
                 "ollama_dense_chunks_truncated count=%d max_tokens=%d source=%s model=%s",
                 truncated_count,
@@ -204,11 +206,14 @@ class OllamaDenseBackend:
                     len(texts),
                     time.monotonic() - t0,
                 )
+                record_embed_request("ollama", "success")
                 return embeddings
             except (httpx.HTTPError, EmbeddingError) as exc:
                 last_exc = exc
                 if attempt < self.max_retries - 1:
                     await asyncio.sleep(2**attempt)
                     continue
+                record_embed_request("ollama", "error")
                 raise EmbeddingError(f"Ollama embed failed: {exc}") from exc
+        record_embed_request("ollama", "error")
         raise EmbeddingError(f"Ollama embed failed after retries: {last_exc}")

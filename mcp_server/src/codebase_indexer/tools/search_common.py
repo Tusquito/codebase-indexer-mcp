@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from codebase_indexer.indexer.embedder import Embedder, SparseVector
 from codebase_indexer.storage.qdrant import QdrantStorage, SearchResult
+from codebase_indexer.telemetry.metrics import record_search_results
 
 
 def resolve_collections(primary: str, collections: list[str] | None) -> list[str]:
@@ -68,7 +69,7 @@ async def run_search(
     dense_vector, sparse_vector, colbert_vector = await embedder.embed_query(
         query, rerank=rerank
     )
-    return await dispatch_search(
+    results = await dispatch_search(
         storage,
         dense_vector,
         sparse_vector,
@@ -78,3 +79,5 @@ async def run_search(
         language,
         min_score,
     )
+    record_search_results(len(results), rerank=colbert_vector is not None)
+    return results

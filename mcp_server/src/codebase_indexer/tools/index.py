@@ -17,6 +17,7 @@ from codebase_indexer.index_jobs import IndexJobTracker, JobStatus
 from codebase_indexer.indexer.pipeline import PipelineResult, run_pipeline, IndexCancelled
 from codebase_indexer.indexer.embedder import Embedder
 from codebase_indexer.storage.qdrant import QdrantStorage
+from codebase_indexer.telemetry.metrics import observe_tool, record_index_job
 
 if TYPE_CHECKING:
     from codebase_indexer.context import AppContext
@@ -95,6 +96,11 @@ async def _run_index_job(
         )
         job.status = JobStatus.DONE
         job.finished_at = time.monotonic()
+        record_index_job(
+            "done",
+            job.elapsed_seconds,
+            pipeline_result.total_chunks,
+        )
         log.info(
             "index_job_done",
             collection=collection,
@@ -106,6 +112,7 @@ async def _run_index_job(
         job.status = JobStatus.CANCELLED
         job.error_message = str(e)
         job.finished_at = time.monotonic()
+        record_index_job("cancelled", job.elapsed_seconds, pipeline_result.total_chunks)
         if settings.release_models_after_index:
             Embedder.release_models()
         log.info("index_job_cancelled", collection=collection, elapsed=job.elapsed_seconds)
@@ -113,6 +120,7 @@ async def _run_index_job(
         job.status = JobStatus.FAILED
         job.error_message = str(e)
         job.finished_at = time.monotonic()
+        record_index_job("failed", job.elapsed_seconds, pipeline_result.total_chunks)
         if settings.release_models_after_index:
             Embedder.release_models()
         log.error("index_job_failed", collection=collection, error=str(e))
@@ -139,6 +147,7 @@ def register_index_tool(mcp: FastMCP, ctx: "AppContext") -> None:
             "Set wait=False to return immediately and use index_status to check progress."
         ),
     )
+    @observe_tool("index_codebase")
     async def index_codebase(
         path: str = "/",
         collection: str | None = None,
@@ -235,6 +244,7 @@ def register_index_tool(mcp: FastMCP, ctx: "AppContext") -> None:
             "Only needed when index_codebase was called with wait=False."
         ),
     )
+    @observe_tool("index_status")
     async def index_status(
         collection: str | None = None,
     ) -> dict | list[dict]:
@@ -258,6 +268,7 @@ def register_index_tool(mcp: FastMCP, ctx: "AppContext") -> None:
             "Use index_status to confirm the job has stopped."
         ),
     )
+    @observe_tool("stop_indexing")
     async def stop_indexing(
         collection: str,
     ) -> dict:
@@ -288,6 +299,7 @@ def register_index_tool(mcp: FastMCP, ctx: "AppContext") -> None:
             "Timeout is per-collection, not total."
         ),
     )
+    @observe_tool("index_all")
     async def index_all(
         force: bool = False,
         wait: bool = True,

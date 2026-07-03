@@ -15,6 +15,7 @@ from codebase_indexer.tools.build_deps import (
 )
 from codebase_indexer.tools.cross_references import _paths_match
 from codebase_indexer.tools.search_common import dispatch_search
+from codebase_indexer.telemetry.metrics import observe_tool
 
 if TYPE_CHECKING:
     from codebase_indexer.context import AppContext
@@ -71,6 +72,7 @@ def register_service_map_tool(mcp: FastMCP, ctx: "AppContext") -> None:
             "embed and MAX_SIM on discovery searches (hybrid RRF only)."
         ),
     )
+    @observe_tool("map_service_dependencies")
     async def map_service_dependencies(
         collections: list[str] | None = None,
         top_k: int = 30,
