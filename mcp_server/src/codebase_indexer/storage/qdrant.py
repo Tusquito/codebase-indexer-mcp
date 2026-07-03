@@ -398,12 +398,16 @@ class QdrantStorage:
         )
 
     async def upsert_chunks(self, collection: str, embedded_chunks: list[EmbeddedChunk]) -> None:
-        """Batch upsert chunks with dense + sparse vectors.
+        """Batch upsert chunks with dense + sparse (+ optional ColBERT) vectors.
 
         Builds and sends points in sub-batches (size from settings.upsert_batch)
-        to stay within Qdrant's gRPC/HTTP message size limits. Points are
-        materialized per sub-batch so at most one sub-batch worth of dense
-        vectors is converted to Python lists at a time, keeping peak RAM low.
+        to stay within Qdrant's HTTP message size limits. With ColBERT rerank
+        enabled, each point includes a large multivector payload — keep
+        upsert_batch low (typically 10–25) or upserts fail with ReadError.
+        See docs/DEPLOYMENT.md#colbert-rerank-qdrant-upsert-batching.
+
+        Points are materialized per sub-batch so at most one sub-batch worth of
+        dense vectors is converted to Python lists at a time, keeping peak RAM low.
         """
         client = await self._get_client()
         upsert_batch = self.settings.upsert_batch
@@ -412,16 +416,25 @@ class QdrantStorage:
                 self._build_point(ec)
                 for ec in embedded_chunks[i : i + upsert_batch]
             ]
-            for attempt in range(3):
+            last_exc: Exception | None = None
+            for attempt in range(5):
                 try:
                     await client.upsert(collection_name=collection, points=batch)
                     break
                 except Exception as e:
-                    if attempt < 2:
-                        log.warning("upsert_retry", attempt=attempt, batch_offset=i, error=str(e))
-                        await asyncio.sleep(1)
+                    last_exc = e
+                    if attempt < 4:
+                        err = str(e) or repr(e)
+                        log.warning(
+                            "upsert_retry",
+                            attempt=attempt,
+                            batch_offset=i,
+                            batch_size=len(batch),
+                            error=err,
+                        )
+                        await asyncio.sleep(min(2**attempt, 8))
                         continue
-                    raise
+                    raise last_exc
 
     async def delete_by_paths(
         self, collection: str, rel_paths: list[str], batch_size: int = 100,
