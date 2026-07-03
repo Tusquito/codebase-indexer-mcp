@@ -5,9 +5,9 @@ import pytest
 import codebase_indexer.telemetry.metrics as metrics_mod
 
 # Values mirror .env.example (single place for deployment defaults).
-_TEST_DENSE_EMBED_MODEL = "Qwen/Qwen3-Embedding-4B"
+_TEST_DENSE_EMBED_MODEL = "jinaai/jina-embeddings-v2-base-code"
 _TEST_SPARSE_EMBED_MODEL = "Qdrant/bm25"
-_TEST_DENSE_EMBED_VECTOR_SIZE = "1024"
+_TEST_DENSE_EMBED_VECTOR_SIZE = "768"
 _TEST_SPARSE_THREADS = "2"
 
 
