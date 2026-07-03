@@ -47,6 +47,32 @@ Same search backend as `search_codebase` but returns metadata only (no `content`
 | `get_chunk` | Zero | Lookup by `chunk_id` |
 | `find_cross_references` | Per internal search | Participates in ColBERT rerank when `RERANK_ENABLED=true`; internal `min_score=0.3` ignored on hybrid/rerank paths |
 | `map_service_dependencies` | Batched query embed | Participates in ColBERT rerank when `RERANK_ENABLED=true`; internal `min_score=0.25` ignored on hybrid/rerank paths |
+| `recommend_code` | Per positive/negative text query | Dense-only Qdrant Recommendation API; single collection; see below |
+
+## `recommend_code`
+
+Find chunks **similar to positive examples** and **dissimilar from negative examples** using Qdrant's Recommendation API on the **dense** vector only (`RecommendStrategy.AVERAGE_VECTOR`).
+
+| Parameter | Default | Cap / behavior |
+|-----------|---------|----------------|
+| `collection` | *(required)* | Single collection only — multi-collection deferred |
+| `positive_chunk_ids` | `None` | Resolved to point IDs; missing IDs fail fast with explicit error |
+| `positive_query` | `None` | Free-text embedded via Ollama dense path |
+| `negative_chunk_ids` | `None` | Same resolution/validation as positives |
+| `negative_query` | `None` | Free-text embedded via Ollama dense path |
+| `limit` | `5` | Silently capped at **20** |
+| `language` | `None` | Qdrant payload filter (indexed field) |
+| `path_glob` | `None` | Post-filter via `fnmatch` on `rel_path`; over-fetches `limit * 3` |
+| `max_content_chars` | `None` | Truncates chunk `content`; use `get_chunk` for full text |
+
+At least one positive example (`positive_chunk_ids` and/or `positive_query`) is required. Total example count (positive + negative, chunk IDs + text queries) is capped by `RECOMMEND_MAX_EXAMPLES` (default **10**).
+
+Implementation path: `tools/recommend.py` → `storage/qdrant.py` `QdrantStorage.recommend` → `query_points` with `RecommendQuery` on `using=dense`.
+
+| Variable | Default | Effect |
+|----------|---------|--------|
+| `RECOMMEND_ENABLED` | `true` | Master switch; when `false`, tool is not registered |
+| `RECOMMEND_MAX_EXAMPLES` | `10` | Cap on positive + negative examples per request |
 
 ## Configuration
 
