@@ -10,9 +10,10 @@ from typing import Any
 import httpx
 
 from codebase_indexer.indexer.backends.base import EmbeddingError
+from codebase_indexer.indexer.tokenizer_loader import load_dense_tokenizer
 from codebase_indexer.indexer.truncation import (
     resolve_max_embed_tokens,
-    truncate_bm25_text,
+    truncate_for_embedding,
 )
 
 _tlog = logging.getLogger(__name__)
@@ -22,6 +23,9 @@ class OllamaDenseBackend:
     """Dense encoder that delegates to Ollama /api/embed."""
 
     backend_name = "ollama"
+
+    _shared_tokenizer: Any | None = None
+    _tokenizer_load_attempted: bool = False
 
     def __init__(
         self,
@@ -98,6 +102,7 @@ class OllamaDenseBackend:
                         f"expected {self.vector_size}"
                     )
                 self._ready = True
+                self._ensure_truncation()
                 _tlog.info(
                     "ollama_embed_ready model=%s url=%s",
                     self.model_name,
@@ -111,13 +116,31 @@ class OllamaDenseBackend:
     def release(self) -> None:
         self._ready = False
 
+    def _ensure_truncation(self) -> None:
+        cls = type(self)
+        if cls._tokenizer_load_attempted:
+            return
+        cls._tokenizer_load_attempted = True
+        model_id = self._dense_embed_model or self.model_name
+        cls._shared_tokenizer = load_dense_tokenizer(model_id)
+        if cls._shared_tokenizer is None:
+            _tlog.warning(
+                "ollama_dense_truncation_disabled model=%s reason=tokenizer_unavailable",
+                model_id,
+            )
+
     def _truncate_batch(self, texts: list[str]) -> list[str]:
         if self._max_tokens <= 0:
             return texts
+        self._ensure_truncation()
         truncated: list[str] = []
         truncated_count = 0
         for text in texts:
-            new_text, _ = truncate_bm25_text(text, self._max_tokens)
+            new_text, _ = truncate_for_embedding(
+                text,
+                max_tokens=self._max_tokens,
+                tokenizer=type(self)._shared_tokenizer,
+            )
             if len(new_text) != len(text):
                 truncated_count += 1
             truncated.append(new_text)

@@ -128,7 +128,7 @@ class Settings(BaseSettings):
     upsert_batch: int = Field(default=500)
     # How many scanned files may be queued ahead of the consumer.
     readahead_buffer: int = Field(default=100)
-    # Max tokens sent to Ollama before /api/embed (word-split approximation).
+    # Max tokens sent to Ollama before /api/embed (model tokenizer from DENSE_EMBED_MODEL).
     # 0 = auto-detect from DENSE_EMBED_MODEL registry (e.g. 8192 for Jina code).
     max_dense_embed_tokens: int = Field(default=0)
     # Max tokens fed to the sparse encoder. 0 = no limit (default for Qdrant/bm25).
