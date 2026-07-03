@@ -312,6 +312,49 @@ async def test_recommend_excludes_negative_paths_with_path_glob(storage):
 
 
 @pytest.mark.asyncio
+async def test_find_outlier_chunks_returns_orthogonal_vector(storage):
+    """Outlier with low cosine similarity to cluster centroid is returned."""
+    coll = f"test_outlier_{uuid.uuid4().hex[:8]}"
+    client = await storage._get_client()
+    try:
+        await storage.ensure_collection(coll)
+
+        cluster_dense = [1.0 if i < 20 else 0.01 * (i % 5) for i in range(768)]
+        outlier_dense = [0.01 * (i % 5) if i < 20 else 1.0 for i in range(768)]
+
+        cluster_chunks = [
+            _make_embedded(f"src/module_{n}.py", 1, f"def fn{n}(): pass", dense_scale=0.0)
+            for n in range(3)
+        ]
+        for ec in cluster_chunks:
+            ec.dense_vector = cluster_dense
+
+        outlier_chunk = _make_embedded(
+            "src/orphan.py", 1, "def orphan(): pass", dense_scale=0.0
+        )
+        outlier_chunk.dense_vector = outlier_dense
+
+        await storage.upsert_chunks(coll, cluster_chunks + [outlier_chunk])
+
+        context_ids = [ec.chunk.chunk_id for ec in cluster_chunks]
+
+        results = await storage.find_outlier_chunks(
+            collection=coll,
+            context_chunk_ids=context_ids,
+            limit=5,
+            max_similarity=0.55,
+        )
+
+        assert len(results) >= 1
+        outlier_hits = [r for r in results if r.rel_path == "src/orphan.py"]
+        assert len(outlier_hits) == 1
+        assert outlier_hits[0].score < 0.55
+        assert outlier_hits[0].chunk_id == "src/orphan.py:1"
+    finally:
+        await client.delete_collection(coll)
+
+
+@pytest.mark.asyncio
 async def test_verify_chunk_ids_exist_integration(storage):
     """verify_chunk_ids_exist fails fast on missing chunk_id against live Qdrant."""
     coll = f"test_verify_{uuid.uuid4().hex[:8]}"
