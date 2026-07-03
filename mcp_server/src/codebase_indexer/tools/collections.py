@@ -28,6 +28,8 @@ def register_collections_tool(mcp: FastMCP, ctx: "AppContext") -> None:
                 "dense_embed_model": s.dense_embed_model,
                 "sparse_embed_model": s.sparse_embed_model,
                 "hybrid": s.hybrid,
+                "rerank_enabled": s.rerank_enabled,
+                "colbert_embed_model": s.colbert_embed_model or None,
             }
             for s in stats
         ]

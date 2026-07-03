@@ -62,6 +62,25 @@ Same search backend as `search_codebase` but returns metadata only (no `content`
 
 Disabling hybrid requires re-creating collections whose sparse configuration no longer matches — `QdrantStorage.ensure_collection` detects hybrid mismatch and recreates when needed.
 
+## Optional ColBERT reranking (`RERANK_ENABLED=true`)
+
+When enabled (default **off**), search runs a three-stage pipeline per collection:
+
+1. Hybrid prefetch on dense + sparse channels (`RERANK_PREFETCH` candidates each, default **100**)
+2. ColBERT **MAX_SIM** rerank over the merged candidate pool (`using=colbert`)
+3. Multi-collection queries re-fuse per-collection ranked lists with global RRF (`rrf_k`)
+
+Index-time: a third multivector field `colbert` is stored on each point (HNSW disabled, rerank-only). Enabling rerank on an existing collection **requires a full re-index** — `ensure_collection` recreates when the colbert vector config is missing or mismatched.
+
+| Variable | Default | Effect |
+|----------|---------|--------|
+| `RERANK_ENABLED` | `false` | Master switch (requires `HYBRID_SEARCH=true`) |
+| `COLBERT_EMBED_MODEL` | `colbert-ir/colbertv2.0` | fastembed ColBERT model for index + query |
+| `RERANK_PREFETCH` | `100` | Hybrid candidate pool before ColBERT rerank |
+| `RERANK_MAX_QUERY_TOKENS` | `0` | Query truncation; `0` = registry default |
+
+`min_score` remains disabled on hybrid and rerank paths (scores are not cosine-scale).
+
 ## Multi-hop retrieval
 
 Many code questions need evidence from **more than one chunk or file**. The server does **not** run an in-server decomposition loop ([decision 0009](adr/0009-multi-hop-retrieval-strategies.md)); the **MCP client** orchestrates hops. Reference: [Qdrant query decomposition](https://qdrant.tech/documentation/improve-search/query-decomposition/).

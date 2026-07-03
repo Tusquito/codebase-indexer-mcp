@@ -36,7 +36,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0005](0005-mcp-retrieval-connector.md) | MCP retrieval connector | Accepted | all | `merged` | Shipped | 2026-07-02 |
 | [0006](0006-explicit-fastembed-pipeline.md) | Explicit FastEmbed pipeline | Accepted | all | `merged` | Shipped | 2026-07-02 |
 | [0007](0007-ranx-retrieval-evaluation.md) | Golden-set eval (ranx) | Accepted | all | `merged` | `eval_retrieval.py` + fixtures | 2026-07-02 |
-| [0008](0008-optional-colbert-reranking.md) | Optional ColBERT reranking | Proposed | 1 | `candidate` | Config + ColBERT fastembed + multivector schema/rerank in `qdrant.py` + pipeline third embed pass + integration test + eval/bench deltas; defer adaptive rerank and per-tool overrides | 2026-07-03 |
+| [0008](0008-optional-colbert-reranking.md) | Optional ColBERT reranking | Proposed | 1 | `verified` | Config (`RERANK_ENABLED=false` default, `COLBERT_EMBED_MODEL`, `RERANK_PREFETCH`, `RERANK_MAX_QUERY_TOKENS`); `ColbertOnnxBackend` via fastembed; multivector `colbert` + MAX_SIM rerank in `qdrant.py`; per-collection hybrid prefetch + ColBERT rerank then `fuse_cross_collection_rrf`; pipeline third embed pass (sequential); synthetic CI integration test + `@pytest.mark.slow` + `RUN_SLOW_COLBERT=1`; operator re-index docs; defer adaptive rerank, per-tool overrides, cross_reference/service_map wiring | 2026-07-03 |
 | [0009](0009-multi-hop-retrieval-strategies.md) | Multi-hop retrieval | Accepted (phase 1) | 1 | `merged` | Client decomposition docs + golden tags | 2026-07-02 |
 | [0009](0009-multi-hop-retrieval-strategies.md) | Multi-hop retrieval | Accepted (phase 1) | 2+ | `not_started` | Server-side hop fusion TBD | — |
 | [0010](0010-defer-ragas-to-client.md) | Defer Ragas to client | Accepted | all | `merged` | Export script + DEPLOYMENT guide | 2026-07-02 |
@@ -54,7 +54,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 | ADR | Notes |
 |-----|-------|
 | 0002 | Four phases; default deploy stays Qdrant-only |
-| 0008 | Depends on [0003](0003-hybrid-search-rrf-default.md); eval via [0007](0007-ranx-retrieval-evaluation.md) |
+| 0008 | Phase 1 `verified`; pending merge; depends on [0003](0003-hybrid-search-rrf-default.md); eval via [0007](0007-ranx-retrieval-evaluation.md) |
 | 0014 | Track A (MCP tools) vs Track B (n8n compose) |
 
 ### Partial acceptance
@@ -86,6 +86,40 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 ---
 
 ### ADR 0008 — Optional ColBERT reranking
+
+#### 2026-07-03 — verification
+- **Phase / PR:** Phase 1 — optional ColBERT multivector reranking
+- **Tracker status:** `verified`
+- **Choices:** `COLBERT_EMBED_MODEL=colbert-ir/colbertv2.0` (128-d tokens); `HnswConfigDiff(m=0)` on colbert vector; cross-collection rerank per-collection then global RRF; CI uses synthetic multivectors; real model via `@pytest.mark.slow`; ColBERT index embed sequential after dense+sparse
+- **Deviations:** none
+- **Code evidence:** `config.py`, `colbert_onnx.py`, `embedder.py`, `qdrant.py`, `search_common.py`, `test_storage_integration.py`, `bench.py`, `eval_retrieval.py`
+- **Test debt:** ranx eval tests skip without `--extra benchmark`; golden-set MRR delta manual via `eval_retrieval --rerank`; no unit test for colbert mismatch recreate; slow ColBERT smoke opt-in only
+- **Verify:** tests run + plan compliance pass (217 passed); review rounds: 1
+- **Git:** pending
+- **Changelog:** yes
+
+#### 2026-07-03 — implementation
+- **Phase / PR:** Phase 1 — optional ColBERT multivector reranking (index-time multivectors + query-time MAX_SIM rerank over hybrid prefetch pool)
+- **Tracker status:** `implemented`
+- **Choices:** `COLBERT_EMBED_MODEL` default `colbert-ir/colbertv2.0` (128-d per token); `HnswConfigDiff(m=0)` on `colbert` vector; per-collection hybrid prefetch + ColBERT MAX_SIM rerank then global `fuse_cross_collection_rrf`; ColBERT always sequential after dense+sparse at index time; synthetic multivectors in CI integration test; real model behind `@pytest.mark.slow` + `RUN_SLOW_COLBERT=1`; `RERANK_ENABLED=false` default preserves existing behavior
+- **Deviations:** none
+- **Code evidence:** `mcp_server/src/codebase_indexer/config.py`, `mcp_server/src/codebase_indexer/indexer/backends/colbert_onnx.py`, `mcp_server/src/codebase_indexer/indexer/embedder.py`, `mcp_server/src/codebase_indexer/storage/qdrant.py`, `mcp_server/src/codebase_indexer/tools/search_common.py`, `mcp_server/tests/test_storage_integration.py`, `docs/SEARCH_BEHAVIOR.md`, `.env.example`
+- **Test debt:** cross-collection rerank integration test; golden-set MRR with `--rerank`; rerank mismatch recreate test; wire ColBERT into cross_reference/service_map search when rerank enabled
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing yes; entry at `verified` step
+
+#### 2026-07-03 — plan
+- **Phase / PR:** Phase 1 — optional ColBERT multivector reranking (index-time multivectors + query-time MAX_SIM rerank over hybrid prefetch pool)
+- **Tracker status:** `planned`
+- **Choices:** **`COLBERT_EMBED_MODEL` default:** `colbert-ir/colbertv2.0` (128-d per token). **ADR `m=768` prose:** treat as documentation error for HNSW knob; implement `HnswConfigDiff(m=0)` on `colbert` vector; per-token `size` from registry (128 for default model). **Cross-collection rerank:** per-collection hybrid prefetch + ColBERT MAX_SIM rerank, then existing global `fuse_cross_collection_rrf`. **CI ColBERT testing:** integration test uses synthetic multivectors only; real model test `@pytest.mark.slow`. **Index-time memory:** ColBERT always sequential after dense+sparse when rerank enabled. **ADR Accept:** formal Proposed → Accepted + README index update is pre-merge follow-up. **Operator messaging:** re-index required when enabling rerank — in `.env.example` + `SEARCH_BEHAVIOR.md`. **Chosen scope:** Config (`RERANK_ENABLED`, `COLBERT_EMBED_MODEL`, `RERANK_PREFETCH`, `RERANK_MAX_QUERY_TOKENS`); `ColbertOnnxBackend` via fastembed `LateInteractionTextEmbedding`; multivector `colbert` schema + MAX_SIM rerank query in `qdrant.py`; pipeline third embed pass (sequential after dense+sparse); `search_common` wiring; synthetic integration test + optional `@pytest.mark.slow` real-model test; `eval_retrieval.py` / `bench.py` rerank deltas; operator re-index docs in `.env.example` + `SEARCH_BEHAVIOR.md`; defer adaptive rerank and per-tool overrides.
+- **Assumptions:** Qdrant v1.18.2 supports multivector + prefetch rerank; fastembed supports default model without new deps
+- **Deviations:** none
+- **Code evidence:** —
+- **Test debt:** synthetic multivector integration test required for CI; real-model coverage optional via `@pytest.mark.slow`
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing yes; entry at `verified` step
 
 #### 2026-07-03 — prioritization
 - **Phase / PR:** Phase 1 — optional ColBERT multivector reranking (index-time multivectors + query-time MAX_SIM rerank over hybrid prefetch pool)
@@ -135,8 +169,8 @@ Pipeline steps output a **Tracker append** block; the **invoker** (or a dedicate
 | 3b | Bug fix | — (loop) | no |
 | 4 | Verification (review clean) | `verified` | yes **only if** user-facing |
 | 5 | Git operator (prepare) | — | no |
-| 5b | Git operator (record merge) | `merged` + PR link | no |
-| 6 | Release | optional | move `[Unreleased]` → versioned section |
+| 5a–5b | PR review ↔ PR babysit (cloud) | — | no |
+| 6 | Finisher (merge + accept + optional release) | `merged` + PR link | no |
 
 1. **Prioritization** — append log; summary row → `candidate`.
 2. **Planning** — append log; summary row → `planned`; set chosen scope + user-facing flag.
@@ -144,10 +178,24 @@ Pipeline steps output a **Tracker append** block; the **invoker** (or a dedicate
 3a–3b. **Review / fix loop** — invoker passes `## Review findings` (`Verdict: needs_fix`) to bug fix; passes `## ADR bug fix report` back to code review. Repeat until `Verdict: clean`. No tracker append during the loop.
 4. **Verification** — when review is clean, apply Tracker append (`verified`); if user-facing, add CHANGELOG `[Unreleased]` bullet when applying the append.
 5. **Git prepare** — feature branch `adr/NNNN-phase-N-<slug>`, grouped conventional commits, push, **PR into `main`**. No tracker append.
-5b. **Record merge** — when PR merged, apply Tracker append (`merged`) with PR link.
-6. **Release** — version CHANGELOG; do not duplicate tracker logs in changelog prose.
+5a–5b. **PR review / babysit loop** — `adr-pr-review`; on `request_changes`, cloud `adr-pr-babysit` fixes branch; repeat until `approve` (max 5 rounds). No tracker append.
+6. **Finish** — `adr-finisher` merges PR when gates pass, accepts ADR when eligible (`Proposed` → `Accepted` or partial), optionally cuts CHANGELOG when version supplied; apply Tracker append (`merged`) with PR link.
 
-Apply steps 1–5 by passing each step's **Tracker append** output to the tracker update process (invoker or orchestrator).
+Apply steps 1–6 by passing each step's **Tracker append** output to the tracker update process (invoker or orchestrator).
+
+### Orchestrator resume
+
+When a phase is mid-pipeline (e.g. PR open or merged but tracker still `verified`), invoke **`adr-orchestrator`** with resume fields instead of restarting at prioritization:
+
+```
+Resume from: 6
+ADR id: 0008
+Phase / track: Phase 1
+PR reference: #1
+Release version: 0.4.0   # optional
+```
+
+Orchestrator bootstraps context from this tracker file + ADR index, re-runs PR review if needed, then runs **`adr-finisher`**.
 
 ## Open decisions queue
 
@@ -155,6 +203,12 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 
 | Date | ADR | Question | Decision | Promote to ADR? |
 |------|-----|----------|----------|-----------------|
-| 2026-07-03 | 0008 | Accept ADR 0008 (Proposed → Accepted)? | — | — |
-| 2026-07-03 | 0008 | Select `COLBERT_EMBED_MODEL` | — | — |
-| 2026-07-03 | 0008 | Confirm operator re-index messaging for `RERANK_ENABLED=true` | — | — |
+| 2026-07-03 | 0008 | Accept ADR 0008 (Proposed → Accepted)? | Pre-merge follow-up: formal Accept + README index update before dev | no |
+| 2026-07-03 | 0008 | Select `COLBERT_EMBED_MODEL` | `colbert-ir/colbertv2.0` (128-d per token) | no |
+| 2026-07-03 | 0008 | Confirm operator re-index messaging for `RERANK_ENABLED=true` | Document in `.env.example` + `SEARCH_BEHAVIOR.md` | no |
+| 2026-07-03 | 0008 | ADR `m=768` HNSW knob on `colbert` vector | Treat ADR prose as documentation error; `HnswConfigDiff(m=0)`; per-token `size` from registry | no |
+| 2026-07-03 | 0008 | Cross-collection rerank ordering | Per-collection hybrid prefetch + ColBERT MAX_SIM rerank, then `fuse_cross_collection_rrf` | no |
+| 2026-07-03 | 0008 | CI ColBERT test strategy | Synthetic multivectors in integration test; real model `@pytest.mark.slow` only | no |
+| 2026-07-03 | 0008 | Index-time ColBERT embed ordering | Always sequential after dense+sparse when rerank enabled | no |
+| 2026-07-03 | 0008 | Default rerank behavior | `RERANK_ENABLED=false` preserves existing hybrid RRF-only search | no |
+| 2026-07-03 | 0008 | Slow real-model ColBERT test gate | `@pytest.mark.slow` + `RUN_SLOW_COLBERT=1` | no |

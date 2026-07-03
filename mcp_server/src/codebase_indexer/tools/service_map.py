@@ -104,7 +104,7 @@ def register_service_map_tool(mcp: FastMCP, ctx: "AppContext") -> None:
 
         seen_chunks: set[str] = set()
 
-        for dense_vector, sparse_vector in query_vectors:
+        for dense_vector, sparse_vector, _colbert in query_vectors:
             results = await storage.search(
                 collection=None,
                 dense_vector=dense_vector,

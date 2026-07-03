@@ -85,9 +85,11 @@ jobs:
 
       - name: Upload benchmark results
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: benchmark-results
           path: mcp_server/bench-results.json
+          if-no-files-found: ignore
 
   eval-retrieval:
     # Non-blocking: validates golden-set label schema and runs eval when

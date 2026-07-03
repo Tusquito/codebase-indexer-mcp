@@ -203,3 +203,46 @@ def test_qdrant_search_tuning_from_env(monkeypatch: pytest.MonkeyPatch):
     assert s.hnsw_ef_construct == 256
     assert s.prefetch_multiplier == 7
     assert s.rrf_k == 40
+
+
+def test_rerank_defaults_disabled():
+    s = Settings()
+    assert s.rerank_enabled is False
+    assert s.colbert_embed_model == "colbert-ir/colbertv2.0"
+    assert s.rerank_prefetch == 100
+    assert s.rerank_max_query_tokens == 0
+
+
+def test_rerank_settings_from_env(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("RERANK_ENABLED", "true")
+    monkeypatch.setenv("COLBERT_EMBED_MODEL", "colbert-ir/colbertv2.0")
+    monkeypatch.setenv("RERANK_PREFETCH", "50")
+    monkeypatch.setenv("RERANK_MAX_QUERY_TOKENS", "256")
+    s = Settings()
+    assert s.rerank_enabled is True
+    assert s.rerank_prefetch == 50
+    assert s.rerank_max_query_tokens == 256
+
+
+def test_rerank_requires_hybrid():
+    with pytest.raises(ValueError, match="HYBRID_SEARCH"):
+        Settings(
+            dense_embed_model="nomic-ai/nomic-embed-text-v1.5",
+            sparse_embed_model="Qdrant/bm25",
+            dense_embed_vector_size=768,
+            sparse_threads=2,
+            hybrid_search=False,
+            rerank_enabled=True,
+        )
+
+
+def test_colbert_specs_in_registry():
+    from codebase_indexer.config import (
+        COLBERT_EMBED_SPECS,
+        KNOWN_COLBERT_MODEL_MAX_TOKENS,
+        KNOWN_COLBERT_TOKEN_DIMENSIONS,
+    )
+
+    assert COLBERT_EMBED_SPECS["colbert-ir/colbertv2.0"] == (128, 512)
+    assert KNOWN_COLBERT_TOKEN_DIMENSIONS["colbert-ir/colbertv2.0"] == 128
+    assert KNOWN_COLBERT_MODEL_MAX_TOKENS["colbert-ir/colbertv2.0"] == 512

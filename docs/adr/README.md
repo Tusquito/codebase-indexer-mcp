@@ -26,6 +26,12 @@ Skip ADRs for routine bug fixes, refactors with no design change, or dependency 
 
 [`IMPLEMENTATION_TRACKER.md`](IMPLEMENTATION_TRACKER.md) tracks **phases, choices, and delivery status** without editing ADR decision text. The invoker applies **Tracker append** blocks from pipeline steps to update it. User-facing shipped changes go in [`CHANGELOG.md`](../../CHANGELOG.md).
 
+## ADR pipeline agents
+
+Step agents (`adr-prioritizer`, `adr-orchestrator`, `adr-finisher`, etc.) live in **[`.cursor/agents/`](../../.cursor/agents/)** at **project level only** — versioned with this repository. Do **not** copy them to `~/.cursor/agents/`; the orchestrator and Tasks resolve definitions from `.cursor/agents/<name>.md` in the workspace.
+
+Invoke the full pipeline with **`adr-orchestrator`**; resume a phase with `Resume from: 6` (see [`IMPLEMENTATION_TRACKER.md`](IMPLEMENTATION_TRACKER.md)).
+
 ## Status lifecycle
 
 | Status | Meaning |

@@ -56,3 +56,19 @@ class SparseEmbedBackend(Protocol):
     def release(self) -> None: ...
 
     async def embed_batch(self, texts: list[str]) -> list[SparseVector]: ...
+
+
+@runtime_checkable
+class LateInteractionEmbedBackend(Protocol):
+    """Late-interaction multivector encoder (ColBERT via fastembed ONNX)."""
+
+    token_dimension: int
+    backend_name: str
+
+    def is_loaded(self) -> bool: ...
+
+    def preload(self) -> None: ...
+
+    def release(self) -> None: ...
+
+    async def embed_batch(self, texts: list[str]) -> list[list[list[float]]]: ...

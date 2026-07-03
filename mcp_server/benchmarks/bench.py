@@ -35,10 +35,11 @@ from typing import Any, Awaitable, Callable
 # Allow ``python benchmarks/bench.py`` as well as ``-m benchmarks.bench``.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from benchmarks._connectivity import qdrant_reachable  # noqa: E402
-from codebase_indexer.config import Settings  # noqa: E402
+from benchmarks._connectivity import ollama_reachable, qdrant_reachable  # noqa: E402
+from benchmarks._settings import load_settings  # noqa: E402
 from codebase_indexer.indexer.backends.factory import (
     create_backends,
+    create_colbert_backend,
 )
 from codebase_indexer.indexer.embedder import Embedder  # noqa: E402
 from codebase_indexer.indexer.pipeline import run_pipeline  # noqa: E402
@@ -125,12 +126,14 @@ async def run_benchmark(
     iterations: int,
     collection: str,
     payload_indexes: bool,
+    rerank_enabled: bool,
     keep: bool,
 ) -> dict[str, Any]:
-    settings = Settings(
+    settings = load_settings(
         qdrant_url=qdrant_url,
         payload_indexes=payload_indexes,
         hybrid_search=True,
+        rerank_enabled=rerank_enabled,
         # Keep models resident across the run (we index then search).
         release_models_after_index=False,
     )
@@ -175,13 +178,20 @@ async def run_benchmark(
 
         # --- Pre-embed a query once so search timings isolate storage cost ---
         dense_backend, sparse_backend = create_backends(settings)
+        colbert_backend = (
+            create_colbert_backend(settings) if settings.rerank_enabled else None
+        )
         embedder = Embedder(
             dense_backend=dense_backend,
             sparse_backend=sparse_backend,
             dense_embed_vector_size=settings.dense_embed_vector_size,
             hybrid=settings.hybrid_search,
+            colbert_backend=colbert_backend,
+            rerank=settings.rerank_enabled,
         )
-        dense_vec, sparse_vec = await embedder.embed_query("service handler request processing")
+        dense_vec, sparse_vec, colbert_vec = await embedder.embed_query(
+            "service handler request processing"
+        )
 
         lookups: dict[str, dict] = {}
 
@@ -202,6 +212,15 @@ async def run_benchmark(
                 sparse_vector=sparse_vec, top_k=10,
             )
 
+        async def _search_rerank(i: int) -> None:
+            await storage.search(
+                collection=collection,
+                dense_vector=dense_vec,
+                sparse_vector=sparse_vec,
+                colbert_vector=colbert_vec,
+                top_k=10,
+            )
+
         async def _search_lang(i: int) -> None:
             await storage.search(
                 collection=collection, dense_vector=dense_vec,
@@ -213,6 +232,8 @@ async def run_benchmark(
         lookups["scroll_file_symbols"] = await _time_loop(_file_symbols, iterations)
         lookups["find_symbol_in_collections"] = await _time_loop(_find_symbol, iterations)
         lookups["search_hybrid"] = await _time_loop(_search_hybrid, iterations)
+        if settings.rerank_enabled and colbert_vec is not None:
+            lookups["search_hybrid_rerank"] = await _time_loop(_search_rerank, iterations)
         lookups["search_language_filtered"] = await _time_loop(_search_lang, iterations)
 
         # --- delete_by_paths: single timed batch delete (mutating, so last) ---
@@ -230,6 +251,7 @@ async def run_benchmark(
                 "iterations": iterations,
                 "payload_indexes": payload_indexes,
                 "hybrid_search": settings.hybrid_search,
+                "rerank_enabled": settings.rerank_enabled,
                 "dense_embed_model": settings.dense_embed_model,
             },
             "corpus": {
@@ -270,6 +292,7 @@ def render_table(result: dict[str, Any]) -> str:
         "=" * 64,
         f"Benchmark  files={result['params']['files']}  "
         f"payload_indexes={result['params']['payload_indexes']}  "
+        f"rerank={result['params'].get('rerank_enabled', False)}  "
         f"iters={result['params']['iterations']}",
         "-" * 64,
         f"  full index        : {idx['full_index_s']:>8.3f} s  "
@@ -335,6 +358,11 @@ def main() -> int:
     parser.add_argument("--collection", default=os.environ.get("BENCH_COLLECTION", "benchproj"))
     parser.add_argument("--no-payload-indexes", action="store_true",
                         help="Disable Qdrant payload indexes (baseline mode).")
+    parser.add_argument(
+        "--rerank",
+        action="store_true",
+        help="Enable ColBERT reranking during index + search latency probes.",
+    )
     parser.add_argument("--keep", action="store_true", help="Keep the benchmark collection afterwards.")
     parser.add_argument("--output", help="Write results JSON to this path.")
     parser.add_argument("--compare", help="Baseline JSON to compare the current run against.")
@@ -344,6 +372,21 @@ def main() -> int:
 
     if not qdrant_reachable(args.qdrant_url):
         print(f"SKIP: Qdrant not reachable at {args.qdrant_url}", file=sys.stderr)
+        if args.output:
+            Path(args.output).write_text(
+                json.dumps({"skipped": True, "reason": "qdrant_unreachable"}),
+                encoding="utf-8",
+            )
+        return 0
+
+    ollama_url = os.environ.get("OLLAMA_URL", "http://localhost:11434")
+    if not ollama_reachable(ollama_url):
+        print(f"SKIP: Ollama not reachable at {ollama_url}", file=sys.stderr)
+        if args.output:
+            Path(args.output).write_text(
+                json.dumps({"skipped": True, "reason": "ollama_unreachable"}),
+                encoding="utf-8",
+            )
         return 0
 
     result = asyncio.run(run_benchmark(
@@ -353,6 +396,7 @@ def main() -> int:
         iterations=args.iterations,
         collection=args.collection,
         payload_indexes=not args.no_payload_indexes,
+        rerank_enabled=args.rerank,
         keep=args.keep,
     ))
 

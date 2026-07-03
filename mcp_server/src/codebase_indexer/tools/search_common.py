@@ -31,12 +31,13 @@ async def run_search(
     min_score: float,
 ) -> list[SearchResult]:
     """Embed the query and search one or many collections."""
-    dense_vector, sparse_vector = await embedder.embed_query(query)
+    dense_vector, sparse_vector, colbert_vector = await embedder.embed_query(query)
     if len(target_collections) == 1:
         return await storage.search(
             collection=target_collections[0],
             dense_vector=dense_vector,
             sparse_vector=sparse_vector,
+            colbert_vector=colbert_vector,
             top_k=top_k,
             language=language,
             min_score=min_score,
@@ -45,6 +46,7 @@ async def run_search(
         collection=None,
         dense_vector=dense_vector,
         sparse_vector=sparse_vector,
+        colbert_vector=colbert_vector,
         top_k=top_k,
         language=language,
         min_score=min_score,
