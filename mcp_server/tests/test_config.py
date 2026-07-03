@@ -246,3 +246,38 @@ def test_colbert_specs_in_registry():
     assert COLBERT_EMBED_SPECS["colbert-ir/colbertv2.0"] == (128, 512)
     assert KNOWN_COLBERT_TOKEN_DIMENSIONS["colbert-ir/colbertv2.0"] == 128
     assert KNOWN_COLBERT_MODEL_MAX_TOKENS["colbert-ir/colbertv2.0"] == 512
+
+
+def test_colbert_embed_backend_defaults_to_onnx():
+    assert Settings().colbert_embed_backend == "onnx"
+
+
+def test_colbert_embed_backend_rejects_invalid():
+    with pytest.raises(ValidationError):
+        Settings(colbert_embed_backend="gpu")
+
+
+def test_colbert_remote_requires_url_when_rerank_enabled():
+    with pytest.raises(ValueError, match="COLBERT_URL"):
+        Settings(
+            dense_embed_model="nomic-ai/nomic-embed-text-v1.5",
+            sparse_embed_model="Qdrant/bm25",
+            dense_embed_vector_size=768,
+            sparse_threads=2,
+            rerank_enabled=True,
+            colbert_embed_backend="remote",
+            colbert_url="",
+        )
+
+
+def test_colbert_remote_settings_from_env(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("COLBERT_EMBED_BACKEND", "remote")
+    monkeypatch.setenv("COLBERT_URL", "http://colbert:8082")
+    monkeypatch.setenv("COLBERT_TIMEOUT", "600")
+    monkeypatch.setenv("COLBERT_EMBED_BATCH_SIZE", "8")
+    s = Settings()
+    assert s.colbert_embed_backend == "remote"
+    assert s.colbert_url == "http://colbert:8082"
+    assert s.colbert_timeout == 600
+    assert s.colbert_embed_batch_size == 8
+

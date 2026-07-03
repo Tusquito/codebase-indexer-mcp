@@ -189,6 +189,10 @@ class Settings(BaseSettings):
     rerank_prefetch: int = Field(default=100, ge=1)
     # Max tokens for ColBERT query embedding. 0 = model registry default.
     rerank_max_query_tokens: int = Field(default=0)
+    colbert_embed_backend: Literal["onnx", "remote"] = Field(default="onnx")
+    colbert_url: str = Field(default="http://colbert_worker:8082")
+    colbert_timeout: int = Field(default=300)
+    colbert_embed_batch_size: int = Field(default=16)
 
     # --- Service-mapping / cross-reference tuning (project-agnostic) ---
     # Comma-separated URL path keywords used to recognise API paths in config
@@ -224,6 +228,24 @@ class Settings(BaseSettings):
             raise ValueError(
                 "RERANK_ENABLED=true requires HYBRID_SEARCH=true "
                 "(ColBERT rerank runs over hybrid prefetch candidates)."
+            )
+        return self
+
+    @model_validator(mode="after")
+    def validate_colbert_embed_backend(self) -> Self:
+        if self.colbert_embed_backend not in ("onnx", "remote"):
+            raise ValueError(
+                f"COLBERT_EMBED_BACKEND must be 'onnx' or 'remote', "
+                f"got {self.colbert_embed_backend!r}"
+            )
+        if (
+            self.rerank_enabled
+            and self.colbert_embed_backend == "remote"
+            and not self.colbert_url.strip()
+        ):
+            raise ValueError(
+                "COLBERT_URL must be set when RERANK_ENABLED=true and "
+                "COLBERT_EMBED_BACKEND=remote"
             )
         return self
 
