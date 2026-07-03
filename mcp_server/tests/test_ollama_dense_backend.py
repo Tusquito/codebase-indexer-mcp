@@ -19,6 +19,39 @@ def _backend(**kwargs) -> OllamaDenseBackend:
     return OllamaDenseBackend(**defaults)
 
 
+@pytest.fixture(autouse=True)
+def _reset_tokenizer_state():
+    OllamaDenseBackend._shared_tokenizer = None
+    OllamaDenseBackend._tokenizer_load_attempted = False
+    yield
+    OllamaDenseBackend._shared_tokenizer = None
+    OllamaDenseBackend._tokenizer_load_attempted = False
+
+
+class _MockEncoding:
+    def __init__(self, ids, offsets):
+        self.ids = ids
+        self.offsets = offsets
+
+
+class _MockTokenizer:
+    """Minimal HF tokenizers stand-in with char offsets per whitespace token."""
+
+    def encode(self, text, add_special_tokens=False):
+        parts = text.split()
+        offsets = []
+        pos = 0
+        for part in parts:
+            start = text.find(part, pos)
+            end = start + len(part)
+            offsets.append((start, end))
+            pos = end + 1
+        return _MockEncoding(ids=list(range(len(parts))), offsets=offsets)
+
+    def decode(self, ids):
+        return " ".join(f"tok{i}" for i in ids)
+
+
 def test_preload_validates_dimension(monkeypatch):
     backend = _backend(vector_size=768)
 
@@ -39,8 +72,15 @@ def test_preload_validates_dimension(monkeypatch):
     mock_client.__enter__ = MagicMock(return_value=mock_client)
     mock_client.__exit__ = MagicMock(return_value=False)
 
-    with patch("httpx.Client", return_value=mock_client):
-        backend.preload()
+    with patch(
+        "codebase_indexer.indexer.backends.ollama_dense.load_dense_tokenizer",
+        return_value=None,
+    ):
+        with patch(
+            "codebase_indexer.indexer.backends.ollama_dense.httpx.Client",
+            return_value=mock_client,
+        ):
+            backend.preload()
 
     assert backend.is_loaded()
 
@@ -65,9 +105,16 @@ def test_preload_dimension_mismatch_raises(monkeypatch):
     mock_client.__enter__ = MagicMock(return_value=mock_client)
     mock_client.__exit__ = MagicMock(return_value=False)
 
-    with patch("httpx.Client", return_value=mock_client):
-        with pytest.raises(EmbeddingError, match="dimension"):
-            backend.preload()
+    with patch(
+        "codebase_indexer.indexer.backends.ollama_dense.load_dense_tokenizer",
+        return_value=None,
+    ):
+        with patch(
+            "codebase_indexer.indexer.backends.ollama_dense.httpx.Client",
+            return_value=mock_client,
+        ):
+            with pytest.raises(EmbeddingError, match="dimension"):
+                backend.preload()
 
 
 @pytest.mark.asyncio
@@ -79,6 +126,8 @@ async def test_embed_batch_truncates_when_max_tokens_set():
         dense_embed_model="jinaai/jina-embeddings-v2-base-code",
     )
     backend._ready = True
+    OllamaDenseBackend._shared_tokenizer = _MockTokenizer()
+    OllamaDenseBackend._tokenizer_load_attempted = True
 
     captured_inputs: list[list[str]] = []
 
@@ -99,7 +148,73 @@ async def test_embed_batch_truncates_when_max_tokens_set():
     long_text = "alpha beta gamma delta epsilon zeta"
     await backend.embed_batch([long_text])
     assert captured_inputs
-    assert len(captured_inputs[0][0].split()) <= 3
+    assert captured_inputs[0][0] == "alpha beta gamma"
+
+
+@pytest.mark.asyncio
+async def test_embed_batch_passes_through_when_tokenizer_unavailable():
+    backend = _backend(
+        vector_size=2,
+        batch_size=10,
+        max_dense_embed_tokens=3,
+        dense_embed_model="jinaai/jina-embeddings-v2-base-code",
+    )
+    backend._ready = True
+    OllamaDenseBackend._shared_tokenizer = None
+    OllamaDenseBackend._tokenizer_load_attempted = True
+
+    captured_inputs: list[list[str]] = []
+
+    async def fake_post(url, json=None):
+        captured_inputs.append(json["input"])
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.raise_for_status = MagicMock()
+        resp.json = MagicMock(
+            return_value={"embeddings": [[1.0, 2.0] for _ in json["input"]]}
+        )
+        return resp
+
+    mock_client = MagicMock()
+    mock_client.post = AsyncMock(side_effect=fake_post)
+    backend._async_client = mock_client
+
+    long_text = "alpha beta gamma delta epsilon zeta"
+    await backend.embed_batch([long_text])
+    assert captured_inputs
+    assert captured_inputs[0][0] == long_text
+
+
+def test_preload_loads_dense_tokenizer():
+    backend = _backend(vector_size=768, dense_embed_model="nomic-ai/nomic-embed-text-v1.5")
+    mock_tok = _MockTokenizer()
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"models": [{"name": "nomic-embed-text:latest"}]}
+
+    embed_resp = MagicMock()
+    embed_resp.raise_for_status = MagicMock()
+    embed_resp.json.return_value = {"embeddings": [[0.1] * 768]}
+
+    mock_client = MagicMock()
+    mock_client.get.return_value = FakeResponse()
+    mock_client.post.return_value = embed_resp
+    mock_client.__enter__ = MagicMock(return_value=mock_client)
+    mock_client.__exit__ = MagicMock(return_value=False)
+
+    with patch("codebase_indexer.indexer.backends.ollama_dense.httpx.Client", return_value=mock_client):
+        with patch(
+            "codebase_indexer.indexer.backends.ollama_dense.load_dense_tokenizer",
+            return_value=mock_tok,
+        ) as load_mock:
+            backend.preload()
+
+    load_mock.assert_called_once_with("nomic-ai/nomic-embed-text-v1.5")
+    assert OllamaDenseBackend._shared_tokenizer is mock_tok
 
 
 @pytest.mark.asyncio
