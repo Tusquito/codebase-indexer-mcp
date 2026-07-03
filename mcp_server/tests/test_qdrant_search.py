@@ -4,7 +4,7 @@ import pytest
 
 from codebase_indexer.config import Settings
 from codebase_indexer.indexer.embedder import SparseVector
-from codebase_indexer.storage.qdrant import AdaptiveRerankStats, QdrantStorage, SearchResult, fuse_cross_collection_rrf
+from codebase_indexer.storage.qdrant import QdrantStorage, SearchResult, fuse_cross_collection_rrf
 
 
 def _result(chunk_id: str, collection: str, score: float) -> SearchResult:
