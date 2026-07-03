@@ -12,10 +12,12 @@ import structlog
 from codebase_indexer.indexer.backends.base import (
     DenseEmbedBackend,
     EmbeddingError,
+    LateInteractionEmbedBackend,
     SparseEmbedBackend,
     SparseVector,
     trim_memory,
 )
+from codebase_indexer.indexer.backends.colbert_onnx import ColbertOnnxBackend
 from codebase_indexer.indexer.backends.onnx_sparse import OnnxSparseBackend
 from codebase_indexer.indexer.chunker import Chunk
 from codebase_indexer.memory import check_memory_pressure
@@ -37,6 +39,7 @@ class EmbeddedChunk:
     chunk: Chunk
     dense_vector: object
     sparse_vector: SparseVector | None
+    colbert_vector: list[list[float]] | None = None
 
 
 class _EmbedderMeta(type):
@@ -51,7 +54,9 @@ class Embedder(metaclass=_EmbedderMeta):
     _last_embed_time: float = 0.0
     _idle_timer: asyncio.Task | None = None
     _idle_timeout_s: int = 0
-    _registered_backends: list[tuple[DenseEmbedBackend, SparseEmbedBackend]] = []
+    _registered_backends: list[
+        tuple[DenseEmbedBackend, SparseEmbedBackend, LateInteractionEmbedBackend | None]
+    ] = []
 
     def __init__(
         self,
@@ -64,44 +69,59 @@ class Embedder(metaclass=_EmbedderMeta):
         memory_warn_pct: int = 70,
         memory_halt_pct: int = 85,
         sequential_embed: bool = False,
+        colbert_backend: LateInteractionEmbedBackend | None = None,
+        rerank: bool = False,
     ) -> None:
         self.dense_backend = dense_backend
         self.sparse_backend = sparse_backend
+        self.colbert_backend = colbert_backend
+        self.rerank = rerank and colbert_backend is not None
         self.dense_embed_vector_size = dense_embed_vector_size
         self.batch_size = batch_size
         self.hybrid = hybrid
         self.memory_warn_pct = memory_warn_pct
         self.memory_halt_pct = memory_halt_pct
         self.sequential_embed = sequential_embed
-        pair = (dense_backend, sparse_backend)
-        if pair not in Embedder._registered_backends:
-            Embedder._registered_backends.append(pair)
+        triple = (dense_backend, sparse_backend, colbert_backend)
+        if triple not in Embedder._registered_backends:
+            Embedder._registered_backends.append(triple)
 
     @classmethod
     def release_models(cls) -> None:
         released_dense = False
         released_sparse = False
-        for dense, sparse in cls._registered_backends:
+        released_colbert = False
+        for dense, sparse, colbert in cls._registered_backends:
             if dense.is_loaded():
                 dense.release()
                 released_dense = True
             if sparse.is_loaded():
                 sparse.release()
                 released_sparse = True
+            if colbert is not None and colbert.is_loaded():
+                colbert.release()
+                released_colbert = True
         OnnxSparseBackend.release_shared()
+        ColbertOnnxBackend.release_shared()
         trim_memory()
         _tlog.info(
-            "models_released dense=%s sparse=%s memory_freed=true",
+            "models_released dense=%s sparse=%s colbert=%s memory_freed=true",
             released_dense,
             released_sparse,
+            released_colbert,
         )
 
     @classmethod
     def any_models_loaded(cls) -> bool:
-        for dense, sparse in cls._registered_backends:
+        for dense, sparse, colbert in cls._registered_backends:
             if dense.is_loaded() or sparse.is_loaded():
                 return True
-        return OnnxSparseBackend._shared_model is not None
+            if colbert is not None and colbert.is_loaded():
+                return True
+        return (
+            OnnxSparseBackend._shared_model is not None
+            or ColbertOnnxBackend._shared_model is not None
+        )
 
     @classmethod
     def start_idle_timer(cls, timeout_s: int) -> None:
@@ -151,6 +171,8 @@ class Embedder(metaclass=_EmbedderMeta):
         self.dense_backend.preload()
         if self.hybrid:
             self.sparse_backend.preload()
+        if self.rerank and self.colbert_backend is not None:
+            self.colbert_backend.preload()
 
     def _get_sparse_model(self):
         if isinstance(self.sparse_backend, OnnxSparseBackend):
@@ -167,7 +189,7 @@ class Embedder(metaclass=_EmbedderMeta):
 
     async def embed_query(
         self, text: str
-    ) -> tuple[list[float], SparseVector | None]:
+    ) -> tuple[list[float], SparseVector | None, list[list[float]] | None]:
         Embedder._last_embed_time = time.monotonic()
         Embedder._ensure_idle_timer()
         if self.hybrid:
@@ -175,13 +197,20 @@ class Embedder(metaclass=_EmbedderMeta):
                 self.dense_backend.embed_batch([text]),
                 self.sparse_backend.embed_batch([text]),
             )
-            return dense_list[0], sparse_list[0]
-        dense_list = await self.dense_backend.embed_batch([text])
-        return dense_list[0], None
+            dense_vec, sparse_vec = dense_list[0], sparse_list[0]
+        else:
+            dense_list = await self.dense_backend.embed_batch([text])
+            dense_vec, sparse_vec = dense_list[0], None
+
+        colbert_vec: list[list[float]] | None = None
+        if self.rerank and self.colbert_backend is not None:
+            colbert_list = await self.colbert_backend.embed_batch([text])
+            colbert_vec = colbert_list[0]
+        return dense_vec, sparse_vec, colbert_vec
 
     async def embed_queries(
         self, texts: list[str]
-    ) -> list[tuple[list[float], SparseVector | None]]:
+    ) -> list[tuple[list[float], SparseVector | None, list[list[float]] | None]]:
         Embedder._last_embed_time = time.monotonic()
         Embedder._ensure_idle_timer()
         if self.hybrid:
@@ -192,7 +221,15 @@ class Embedder(metaclass=_EmbedderMeta):
         else:
             dense_list = await self.dense_backend.embed_batch(texts)
             sparse_list = [None] * len(texts)  # type: ignore[list-item]
-        return list(zip(dense_list, sparse_list))
+
+        colbert_list: list[list[list[float]] | None]
+        if self.rerank and self.colbert_backend is not None:
+            colbert_raw = await self.colbert_backend.embed_batch(texts)
+            colbert_list = colbert_raw
+        else:
+            colbert_list = [None] * len(texts)
+
+        return list(zip(dense_list, sparse_list, colbert_list))
 
     async def embed_chunks(self, chunks: list[Chunk]) -> list[EmbeddedChunk]:
         Embedder._last_embed_time = time.monotonic()
@@ -223,15 +260,27 @@ class Embedder(metaclass=_EmbedderMeta):
             dense_vectors = await self.dense_backend.embed_batch(texts)
             sparse_vectors = [None] * len(chunks)  # type: ignore[list-item]
 
+        colbert_vectors: list[list[list[float]] | None] = [None] * len(chunks)
+        if self.rerank and self.colbert_backend is not None:
+            log.info("embed_colbert_sequential", chunks=len(chunks))
+            colbert_raw = await self.colbert_backend.embed_batch(texts)
+            colbert_vectors = colbert_raw
+
         log.info(
             "embed_chunks_complete",
             chunks=len(chunks),
             hybrid=self.hybrid,
+            rerank=self.rerank,
             dense_backend="ollama",
             total_elapsed_s=round(time.monotonic() - t_start, 2),
         )
 
         return [
-            EmbeddedChunk(chunk=chunk, dense_vector=dv, sparse_vector=sv)
-            for chunk, dv, sv in zip(chunks, dense_vectors, sparse_vectors)
+            EmbeddedChunk(
+                chunk=chunk,
+                dense_vector=dv,
+                sparse_vector=sv,
+                colbert_vector=cv,
+            )
+            for chunk, dv, sv, cv in zip(chunks, dense_vectors, sparse_vectors, colbert_vectors)
         ]

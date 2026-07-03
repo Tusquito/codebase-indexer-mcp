@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 from codebase_indexer.config import Settings
 from codebase_indexer.index_jobs import IndexJobTracker
-from codebase_indexer.indexer.backends.factory import create_backends
+from codebase_indexer.indexer.backends.factory import create_backends, create_colbert_backend
 from codebase_indexer.indexer.embedder import Embedder
 from codebase_indexer.storage.qdrant import QdrantStorage
 from codebase_indexer.tools.cross_references import UrlExtractors
@@ -25,6 +25,9 @@ class AppContext:
     def create(cls, settings: Settings) -> "AppContext":
         """Build the context (cheap objects only — no model preload here)."""
         dense_backend, sparse_backend = create_backends(settings)
+        colbert_backend = (
+            create_colbert_backend(settings) if settings.rerank_enabled else None
+        )
         return cls(
             settings=settings,
             storage=QdrantStorage(settings),
@@ -37,6 +40,8 @@ class AppContext:
                 memory_warn_pct=settings.memory_pressure_warn_pct,
                 memory_halt_pct=settings.memory_pressure_halt_pct,
                 sequential_embed=settings.sequential_embed,
+                colbert_backend=colbert_backend,
+                rerank=settings.rerank_enabled,
             ),
             job_tracker=IndexJobTracker(),
             url_extractors=UrlExtractors(settings.service_url_keyword_list),

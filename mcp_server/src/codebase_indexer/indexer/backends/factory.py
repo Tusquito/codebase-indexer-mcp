@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 from codebase_indexer.config import KNOWN_EMBED_MODEL_MAX_TOKENS, Settings
-from codebase_indexer.indexer.backends.base import DenseEmbedBackend, SparseEmbedBackend
+from codebase_indexer.indexer.backends.base import (
+    DenseEmbedBackend,
+    LateInteractionEmbedBackend,
+    SparseEmbedBackend,
+)
 
 
 def _ollama_model_name(settings: Settings) -> str:
@@ -37,6 +41,16 @@ def create_sparse_backend(settings: Settings) -> SparseEmbedBackend:
         model_name=settings.sparse_embed_model,
         sparse_threads=settings.sparse_threads,
         max_sparse_embed_tokens=settings.max_sparse_embed_tokens,
+    )
+
+
+def create_colbert_backend(settings: Settings) -> LateInteractionEmbedBackend:
+    from codebase_indexer.indexer.backends.colbert_onnx import ColbertOnnxBackend
+
+    return ColbertOnnxBackend(
+        model_name=settings.colbert_embed_model,
+        sparse_threads=settings.sparse_threads,
+        max_query_tokens=settings.rerank_max_query_tokens,
     )
 
 

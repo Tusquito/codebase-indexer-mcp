@@ -24,7 +24,7 @@ import structlog
 from codebase_indexer.config import Settings
 from codebase_indexer.indexer.scanner import scan_files
 from codebase_indexer.indexer.chunker import chunk_file, Chunk
-from codebase_indexer.indexer.backends.factory import create_backends
+from codebase_indexer.indexer.backends.factory import create_backends, create_colbert_backend
 from codebase_indexer.indexer.embedder import Embedder, EmbeddingError, trim_memory
 from codebase_indexer.memory import check_memory_pressure, get_rss_mb
 from codebase_indexer.storage.qdrant import QdrantStorage
@@ -71,6 +71,7 @@ async def run_pipeline(
     await storage.ensure_collection(coll, force=force)
 
     dense_backend, sparse_backend = create_backends(settings)
+    colbert_backend = create_colbert_backend(settings) if settings.rerank_enabled else None
     embedder = Embedder(
         dense_backend=dense_backend,
         sparse_backend=sparse_backend,
@@ -80,6 +81,8 @@ async def run_pipeline(
         memory_warn_pct=settings.memory_pressure_warn_pct,
         memory_halt_pct=settings.memory_pressure_halt_pct,
         sequential_embed=settings.sequential_embed,
+        colbert_backend=colbert_backend,
+        rerank=settings.rerank_enabled,
     )
 
     flush_every = settings.flush_every
