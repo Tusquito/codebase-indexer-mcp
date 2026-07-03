@@ -38,7 +38,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0007](0007-ranx-retrieval-evaluation.md) | Golden-set eval (ranx) | Accepted | all | `merged` | `eval_retrieval.py` + fixtures | 2026-07-02 |
 | [0008](0008-optional-colbert-reranking.md) | Optional ColBERT reranking | Accepted (phase 1 — optional ColBERT multivector reranking) | 1 | `merged` | Config (`RERANK_ENABLED=false` default, `COLBERT_EMBED_MODEL`, `RERANK_PREFETCH`, `RERANK_MAX_QUERY_TOKENS`); `ColbertOnnxBackend` via fastembed; multivector `colbert` + MAX_SIM rerank in `qdrant.py`; per-collection hybrid prefetch + ColBERT rerank then `fuse_cross_collection_rrf`; pipeline third embed pass (sequential); synthetic CI integration test + `@pytest.mark.slow` + `RUN_SLOW_COLBERT=1`; operator re-index docs; [PR #1](https://github.com/Tusquito/codebase-indexer-mcp/pull/1) | 2026-07-03 |
 | [0008](0008-optional-colbert-reranking.md) | Optional ColBERT reranking | Accepted (phase 1) | 2 — track 1 (xref/service_map rerank wiring) | `merged` | Shared `dispatch_search()` in `search_common.py`; xref semantic/import via `run_search()`; service_map batched discovery via `dispatch_search()` with pre-embedded colbert vectors; tool-specific `min_score` retained (0.3 / 0.25); unit tests + `SEARCH_BEHAVIOR.md`; default deploy unchanged (`RERANK_ENABLED=false`); adaptive rerank and per-tool overrides deferred to track 2; [PR #4](https://github.com/Tusquito/codebase-indexer-mcp/pull/4) | 2026-07-03 |
-| [0008](0008-optional-colbert-reranking.md) | Optional ColBERT reranking | Accepted (phase 1) | 2 — track 2a (adaptive rerank skip) | `verified` | `RERANK_ADAPTIVE_ENABLED=true`, `RERANK_ADAPTIVE_GAP=0.02`; hybrid RRF probe in `QdrantStorage._search_single` before ColBERT; probe limit `max(top_k, 2)`; fewer than 2 probe hits always runs ColBERT; `AdaptiveRerankStats` on storage for bench/eval skip-rate; ColBERT query embed unchanged; unit tests + `bench.py`/`eval_retrieval.py` skip-rate reporting; `SEARCH_BEHAVIOR.md` + `.env.example`; track 2b per-tool override deferred; default deploy unchanged (`RERANK_ENABLED=false`) | 2026-07-03 |
+| [0008](0008-optional-colbert-reranking.md) | Optional ColBERT reranking | Accepted (phase 1; phase 2 tracks 1, 2a merged) | 2 — track 2a (adaptive rerank skip) | `merged` | `RERANK_ADAPTIVE_ENABLED=true`, `RERANK_ADAPTIVE_GAP=0.02`; hybrid RRF probe in `QdrantStorage._search_single` before ColBERT; probe limit `max(top_k, 2)`; fewer than 2 probe hits always runs ColBERT; `AdaptiveRerankStats` on storage for bench/eval skip-rate; ColBERT query embed unchanged; unit tests + `bench.py`/`eval_retrieval.py` skip-rate reporting; `SEARCH_BEHAVIOR.md` + `.env.example`; track 2b per-tool override deferred; default deploy unchanged (`RERANK_ENABLED=false`); [PR #6](https://github.com/Tusquito/codebase-indexer-mcp/pull/6) | 2026-07-03 |
 | [0009](0009-multi-hop-retrieval-strategies.md) | Multi-hop retrieval | Accepted (phase 1) | 1 | `merged` | Client decomposition docs + golden tags | 2026-07-02 |
 | [0009](0009-multi-hop-retrieval-strategies.md) | Multi-hop retrieval | Accepted (phase 1) | 2+ | `not_started` | Server-side hop fusion TBD | — |
 | [0010](0010-defer-ragas-to-client.md) | Defer Ragas to client | Accepted | all | `merged` | Export script + DEPLOYMENT guide | 2026-07-02 |
@@ -64,7 +64,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 | ADR | Done | Remaining |
 |-----|------|-----------|
 | 0014 | Track A Phase 1 — recommendation search tool ([PR #5](https://github.com/Tusquito/codebase-indexer-mcp/pull/5)) | Track A P2 (outlier helper) + Track B (n8n compose) deferred |
-| 0008 | Phase 1 — opt-in ColBERT multivector rerank ([PR #1](https://github.com/Tusquito/codebase-indexer-mcp/pull/1)); Phase 2 track 1 — xref/service_map rerank wiring ([PR #4](https://github.com/Tusquito/codebase-indexer-mcp/pull/4)); Phase 2 track 2a — adaptive rerank skip (`verified`) | track 2b — per-tool `rerank=false` override (deferred); merge pending |
+| 0008 | Phase 1 — opt-in ColBERT multivector rerank ([PR #1](https://github.com/Tusquito/codebase-indexer-mcp/pull/1)); Phase 2 track 1 — xref/service_map rerank wiring ([PR #4](https://github.com/Tusquito/codebase-indexer-mcp/pull/4)); Phase 2 track 2a — adaptive rerank skip ([PR #6](https://github.com/Tusquito/codebase-indexer-mcp/pull/6)) | track 2b — per-tool `rerank=false` override (deferred) |
 | 0009 | Phase 1 — `SEARCH_BEHAVIOR.md` multi-hop section, golden `multi_hop` tags | Phase 2+ server mechanisms; optional graph-backed hops per [0002](0002-graphrag-neo4j-qdrant.md) |
 | 0015 | Phase 1 — HTTP sidecar + remote backend ([PR #2](https://github.com/Tusquito/codebase-indexer-mcp/pull/2)); Phase 2 — GPU worker + benchmark ([PR #3](https://github.com/Tusquito/codebase-indexer-mcp/pull/3)) | MCP slim image when remote-only (phase 3+) |
 
@@ -91,6 +91,17 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 ---
 
 ### ADR 0008 — Optional ColBERT reranking
+
+#### 2026-07-03 — merge
+- **Phase / PR:** Phase 2 — track 2a (adaptive rerank skip) — [PR #6](https://github.com/Tusquito/codebase-indexer-mcp/pull/6)
+- **Tracker status:** `merged`
+- **Choices:** squash merge `1411060` on feature branch `adr/0008-phase-2-track-2a-adaptive-rerank-skip`; ADR accept updated to `Accepted (phase 1; phase 2 tracks 1, 2a merged)`; release skipped; track 2b per-tool override deferred
+- **Deviations:** none
+- **Code evidence:** merged via PR #6 (`adr/0008-phase-2-track-2a-adaptive-rerank-skip`)
+- **Test debt:** carried from verification — optional dedicated test for single-probe-hit ColBERT path; live Qdrant adaptive integration test; golden-set gap threshold sweep
+- **Verify:** carried from verification — 53 targeted tests passed; 265-suite passed; ruff 1× F401 suggestion (unused import)
+- **Git:** [PR #6](https://github.com/Tusquito/codebase-indexer-mcp/pull/6) merged (squash `1411060`)
+- **Changelog:** no — release skipped; `[Unreleased]` bullet retained from verification step
 
 #### 2026-07-03 — verification
 - **Phase / PR:** Phase 2 — track 2a (adaptive rerank skip)
