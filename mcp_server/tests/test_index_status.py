@@ -114,6 +114,8 @@ class TestRunIndexJobLiveProgress:
             force,
             cancel_event=None,
             result=None,
+            graph_storage=None,
+            url_extractors=None,
         ):
             assert result is not None
             result.total_files = 5
@@ -168,6 +170,8 @@ class TestRunIndexJobLiveProgress:
             force,
             cancel_event=None,
             result=None,
+            graph_storage=None,
+            url_extractors=None,
         ):
             assert result is not None
             result.total_files = 3
