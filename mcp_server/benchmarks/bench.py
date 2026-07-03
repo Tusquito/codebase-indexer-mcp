@@ -242,6 +242,7 @@ async def run_benchmark(
         lookups["find_symbol_in_collections"] = await _time_loop(_find_symbol, iterations)
         lookups["search_hybrid"] = await _time_loop(_search_hybrid, iterations)
         if settings.rerank_enabled and colbert_vec is not None:
+            storage.reset_adaptive_stats()
             lookups["search_hybrid_rerank"] = await _time_loop(_search_rerank, iterations)
         lookups["search_language_filtered"] = await _time_loop(_search_lang, iterations)
 
@@ -263,6 +264,8 @@ async def run_benchmark(
         }
         if settings.rerank_enabled:
             params["colbert_embed_backend"] = settings.colbert_embed_backend
+            params["rerank_adaptive_enabled"] = settings.rerank_adaptive_enabled
+            params["rerank_adaptive_gap"] = settings.rerank_adaptive_gap
             if settings.colbert_embed_backend == "remote":
                 params["colbert_url"] = settings.colbert_url
                 if colbert_sidecar_health is not None:
@@ -290,6 +293,8 @@ async def run_benchmark(
             "lookups_ms": lookups,
             "delete_by_paths_ms": {"batch_size": len(del_paths), "elapsed_ms": delete_ms},
         }
+        if settings.rerank_enabled and colbert_vec is not None:
+            result["adaptive_rerank"] = storage.adaptive_rerank_stats.as_dict()
 
         if not keep:
             try:
@@ -324,6 +329,13 @@ def render_table(result: dict[str, Any]) -> str:
     ]
     for name, s in result["lookups_ms"].items():
         lines.append(f"  {name:<30}{s['p50']:>10.3f}{s['p95']:>10.3f}")
+    adaptive = result.get("adaptive_rerank")
+    if adaptive is not None:
+        lines.append(
+            f"  {'adaptive_rerank skip_rate':<30}"
+            f"{adaptive['skip_rate'] * 100:>9.1f}%"
+            f"  ({adaptive['skipped']}/{adaptive['total']} skipped)"
+        )
     d = result["delete_by_paths_ms"]
     lines.append(f"  {'delete_by_paths (batch=' + str(d['batch_size']) + ')':<30}"
                  f"{d['elapsed_ms']:>10.3f}{'':>10}")
