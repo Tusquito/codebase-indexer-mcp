@@ -36,7 +36,14 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def _make_embedded(rel_path: str, start_line: int, text: str) -> EmbeddedChunk:
+def _make_embedded(
+    rel_path: str,
+    start_line: int,
+    text: str,
+    *,
+    dense_scale: float = 1.0,
+    colbert: list[list[float]] | None = None,
+) -> EmbeddedChunk:
     chunk = Chunk(
         chunk_id=f"{rel_path}:{start_line}",
         content=text,
@@ -50,9 +57,14 @@ def _make_embedded(rel_path: str, start_line: int, text: str) -> EmbeddedChunk:
         file_mtime=1.0,
     )
     # Deterministic non-zero dense vector (768 dims) + tiny sparse vector.
-    dense = [0.01 * ((start_line + i) % 7 + 1) for i in range(768)]
+    dense = [0.01 * dense_scale * ((start_line + i) % 7 + 1) for i in range(768)]
     sparse = SparseVector(indices=[1, 5, 9], values=[0.5, 0.3, 0.2])
-    return EmbeddedChunk(chunk=chunk, dense_vector=dense, sparse_vector=sparse)
+    return EmbeddedChunk(
+        chunk=chunk,
+        dense_vector=dense,
+        sparse_vector=sparse,
+        colbert_vector=colbert,
+    )
 
 
 @pytest.fixture
@@ -180,5 +192,78 @@ async def test_upsert_search_and_metadata_roundtrip(storage):
         await storage.delete_by_paths(coll, ["a.py"])
         meta_after = await storage.get_file_metadata(coll)
         assert set(meta_after.keys()) == {"b.py"}
+    finally:
+        await client.delete_collection(coll)
+
+
+def _unit_vec(dim: int, index: int, scale: float = 1.0) -> list[float]:
+    vec = [0.0] * dim
+    vec[index] = scale
+    return vec
+
+
+@pytest.mark.asyncio
+async def test_colbert_rerank_reorders_hybrid_candidates():
+    """Synthetic multivectors: ColBERT rerank should promote the better MAX_SIM match."""
+    coll = f"test_rerank_{uuid.uuid4().hex[:8]}"
+    dim = 128
+    s = Settings(
+        qdrant_url=QDRANT_URL,
+        hybrid_search=True,
+        rerank_enabled=True,
+        rerank_prefetch=20,
+        dense_embed_vector_size=768,
+    )
+    st = QdrantStorage(s)
+    client = await st._get_client()
+    try:
+        await st.ensure_collection(coll)
+
+        # Identical dense/sparse so hybrid RRF cannot distinguish them.
+        shared_dense = [0.01] * 768
+        shared_sparse = SparseVector(indices=[1, 2], values=[0.4, 0.6])
+        colbert_a = [_unit_vec(dim, 0), _unit_vec(dim, 1)]
+        colbert_b = [_unit_vec(dim, 2)]
+
+        embedded = [
+            _make_embedded("a.py", 1, "alpha chunk", colbert=colbert_a),
+            _make_embedded("b.py", 1, "beta chunk", colbert=colbert_b),
+        ]
+        embedded[0] = EmbeddedChunk(
+            chunk=embedded[0].chunk,
+            dense_vector=shared_dense,
+            sparse_vector=shared_sparse,
+            colbert_vector=colbert_a,
+        )
+        embedded[1] = EmbeddedChunk(
+            chunk=embedded[1].chunk,
+            dense_vector=shared_dense,
+            sparse_vector=shared_sparse,
+            colbert_vector=colbert_b,
+        )
+        await st.upsert_chunks(coll, embedded)
+
+        query_colbert = [_unit_vec(dim, 2)]
+        reranked = await st.search(
+            collection=coll,
+            dense_vector=shared_dense,
+            sparse_vector=shared_sparse,
+            colbert_vector=query_colbert,
+            top_k=2,
+            min_score=0.5,
+        )
+        assert len(reranked) >= 2
+        assert reranked[0].rel_path == "b.py"
+
+        hybrid_only = await st.search(
+            collection=coll,
+            dense_vector=shared_dense,
+            sparse_vector=shared_sparse,
+            colbert_vector=None,
+            top_k=2,
+            min_score=0.5,
+        )
+        assert len(hybrid_only) >= 2
+        assert {r.rel_path for r in hybrid_only} == {"a.py", "b.py"}
     finally:
         await client.delete_collection(coll)

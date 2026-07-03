@@ -183,7 +183,7 @@ async def _setup_find_cross_references(
     storage.find_callers_in_collections = AsyncMock(side_effect=find_callers_in_collections)
 
     embedder = MagicMock()
-    embedder.embed_query = AsyncMock(return_value=([], None))
+    embedder.embed_query = AsyncMock(return_value=([], None, None))
 
     ctx = SimpleNamespace(
         storage=storage,

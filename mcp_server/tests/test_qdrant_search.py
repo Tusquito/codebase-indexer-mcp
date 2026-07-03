@@ -1,6 +1,9 @@
 """Unit tests for Qdrant search helpers (no live Qdrant required)."""
 
+import pytest
+
 from codebase_indexer.config import Settings
+from codebase_indexer.indexer.embedder import SparseVector
 from codebase_indexer.storage.qdrant import QdrantStorage, SearchResult, fuse_cross_collection_rrf
 
 
@@ -105,4 +108,58 @@ def test_fuse_cross_collection_rrf_mixed_empty_and_populated():
 
     assert len(fused) == 1
     assert fused[0].chunk_id == "only"
+
+
+@pytest.mark.asyncio
+async def test_search_rerank_uses_rerank_prefetch_limit(monkeypatch):
+    """When rerank is enabled, prefetch limit must be rerank_prefetch not top_k * multiplier."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    settings = Settings(rerank_enabled=True, rerank_prefetch=77, prefetch_multiplier=5)
+    storage = QdrantStorage(settings)
+
+    captured: dict = {}
+
+    async def fake_query_points(**kwargs):
+        captured.update(kwargs)
+        point = MagicMock()
+        point.score = 0.9
+        point.payload = {
+            "chunk_id": "c1",
+            "rel_path": "a.py",
+            "language": "python",
+            "start_line": 1,
+            "end_line": 2,
+            "symbol_name": None,
+            "symbol_type": "other",
+            "content": "x",
+        }
+        result = MagicMock()
+        result.points = [point]
+        return result
+
+    mock_client = MagicMock()
+    mock_client.query_points = AsyncMock(side_effect=fake_query_points)
+    monkeypatch.setattr(storage, "_get_client", AsyncMock(return_value=mock_client))
+
+    dense = [0.1] * 768
+    sparse = SparseVector(indices=[1], values=[0.5])
+    colbert = [[1.0] * 128, [0.5] * 128]
+
+    await storage._search_single(
+        "coll",
+        dense,
+        sparse,
+        top_k=5,
+        language=None,
+        min_score=0.5,
+        colbert_vector=colbert,
+    )
+
+    assert captured["using"] == "colbert"
+    assert captured["limit"] == 5
+    prefetch = captured["prefetch"]
+    assert len(prefetch) == 2
+    assert prefetch[0].limit == 77
+    assert prefetch[1].limit == 77
 
