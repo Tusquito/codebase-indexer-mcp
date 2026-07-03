@@ -35,14 +35,14 @@ Run Ollama natively or in your own container on `127.0.0.1:11434`. Leave `COMPOS
 
 ```env
 OLLAMA_URL=http://host.docker.internal:11434
-OLLAMA_EMBED_MODEL=qwen3-embedding:4b
-DENSE_EMBED_MODEL=Qwen/Qwen3-Embedding-4B
-DENSE_EMBED_VECTOR_SIZE=1024
+OLLAMA_EMBED_MODEL=unclemusclez/jina-embeddings-v2-base-code
+DENSE_EMBED_MODEL=jinaai/jina-embeddings-v2-base-code
+DENSE_EMBED_VECTOR_SIZE=768
 ```
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.ollama.yml up -d --build
-docker exec codeindexer_ollama ollama pull qwen3-embedding:4b
+docker exec codeindexer_ollama ollama pull unclemusclez/jina-embeddings-v2-base-code
 docker compose restart mcp_server
 ```
 
@@ -53,15 +53,15 @@ docker compose restart mcp_server
 ```env
 COMPOSE_PROFILES=bundled-ollama
 OLLAMA_URL=http://ollama:11434
-OLLAMA_EMBED_MODEL=qwen3-embedding:4b
-DENSE_EMBED_MODEL=Qwen/Qwen3-Embedding-4B
-DENSE_EMBED_VECTOR_SIZE=1024
+OLLAMA_EMBED_MODEL=unclemusclez/jina-embeddings-v2-base-code
+DENSE_EMBED_MODEL=jinaai/jina-embeddings-v2-base-code
+DENSE_EMBED_VECTOR_SIZE=768
 OLLAMA_GPU=0
 ```
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.ollama.yml up -d --build
-docker exec codeindexer_ollama ollama pull qwen3-embedding:4b
+docker exec codeindexer_ollama ollama pull unclemusclez/jina-embeddings-v2-base-code
 docker compose restart mcp_server
 ```
 
@@ -75,15 +75,15 @@ Requires NVIDIA driver + [Container Toolkit](https://docs.nvidia.com/datacenter/
 COMPOSE_PROFILES=bundled-ollama
 OLLAMA_GPU=1
 OLLAMA_GPU_COUNT=1
-OLLAMA_EMBED_MODEL=qwen3-embedding:4b
-DENSE_EMBED_MODEL=Qwen/Qwen3-Embedding-4B
-DENSE_EMBED_VECTOR_SIZE=1024
+OLLAMA_EMBED_MODEL=unclemusclez/jina-embeddings-v2-base-code
+DENSE_EMBED_MODEL=jinaai/jina-embeddings-v2-base-code
+DENSE_EMBED_VECTOR_SIZE=768
 ```
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.ollama.yml \
   -f docker-compose.ollama.gpu.yml up -d --build
-docker exec codeindexer_ollama ollama pull qwen3-embedding:4b
+docker exec codeindexer_ollama ollama pull unclemusclez/jina-embeddings-v2-base-code
 ```
 
 Verify GPU: `docker exec codeindexer_ollama ollama ps` — `PROCESSOR` should show `GPU` while the model is loaded. CPU-only shows `100% CPU`.
@@ -332,17 +332,17 @@ FastMCP already emits OpenTelemetry spans for MCP tool calls when an OTel SDK is
 
 ## Fine-tuned embedding model (maintainer / offline)
 
-Production dense inference remains **Ollama-only** ([ADR 0011](adr/0011-ollama-only-dense-embedding.md)). Optional supervised fine-tuning of Qwen3 for this repo’s golden set is **maintainer-run outside Docker** — not part of the default MCP image or CI ([ADR 0020](adr/0020-qwen3-code-finetune-jina-quality-gate.md)).
+Production dense inference remains **Ollama-only** ([ADR 0011](adr/0011-ollama-only-dense-embedding.md)). Optional supervised fine-tuning of Qwen3 for this repo’s golden set was **maintainer-run outside Docker** — not part of the default MCP image or CI ([ADR 0020](adr/0020-qwen3-code-finetune-jina-quality-gate.md)). The quality gate **failed** (base Qwen3 recall@10 well below Jina); Phases 2–4 of ADR 0020 are cancelled per [ADR 0021](adr/0021-revert-jina-production-default-retire-qwen3.md).
 
 | Step | Where | Notes |
 |------|-------|-------|
 | Export golden pairs | `mcp_server/benchmarks/train/export_golden_pairs.py` | Requires indexed Qdrant collection |
 | Mine hard negatives | `mcp_server/benchmarks/train/mine_hard_negatives.py` | Uses **base** `qwen3-embedding:4b` hybrid search |
 | LoRA train | `mcp_server/benchmarks/train/finetune_qwen3_code.py` | `uv sync --extra train`; CUDA GPU recommended |
-| Ollama packaging | Phase 2 (not yet) | Merge LoRA → custom Ollama model tag |
-| Quality gate | Phase 3 (not yet) | `eval_retrieval` vs `eval_baseline_jina.json` |
+| Ollama packaging | Cancelled (ADR 0020 Phase 2) | Gate failed — no promoted checkpoint |
+| Quality gate | **Failed** (ADR 0020 Phase 3) | Base Qwen3 did not beat `eval_baseline_jina.json` |
 
 Full workflow: [`mcp_server/benchmarks/train/README.md`](../mcp_server/benchmarks/train/README.md).
 
-**Default operator config is unchanged** until Phase 3 gate passes — keep `OLLAMA_EMBED_MODEL=qwen3-embedding:4b` in `.env`.
+**Production default is Jina** — keep `OLLAMA_EMBED_MODEL=unclemusclez/jina-embeddings-v2-base-code` in `.env` ([ADR 0021](adr/0021-revert-jina-production-default-retire-qwen3.md)).
 
