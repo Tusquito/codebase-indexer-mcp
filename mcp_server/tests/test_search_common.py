@@ -84,7 +84,7 @@ async def test_run_search_forwards_colbert_from_embedder():
         min_score=0.3,
     )
 
-    embedder.embed_query.assert_awaited_once_with("find auth handler")
+    embedder.embed_query.assert_awaited_once_with("find auth handler", rerank=None)
     storage.search.assert_awaited_once_with(
         collection=None,
         dense_vector=_DENSE,
@@ -95,3 +95,55 @@ async def test_run_search_forwards_colbert_from_embedder():
         min_score=0.3,
         restrict_collections=["proj-a", "proj-b"],
     )
+
+
+@pytest.mark.asyncio
+async def test_run_search_rerank_false_passes_to_embedder():
+    storage = AsyncMock()
+    storage.search = AsyncMock(return_value=[])
+    embedder = MagicMock()
+    embedder.embed_query = AsyncMock(return_value=(_DENSE, _SPARSE, None))
+
+    await run_search(
+        storage,
+        embedder,
+        "fast probe",
+        ["proj-a"],
+        top_k=5,
+        language=None,
+        min_score=0.3,
+        rerank=False,
+    )
+
+    embedder.embed_query.assert_awaited_once_with("fast probe", rerank=False)
+    storage.search.assert_awaited_once_with(
+        collection="proj-a",
+        dense_vector=_DENSE,
+        sparse_vector=_SPARSE,
+        colbert_vector=None,
+        top_k=5,
+        language=None,
+        min_score=0.3,
+    )
+
+
+@pytest.mark.asyncio
+async def test_run_search_rerank_none_default():
+    storage = AsyncMock()
+    storage.search = AsyncMock(return_value=[])
+    embedder = MagicMock()
+    embedder.embed_query = AsyncMock(return_value=(_DENSE, _SPARSE, _COLBERT))
+
+    await run_search(
+        storage,
+        embedder,
+        "default rerank",
+        ["proj-a"],
+        top_k=5,
+        language=None,
+        min_score=0.3,
+        rerank=None,
+    )
+
+    embedder.embed_query.assert_awaited_once_with("default rerank", rerank=None)
+    assert storage.search.await_args.kwargs["colbert_vector"] == _COLBERT
