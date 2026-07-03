@@ -39,6 +39,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0008](0008-optional-colbert-reranking.md) | Optional ColBERT reranking | Accepted (phase 1 — optional ColBERT multivector reranking) | 1 | `merged` | Config (`RERANK_ENABLED=false` default, `COLBERT_EMBED_MODEL`, `RERANK_PREFETCH`, `RERANK_MAX_QUERY_TOKENS`); `ColbertOnnxBackend` via fastembed; multivector `colbert` + MAX_SIM rerank in `qdrant.py`; per-collection hybrid prefetch + ColBERT rerank then `fuse_cross_collection_rrf`; pipeline third embed pass (sequential); synthetic CI integration test + `@pytest.mark.slow` + `RUN_SLOW_COLBERT=1`; operator re-index docs; [PR #1](https://github.com/Tusquito/codebase-indexer-mcp/pull/1) | 2026-07-03 |
 | [0008](0008-optional-colbert-reranking.md) | Optional ColBERT reranking | Accepted (phase 1) | 2 — track 1 (xref/service_map rerank wiring) | `merged` | Shared `dispatch_search()` in `search_common.py`; xref semantic/import via `run_search()`; service_map batched discovery via `dispatch_search()` with pre-embedded colbert vectors; tool-specific `min_score` retained (0.3 / 0.25); unit tests + `SEARCH_BEHAVIOR.md`; default deploy unchanged (`RERANK_ENABLED=false`); adaptive rerank and per-tool overrides deferred to track 2; [PR #4](https://github.com/Tusquito/codebase-indexer-mcp/pull/4) | 2026-07-03 |
 | [0008](0008-optional-colbert-reranking.md) | Optional ColBERT reranking | Accepted (phase 1; phase 2 tracks 1, 2a merged) | 2 — track 2a (adaptive rerank skip) | `merged` | `RERANK_ADAPTIVE_ENABLED=true`, `RERANK_ADAPTIVE_GAP=0.02`; hybrid RRF probe in `QdrantStorage._search_single` before ColBERT; probe limit `max(top_k, 2)`; fewer than 2 probe hits always runs ColBERT; `AdaptiveRerankStats` on storage for bench/eval skip-rate; ColBERT query embed unchanged; unit tests + `bench.py`/`eval_retrieval.py` skip-rate reporting; `SEARCH_BEHAVIOR.md` + `.env.example`; track 2b per-tool override deferred; default deploy unchanged (`RERANK_ENABLED=false`); [PR #6](https://github.com/Tusquito/codebase-indexer-mcp/pull/6) | 2026-07-03 |
+| [0008](0008-optional-colbert-reranking.md) | Optional ColBERT reranking | Accepted (phase 1; phase 2 tracks 1, 2a merged) | 2 — track 2b (per-tool `rerank=false` override) | `verified` | Per-tool `rerank: bool \| None = None` on `search_codebase`, `search_symbols`, xref/service_map semantic paths; embed + tool layer override (`use_rerank = self.rerank and rerank is not False`); `colbert_vector=None` skips storage rerank/adaptive paths; `rerank=None` default; `rerank=false` skips ColBERT when `RERANK_ENABLED=true`; import-phrased xref inherits tool-level `rerank`; exact symbol/call_site unaffected; `recommend_code` excluded; final ADR 0008 phase; test debt: Embedder rerank unit tests, adaptive+override integration, golden-set `rerank=false` sweep, live Qdrant adaptive (carried from 2a) | 2026-07-03 |
 | [0009](0009-multi-hop-retrieval-strategies.md) | Multi-hop retrieval | Accepted (phase 1) | 1 | `merged` | Client decomposition docs + golden tags | 2026-07-02 |
 | [0009](0009-multi-hop-retrieval-strategies.md) | Multi-hop retrieval | Accepted (phase 1) | 2+ | `not_started` | Server-side hop fusion TBD | — |
 | [0010](0010-defer-ragas-to-client.md) | Defer Ragas to client | Accepted | all | `merged` | Export script + DEPLOYMENT guide | 2026-07-02 |
@@ -64,7 +65,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 | ADR | Done | Remaining |
 |-----|------|-----------|
 | 0014 | Track A Phase 1 — recommendation search tool ([PR #5](https://github.com/Tusquito/codebase-indexer-mcp/pull/5)) | Track A P2 (outlier helper) + Track B (n8n compose) deferred |
-| 0008 | Phase 1 — opt-in ColBERT multivector rerank ([PR #1](https://github.com/Tusquito/codebase-indexer-mcp/pull/1)); Phase 2 track 1 — xref/service_map rerank wiring ([PR #4](https://github.com/Tusquito/codebase-indexer-mcp/pull/4)); Phase 2 track 2a — adaptive rerank skip ([PR #6](https://github.com/Tusquito/codebase-indexer-mcp/pull/6)) | track 2b — per-tool `rerank=false` override (deferred) |
+| 0008 | Phase 1 — opt-in ColBERT multivector rerank ([PR #1](https://github.com/Tusquito/codebase-indexer-mcp/pull/1)); Phase 2 track 1 — xref/service_map rerank wiring ([PR #4](https://github.com/Tusquito/codebase-indexer-mcp/pull/4)); Phase 2 track 2a — adaptive rerank skip ([PR #6](https://github.com/Tusquito/codebase-indexer-mcp/pull/6)) | track 2b — per-tool `rerank=false` override (`verified` — awaiting merge); final ADR 0008 phase |
 | 0009 | Phase 1 — `SEARCH_BEHAVIOR.md` multi-hop section, golden `multi_hop` tags | Phase 2+ server mechanisms; optional graph-backed hops per [0002](0002-graphrag-neo4j-qdrant.md) |
 | 0015 | Phase 1 — HTTP sidecar + remote backend ([PR #2](https://github.com/Tusquito/codebase-indexer-mcp/pull/2)); Phase 2 — GPU worker + benchmark ([PR #3](https://github.com/Tusquito/codebase-indexer-mcp/pull/3)) | MCP slim image when remote-only (phase 3+) |
 
@@ -91,6 +92,51 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 ---
 
 ### ADR 0008 — Optional ColBERT reranking
+
+#### 2026-07-03 — verification
+- **Phase / PR:** Phase 2 — track 2b (per-tool `rerank=false` override)
+- **Tracker status:** `verified`
+- **Choices:** Override at embed + tool layer (`use_rerank = self.rerank and rerank is not False`); `colbert_vector=None` skips storage rerank/adaptive paths; `rerank=None` default; xref import-phrased search inherits tool-level `rerank`; exact symbol / call_site unaffected; `recommend_code` excluded; final ADR 0008 phase
+- **Deviations:** none
+- **Code evidence:** `mcp_server/src/codebase_indexer/indexer/embedder.py`, `mcp_server/src/codebase_indexer/tools/search_common.py`, `mcp_server/src/codebase_indexer/tools/search.py`, `mcp_server/src/codebase_indexer/tools/symbols.py`, `mcp_server/src/codebase_indexer/tools/cross_references.py`, `mcp_server/src/codebase_indexer/tools/service_map.py`, `mcp_server/src/codebase_indexer/main.py`, `docs/SEARCH_BEHAVIOR.md`, `.env.example`
+- **Test debt:** direct Embedder rerank unit tests; adaptive + per-tool override integration; golden-set `rerank=false` quality sweep; live Qdrant adaptive integration (carried from track 2a)
+- **Verify:** 23 targeted + 264 unit tests pass; plan compliance pass; integration skipped per plan; review rounds: 1
+- **Git:** pending
+- **Changelog:** yes
+
+#### 2026-07-03 — implementation
+- **Phase / PR:** Phase 2 — track 2b (per-tool `rerank=false` override)
+- **Tracker status:** `implemented`
+- **Choices:** Override at embed + tool layer (not new storage flag); `use_rerank = self.rerank and rerank is not False`; `rerank=false` only effective when global `RERANK_ENABLED=true`; `rerank=None` preserves current behavior; `rerank=true` does not enable ColBERT without global flag or bypass adaptive skip; import-phrased xref search inherits tool-level `rerank`; exact symbol / call_site paths unaffected
+- **Deviations:** none
+- **Code evidence:** `mcp_server/src/codebase_indexer/indexer/embedder.py`, `mcp_server/src/codebase_indexer/tools/search_common.py`, `mcp_server/src/codebase_indexer/tools/search.py`, `mcp_server/src/codebase_indexer/tools/symbols.py`, `mcp_server/src/codebase_indexer/tools/cross_references.py`, `mcp_server/src/codebase_indexer/tools/service_map.py`, `mcp_server/src/codebase_indexer/main.py`, `mcp_server/tests/test_search_common.py`, `mcp_server/tests/test_search_tools.py`, `mcp_server/tests/test_cross_references.py`, `mcp_server/tests/test_service_map.py`, `docs/SEARCH_BEHAVIOR.md`, `.env.example`
+- **Test debt:** direct Embedder rerank unit tests; adaptive + per-tool override integration; golden-set `rerank=false` quality sweep; live Qdrant adaptive integration (carried from track 2a)
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no
+
+#### 2026-07-03 — plan
+- **Phase / PR:** Phase 2 — track 2b (per-tool `rerank=false` override)
+- **Tracker status:** `planned`
+- **Choices:** Implement override at embed + tool layer (not new storage flag); `rerank=false` only effective when `RERANK_ENABLED=true`; `rerank=None` preserves current behavior; adaptive skip (track 2a) unchanged when effective rerank is on; single PR; no compose/env changes; final ADR 0008 phase. **Chosen scope:** Optional `rerank: bool | None = None` on `search_codebase`, `search_symbols`, and semantic search paths in `find_cross_references` / `map_service_dependencies`; thread through `run_search` and `Embedder.embed_query` / `embed_queries` so `rerank=false` skips ColBERT query embed and MAX_SIM (via `colbert_vector=None`); unit tests per tool + `test_search_common`; `SEARCH_BEHAVIOR.md` + `.env.example` + `main.py` instructions; defer golden-set adaptive gap sweep and live Qdrant adaptive integration test debt from track 2a
+- **Assumptions:** `QdrantStorage._search_single` already skips rerank when `colbert_vector is None`; `rerank=true` cannot enable ColBERT without global flag and indexed multivectors; payload-only xref paths (exact symbol, call_site) unaffected
+- **Deviations:** none
+- **Code evidence:** —
+- **Test debt:** unit tests per tool + `test_search_common`; defer golden-set adaptive gap sweep and live Qdrant adaptive integration test debt from track 2a
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing yes; entry at `verified` step
+
+#### 2026-07-03 — prioritization
+- **Phase / PR:** Phase 2 — track 2b (per-tool `rerank=false` override)
+- **Tracker status:** `candidate`
+- **Choices:** Prioritize 0008 Phase 2 track 2b over 0014 Track A P2 outlier helper and Proposed 0002 GraphRAG Phase 1 (tie on weighted score; lower scope/risk tie-breaker); over 0009 Phase 2 automated 2-hop eval script (closest alternative, −0.5 weighted score, benchmark-only); over 0015 Phase 3 slim image and 0014 Track B n8n (deferred twice / ops-only); single phase per pipeline rule; no ADR Accept required (0008 already Accepted); complete ColBERT Improve Search arc before greenfield GraphRAG or discovery P2. **Chosen scope:** Optional `rerank: bool | None = None` on `search_codebase`, `search_symbols`, and semantic search paths in `find_cross_references` / `map_service_dependencies`; thread through `run_search` / `dispatch_search` / `QdrantStorage.search` to skip ColBERT query embed and MAX_SIM when `rerank=false`; unit tests per tool; `SEARCH_BEHAVIOR.md` + `.env.example` documentation; defer golden-set adaptive gap sweep and live Qdrant adaptive integration test debt from track 2a. **Why now:** ColBERT arc merged through Phase 1, Phase 2 tracks 1 and 2a, and ADR 0015 Phases 1–2; track 2b is the sole remaining ADR 0008 Phase 2 item explicitly deferred after track 2a ([PR #6](https://github.com/Tusquito/codebase-indexer-mcp/pull/6)); MCP search tools lack per-call rerank control while global `RERANK_ENABLED=true` always embeds ColBERT and runs MAX_SIM; prerequisites (0003, 0007, 0011, 0015) satisfied; measurable via `eval_retrieval --rerank` and unit tests; no new mandatory infra; default deploy unchanged when `RERANK_ENABLED=false`. **Suggested scope:** one phase (= one PR).
+- **Deviations:** none
+- **Code evidence:** —
+- **Test debt:** defer golden-set adaptive gap sweep and live Qdrant adaptive integration test debt from track 2a
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing unknown
 
 #### 2026-07-03 — merge
 - **Phase / PR:** Phase 2 — track 2a (adaptive rerank skip) — [PR #6](https://github.com/Tusquito/codebase-indexer-mcp/pull/6)
@@ -517,7 +563,7 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-03 | 0008 | Phase 2 track 1 search dispatch pattern | Shared `dispatch_search` helper in `search_common.py` (not duplicate colbert pass-through per tool) | no |
 | 2026-07-03 | 0008 | xref semantic/import search dispatch | Route through `run_search()` (shared colbert-aware path) | no |
 | 2026-07-03 | 0008 | service_map batched discovery rerank wiring | Route through `dispatch_search()` with pre-embedded colbert vectors | no |
-| 2026-07-03 | 0008 | Order of remaining Phase 2 tracks (adaptive skip vs per-tool override) | Track 2a (adaptive skip) prioritized over track 2b (per-tool override) at 2026-07-03 prioritization; track 2a now `candidate` | no |
+| 2026-07-03 | 0008 | Order of remaining Phase 2 tracks (adaptive skip vs per-tool override) | Track 2a (adaptive skip) prioritized over track 2b (per-tool override) at 2026-07-03 prioritization; track 2a merged ([PR #6](https://github.com/Tusquito/codebase-indexer-mcp/pull/6)); track 2b now `planned` | no |
 | 2026-07-03 | 0008 | Confirm track 2a scope before track 2b | Track 2a scope confirmed at plan — adaptive skip in `_search_single`; track 2b per-tool override deferred | no |
 | 2026-07-03 | 0008 | Adaptive skip implementation location | Hybrid RRF probe in `QdrantStorage._search_single` before ColBERT; `AdaptiveRerankStats` on storage | no |
 | 2026-07-03 | 0008 | New env vars for adaptive rerank | Shipped `RERANK_ADAPTIVE_ENABLED=true`, `RERANK_ADAPTIVE_GAP=0.02` | no |
@@ -540,3 +586,15 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-03 | 0014 | Missing positive chunk IDs | Fail fast | no |
 | 2026-07-03 | 0014 | Multi-collection recommend | Deferred; single-collection Phase 1 | no |
 | 2026-07-03 | 0014 | Whether to run 0009 Phase 2 eval script as parallel lightweight PR | Open | no |
+| 2026-07-03 | 0008 | Whether `rerank=false` skips ColBERT query embed in `Embedder.embed_query` | Decided at plan — yes; skip via `colbert_vector=None` in `Embedder.embed_query` / `embed_queries` when tool `rerank=false` | no |
+| 2026-07-03 | 0008 | Confirm `recommend_code` excluded from per-tool `rerank` parameter | Decided at plan — excluded; not in track 2b scope (`search_codebase`, `search_symbols`, xref/service_map semantic paths only) | no |
+| 2026-07-03 | 0008 | Default `None` for per-tool `rerank` preserves global `RERANK_ENABLED` behavior | Decided at plan — `rerank=None` preserves current behavior | no |
+| 2026-07-03 | 0008 | Per-tool override implementation layer | Decided at plan — embed + tool layer (not new storage flag); `rerank=false` only effective when `RERANK_ENABLED=true` | no |
+| 2026-07-03 | 0008 | Adaptive skip interaction when per-tool `rerank` set | Decided at plan — track 2a adaptive skip unchanged when effective rerank is on | no |
+| 2026-07-03 | 0008 | Whether import-phrased xref search inherits tool-level `rerank` | Decided at implementation — yes; import-phrased xref search inherits tool-level `rerank` | no |
+| 2026-07-03 | 0008 | Whether `rerank=true` should bypass adaptive skip | Decided at implementation — no; `rerank=true` does not enable ColBERT without global flag or bypass adaptive skip | no |
+| 2026-07-03 | 0008 | Per-tool rerank embed gate expression | `use_rerank = self.rerank and rerank is not False` in `Embedder.embed_query` / `embed_queries` | no |
+| 2026-07-03 | 0008 | Payload-only xref paths and per-tool `rerank` | Exact symbol / call_site paths unaffected by tool-level `rerank` | no |
+| 2026-07-03 | 0008 | Optional `[Unreleased]` changelog bullet for opt-in rerank deployments | Closed at verified — per-tool `rerank=false` bullet added to `[Unreleased]` | no |
+| 2026-07-03 | 0008 | `colbert_vector=None` interaction with storage rerank/adaptive paths | Verified — `colbert_vector=None` skips storage rerank and adaptive skip paths | no |
+| 2026-07-03 | 0008 | ADR 0008 phase completion at track 2b | Track 2b verified as final ADR 0008 phase; ColBERT arc complete pending merge | no |
