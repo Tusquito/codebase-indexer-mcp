@@ -1,0 +1,61 @@
+# Optional: offload ColBERT inference to a dedicated HTTP sidecar (ADR 0015).
+#
+# Usage (Ollama GPU + ColBERT sidecar + rerank):
+#   Set in .env:
+#     RERANK_ENABLED=true
+#     COLBERT_EMBED_BACKEND=remote
+#     COLBERT_URL=http://colbert_worker:8082
+#     MCP_MEM_LIMIT=4g
+#     COLBERT_MEM_LIMIT=4g
+#     SEQUENTIAL_EMBED=true
+#   docker compose -f docker-compose.yml \
+#     -f docker-compose.ollama.yml \
+#     -f docker-compose.ollama.gpu.yml \
+#     -f docker-compose.colbert-worker.yml up -d --build
+#
+# Default deployment unchanged: omit this file; COLBERT_EMBED_BACKEND=onnx in MCP.
+
+services:
+  colbert_worker:
+    build:
+      context: ./mcp_server
+      dockerfile: ../colbert_worker/Dockerfile
+    container_name: codeindexer_colbert
+    restart: unless-stopped
+    environment:
+      COLBERT_EMBED_MODEL: ${COLBERT_EMBED_MODEL:-colbert-ir/colbertv2.0}
+      SPARSE_THREADS: ${SPARSE_THREADS:?Set SPARSE_THREADS in .env}
+      RERANK_MAX_QUERY_TOKENS: ${RERANK_MAX_QUERY_TOKENS:-0}
+      FASTEMBED_CACHE_PATH: /cache/fastembed
+      HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-0}
+      OMP_NUM_THREADS: ${OMP_NUM_THREADS:?Set OMP_NUM_THREADS in .env}
+      OPENBLAS_NUM_THREADS: ${OMP_NUM_THREADS}
+      MKL_NUM_THREADS: ${OMP_NUM_THREADS}
+      MALLOC_ARENA_MAX: ${MALLOC_ARENA_MAX:-2}
+      MALLOC_TRIM_THRESHOLD_: ${MALLOC_TRIM_THRESHOLD_:-131072}
+    deploy:
+      resources:
+        limits:
+          memory: ${COLBERT_MEM_LIMIT:-4g}
+          cpus: "${COLBERT_CPUS:-4}"
+    volumes:
+      - fastembed_cache:/cache/fastembed
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+
+  mcp_server:
+    environment:
+      COLBERT_EMBED_BACKEND: ${COLBERT_EMBED_BACKEND:-onnx}
+      COLBERT_URL: ${COLBERT_URL:-http://colbert_worker:8082}
+      COLBERT_TIMEOUT: ${COLBERT_TIMEOUT:-300}
+      COLBERT_EMBED_BATCH_SIZE: ${COLBERT_EMBED_BATCH_SIZE:-16}
+    depends_on:
+      colbert_worker:
+        condition: service_healthy
+
+volumes:
+  fastembed_cache:
