@@ -339,7 +339,7 @@ def register_cross_references_tool(mcp: FastMCP, ctx: "AppContext") -> None:
 
         # Semantic search
         if query:
-            dense_vector, sparse_vector = await embedder.embed_query(query)
+            dense_vector, sparse_vector, _colbert = await embedder.embed_query(query)
 
             semantic_results = await storage.search(
                 collection=None,
@@ -395,7 +395,7 @@ def register_cross_references_tool(mcp: FastMCP, ctx: "AppContext") -> None:
             # With import headers now prepended to every AST chunk, this search
             # reliably finds consumer files that reference the library type.
             import_query = f"import {symbol_name}"
-            import_dense, import_sparse = await embedder.embed_query(import_query)
+            import_dense, import_sparse, _colbert = await embedder.embed_query(import_query)
             import_results = await storage.search(
                 collection=None,
                 dense_vector=import_dense,

@@ -16,6 +16,8 @@ from qdrant_client.models import (
     HnswConfigDiff,
     MatchAny,
     MatchValue,
+    MultiVectorComparator,
+    MultiVectorConfig,
     OptimizersConfigDiff,
     PayloadSchemaType,
     PointStruct,
@@ -31,7 +33,7 @@ from qdrant_client.models import (
 )
 from qdrant_client.models import SparseVector as QdrantSparseVector
 
-from codebase_indexer.config import Settings
+from codebase_indexer.config import KNOWN_COLBERT_TOKEN_DIMENSIONS, Settings
 from codebase_indexer.indexer.embedder import EmbeddedChunk, SparseVector
 
 log = structlog.get_logger()
@@ -96,6 +98,8 @@ class CollectionStats:
     sparse_embed_model: str
     dense_embed_backend: str
     hybrid: bool
+    rerank_enabled: bool = False
+    colbert_embed_model: str = ""
 
 
 class QdrantStorage:
@@ -113,6 +117,11 @@ class QdrantStorage:
     # Payload fields filtered by the query/lookup paths. Keyword indexes here
     # turn full payload scans into indexed lookups (large win as collections grow).
     _INDEXED_PAYLOAD_FIELDS = ("rel_path", "chunk_id", "symbol_name", "language", "callees")
+
+    def _colbert_token_size(self) -> int:
+        return KNOWN_COLBERT_TOKEN_DIMENSIONS.get(
+            self.settings.colbert_embed_model, 128
+        )
 
     async def _get_client(self) -> AsyncQdrantClient:
         if self._client is None:
@@ -150,12 +159,18 @@ class QdrantStorage:
                         vectors_cfg = info.config.params.vectors
                         existing_dim: int | None = None
                         has_sparse: bool = False
+                        has_colbert: bool = False
+                        existing_colbert_dim: int | None = None
 
                         if isinstance(vectors_cfg, dict):
                             dense_cfg = vectors_cfg.get("dense")
                             if dense_cfg is not None:
                                 existing_dim = dense_cfg.size
                             has_sparse = "sparse" in vectors_cfg
+                            colbert_cfg = vectors_cfg.get("colbert")
+                            has_colbert = colbert_cfg is not None
+                            if colbert_cfg is not None:
+                                existing_colbert_dim = colbert_cfg.size
                         else:
                             # Single (unnamed) vector config — dimension is top-level.
                             if vectors_cfg is not None:
@@ -172,6 +187,22 @@ class QdrantStorage:
                             recreate_reason = (
                                 f"hybrid_search mismatch: collection has sparse={has_sparse}, "
                                 f"settings want hybrid_search={self.settings.hybrid_search}"
+                            )
+                        elif has_colbert != self.settings.rerank_enabled:
+                            should_recreate = True
+                            recreate_reason = (
+                                f"rerank_enabled mismatch: collection has colbert={has_colbert}, "
+                                f"settings want rerank_enabled={self.settings.rerank_enabled}"
+                            )
+                        elif (
+                            self.settings.rerank_enabled
+                            and existing_colbert_dim is not None
+                            and existing_colbert_dim != self._colbert_token_size()
+                        ):
+                            should_recreate = True
+                            recreate_reason = (
+                                f"colbert token dimension mismatch: collection has "
+                                f"{existing_colbert_dim}, settings want {self._colbert_token_size()}"
                             )
 
                     if not should_recreate and collection in existing:
@@ -219,6 +250,17 @@ class QdrantStorage:
                         )
                     }
 
+                if self.settings.rerank_enabled:
+                    vectors_config["colbert"] = VectorParams(
+                        size=self._colbert_token_size(),
+                        distance=Distance.COSINE,
+                        multivector_config=MultiVectorConfig(
+                            comparator=MultiVectorComparator.MAX_SIM,
+                        ),
+                        hnsw_config=HnswConfigDiff(m=0),
+                        on_disk=self.settings.vectors_on_disk,
+                    )
+
                 # int8 scalar quantization: ~4x less vector RAM. Rescoring
                 # against original vectors preserves search quality.
                 quantization_config = None
@@ -247,6 +289,7 @@ class QdrantStorage:
                     "collection_created",
                     name=collection,
                     hybrid=self.settings.hybrid_search,
+                    rerank=self.settings.rerank_enabled,
                     on_disk=self.settings.vectors_on_disk,
                     quantization=self.settings.quantization,
                     dense_embed_vector_size=self.settings.dense_embed_vector_size,
@@ -331,6 +374,11 @@ class QdrantStorage:
                 "indices": ec.sparse_vector.indices,
                 "values": ec.sparse_vector.values,
             }
+        if ec.colbert_vector is not None:
+            colbert = ec.colbert_vector
+            if hasattr(colbert, "tolist"):
+                colbert = colbert.tolist()
+            vectors["colbert"] = colbert
         return PointStruct(
             id=str(uuid.uuid5(uuid.NAMESPACE_URL, ec.chunk.chunk_id)),
             vector=vectors,
@@ -473,16 +521,54 @@ class QdrantStorage:
         top_k: int,
         language: str | None,
         min_score: float,
+        colbert_vector: list[list[float]] | None = None,
     ) -> list[SearchResult]:
         """Search a single collection."""
         client = await self._get_client()
         query_filter = self._build_query_filter(language)
 
         used_hybrid = bool(sparse_vector and self.settings.hybrid_search)
+        used_rerank = bool(
+            self.settings.rerank_enabled
+            and colbert_vector is not None
+            and used_hybrid
+        )
         dense_params = self._dense_search_params()
-        prefetch_limit = top_k * self.settings.prefetch_multiplier
+        prefetch_limit = (
+            self.settings.rerank_prefetch
+            if used_rerank
+            else top_k * self.settings.prefetch_multiplier
+        )
 
-        if used_hybrid:
+        if used_rerank:
+            assert sparse_vector is not None
+            assert colbert_vector is not None
+            qdrant_sparse = QdrantSparseVector(
+                indices=sparse_vector.indices,
+                values=sparse_vector.values,
+            )
+            results = await client.query_points(
+                collection_name=collection,
+                prefetch=[
+                    Prefetch(
+                        query=dense_vector,
+                        using="dense",
+                        limit=prefetch_limit,
+                        params=dense_params,
+                    ),
+                    Prefetch(
+                        query=qdrant_sparse,
+                        using="sparse",
+                        limit=prefetch_limit,
+                    ),
+                ],
+                query=colbert_vector,
+                using="colbert",
+                limit=top_k,
+                query_filter=query_filter,
+                with_payload=True,
+            )
+        elif used_hybrid:
             assert sparse_vector is not None
             qdrant_sparse = QdrantSparseVector(
                 indices=sparse_vector.indices,
@@ -519,11 +605,9 @@ class QdrantStorage:
                 with_payload=True,
             )
 
-        # RRF fusion scores are NOT on the cosine [0,1] similarity scale, so a
-        # cosine-calibrated min_score (e.g. 0.5) silently drops most relevant
-        # hybrid hits. Apply the cosine threshold only on the pure-dense path;
-        # hybrid relies on RRF ranking + top_k instead.
-        score_threshold = 0.0 if used_hybrid else min_score
+        # RRF / ColBERT rerank scores are NOT on the cosine [0,1] similarity scale,
+        # so a cosine-calibrated min_score silently drops relevant hybrid hits.
+        score_threshold = 0.0 if (used_hybrid or used_rerank) else min_score
 
         search_results = []
         for point in results.points:
@@ -555,6 +639,7 @@ class QdrantStorage:
         language: str | None = None,
         min_score: float = 0.5,
         restrict_collections: list[str] | None = None,
+        colbert_vector: list[list[float]] | None = None,
     ) -> list[SearchResult]:
         """Search one or multiple collections.
 
@@ -564,7 +649,13 @@ class QdrantStorage:
         """
         if collection:
             return await self._search_single(
-                collection, dense_vector, sparse_vector, top_k, language, min_score,
+                collection,
+                dense_vector,
+                sparse_vector,
+                top_k,
+                language,
+                min_score,
+                colbert_vector=colbert_vector,
             )
 
         # Determine which collections to search
@@ -580,7 +671,13 @@ class QdrantStorage:
 
         tasks = [
             self._search_single(
-                name, dense_vector, sparse_vector, top_k, language, min_score,
+                name,
+                dense_vector,
+                sparse_vector,
+                top_k,
+                language,
+                min_score,
+                colbert_vector=colbert_vector,
             )
             for name in coll_names
         ]
@@ -660,6 +757,12 @@ class QdrantStorage:
                     sparse_embed_model=self.settings.sparse_embed_model,
                     dense_embed_backend=self.settings.dense_embed_backend,
                     hybrid=self.settings.hybrid_search,
+                    rerank_enabled=self.settings.rerank_enabled,
+                    colbert_embed_model=(
+                        self.settings.colbert_embed_model
+                        if self.settings.rerank_enabled
+                        else ""
+                    ),
                 ))
             except Exception as e:
                 log.warning("collection_stats_error", name=coll.name, error=str(e))
