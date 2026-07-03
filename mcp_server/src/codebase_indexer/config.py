@@ -194,6 +194,10 @@ class Settings(BaseSettings):
     colbert_timeout: int = Field(default=300)
     colbert_embed_batch_size: int = Field(default=16)
 
+    # --- Recommendation search (ADR 0014) ---
+    recommend_enabled: bool = Field(default=True)
+    recommend_max_examples: int = Field(default=10, ge=1)
+
     # --- Service-mapping / cross-reference tuning (project-agnostic) ---
     # Comma-separated URL path keywords used to recognise API paths in config
     # and code (e.g. "/api/...", "/rest/..."). Extend for your domain without
