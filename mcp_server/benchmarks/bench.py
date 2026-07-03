@@ -35,8 +35,8 @@ from typing import Any, Awaitable, Callable
 # Allow ``python benchmarks/bench.py`` as well as ``-m benchmarks.bench``.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from benchmarks._connectivity import qdrant_reachable  # noqa: E402
-from codebase_indexer.config import Settings  # noqa: E402
+from benchmarks._connectivity import ollama_reachable, qdrant_reachable  # noqa: E402
+from benchmarks._settings import load_settings  # noqa: E402
 from codebase_indexer.indexer.backends.factory import (
     create_backends,
     create_colbert_backend,
@@ -129,7 +129,7 @@ async def run_benchmark(
     rerank_enabled: bool,
     keep: bool,
 ) -> dict[str, Any]:
-    settings = Settings(
+    settings = load_settings(
         qdrant_url=qdrant_url,
         payload_indexes=payload_indexes,
         hybrid_search=True,
@@ -372,6 +372,21 @@ def main() -> int:
 
     if not qdrant_reachable(args.qdrant_url):
         print(f"SKIP: Qdrant not reachable at {args.qdrant_url}", file=sys.stderr)
+        if args.output:
+            Path(args.output).write_text(
+                json.dumps({"skipped": True, "reason": "qdrant_unreachable"}),
+                encoding="utf-8",
+            )
+        return 0
+
+    ollama_url = os.environ.get("OLLAMA_URL", "http://localhost:11434")
+    if not ollama_reachable(ollama_url):
+        print(f"SKIP: Ollama not reachable at {ollama_url}", file=sys.stderr)
+        if args.output:
+            Path(args.output).write_text(
+                json.dumps({"skipped": True, "reason": "ollama_unreachable"}),
+                encoding="utf-8",
+            )
         return 0
 
     result = asyncio.run(run_benchmark(

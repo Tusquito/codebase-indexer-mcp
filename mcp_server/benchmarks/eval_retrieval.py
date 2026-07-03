@@ -35,21 +35,15 @@ from codebase_indexer.storage.qdrant import QdrantStorage, SearchResult  # noqa:
 from codebase_indexer.tools.search_common import run_search  # noqa: E402
 
 from benchmarks._connectivity import ollama_reachable, qdrant_reachable  # noqa: E402
+from benchmarks._settings import load_settings  # noqa: E402
 
 DEFAULT_GOLDEN = Path(__file__).resolve().parent / "fixtures" / "golden_queries.jsonl"
 DEFAULT_METRICS = ["recall@10", "mrr", "ndcg@10"]
 
 
 def _settings(**overrides: object) -> Settings:
-    """Build Settings, loading repo-root or mcp_server ``.env`` when present."""
-    env_candidates = (
-        Path(__file__).resolve().parents[2] / ".env",
-        Path(__file__).resolve().parents[1] / ".env",
-    )
-    env_file = next((p for p in env_candidates if p.is_file()), None)
-    if env_file is not None:
-        return Settings(_env_file=env_file, **overrides)  # type: ignore[arg-type]
-    return Settings(**overrides)  # type: ignore[arg-type]
+    """Backward-compatible alias for load_settings."""
+    return load_settings(**overrides)
 
 
 @dataclass

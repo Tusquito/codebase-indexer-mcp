@@ -35,6 +35,7 @@ async def test_benchmark_runs_and_is_self_consistent():
         iterations=3,
         collection="benchtest_ci",
         payload_indexes=True,
+        rerank_enabled=False,
         keep=False,
     )
 
