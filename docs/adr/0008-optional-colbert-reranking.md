@@ -1,6 +1,6 @@
 # 0008. Optional ColBERT late-interaction reranking
 
-- **Status:** Proposed
+- **Status:** Accepted (phase 1 — optional ColBERT multivector reranking)
 - **Date:** 2026-07-02
 - **Deciders:** Maintainers
 - **Related:** [Hybrid Search with Reranking](https://qdrant.tech/documentation/tutorials-basics/reranking-hybrid-search/), [Qdrant Essentials final project](https://qdrant.tech/course/essentials/day-6/final-project/), [ADR 0003](0003-hybrid-search-rrf-default.md)

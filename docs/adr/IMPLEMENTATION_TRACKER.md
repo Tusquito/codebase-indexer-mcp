@@ -36,7 +36,8 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0005](0005-mcp-retrieval-connector.md) | MCP retrieval connector | Accepted | all | `merged` | Shipped | 2026-07-02 |
 | [0006](0006-explicit-fastembed-pipeline.md) | Explicit FastEmbed pipeline | Accepted | all | `merged` | Shipped | 2026-07-02 |
 | [0007](0007-ranx-retrieval-evaluation.md) | Golden-set eval (ranx) | Accepted | all | `merged` | `eval_retrieval.py` + fixtures | 2026-07-02 |
-| [0008](0008-optional-colbert-reranking.md) | Optional ColBERT reranking | Proposed | 1 | `verified` | Config (`RERANK_ENABLED=false` default, `COLBERT_EMBED_MODEL`, `RERANK_PREFETCH`, `RERANK_MAX_QUERY_TOKENS`); `ColbertOnnxBackend` via fastembed; multivector `colbert` + MAX_SIM rerank in `qdrant.py`; per-collection hybrid prefetch + ColBERT rerank then `fuse_cross_collection_rrf`; pipeline third embed pass (sequential); synthetic CI integration test + `@pytest.mark.slow` + `RUN_SLOW_COLBERT=1`; operator re-index docs; defer adaptive rerank, per-tool overrides, cross_reference/service_map wiring | 2026-07-03 |
+| [0008](0008-optional-colbert-reranking.md) | Optional ColBERT reranking | Accepted (phase 1) | 1 | `merged` | Config (`RERANK_ENABLED=false` default, `COLBERT_EMBED_MODEL`, `RERANK_PREFETCH`, `RERANK_MAX_QUERY_TOKENS`); `ColbertOnnxBackend` via fastembed; multivector `colbert` + MAX_SIM rerank in `qdrant.py`; per-collection hybrid prefetch + ColBERT rerank then `fuse_cross_collection_rrf`; pipeline third embed pass (sequential); synthetic CI integration test + `@pytest.mark.slow` + `RUN_SLOW_COLBERT=1`; operator re-index docs; [PR #1](https://github.com/Tusquito/codebase-indexer-mcp/pull/1) | 2026-07-03 |
+| [0008](0008-optional-colbert-reranking.md) | Optional ColBERT reranking | Accepted (phase 1) | 2+ | `not_started` | Adaptive rerank; per-tool overrides; cross_reference/service_map rerank wiring | — |
 | [0009](0009-multi-hop-retrieval-strategies.md) | Multi-hop retrieval | Accepted (phase 1) | 1 | `merged` | Client decomposition docs + golden tags | 2026-07-02 |
 | [0009](0009-multi-hop-retrieval-strategies.md) | Multi-hop retrieval | Accepted (phase 1) | 2+ | `not_started` | Server-side hop fusion TBD | — |
 | [0010](0010-defer-ragas-to-client.md) | Defer Ragas to client | Accepted | all | `merged` | Export script + DEPLOYMENT guide | 2026-07-02 |
@@ -54,13 +55,13 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 | ADR | Notes |
 |-----|-------|
 | 0002 | Four phases; default deploy stays Qdrant-only |
-| 0008 | Phase 1 `verified`; pending merge; depends on [0003](0003-hybrid-search-rrf-default.md); eval via [0007](0007-ranx-retrieval-evaluation.md) |
 | 0014 | Track A (MCP tools) vs Track B (n8n compose) |
 
 ### Partial acceptance
 
 | ADR | Done | Remaining |
 |-----|------|-----------|
+| 0008 | Phase 1 — opt-in ColBERT multivector rerank ([PR #1](https://github.com/Tusquito/codebase-indexer-mcp/pull/1)) | Adaptive rerank; per-tool overrides; cross_reference/service_map rerank wiring |
 | 0009 | Phase 1 — `SEARCH_BEHAVIOR.md` multi-hop section, golden `multi_hop` tags | Phase 2+ server mechanisms; optional graph-backed hops per [0002](0002-graphrag-neo4j-qdrant.md) |
 
 ---
@@ -86,6 +87,17 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 ---
 
 ### ADR 0008 — Optional ColBERT reranking
+
+#### 2026-07-03 — merge
+- **Phase / PR:** Phase 1 — optional ColBERT multivector reranking — [PR #1](https://github.com/Tusquito/codebase-indexer-mcp/pull/1)
+- **Tracker status:** `merged`
+- **Choices:** squash merge `891fb97`; ADR accepted as `Accepted (phase 1)`; phase 2+ deferred (adaptive rerank, per-tool overrides, cross_reference/service_map wiring)
+- **Deviations:** none
+- **Code evidence:** merged via PR #1 (`adr/0008-phase-1-colbert-rerank`)
+- **Test debt:** carried from verification — ranx eval manual; colbert mismatch recreate; slow ColBERT opt-in only
+- **Verify:** PR review round 2 approve; CI green; mergeable
+- **Git:** PR #1 merged (squash)
+- **Changelog:** no — release skipped
 
 #### 2026-07-03 — verification
 - **Phase / PR:** Phase 1 — optional ColBERT multivector reranking
@@ -203,7 +215,7 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 
 | Date | ADR | Question | Decision | Promote to ADR? |
 |------|-----|----------|----------|-----------------|
-| 2026-07-03 | 0008 | Accept ADR 0008 (Proposed → Accepted)? | Pre-merge follow-up: formal Accept + README index update before dev | no |
+| 2026-07-03 | 0008 | Accept ADR 0008 (Proposed → Accepted)? | Accepted (phase 1) after PR #1 merge | no |
 | 2026-07-03 | 0008 | Select `COLBERT_EMBED_MODEL` | `colbert-ir/colbertv2.0` (128-d per token) | no |
 | 2026-07-03 | 0008 | Confirm operator re-index messaging for `RERANK_ENABLED=true` | Document in `.env.example` + `SEARCH_BEHAVIOR.md` | no |
 | 2026-07-03 | 0008 | ADR `m=768` HNSW knob on `colbert` vector | Treat ADR prose as documentation error; `HnswConfigDiff(m=0)`; per-token `size` from registry | no |
