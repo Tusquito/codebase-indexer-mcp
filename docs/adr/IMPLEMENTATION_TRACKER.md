@@ -51,7 +51,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 1 | `merged` | Opt-in `COLBERT_EMBED_BACKEND=remote` + `colbert_worker` sidecar; default in-process ONNX unchanged; FastAPI lifespan preload; `ColbertRemoteBackend` httpx client; `docker-compose.colbert-worker.yml` with shared `fastembed_cache`; `.env.example` + `SEARCH_BEHAVIOR.md`; [PR #2](https://github.com/Tusquito/codebase-indexer-mcp/pull/2) | 2026-07-03 |
 | [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 2 | `merged` | GPU sidecar via `colbert_worker/Dockerfile.gpu` (`onnxruntime-gpu==1.26.0`, `python:3.12-slim`); compose override `docker-compose.colbert-worker.gpu.yml` (NVIDIA reservations mirroring Ollama); `COLBERT_DEVICE_IDS` → `ColbertOnnxBackend.device_ids`; worker `/health` reports `device` + `cuda_available`; fail-fast CUDA preload; `bench_colbert_sidecar.py` remote throughput bench; single-GPU 8GB OOM documented (no auto-scheduler); CI-safe mocked/skipped GPU tests + non-blocking GPU Dockerfile CI job; [PR #3](https://github.com/Tusquito/codebase-indexer-mcp/pull/3) | 2026-07-03 |
 | [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 3+ | `not_started` | MCP slim image when remote-only | — |
-| [0017](0017-model-tokenizer-ollama-dense-truncation.md) | Model-accurate tokenizer for Ollama dense truncation | Proposed | Phase 1 — loader + Ollama backend | `verified` | `load_dense_tokenizer(model_id)` in `tokenizer_loader.py` via `tokenizers.Tokenizer.from_pretrained` + HF env cache dirs; shared class-level `Tokenizer` in `OllamaDenseBackend` at `preload()` via `_ensure_truncation()`; `_truncate_batch` uses `truncate_for_embedding` (sparse BM25 path untouched); fallback = log WARNING + pass text through unchanged; unit tests (mock + optional slow Nomic); `ARCHITECTURE.md`, `.env.example`, `docker-compose.yml` HF_HOME; defer Phase 2 observability + ADR 0011 body edit; user-facing: yes | 2026-07-03 |
+| [0017](0017-model-tokenizer-ollama-dense-truncation.md) | Model-accurate tokenizer for Ollama dense truncation | Accepted (phase 1 — loader + Ollama backend) | Phase 1 — loader + Ollama backend | `merged` | `load_dense_tokenizer(model_id)` in `tokenizer_loader.py` via `tokenizers.Tokenizer.from_pretrained` + HF env cache dirs; shared class-level `Tokenizer` in `OllamaDenseBackend` at `preload()` via `_ensure_truncation()`; `_truncate_batch` uses `truncate_for_embedding` (sparse BM25 path untouched); fallback = log WARNING + pass text through unchanged; unit tests (mock + optional slow Nomic); `ARCHITECTURE.md`, `.env.example`, `docker-compose.yml` HF_HOME; defer Phase 2 observability + ADR 0011 body edit; [PR #11](https://github.com/Tusquito/codebase-indexer-mcp/pull/11) | 2026-07-03 |
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
 
@@ -61,8 +61,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 
 | ADR | Notes |
 |-----|-------|
-| [0016](0016-qwen3-embedding-default-dense-model.md) | Adopt Qwen3-Embedding-4B as default Ollama dense model — Proposed; deprioritized vs 0017 P1 at 2026-07-03 prioritization; sequential PR after 0017 P1 recommended |
-| [0017](0017-model-tokenizer-ollama-dense-truncation.md) | Model-accurate tokenizer for Ollama dense truncation — `verified` Phase 1; ready for git / merge |
+| [0016](0016-qwen3-embedding-default-dense-model.md) | Adopt Qwen3-Embedding-4B as default Ollama dense model — Proposed; deprioritized vs 0017 P1 at 2026-07-03 prioritization; sequential PR after 0017 P1 merge recommended |
 ### Partial acceptance
 
 | ADR | Done | Remaining |
@@ -71,6 +70,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 | 0014 | Track A Phase 1 — recommendation search tool ([PR #5](https://github.com/Tusquito/codebase-indexer-mcp/pull/5)); Track A Phase 2 — outlier helper ([PR #9](https://github.com/Tusquito/codebase-indexer-mcp/pull/9)) | Track B (n8n compose) deferred |
 | 0009 | Phase 1 — `SEARCH_BEHAVIOR.md` multi-hop section, golden `multi_hop` tags; Phase 2 — automated 2-hop client eval script ([PR #8](https://github.com/Tusquito/codebase-indexer-mcp/pull/8)) | Phase 3+ server mechanisms; optional graph-backed hops per [0002](0002-graphrag-neo4j-qdrant.md) |
 | 0015 | Phase 1 — HTTP sidecar + remote backend ([PR #2](https://github.com/Tusquito/codebase-indexer-mcp/pull/2)); Phase 2 — GPU worker + benchmark ([PR #3](https://github.com/Tusquito/codebase-indexer-mcp/pull/3)) | MCP slim image when remote-only (phase 3+) |
+| 0017 | Phase 1 — loader + Ollama backend ([PR #11](https://github.com/Tusquito/codebase-indexer-mcp/pull/11)) | Phase 2 observability + ADR 0011 body edit |
 
 ---
 
@@ -670,6 +670,17 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 
 ### ADR 0017 — Model-accurate tokenizer for Ollama dense truncation
 
+#### 2026-07-03 — merge
+- **Phase / PR:** Phase 1 — loader + Ollama backend — [PR #11](https://github.com/Tusquito/codebase-indexer-mcp/pull/11)
+- **Tracker status:** `merged`
+- **Choices:** squash merge `a094bf5` on feature branch `adr/0017-phase-1-tokenizer-loader`; ADR accepted as `Accepted (phase 1 — loader + Ollama backend)` (docs commit `695b678`); release skipped; Phase 2 observability + ADR 0011 body edit deferred
+- **Deviations:** none
+- **Code evidence:** merged via PR #11 (`adr/0017-phase-1-tokenizer-loader`; squash `a094bf5`)
+- **Test debt:** carried from verification — slow real-Nomic tokenizer test; no golden-set truncation accuracy fixture; Phase 2 metrics not implemented
+- **Verify:** carried from verification — 22 unit tests pass; integration report pass (8 storage integration, compose deploy OK); plan compliance pass; review rounds: 1
+- **Git:** [PR #11](https://github.com/Tusquito/codebase-indexer-mcp/pull/11) merged (squash `a094bf5`)
+- **Changelog:** no — release skipped; `[Unreleased]` bullet retained from verification step
+
 #### 2026-07-03 — verification
 - **Phase / PR:** Phase 1 — loader + Ollama backend
 - **Tracker status:** `verified`
@@ -868,9 +879,11 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-03 | 0014 | Accept ADR 0014 phase 2 at merge? | `Accepted (phase 1; phase 2 — outlier / diversity helper)` after PR #9 merge | no |
 | 2026-07-03 | 0014 | ADR index wording after Phase 2 merge | `Accepted (phase 1; phase 2 — outlier / diversity helper)` after PR #9 merge | no |
 | 2026-07-03 | 0014 | Track A completion at Phase 2 merge | Track A Phase 1 + Phase 2 merged ([PR #5](https://github.com/Tusquito/codebase-indexer-mcp/pull/5), [PR #9](https://github.com/Tusquito/codebase-indexer-mcp/pull/9)); Track B n8n compose remains deferred | no |
-| 2026-07-03 | 0017 | Accept ADR 0017 (Proposed → Accepted) before dev? | Open — Phase 1 implementation landed 2026-07-03 at `implemented`; formal Accept deferred to finisher | no |
+| 2026-07-03 | 0017 | Accept ADR 0017 (Proposed → Accepted) before dev? | **Accepted (phase 1 — loader + Ollama backend)** after PR #11 merge (docs commit `695b678`) | no |
+| 2026-07-03 | 0017 | Accept ADR 0017 phase 1 at merge? | `Accepted (phase 1 — loader + Ollama backend)` after PR #11 merge | no |
+| 2026-07-03 | 0017 | ADR index wording after Phase 1 merge | `Accepted (phase 1 — loader + Ollama backend)` after PR #11 merge | no |
 | 2026-07-03 | 0017 | Phase 1 implementation choices confirmed | `tokenizers.Tokenizer.from_pretrained`; HF env cache dirs; shared class-level tokenizer; fallback WARNING + pass-through; sparse BM25 untouched; Phase 2 observability + ADR 0011 edit deferred | no |
 | 2026-07-03 | 0017 | Tokenizer load-failure fallback behavior | Decided at plan — log warning + pass text through unchanged (no BM25 fallback, not char heuristic) | no |
-| 2026-07-03 | 0017 | 0016 Phase 1 sequencing after 0017 P1 | Prioritized 0017 P1 over 0016 P1 at 2026-07-03; plan confirms 0016 Phase 1 follows after 0017 P1 merge (sequential PRs) | no |
+| 2026-07-03 | 0017 | 0016 Phase 1 sequencing after 0017 P1 | Prioritized 0017 P1 over 0016 P1 at 2026-07-03; 0017 P1 merged ([PR #11](https://github.com/Tusquito/codebase-indexer-mcp/pull/11)); 0016 Phase 1 unblocked for next cycle | no |
 | 2026-07-03 | 0017 | Air-gap HF cache pre-seeding policy for operators | Decided at plan — document only in Phase 1 (pre-populate `HF_HOME` or mount tokenizer files; no implementation) | no |
 | 2026-07-03 | 0016 | Whether 0016 Phase 1 runs this cycle | Deprioritized vs 0017 P1 at 2026-07-03 prioritization; sequential PR after 0017 P1 recommended | no |
