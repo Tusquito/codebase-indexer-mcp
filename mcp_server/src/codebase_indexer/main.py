@@ -32,6 +32,7 @@ from codebase_indexer.tools.cross_references import register_cross_references_to
 from codebase_indexer.tools.service_map import register_service_map_tool
 from codebase_indexer.tools.symbols import register_search_symbols_tool
 from codebase_indexer.tools.outline import register_file_outline_tool
+from codebase_indexer.tools.recommend import register_recommend_tool
 from codebase_indexer.tools.summary import register_collection_summary_tool
 
 _INSTRUCTIONS = """
@@ -215,6 +216,8 @@ def create_app(settings: Settings | None = None, preload_models: bool | None = N
     register_search_symbols_tool(mcp, ctx)
     register_file_outline_tool(mcp, ctx)
     register_collection_summary_tool(mcp, ctx)
+    if settings.recommend_enabled:
+        register_recommend_tool(mcp, ctx)
 
     return mcp
 
