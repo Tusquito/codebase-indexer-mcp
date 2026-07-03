@@ -116,6 +116,7 @@ The `Embedder` facade in `indexer/embedder.py` orchestrates backends; factory wi
 - **Tuning**: `VECTORS_ON_DISK`, `SPARSE_ON_DISK`, `QUANTIZATION`, `MEMMAP_THRESHOLD_KB`
 - **Search**: hybrid RRF via `query_points` + `Fusion.RRF`, or dense-only when hybrid disabled; optional ColBERT MAX_SIM rerank over prefetch pool ([ADR 0008](adr/0008-optional-colbert-reranking.md))
 - **Recommendation**: dense-only Qdrant Recommendation API (`RecommendStrategy.AVERAGE_VECTOR`) via `QdrantStorage.recommend` ([ADR 0014](adr/0014-vector-discovery-and-ops-automation.md))
+- **Outlier discovery**: dense-only `RecommendStrategy.BEST_SCORE` negative-only + centroid cosine filter via `QdrantStorage.find_outlier_chunks` ([ADR 0014](adr/0014-vector-discovery-and-ops-automation.md))
 
 ## Hybrid search
 
@@ -136,7 +137,7 @@ When `HYBRID_SEARCH=false`:
 
 See [SEARCH_BEHAVIOR.md](SEARCH_BEHAVIOR.md) for tool-level caps and `min_score` semantics.
 
-**Implemented** opt-in ColBERT rerank ([ADR 0008](adr/0008-optional-colbert-reranking.md), [ADR 0015](adr/0015-colbert-http-sidecar.md)): set `RERANK_ENABLED=true` and re-index; hybrid prefetch → RRF → MAX_SIM rerank on `search_codebase`, `search_symbols`, `find_cross_references`, and `map_service_dependencies`. **Vector discovery** Phase 1 shipped: `recommend_code` via Qdrant Recommendation API ([ADR 0014](adr/0014-vector-discovery-and-ops-automation.md), [SEARCH_BEHAVIOR.md](SEARCH_BEHAVIOR.md#recommend_code)). Remaining Improve Search work: ADR 0008 Phase 2 track 2 (adaptive rerank skip / per-tool overrides), ADR 0014 Track A P2 (outlier helper), multi-hop client patterns ([ADR 0009](adr/0009-multi-hop-retrieval-strategies.md), [SEARCH_BEHAVIOR.md](SEARCH_BEHAVIOR.md#multi-hop-retrieval)). Golden-set retrieval evaluation is implemented ([ADR 0007](adr/0007-ranx-retrieval-evaluation.md)). Full prototype map: [adr/README.md](adr/README.md#qdrant-build-prototypes--improve-search-map).
+**Implemented** opt-in ColBERT rerank ([ADR 0008](adr/0008-optional-colbert-reranking.md), [ADR 0015](adr/0015-colbert-http-sidecar.md)): set `RERANK_ENABLED=true` and re-index; hybrid prefetch → RRF → MAX_SIM rerank on `search_codebase`, `search_symbols`, `find_cross_references`, and `map_service_dependencies`. **Vector discovery** Phase 1–2 shipped: `recommend_code` and `find_outlier_chunks` via Qdrant Recommendation API ([ADR 0014](adr/0014-vector-discovery-and-ops-automation.md), [SEARCH_BEHAVIOR.md](SEARCH_BEHAVIOR.md#recommend_code)). Remaining Improve Search work: ADR 0008 Phase 2 track 2 (adaptive rerank skip / per-tool overrides), Track B n8n compose (ADR 0014), multi-hop client patterns ([ADR 0009](adr/0009-multi-hop-retrieval-strategies.md), [SEARCH_BEHAVIOR.md](SEARCH_BEHAVIOR.md#multi-hop-retrieval)). Golden-set retrieval evaluation is implemented ([ADR 0007](adr/0007-ranx-retrieval-evaluation.md)). Full prototype map: [adr/README.md](adr/README.md#qdrant-build-prototypes--improve-search-map).
 
 ### Retrieval evaluation (ADR 0007)
 
@@ -162,7 +163,7 @@ Client-side pipeline eval (Ragas faithfulness / context precision on the same go
 
 The MCP server implements the **retrieval half** of Qdrant’s RAG tutorials (Ollama dense + BM25 sparse → Qdrant → ranked context). Connected AI clients perform metaprompt assembly and LLM generation. External orchestrators (Cursor agents, CrewAI, etc.) call MCP tools instead of embedding CrewAI/CAMEL in the server. See [ADR 0012](adr/0012-retrieval-only-rag-split.md) and [ADR 0013](adr/0013-external-agent-knowledge-base.md).
 
-Vector discovery Phase 1 is shipped: `recommend_code` (Qdrant Recommendation API, dense-only) per [ADR 0014](adr/0014-vector-discovery-and-ops-automation.md). Track A P2 (outlier helper) and Track B (optional n8n compose) remain deferred, inspired by [Qdrant’s n8n tutorial](https://qdrant.tech/documentation/tutorials-build-essentials/qdrant-n8n/).
+Vector discovery Phase 1–2 is shipped: `recommend_code` and `find_outlier_chunks` (Qdrant Recommendation API, dense-only) per [ADR 0014](adr/0014-vector-discovery-and-ops-automation.md). Track B (optional n8n compose) remains deferred, inspired by [Qdrant’s n8n tutorial](https://qdrant.tech/documentation/tutorials-build-essentials/qdrant-n8n/).
 
 ## GraphRAG (proposed)
 
@@ -179,6 +180,7 @@ All tools register via `register_*_tool(mcp, ctx)` in `main.py`:
 | Indexing | `tools/index.py` |
 | Search | `tools/search.py`, `tools/symbols.py`, `tools/search_common.py` |
 | Discovery | `tools/recommend.py` (`recommend_code`; gated by `RECOMMEND_ENABLED`) |
+| Discovery | `tools/outliers.py` (`find_outlier_chunks`; gated by `RECOMMEND_ENABLED`) |
 | Orientation | `tools/summary.py`, `tools/outline.py` |
 | Retrieval | `tools/chunk.py`, `tools/collections.py` |
 | Cross-project | `tools/cross_references.py`, `tools/service_map.py`, `tools/build_deps.py` |
