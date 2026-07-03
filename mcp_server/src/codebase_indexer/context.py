@@ -9,6 +9,7 @@ from codebase_indexer.config import Settings
 from codebase_indexer.index_jobs import IndexJobTracker
 from codebase_indexer.indexer.backends.factory import create_backends, create_colbert_backend
 from codebase_indexer.indexer.embedder import Embedder
+from codebase_indexer.storage.neo4j import Neo4jStorage
 from codebase_indexer.storage.qdrant import QdrantStorage
 from codebase_indexer.tools.cross_references import UrlExtractors
 
@@ -20,6 +21,7 @@ class AppContext:
     embedder: Embedder
     job_tracker: IndexJobTracker
     url_extractors: UrlExtractors
+    graph_storage: Neo4jStorage | None = None
 
     @classmethod
     def create(cls, settings: Settings) -> "AppContext":
@@ -28,6 +30,7 @@ class AppContext:
         colbert_backend = (
             create_colbert_backend(settings) if settings.rerank_enabled else None
         )
+        graph_storage = Neo4jStorage(settings) if settings.graph_enabled else None
         return cls(
             settings=settings,
             storage=QdrantStorage(settings),
@@ -45,4 +48,5 @@ class AppContext:
             ),
             job_tracker=IndexJobTracker(),
             url_extractors=UrlExtractors(settings.service_url_keyword_list),
+            graph_storage=graph_storage,
         )

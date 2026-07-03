@@ -192,6 +192,16 @@ def create_app(settings: Settings | None = None, preload_models: bool | None = N
 
     ctx = AppContext.create(settings)
 
+    if settings.graph_enabled:
+        log.info(
+            "graph_enabled",
+            uri=settings.neo4j_uri,
+            database=settings.neo4j_database,
+            schema_version=settings.graph_schema_version,
+        )
+    else:
+        log.info("graph_disabled")
+
     # Configure idle-timeout so _ensure_idle_timer() picks it up lazily
     # on the first embed call (avoids needing an ASGI lifecycle hook).
     from codebase_indexer.indexer.embedder import Embedder as _Embedder

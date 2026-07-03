@@ -66,6 +66,8 @@ async def _run_index_job(
     storage: QdrantStorage,
     path: str,
     force: bool,
+    graph_storage=None,
+    url_extractors=None,
 ) -> None:
     """Background task that performs the actual indexing."""
     job = await job_tracker.get_job(collection)
@@ -88,6 +90,8 @@ async def _run_index_job(
             force=force,
             cancel_event=job._cancel_event,
             result=pipeline_result,
+            graph_storage=graph_storage,
+            url_extractors=url_extractors,
         )
         job.status = JobStatus.DONE
         job.finished_at = time.monotonic()
@@ -185,7 +189,16 @@ def register_index_tool(mcp: FastMCP, ctx: "AppContext") -> None:
         # the done-callback surfaces any unexpected crash that escaped the
         # internal try/except in _run_index_job.
         task = asyncio.create_task(
-            _run_index_job(job_tracker, collection, settings, storage, path, force)
+            _run_index_job(
+                job_tracker,
+                collection,
+                settings,
+                storage,
+                path,
+                force,
+                ctx.graph_storage,
+                ctx.url_extractors,
+            )
         )
         job._task = task
 
@@ -307,7 +320,16 @@ def register_index_tool(mcp: FastMCP, ctx: "AppContext") -> None:
 
                 job = await job_tracker.start_job(name, path)
                 task = asyncio.create_task(
-                    _run_index_job(job_tracker, name, settings, storage, path, force)
+                    _run_index_job(
+                        job_tracker,
+                        name,
+                        settings,
+                        storage,
+                        path,
+                        force,
+                        ctx.graph_storage,
+                        ctx.url_extractors,
+                    )
                 )
                 job._task = task
 
@@ -354,7 +376,16 @@ def register_index_tool(mcp: FastMCP, ctx: "AppContext") -> None:
 
             job = await job_tracker.start_job(name, path)
             task = asyncio.create_task(
-                _run_index_job(job_tracker, name, settings, storage, path, force)
+                _run_index_job(
+                    job_tracker,
+                    name,
+                    settings,
+                    storage,
+                    path,
+                    force,
+                    ctx.graph_storage,
+                    ctx.url_extractors,
+                )
             )
             job._task = task
 

@@ -18,6 +18,7 @@ import asyncio
 import gc
 import time
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import structlog
 
@@ -26,8 +27,13 @@ from codebase_indexer.indexer.scanner import scan_files
 from codebase_indexer.indexer.chunker import chunk_file, Chunk
 from codebase_indexer.indexer.backends.factory import create_backends, create_colbert_backend
 from codebase_indexer.indexer.embedder import Embedder, EmbeddingError, trim_memory
+from codebase_indexer.indexer.graph_writer import write_chunks_to_graph
 from codebase_indexer.memory import check_memory_pressure, get_rss_mb
 from codebase_indexer.storage.qdrant import QdrantStorage
+from codebase_indexer.tools.cross_references import UrlExtractors
+
+if TYPE_CHECKING:
+    from codebase_indexer.storage.neo4j import Neo4jStorage
 
 log = structlog.get_logger()
 
@@ -54,6 +60,8 @@ async def run_pipeline(
     force: bool = False,
     cancel_event: asyncio.Event | None = None,
     result: PipelineResult | None = None,
+    graph_storage: "Neo4jStorage | None" = None,
+    url_extractors: UrlExtractors | None = None,
 ) -> PipelineResult:
     """Run the full indexing pipeline.
 
@@ -69,6 +77,22 @@ async def run_pipeline(
 
     coll = collection or settings.qdrant_collection
     await storage.ensure_collection(coll, force=force)
+
+    graph_active = graph_storage is not None and graph_storage.enabled
+    collection_names: list[str] = []
+    if graph_active:
+        try:
+            await graph_storage.ensure_schema()
+            stats = await storage.list_collection_stats()
+            collection_names = [s.name for s in stats]
+            if coll not in collection_names:
+                collection_names.append(coll)
+        except Exception as e:
+            log.error("graph_schema_init_error", error=str(e))
+            result.errors.append(f"Graph schema init error: {e}")
+            graph_active = False
+
+    extractors = url_extractors or UrlExtractors(settings.service_url_keyword_list)
 
     dense_backend, sparse_backend = create_backends(settings)
     colbert_backend = create_colbert_backend(settings) if settings.rerank_enabled else None
@@ -175,10 +199,20 @@ async def run_pipeline(
                 # Batch-delete old chunks for modified files before upserting new ones
                 if modified_paths:
                     await storage.delete_by_paths(coll, modified_paths)
+                    if graph_active:
+                        try:
+                            await graph_storage.delete_files(coll, modified_paths)
+                        except Exception as e:
+                            log.error("graph_delete_error", error=str(e))
+                            result.errors.append(f"Graph delete error: {e}")
                     modified_paths = []
 
                 inflight_upsert = await _flush_double_buffered(
                     pending_chunks, embedder, storage, coll, result, inflight_upsert,
+                    settings=settings,
+                    graph_storage=graph_storage if graph_active else None,
+                    url_extractors=extractors,
+                    collection_names=collection_names,
                 )
                 pending_chunks = []
 
@@ -204,10 +238,20 @@ async def run_pipeline(
             # Batch-delete remaining modified files before final upsert
             if modified_paths:
                 await storage.delete_by_paths(coll, modified_paths)
+                if graph_active:
+                    try:
+                        await graph_storage.delete_files(coll, modified_paths)
+                    except Exception as e:
+                        log.error("graph_delete_error", error=str(e))
+                        result.errors.append(f"Graph delete error: {e}")
                 modified_paths = []
 
             inflight_upsert = await _flush_double_buffered(
                 pending_chunks, embedder, storage, coll, result, inflight_upsert,
+                settings=settings,
+                graph_storage=graph_storage if graph_active else None,
+                url_extractors=extractors,
+                collection_names=collection_names,
             )
 
         # Wait for the very last upsert to finish
@@ -222,6 +266,12 @@ async def run_pipeline(
         if stale_paths:
             log.info("deleting_stale_files", count=len(stale_paths))
             await storage.delete_by_paths(coll, stale_paths)
+            if graph_active:
+                try:
+                    await graph_storage.delete_files(coll, stale_paths)
+                except Exception as e:
+                    log.error("graph_stale_delete_error", error=str(e))
+                    result.errors.append(f"Graph stale delete error: {e}")
     finally:
         # Always re-enable indexing so a deferred/cancelled job never leaves the
         # collection with HNSW construction permanently disabled.
@@ -269,6 +319,11 @@ async def _flush_double_buffered(
     collection: str,
     result: PipelineResult,
     prev_upsert: asyncio.Task | None,
+    *,
+    settings: Settings,
+    graph_storage: "Neo4jStorage | None" = None,
+    url_extractors: UrlExtractors | None = None,
+    collection_names: list[str] | None = None,
 ) -> asyncio.Task | None:
     """Embed chunks and overlap upsert with the next embedding round.
 
@@ -326,6 +381,20 @@ async def _flush_double_buffered(
             ut0 = time.monotonic()
             await storage.upsert_chunks(collection, embedded)
             log.info("upsert_complete", chunks=chunk_count, upsert_s=round(time.monotonic() - ut0, 2))
+            if graph_storage is not None and graph_storage.enabled:
+                try:
+                    await write_chunks_to_graph(
+                        graph_storage,
+                        collection=collection,
+                        chunks=chunks,
+                        url_extractors=url_extractors or UrlExtractors(),
+                        workspace_path=settings.workspace_path,
+                        collection_names=collection_names or [collection],
+                        schema_version=settings.graph_schema_version,
+                    )
+                except Exception as e:
+                    log.error("graph_write_error", error=str(e))
+                    result.errors.append(f"Graph write error: {e}")
             trim_memory()
 
         task = asyncio.create_task(_do_upsert())
