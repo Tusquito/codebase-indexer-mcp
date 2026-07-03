@@ -52,6 +52,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 2 | `merged` | GPU sidecar via `colbert_worker/Dockerfile.gpu` (`onnxruntime-gpu==1.26.0`, `python:3.12-slim`); compose override `docker-compose.colbert-worker.gpu.yml` (NVIDIA reservations mirroring Ollama); `COLBERT_DEVICE_IDS` → `ColbertOnnxBackend.device_ids`; worker `/health` reports `device` + `cuda_available`; fail-fast CUDA preload; `bench_colbert_sidecar.py` remote throughput bench; single-GPU 8GB OOM documented (no auto-scheduler); CI-safe mocked/skipped GPU tests + non-blocking GPU Dockerfile CI job; [PR #3](https://github.com/Tusquito/codebase-indexer-mcp/pull/3) | 2026-07-03 |
 | [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 3+ | `not_started` | MCP slim image when remote-only | — |
 | [0017](0017-model-tokenizer-ollama-dense-truncation.md) | Model-accurate tokenizer for Ollama dense truncation | Accepted (phase 1 — loader + Ollama backend) | Phase 1 — loader + Ollama backend | `merged` | `load_dense_tokenizer(model_id)` in `tokenizer_loader.py` via `tokenizers.Tokenizer.from_pretrained` + HF env cache dirs; shared class-level `Tokenizer` in `OllamaDenseBackend` at `preload()` via `_ensure_truncation()`; `_truncate_batch` uses `truncate_for_embedding` (sparse BM25 path untouched); fallback = log WARNING + pass text through unchanged; unit tests (mock + optional slow Nomic); `ARCHITECTURE.md`, `.env.example`, `docker-compose.yml` HF_HOME; defer Phase 2 observability + ADR 0011 body edit; [PR #11](https://github.com/Tusquito/codebase-indexer-mcp/pull/11) | 2026-07-03 |
+| [0016](0016-qwen3-embedding-default-dense-model.md) | Adopt Qwen3-Embedding-4B as default Ollama dense model | Accepted (phase 1 — config, Ollama MRL, docs, tests) | Phase 1 — Config, Ollama MRL, docs, tests | `verified` | Qwen3 0.6B/4B/8B in `KNOWN_EMBED_MODEL_*` (max tokens 32768); MRL `dimensions` passthrough (32≤size≤native) in `OllamaDenseBackend` + `factory.py`; Qwen3 GPU defaults in `.env.example`; compose generator Qwen3 (`scripts/run_compose_integration.py`); `benchmarks/_settings.py`; unit tests; docs; ADR Accepted pre-merge; defer Phase 2 eval baseline + `num_ctx`; generator-only compose env | 2026-07-03 |
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
 
@@ -59,9 +60,8 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 
 ### Proposed ADRs (not started)
 
-| ADR | Notes |
-|-----|-------|
-| [0016](0016-qwen3-embedding-default-dense-model.md) | Adopt Qwen3-Embedding-4B as default Ollama dense model — Proposed; deprioritized vs 0017 P1 at 2026-07-03 prioritization; sequential PR after 0017 P1 merge recommended |
+*(none)*
+
 ### Partial acceptance
 
 | ADR | Done | Remaining |
@@ -71,6 +71,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 | 0009 | Phase 1 — `SEARCH_BEHAVIOR.md` multi-hop section, golden `multi_hop` tags; Phase 2 — automated 2-hop client eval script ([PR #8](https://github.com/Tusquito/codebase-indexer-mcp/pull/8)) | Phase 3+ server mechanisms; optional graph-backed hops per [0002](0002-graphrag-neo4j-qdrant.md) |
 | 0015 | Phase 1 — HTTP sidecar + remote backend ([PR #2](https://github.com/Tusquito/codebase-indexer-mcp/pull/2)); Phase 2 — GPU worker + benchmark ([PR #3](https://github.com/Tusquito/codebase-indexer-mcp/pull/3)) | MCP slim image when remote-only (phase 3+) |
 | 0017 | Phase 1 — loader + Ollama backend ([PR #11](https://github.com/Tusquito/codebase-indexer-mcp/pull/11)) | Phase 2 observability + ADR 0011 body edit |
+| 0016 | Phase 1 — config, Ollama MRL, docs, tests (`verified` 2026-07-03) | Phase 2 eval baseline refresh (`eval_baseline.json`, `multi_hop_2hop` snapshot) |
 
 ---
 
@@ -668,6 +669,54 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 
 ---
 
+### ADR 0016 — Adopt Qwen3-Embedding-4B as default Ollama dense model
+
+#### 2026-07-03 — verification
+- **Phase / PR:** Phase 1 — Config, Ollama MRL, docs, tests
+- **Tracker status:** `verified`
+- **Choices:** Max tokens 32768; MRL 32≤size≤native; Qwen3 GPU defaults; compose generator Qwen3; ADR Accepted pre-merge
+- **Deviations:** none
+- **Code evidence:** `mcp_server/src/codebase_indexer/config.py`, `mcp_server/src/codebase_indexer/indexer/backends/ollama_dense.py`, `mcp_server/src/codebase_indexer/indexer/backends/factory.py`, `.env.example`, `scripts/run_compose_integration.py`, `mcp_server/benchmarks/_settings.py`, `mcp_server/tests/test_config.py`, `mcp_server/tests/test_ollama_dense_backend.py`, `mcp_server/tests/conftest.py`, `docs/ARCHITECTURE.md`, `docs/DEPLOYMENT.md`, `README.md`, `docs/adr/0016-qwen3-embedding-default-dense-model.md`, `docs/adr/README.md`
+- **Test debt:** Phase 2 eval baseline deferred
+- **Verify:** 77 unit tests pass; integration 8/8 pass; plan compliance pass; review rounds: 1
+- **Git:** pending
+- **Changelog:** yes
+
+#### 2026-07-03 — implementation
+- **Phase / PR:** Phase 1 — Config, Ollama MRL, docs, tests
+- **Tracker status:** `implemented`
+- **Choices:** Max tokens 32768; MRL 32≤size≤native; Qwen3 GPU defaults; compose generator Qwen3; ADR Accepted pre-merge
+- **Deviations:** `num_ctx` deferred; generator-only compose env
+- **Code evidence:** `mcp_server/src/codebase_indexer/config.py`, `mcp_server/src/codebase_indexer/indexer/backends/ollama_dense.py`, `mcp_server/src/codebase_indexer/indexer/backends/factory.py`, `.env.example`, `scripts/run_compose_integration.py`, `mcp_server/benchmarks/_settings.py`, `mcp_server/tests/test_config.py`, `mcp_server/tests/test_ollama_dense_backend.py`, `mcp_server/tests/conftest.py`, `docs/ARCHITECTURE.md`, `docs/DEPLOYMENT.md`, `README.md`, `docs/adr/0016-qwen3-embedding-default-dense-model.md`, `docs/adr/README.md`
+- **Test debt:** Compose integration not smoke-run; Phase 2 eval baseline deferred
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no
+
+#### 2026-07-03 — plan
+- **Phase / PR:** Phase 1 — Config, Ollama MRL, docs, tests
+- **Tracker status:** `planned`
+- **Choices:** Single PR Phase 1; ADR Accept pre-merge; compose integration generator updated to Qwen3 (`scripts/run_compose_integration.py`). **Chosen scope:** Qwen3 0.6B/4B/8B in `KNOWN_EMBED_MODEL_DIMENSIONS` + `KNOWN_EMBED_MODEL_MAX_TOKENS` with MRL-aware validation; `dimensions` passthrough in `OllamaDenseBackend` preload + `_embed_http`; update `.env.example`, `scripts/run_compose_integration.py`, `benchmarks/_settings.py`; unit tests; docs; defer Phase 2 eval baseline. **Assumptions:** 0017 P1 merged ([PR #11](https://github.com/Tusquito/codebase-indexer-mcp/pull/11)); no new deps
+- **Deviations:** none
+- **Code evidence:** —
+- **Test debt:** —
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing yes; status `planned` (not verified)
+
+#### 2026-07-03 — prioritization
+- **Phase / PR:** Phase 1 — Config, Ollama MRL, docs, tests
+- **Tracker status:** `candidate`
+- **Choices:** Prioritize 0016 Phase 1 over 0002 Phase 2 GraphRAG payload linking (closest alternative, 32.5 weighted score — tie within ~10%; tie-breaker: default retrieval-path impact + embedding-track sequencing); over Proposed 0018 Phase 1 (ops observability, lower default-path impact); over 0017 Phase 2 (small slice; better combined with 0018 P1); over 0014 Track B n8n and 0015 Phase 3+ slim image (ops-only, deferred); over 0008 test-debt (QA-only); single phase per pipeline rule. **Chosen scope:** Qwen3 0.6B/4B/8B entries in `KNOWN_EMBED_MODEL_DIMENSIONS` and `KNOWN_EMBED_MODEL_MAX_TOKENS`; MRL `dimensions` passthrough in `ollama_dense.py` / `factory.py` when `DENSE_EMBED_VECTOR_SIZE` < native; update `.env.example`, `.env.compose.integration`, `benchmarks/_settings.py`; unit tests (`test_config.py`, `test_ollama_dense_backend.py` mock `dimensions` payload); docs (`ARCHITECTURE.md`, `DEPLOYMENT.md`, `README.md` embedding table — Qwen3 primary, Nomic CPU preset); defer Phase 2 `eval_baseline.json` refresh and operator re-index; **requires formal Accept of Proposed ADR 0016 before dev**. **Why now:** ADR 0017 Phase 1 merged ([PR #11](https://github.com/Tusquito/codebase-indexer-mcp/pull/11)); prior 2026-07-03 prioritization deprioritized 0016 vs 0017 P1 and recommended sequential PR after 0017 P1 merge — prerequisite now satisfied. Code still defaults to Nomic (`DENSE_EMBED_MODEL=nomic-ai/nomic-embed-text-v1.5` in `.env.example`; no Qwen3 in `KNOWN_EMBED_MODEL_*`; `OllamaDenseBackend._embed_http` lacks MRL `dimensions`). Model-accurate truncation (0017 P1) enables trustworthy 32K caps for Qwen3. Golden-set eval harness exists for Phase 2; Phase 1 mergeable without baseline refresh. **Suggested scope:** one phase (= one PR).
+- **Deviations:** none
+- **Code evidence:** `.env.example` `DENSE_EMBED_MODEL=nomic-ai/nomic-embed-text-v1.5`; no Qwen3 in `KNOWN_EMBED_MODEL_*`; `OllamaDenseBackend._embed_http` lacks MRL `dimensions`
+- **Test debt:** —
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing unknown
+
+---
+
 ### ADR 0017 — Model-accurate tokenizer for Ollama dense truncation
 
 #### 2026-07-03 — merge
@@ -886,4 +935,13 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-03 | 0017 | Tokenizer load-failure fallback behavior | Decided at plan — log warning + pass text through unchanged (no BM25 fallback, not char heuristic) | no |
 | 2026-07-03 | 0017 | 0016 Phase 1 sequencing after 0017 P1 | Prioritized 0017 P1 over 0016 P1 at 2026-07-03; 0017 P1 merged ([PR #11](https://github.com/Tusquito/codebase-indexer-mcp/pull/11)); 0016 Phase 1 unblocked for next cycle | no |
 | 2026-07-03 | 0017 | Air-gap HF cache pre-seeding policy for operators | Decided at plan — document only in Phase 1 (pre-populate `HF_HOME` or mount tokenizer files; no implementation) | no |
-| 2026-07-03 | 0016 | Whether 0016 Phase 1 runs this cycle | Deprioritized vs 0017 P1 at 2026-07-03 prioritization; sequential PR after 0017 P1 recommended | no |
+| 2026-07-03 | 0016 | Whether 0016 Phase 1 runs this cycle | **Prioritized** at 2026-07-03 prioritization — 0017 P1 merged ([PR #11](https://github.com/Tusquito/codebase-indexer-mcp/pull/11)); prerequisite satisfied; tracker `planned` at 2026-07-03 plan | no |
+| 2026-07-03 | 0016 | Accept ADR 0016 (Proposed → Accepted) before dev? | **Accepted (phase 1 — config, Ollama MRL, docs, tests)** at 2026-07-03 implementation (pre-merge) | no |
+| 2026-07-03 | 0016 | Single PR vs split Phase 1 | Decided at plan — single PR Phase 1 | no |
+| 2026-07-03 | 0016 | Compose integration model preset | Decided at plan — update `scripts/run_compose_integration.py` generator to Qwen3 | no |
+| 2026-07-03 | 0016 | MRL `dimensions` passthrough location | Decided at plan — `OllamaDenseBackend` preload + `_embed_http` (not `factory.py`) | no |
+| 2026-07-03 | 0016 | New dependencies for Phase 1 | Assumed at plan — no new deps | no |
+| 2026-07-03 | 0016 | `.env.example` default: Qwen3 GPU preset vs Nomic-with-Qwen3-documented | Decided at implementation — Qwen3 GPU defaults in `.env.example`; Nomic documented as CPU/low-VRAM preset | no |
+| 2026-07-03 | 0016 | Whether 0002 Phase 2 supersedes if GraphRAG adoption is active | Open — orchestrator decision | no |
+| 2026-07-03 | 0016 | Phase 1 implementation choices confirmed | Max tokens 32768; MRL 32≤size≤native; Qwen3 GPU defaults in `.env.example`; compose generator Qwen3; ADR Accepted pre-merge; `num_ctx` deferred; generator-only compose env (no `.env.compose.integration` file) | no |
+| 2026-07-03 | 0016 | Phase 2 recall@10 gate strictness | Open — plan or verification decision | no |
