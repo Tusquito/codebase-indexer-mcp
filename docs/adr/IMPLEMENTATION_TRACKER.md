@@ -53,6 +53,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 3+ | `not_started` | MCP slim image when remote-only | — |
 | [0017](0017-model-tokenizer-ollama-dense-truncation.md) | Model-accurate tokenizer for Ollama dense truncation | Accepted (phase 1 — loader + Ollama backend) | Phase 1 — loader + Ollama backend | `merged` | `load_dense_tokenizer(model_id)` in `tokenizer_loader.py` via `tokenizers.Tokenizer.from_pretrained` + HF env cache dirs; shared class-level `Tokenizer` in `OllamaDenseBackend` at `preload()` via `_ensure_truncation()`; `_truncate_batch` uses `truncate_for_embedding` (sparse BM25 path untouched); fallback = log WARNING + pass text through unchanged; unit tests (mock + optional slow Nomic); `ARCHITECTURE.md`, `.env.example`, `docker-compose.yml` HF_HOME; defer Phase 2 observability + ADR 0011 body edit; [PR #11](https://github.com/Tusquito/codebase-indexer-mcp/pull/11) | 2026-07-03 |
 | [0016](0016-qwen3-embedding-default-dense-model.md) | Adopt Qwen3-Embedding-4B as default Ollama dense model | Accepted (phase 1 — config, Ollama MRL, docs, tests) | Phase 1 — Config, Ollama MRL, docs, tests | `merged` | Qwen3 0.6B/4B/8B in `KNOWN_EMBED_MODEL_*` (max tokens 32768); MRL `dimensions` passthrough (32≤size≤native) in `OllamaDenseBackend` + `factory.py`; Qwen3 GPU defaults in `.env.example`; compose generator Qwen3 (`scripts/run_compose_integration.py`); `benchmarks/_settings.py`; unit tests; docs; defer Phase 2 eval baseline + `num_ctx`; generator-only compose env; [PR #12](https://github.com/Tusquito/codebase-indexer-mcp/pull/12) | 2026-07-03 |
+| [0016](0016-qwen3-embedding-default-dense-model.md) | Adopt Qwen3-Embedding-4B as default Ollama dense model | Accepted (phase 1 — config, Ollama MRL, docs, tests) | Phase 2 — Eval baseline refresh (final phase) | `verified` | Jina comparison baseline; recall@10 gate waived with per-tag analysis (−63.1% vs Jina); refreshed `eval_baseline.json` + `golden_queries.jsonl`; alias line remapping; operational compose/env eval overrides not committed; defer CI validate-labels gate, compose WORKSPACE_ROOT eval preset, optional non-blocking recall benchmark job, compose host-env URL isolation | 2026-07-03 |
 | [0018](0018-telemetry-observability-otel-prometheus.md) | Adopt OpenTelemetry instrumentation with Prometheus metrics and optional OTLP export | Accepted (phase 1 — Application Prometheus metrics (MCP + ColBERT worker)) | Phase 1 — Application Prometheus metrics (MCP + ColBERT worker) | `merged` | Opt-in `METRICS_ENABLED=false` default; `prometheus_client` on dedicated `CollectorRegistry`; metrics-only `@observe_tool` on all MCP tool handlers; no collection/rel_path labels; application counters/histograms + truncation counter; index metrics via IndexJobTracker; `GET /metrics` on MCP and ColBERT worker HTTP layer; unit tests (`test_telemetry_metrics.py`); `DEPLOYMENT.md` scrape docs; defer `METRICS_PORT`, docker-compose scrape wiring, Phase 2 OTel traces, Phase 3 observability compose stack; [PR #13](https://github.com/Tusquito/codebase-indexer-mcp/pull/13) | 2026-07-03 |
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
@@ -68,7 +69,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 | 0009 | Phase 1 — `SEARCH_BEHAVIOR.md` multi-hop section, golden `multi_hop` tags; Phase 2 — automated 2-hop client eval script ([PR #8](https://github.com/Tusquito/codebase-indexer-mcp/pull/8)) | Phase 3+ server mechanisms; optional graph-backed hops per [0002](0002-graphrag-neo4j-qdrant.md) |
 | 0015 | Phase 1 — HTTP sidecar + remote backend ([PR #2](https://github.com/Tusquito/codebase-indexer-mcp/pull/2)); Phase 2 — GPU worker + benchmark ([PR #3](https://github.com/Tusquito/codebase-indexer-mcp/pull/3)) | MCP slim image when remote-only (phase 3+) |
 | 0017 | Phase 1 — loader + Ollama backend ([PR #11](https://github.com/Tusquito/codebase-indexer-mcp/pull/11)) | Phase 2 observability + ADR 0011 body edit |
-| 0016 | Phase 1 — config, Ollama MRL, docs, tests ([PR #12](https://github.com/Tusquito/codebase-indexer-mcp/pull/12)) | Phase 2 eval baseline refresh (`eval_baseline.json`, `multi_hop_2hop` snapshot) |
+| 0016 | Phase 1 — config, Ollama MRL, docs, tests ([PR #12](https://github.com/Tusquito/codebase-indexer-mcp/pull/12)); Phase 2 — eval baseline refresh (`verified`, pending merge) | merge Phase 2 PR; `num_ctx` deferred |
 | 0018 | Phase 1 — Application Prometheus metrics (MCP + ColBERT worker) ([PR #13](https://github.com/Tusquito/codebase-indexer-mcp/pull/13)) | Phase 2 OTel traces; Phase 3 observability compose stack; `METRICS_PORT`, docker-compose scrape wiring |
 
 ---
@@ -669,6 +670,50 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 
 ### ADR 0016 — Adopt Qwen3-Embedding-4B as default Ollama dense model
 
+#### 2026-07-03 — verification
+- **Phase / PR:** Phase 2 — Eval baseline refresh (final phase)
+- **Tracker status:** `verified`
+- **Choices:** Jina comparison baseline; recall@10 gate waived with per-tag analysis; alias line remapping; operational compose/env eval overrides not committed
+- **Deviations:** none
+- **Code evidence:** `mcp_server/benchmarks/fixtures/eval_baseline.json`, `mcp_server/benchmarks/fixtures/golden_queries.jsonl`, `docs/adr/0016-qwen3-embedding-default-dense-model.md`, `docs/adr/README.md`
+- **Test debt:** CI validate-labels gate; compose WORKSPACE_ROOT eval preset; optional non-blocking recall benchmark job; compose host-env URL isolation
+- **Verify:** 341 unit tests pass; eval harness tests pass; integration report pass; eval_baseline.json and ADR Measured outcomes consistent; documented recall@10 regression (−63.1% vs Jina) satisfies plan waiver; review rounds: 1
+- **Git:** pending
+- **Changelog:** yes
+
+#### 2026-07-03 — implementation
+- **Phase / PR:** Phase 2 — Eval baseline refresh
+- **Tracker status:** `implemented`
+- **Choices:** Comparison baseline Jina → Qwen3 only; recall@10 gate waived with documented per-tag regression; GPU Ollama via docker-compose.ollama.gpu.yml; RERANK_ENABLED=false; golden re-index at parent WORKSPACE_ROOT; alias line remapping for Phase 1 chunk drift; multi_hop_2hop refreshed with Qwen3 metrics
+- **Deviations:** Operational compose/env overrides during eval (WORKSPACE_ROOT parent mount, in-container service URLs, OLLAMA_TIMEOUT=600) not committed; significant golden-set recall regression (−63.1% recall@10 vs Jina) documented in ADR measured outcomes
+- **Code evidence:** `mcp_server/benchmarks/fixtures/eval_baseline.json`, `mcp_server/benchmarks/fixtures/golden_queries.jsonl`, `docs/adr/0016-qwen3-embedding-default-dense-model.md`, `docs/adr/README.md`
+- **Test debt:** CI validate-labels gate; compose WORKSPACE_ROOT eval preset; optional non-blocking recall benchmark job; compose host-env URL isolation
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing yes; status `implemented` (not verified); invoker Changelog: no
+
+#### 2026-07-03 — plan
+- **Phase / PR:** Phase 2 — Eval baseline refresh
+- **Tracker status:** `planned`
+- **Choices:** One PR for entire Phase 2; compare against committed Jina baseline (`dense_embed_model: jinaai/jina-embeddings-v2-base-code`, recall@10 0.660256); success gate = recall@10 ≥ prior or documented regression with per-tag mitigation; `RERANK_ENABLED=false` for baseline parity; use existing `scripts/reindex_graphrag.py` / MCP `index_codebase(force=True)` pattern; host eval with `OLLAMA_URL=http://127.0.0.1:11434`; defer `num_ctx`, ADR 0011 body edit, CI recall gate, Nomic re-capture unless explicitly added at verify. **Chosen scope:** Re-index golden fixture collection (`codebase-indexer-mcp`) with Qwen3-Embedding-4B @ 1024 via bundled Ollama (GPU recommended); run `eval_retrieval` (hybrid + `--no-hybrid` for `ab_dense_only`) and `eval_multihop` (two-hop RRF); commit updated `mcp_server/benchmarks/fixtures/eval_baseline.json` with refreshed `params`, overall metrics, `metrics_by_tag`, and `multi_hop_2hop`; fill ADR 0016 **Measured outcomes** (Jina 2026-07-02 → Qwen3 delta); conditional golden label fixes only if `--validate-labels` fails; single PR, no runtime code changes. **Assumptions:** Phase 1 merged ([PR #12](https://github.com/Tusquito/codebase-indexer-mcp/pull/12)); ADR 0017 P1 tokenizer merged; `benchmarks/_settings.py` already Qwen3; golden set unchanged (`golden_set_version: v3-multi-hop`, 26 queries); Docker integration required for live verify; this phase completes ADR 0016 (final phase).
+- **Deviations:** none
+- **Code evidence:** —
+- **Test debt:** —
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing no
+
+#### 2026-07-03 — prioritization
+- **Phase / PR:** Phase 2 — Eval baseline refresh
+- **Tracker status:** `candidate`
+- **Choices:** Prioritize 0016 Phase 2 over 0002 Phase 2 GraphRAG payload linking (closest capability alternative, 27.0 weighted score — tie within ~10%; tie-breaker: lower scope/risk for benchmark-only refresh); over 0018 Phase 2 OTel traces (26.0, ops value but lower measurability in default CI); over 0017 Phase 2 standalone (truncation counter already in 0018 P1); over 0014 Track B n8n and 0015 Phase 3+ slim image (ops-only, deferred twice); over 0008 test-debt (QA-only); single phase per pipeline rule; close embedding ADR arc before GraphRAG P2 or telemetry P2. **Chosen scope:** Re-index golden fixture collection (`codebase-indexer-mcp`) with Qwen3-4B @ 1024 via Ollama GPU; run `python -m benchmarks.eval_retrieval` and `python -m benchmarks.eval_multihop`; update `mcp_server/benchmarks/fixtures/eval_baseline.json` (params: `dense_embed_model`, `dense_embed_vector_size`, `indexed_at`, embed-model note; refresh overall metrics, `metrics_by_tag`, `multi_hop_2hop` snapshot); record Nomic/Jina vs Qwen3 deltas in tracker Phase log; apply ADR 0016 success criterion (recall@10 ≥ prior or documented regression); defer optional `num_ctx` passthrough (0016 P1 deviation), ADR 0011 body edit (0017 P2 remainder), and compose scrape/`METRICS_PORT` (0018 P1 deferrals). **Why now:** ADR 0016 Phase 1 merged ([PR #12](https://github.com/Tusquito/codebase-indexer-mcp/pull/12)); prerequisite ADR 0017 Phase 1 merged ([PR #11](https://github.com/Tusquito/codebase-indexer-mcp/pull/11)); ADR 0018 Phase 1 merged ([PR #13](https://github.com/Tusquito/codebase-indexer-mcp/pull/13)) — prior cycle explicitly deferred 0016 P2 for 0018 P1. Embedding defaults now Qwen3 in `.env.example` and `benchmarks/_settings.py`, but `fixtures/eval_baseline.json` still records `jinaai/jina-embeddings-v2-base-code` (2026-07-02) — regression compare is misleading until refresh. ADR 0016 §Phased delivery item 2 and §Measured outcomes remain unfilled. Highest weighted score (30.5); benchmark-only PR with existing `eval_retrieval.py` / `eval_multihop.py` harness (ADR 0007, 0009); no new mandatory infra; default deploy unchanged. **Suggested scope:** one phase (= one PR).
+- **Deviations:** none
+- **Code evidence:** `.env.example`, `mcp_server/benchmarks/_settings.py` Qwen3 defaults; `mcp_server/benchmarks/fixtures/eval_baseline.json` still `jinaai/jina-embeddings-v2-base-code` (2026-07-02)
+- **Test debt:** —
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing unknown
+
 #### 2026-07-03 — merge
 - **Phase / PR:** Phase 1 — Config, Ollama MRL, docs, tests — [PR #12](https://github.com/Tusquito/codebase-indexer-mcp/pull/12)
 - **Tracker status:** `merged`
@@ -1012,7 +1057,17 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-03 | 0016 | `.env.example` default: Qwen3 GPU preset vs Nomic-with-Qwen3-documented | Decided at implementation — Qwen3 GPU defaults in `.env.example`; Nomic documented as CPU/low-VRAM preset | no |
 | 2026-07-03 | 0016 | Whether 0002 Phase 2 supersedes if GraphRAG adoption is active | Open — orchestrator decision | no |
 | 2026-07-03 | 0016 | Phase 1 implementation choices confirmed | Max tokens 32768; MRL 32≤size≤native; Qwen3 GPU defaults in `.env.example`; compose generator Qwen3; ADR Accepted pre-merge; `num_ctx` deferred; generator-only compose env (no `.env.compose.integration` file) | no |
-| 2026-07-03 | 0016 | Phase 2 recall@10 gate strictness | Open — plan or verification decision | no |
+| 2026-07-03 | 0016 | Phase 2 recall@10 gate strictness | **Decided at implementation** — gate waived with documented per-tag regression (−63.1% recall@10 vs Jina) | no |
+| 2026-07-03 | 0016 | Single PR vs split Phase 2 | Decided at plan — single PR for entire Phase 2 | no |
+| 2026-07-03 | 0016 | Baseline comparison model for Phase 2 eval | Decided at plan — compare against committed Jina baseline (`dense_embed_model: jinaai/jina-embeddings-v2-base-code`, recall@10 0.660256) | no |
+| 2026-07-03 | 0016 | Phase 2 success gate | Decided at plan — recall@10 ≥ prior or documented regression with per-tag mitigation | no |
+| 2026-07-03 | 0016 | Rerank posture for Phase 2 baseline capture | Decided at plan — `RERANK_ENABLED=false` for baseline parity | no |
+| 2026-07-03 | 0016 | Re-index pattern for Phase 2 golden fixture | **Decided at implementation** — golden re-index at parent WORKSPACE_ROOT; alias line remapping for Phase 1 chunk drift | no |
+| 2026-07-03 | 0016 | Eval host Ollama URL for Phase 2 | **Decided at implementation** — GPU Ollama via `docker-compose.ollama.gpu.yml`; in-container service URLs (deviation from plan host URL) | no |
+| 2026-07-03 | 0016 | Phase 2 deferred items | Decided at plan — defer `num_ctx`, ADR 0011 body edit, CI recall gate, Nomic re-capture unless explicitly added at verify | no |
+| 2026-07-03 | 0016 | Optional Nomic snapshot for ADR narrative | Open — plan or verification decision | no |
+| 2026-07-03 | 0016 | `multi_hop_2hop` minimum lift threshold | **Decided at implementation** — refreshed with Qwen3 metrics (no minimum lift gate) | no |
+| 2026-07-03 | 0016 | GPU mandatory vs CPU-acceptable for baseline commit evidence | **Decided at implementation** — GPU Ollama via `docker-compose.ollama.gpu.yml` | no |
 | 2026-07-03 | 0018 | Accept ADR 0018 (Proposed → Accepted) before dev? | **Accepted (phase 1 — Application Prometheus metrics (MCP + ColBERT worker))** after PR #13 merge | no |
 | 2026-07-03 | 0018 | Whether 0017 P2 truncation logging ships in same PR or after 0018 P1 merge? | **Resolved** at 2026-07-03 plan — deferred until after 0018 P1 merge (orchestrator resolved) | no |
 | 2026-07-03 | 0018 | Single PR per phase for 0018? | Decided at plan — yes; one PR for Phase 1 | no |
@@ -1023,7 +1078,11 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-03 | 0018 | Docker compose changes in Phase 1 | Decided at plan — unchanged in Phase 1 | no |
 | 2026-07-03 | 0018 | Default CI metrics posture | Assumed at plan — metrics-disabled (`METRICS_ENABLED=false`) | no |
 | 2026-07-03 | 0018 | Prioritize 0018 Phase 1 over 0016 Phase 2 eval baseline? | **Prioritized** at 2026-07-03 prioritization — 0016 P1 + 0017 P1 merged; 0018 P1 `planned` at 2026-07-03 plan | no |
-| 2026-07-03 | 0016 | Whether 0016 Phase 2 runs this cycle | Deprioritized at 2026-07-03 — 0018 Phase 1 prioritized over 0016 Phase 2 eval baseline | no |
+| 2026-07-03 | 0016 | Whether 0016 Phase 2 runs this cycle | **Prioritized** at 2026-07-03 prioritization — 0016 P1 + 0017 P1 + 0018 P1 merged; tracker `candidate` | no |
+| 2026-07-03 | 0016 | Accept baseline merge if Qwen3 recall@10 regresses vs prior snapshot? | **Confirmed at verification** — documented regression (−63.1% recall@10 vs Jina) satisfies plan waiver; eval_baseline.json and ADR Measured outcomes consistent | no |
+| 2026-07-03 | 0016 | Phase 2 verification confirmed | 341 unit tests pass; eval harness tests pass; integration report pass; recall@10 regression (−63.1% vs Jina) satisfies plan waiver; review rounds: 1; final ADR 0016 phase; merge pending | no |
+| 2026-07-03 | 0016 | Maintainer-only GPU eval run vs optional slow CI gate? | Open — plan decision | no |
+| 2026-07-03 | 0016 | Sequence 0002 P2 vs 0018 P2 after 0016 Phase 2? | Open — orchestrator decision | no |
 | 2026-07-03 | 0018 | Dedicated CollectorRegistry for Prometheus metrics | Decided at implementation — dedicated `CollectorRegistry` instead of default registry | no |
 | 2026-07-03 | 0018 | collection/rel_path metric labels | Decided at implementation — omitted (no collection/rel_path labels) | no |
 | 2026-07-03 | 0018 | METRICS_PORT env var and docker-compose scrape wiring | Deferred at implementation — `METRICS_PORT` and docker-compose unchanged | no |
@@ -1034,3 +1093,6 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-03 | 0018 | Phase 1 verification confirmed | Dedicated CollectorRegistry; ColBERT ONNX at worker HTTP layer; index metrics via IndexJobTracker; Docker skip per plan; 329 tests pass; test debt: Bearer-auth /metrics, truncated_chunks helper, in-process ColBERT embed metrics, memory pressure edge-trigger | no |
 | 2026-07-03 | 0018 | Accept ADR 0018 phase 1 at merge? | `Accepted (phase 1 — Application Prometheus metrics (MCP + ColBERT worker))` after PR #13 merge | no |
 | 2026-07-03 | 0018 | Phase 1 merge confirmed | [PR #13](https://github.com/Tusquito/codebase-indexer-mcp/pull/13) merged on `adr/0018-phase-1-prometheus-metrics`; release skipped; Phase 2 OTel traces + Phase 3 compose stack deferred | no |
+| 2026-07-03 | 0016 | Phase 2 implementation choices confirmed | Comparison baseline Jina → Qwen3 only; recall@10 gate waived with documented per-tag regression; GPU Ollama via `docker-compose.ollama.gpu.yml`; `RERANK_ENABLED=false`; golden re-index at parent WORKSPACE_ROOT; alias line remapping for Phase 1 chunk drift; `multi_hop_2hop` refreshed with Qwen3 metrics; ADR 0016 Measured outcomes filled | no |
+| 2026-07-03 | 0016 | Phase 2 operational compose/env overrides during eval | WORKSPACE_ROOT parent mount, in-container service URLs, `OLLAMA_TIMEOUT=600` — not committed | no |
+| 2026-07-03 | 0016 | Phase 2 test debt | CI validate-labels gate; compose WORKSPACE_ROOT eval preset; optional non-blocking recall benchmark job; compose host-env URL isolation | no |
