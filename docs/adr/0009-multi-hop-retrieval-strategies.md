@@ -1,6 +1,6 @@
 # 0009. Multi-hop code retrieval strategies
 
-- **Status:** Accepted (phase 1 — client decomposition docs + golden-set tags)
+- **Status:** Accepted (phase 1; phase 2 merged)
 - **Date:** 2026-07-02
 - **Deciders:** Maintainers
 - **Related:** [Query Decomposition for Multi-Hop Questions](https://qdrant.tech/documentation/improve-search/query-decomposition/), [GraphRAG with Neo4j](https://qdrant.tech/documentation/examples/graphrag-qdrant-neo4j/), [ADR 0002](0002-graphrag-neo4j-qdrant.md), [ADR 0005](0005-mcp-retrieval-connector.md)

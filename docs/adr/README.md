@@ -53,7 +53,7 @@ Invoke the full pipeline with **`adr-orchestrator`**; resume a phase with `Resum
 | [0006](0006-explicit-fastembed-pipeline.md) | Explicit FastEmbed pipeline over qdrant-client convenience API | Accepted | 2026-07-02 |
 | [0007](0007-ranx-retrieval-evaluation.md) | Golden-set retrieval evaluation with ranx | Accepted | 2026-07-02 |
 | [0008](0008-optional-colbert-reranking.md) | Optional ColBERT late-interaction reranking | Accepted | 2026-07-02 |
-| [0009](0009-multi-hop-retrieval-strategies.md) | Multi-hop code retrieval strategies | Accepted (phase 1) | 2026-07-02 |
+| [0009](0009-multi-hop-retrieval-strategies.md) | Multi-hop code retrieval strategies | Accepted (phase 1; phase 2 merged) | 2026-07-02 |
 | [0010](0010-defer-ragas-to-client.md) | Defer Ragas pipeline evaluation to MCP clients | Accepted | 2026-07-02 |
 | [0011](0011-ollama-only-dense-embedding.md) | Ollama-only dense embedding | Accepted | 2026-07-02 |
 | [0012](0012-retrieval-only-rag-split.md) | Keep MCP as retrieval-only RAG layer | Accepted | 2026-07-02 |
