@@ -9,7 +9,7 @@ A fully self-hosted, Docker-based MCP server that indexes your codebase into a l
 - **Incremental Indexing** — Only re-indexes changed files (SHA-256 hash comparison)
 - **Multi-Language** — Python, JavaScript, TypeScript, Go, Rust, Java, C, C++, C#
 - **Token Efficient** — Returns only relevant code chunks, not full files. Three dedicated low-cost orientation tools (`get_collection_summary`, `search_symbols`, `get_file_outline`) eliminate exploratory searches entirely.
-- **Vector Discovery** — `recommend_code` finds chunks similar to positive examples and dissimilar from negatives (Qdrant Recommendation API)
+- **Vector Discovery** — `recommend_code` finds chunks similar to positive examples and dissimilar from negatives; `find_outlier_chunks` finds code semantically distant from a module context (Qdrant Recommendation API)
 - **MCP Compatible** — Works with Claude Desktop, Copilot CLI, Cursor, and more
 - **Optional GPU Acceleration** — Offload dense embedding to Ollama on NVIDIA GPU via `docker-compose.ollama.gpu.yml`
 
@@ -22,7 +22,7 @@ A fully self-hosted, Docker-based MCP server that indexes your codebase into a l
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Per-component responsibilities, indexing pipeline, embedding layer, hybrid search |
 | [docs/adr/](docs/adr/) | Architecture Decision Records — see [0012](docs/adr/0012-retrieval-only-rag-split.md) (retrieval-only RAG), [0011](docs/adr/0011-ollama-only-dense-embedding.md) (Ollama dense), [0008](docs/adr/0008-optional-colbert-reranking.md) (ColBERT rerank), [0014](docs/adr/0014-vector-discovery-and-ops-automation.md) (recommendation search), [0015](docs/adr/0015-colbert-http-sidecar.md) (ColBERT sidecar) |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Ollama dense deployment (bundled/external/GPU), memory/CPU tuning |
-| [docs/SEARCH_BEHAVIOR.md](docs/SEARCH_BEHAVIOR.md) | `search_codebase` / `search_symbols` caps, `min_score` vs RRF, `recommend_code`, ColBERT rerank |
+| [docs/SEARCH_BEHAVIOR.md](docs/SEARCH_BEHAVIOR.md) | `search_codebase` / `search_symbols` caps, `min_score` vs RRF, `recommend_code`, `find_outlier_chunks`, ColBERT rerank |
 
 ## System Architecture
 
@@ -208,6 +208,7 @@ These tools use **zero embedding cost** (Qdrant payload scroll only). Use them f
 | Tool | Description |
 |------|-------------|
 | `recommend_code` | Find chunks **similar to positive examples** and **dissimilar from negative examples** via Qdrant Recommendation API (dense-only, `AVERAGE_VECTOR`). Provide `positive_chunk_ids` and/or `positive_query`; optional negatives. Single collection; `path_glob` post-filter uses indexed `rel_path` prefix (e.g. `my-project/src/**/*.py`). Gated by `RECOMMEND_ENABLED` (default on). See [docs/SEARCH_BEHAVIOR.md](docs/SEARCH_BEHAVIOR.md#recommend_code). |
+| `find_outlier_chunks` | Find chunks **semantically distant** from a module context via Qdrant Recommendation API (`BEST_SCORE`, negative-only) + cosine-to-centroid filter. Provide `context_chunk_ids` and/or `path_glob` scroll sample. Single collection; `max_similarity` excludes near-context chunks (default `OUTLIER_MAX_SIMILARITY`). Gated by `RECOMMEND_ENABLED` (default on). See [docs/SEARCH_BEHAVIOR.md](docs/SEARCH_BEHAVIOR.md#find_outlier_chunks). |
 
 #### Finding method callers (call sites)
 
@@ -386,7 +387,7 @@ After upgrading the server, re-copy `SKILL.md` so the skill stays aligned with n
 
 - **Auto-indexes on load** — when you invoke the skill, it checks whether the current repository is indexed. If not, it calls `index_codebase` immediately without you having to ask.
 - **Enforces the tool ladder** — the agent always starts with the cheapest tool and stops as soon as it has enough information, avoiding expensive full-content searches.
-- **Discovery patterns** — uses `recommend_code` for “like this, not that” queries (e.g. similar handlers excluding tests).
+- **Discovery patterns** — uses `recommend_code` for “like this, not that” queries (e.g. similar handlers excluding tests); uses `find_outlier_chunks` for semantically distant code in a module (refactor / dead-code triage).
 
 ### Performance impact
 
@@ -535,12 +536,14 @@ If you change port bindings to expose the server beyond localhost, set `MCP_AUTH
 | `SERVICE_URL_KEYWORDS` | `rest,api,profile,service,…` | Comma-separated URL path keywords for API path extraction in config and code |
 | `SERVICE_DISCOVERY_EXTRA_QUERIES` | *(empty)* | Extra natural-language queries for `map_service_dependencies`; separate with `\|` or newlines |
 
-### Recommendation search (ADR 0014)
+### Vector discovery (ADR 0014)
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `RECOMMEND_ENABLED` | `true` | Register `recommend_code` MCP tool; set `false` to omit |
-| `RECOMMEND_MAX_EXAMPLES` | `10` | Cap on positive + negative examples (chunk IDs + text queries) per request |
+| `RECOMMEND_ENABLED` | `true` | Register `recommend_code` and `find_outlier_chunks` MCP tools; set `false` to omit both |
+| `RECOMMEND_MAX_EXAMPLES` | `10` | Cap on positive + negative examples (chunk IDs + text queries) per `recommend_code` request |
+| `OUTLIER_MAX_CONTEXT_SAMPLES` | `200` | Cap on context vectors sampled from collection scroll for `find_outlier_chunks` |
+| `OUTLIER_MAX_SIMILARITY` | `0.55` | Default `max_similarity` threshold — exclude chunks with higher cosine similarity to context centroid |
 
 ### Optional ColBERT reranking (ADR 0008 / 0015)
 

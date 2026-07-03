@@ -13,6 +13,8 @@ def test_create_app_omits_register_recommend_tool_when_disabled():
     with (
         patch("codebase_indexer.main.AppContext.create", return_value=mock_ctx),
         patch("codebase_indexer.main.register_recommend_tool") as mock_register,
+        patch("codebase_indexer.main.register_find_outlier_chunks_tool") as mock_outlier,
     ):
         create_app(settings, preload_models=False)
     mock_register.assert_not_called()
+    mock_outlier.assert_not_called()

@@ -33,6 +33,7 @@ from codebase_indexer.tools.service_map import register_service_map_tool
 from codebase_indexer.tools.symbols import register_search_symbols_tool
 from codebase_indexer.tools.outline import register_file_outline_tool
 from codebase_indexer.tools.recommend import register_recommend_tool
+from codebase_indexer.tools.outliers import register_find_outlier_chunks_tool
 from codebase_indexer.tools.summary import register_collection_summary_tool
 
 _INSTRUCTIONS = """
@@ -77,13 +78,16 @@ _INSTRUCTIONS = """
     endpoint definitions, HTTP clients, and config-based URLs, then
     matches them to produce a call chain map.
 
-    VECTOR DISCOVERY (recommend_code):
+    VECTOR DISCOVERY (recommend_code, find_outlier_chunks):
     Find chunks similar to positive examples and dissimilar from negatives
-    via Qdrant Recommendation API (dense-only). Use when the user wants
-    "like this handler, not in tests" rather than a single search query.
-    Requires at least one positive (positive_chunk_ids and/or positive_query).
-    path_glob must match indexed rel_path prefix (e.g. my-project/src/**/*.py).
-    Gated by RECOMMEND_ENABLED (default on). See docs/SEARCH_BEHAVIOR.md.
+    via Qdrant Recommendation API (dense-only). Use recommend_code when the
+    user wants "like this handler, not in tests" rather than a single search
+    query. Use find_outlier_chunks to find code semantically distant from a
+    module context (context_chunk_ids and/or path_glob scroll sample).
+    Requires at least one positive for recommend_code (positive_chunk_ids
+    and/or positive_query). path_glob must match indexed rel_path prefix
+    (e.g. my-project/src/**/*.py). Gated by RECOMMEND_ENABLED (default on).
+    See docs/SEARCH_BEHAVIOR.md.
 
     COLBERT RERANK (RERANK_ENABLED=true):
     search_codebase, search_symbols, find_cross_references, and
@@ -233,6 +237,7 @@ def create_app(settings: Settings | None = None, preload_models: bool | None = N
     register_collection_summary_tool(mcp, ctx)
     if settings.recommend_enabled:
         register_recommend_tool(mcp, ctx)
+        register_find_outlier_chunks_tool(mcp, ctx)
 
     return mcp
 

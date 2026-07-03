@@ -48,6 +48,7 @@ Same search backend as `search_codebase` but returns metadata only (no `content`
 | `find_cross_references` | Per internal search | Participates in ColBERT rerank when `RERANK_ENABLED=true`; internal `min_score=0.3` ignored on hybrid/rerank paths |
 | `map_service_dependencies` | Batched query embed | Participates in ColBERT rerank when `RERANK_ENABLED=true`; internal `min_score=0.25` ignored on hybrid/rerank paths |
 | `recommend_code` | Per positive/negative text query | Dense-only Qdrant Recommendation API; single collection; see below |
+| `find_outlier_chunks` | Zero (context from indexed vectors) | Dense-only BEST_SCORE negative-only + centroid filter; see below |
 
 ## `recommend_code`
 
@@ -73,6 +74,30 @@ Implementation path: `tools/recommend.py` → `storage/qdrant.py` `QdrantStorage
 |----------|---------|--------|
 | `RECOMMEND_ENABLED` | `true` | Master switch; when `false`, tool is not registered |
 | `RECOMMEND_MAX_EXAMPLES` | `10` | Cap on positive + negative examples per request |
+
+## `find_outlier_chunks`
+
+Find code chunks **semantically distant** from a defined context using Qdrant's Recommendation API with **`RecommendStrategy.BEST_SCORE`** and **negative-only** context examples (Qdrant's documented outlier pattern), plus client-side **cosine similarity to a context centroid** for threshold filtering and stable scoring.
+
+| Parameter | Default | Cap / behavior |
+|-----------|---------|----------------|
+| `collection` | *(required)* | Single collection only — multi-collection deferred |
+| `context_chunk_ids` | `None` | Explicit reference chunks; missing IDs fail fast |
+| `limit` | `5` | Silently capped at **20** |
+| `language` | `None` | Qdrant payload filter (indexed field) |
+| `path_glob` | `None` | Context scroll + result post-filter via `fnmatch` on `rel_path`; over-fetches `limit * 3` when set |
+| `max_similarity` | `OUTLIER_MAX_SIMILARITY` | Exclude chunks with cosine similarity to context centroid above this value |
+| `max_content_chars` | `None` | Truncates chunk `content`; use `get_chunk` for full text |
+
+Context is built from `context_chunk_ids` and/or a scroll sample of the collection (optionally scoped by `path_glob`). When only `context_chunk_ids` are provided, scroll does not supplement context (avoids pulling candidate outliers into the centroid). Whole-collection scroll applies when both are omitted, bounded by `OUTLIER_MAX_CONTEXT_SAMPLES`. Results are sorted by **ascending** `similarity_to_context` (lower = more distant). Score field mirrors `similarity_to_context`.
+
+Implementation path: `tools/outliers.py` → `storage/qdrant.py` `QdrantStorage.find_outlier_chunks` → `sample_context_dense_vectors` + `query_points` with `RecommendQuery` (`BEST_SCORE`, negative-only) on `using=dense`.
+
+| Variable | Default | Effect |
+|----------|---------|--------|
+| `RECOMMEND_ENABLED` | `true` | Master switch; when `false`, tool is not registered (shared with `recommend_code`) |
+| `OUTLIER_MAX_CONTEXT_SAMPLES` | `200` | Cap on context vectors sampled from collection scroll |
+| `OUTLIER_MAX_SIMILARITY` | `0.55` | Default `max_similarity` threshold (exclude above) |
 
 ## Configuration
 

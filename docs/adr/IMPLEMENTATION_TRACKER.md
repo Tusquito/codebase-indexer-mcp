@@ -47,6 +47,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0012](0012-retrieval-only-rag-split.md) | Retrieval-only RAG split | Accepted | all | `merged` | Shipped | 2026-07-02 |
 | [0013](0013-external-agent-knowledge-base.md) | External agent knowledge base | Accepted | all | `merged` | MCP tools surface | 2026-07-02 |
 | [0014](0014-vector-discovery-and-ops-automation.md) | Vector discovery + n8n ops | Accepted (phase 1 — recommendation search tool) | Track A — Phase 1 (Recommendation search tool) | `merged` | Tool `recommend_code`; `QdrantStorage.recommend`; config (`RECOMMEND_ENABLED`, `RECOMMEND_MAX_EXAMPLES`); RecommendStrategy AVERAGE_VECTOR; dense-only; path_glob fnmatch + limit×3; missing chunk IDs fail fast; single-collection; defer outlier helper (Track A P2), n8n compose (Track B), sparse fusion, multi-collection; [PR #5](https://github.com/Tusquito/codebase-indexer-mcp/pull/5) | 2026-07-03 |
+| [0014](0014-vector-discovery-and-ops-automation.md) | Vector discovery + n8n ops | Accepted (phase 1 — recommendation search tool) | Track A — Phase 2 (outlier / diversity helper) | `verified` | Tool `find_outlier_chunks`; `QdrantStorage.find_outlier_chunks`; `RecommendStrategy.BEST_SCORE` negative-only; cosine-to-centroid + `OUTLIER_MAX_SIMILARITY` (0.55); gate via `RECOMMEND_ENABLED` (no `OUTLIER_ENABLED`); `OUTLIER_MAX_CONTEXT_SAMPLES` (200); scroll supplement only when `path_glob` or no explicit `context_chunk_ids`; bounded `limit` (cap 20); dense-only single-collection; defer sparse fusion, multi-collection, Track B n8n, Discovery API context pairs | 2026-07-03 |
 | [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 1 | `merged` | Opt-in `COLBERT_EMBED_BACKEND=remote` + `colbert_worker` sidecar; default in-process ONNX unchanged; FastAPI lifespan preload; `ColbertRemoteBackend` httpx client; `docker-compose.colbert-worker.yml` with shared `fastembed_cache`; `.env.example` + `SEARCH_BEHAVIOR.md`; [PR #2](https://github.com/Tusquito/codebase-indexer-mcp/pull/2) | 2026-07-03 |
 | [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 2 | `merged` | GPU sidecar via `colbert_worker/Dockerfile.gpu` (`onnxruntime-gpu==1.26.0`, `python:3.12-slim`); compose override `docker-compose.colbert-worker.gpu.yml` (NVIDIA reservations mirroring Ollama); `COLBERT_DEVICE_IDS` → `ColbertOnnxBackend.device_ids`; worker `/health` reports `device` + `cuda_available`; fail-fast CUDA preload; `bench_colbert_sidecar.py` remote throughput bench; single-GPU 8GB OOM documented (no auto-scheduler); CI-safe mocked/skipped GPU tests + non-blocking GPU Dockerfile CI job; [PR #3](https://github.com/Tusquito/codebase-indexer-mcp/pull/3) | 2026-07-03 |
 | [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 3+ | `not_started` | MCP slim image when remote-only | — |
@@ -64,7 +65,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 
 | ADR | Done | Remaining |
 |-----|------|-----------|
-| 0014 | Track A Phase 1 — recommendation search tool ([PR #5](https://github.com/Tusquito/codebase-indexer-mcp/pull/5)) | Track A P2 (outlier helper) + Track B (n8n compose) deferred |
+| 0014 | Track A Phase 1 — recommendation search tool ([PR #5](https://github.com/Tusquito/codebase-indexer-mcp/pull/5)) | Track A P2 (outlier helper) `verified`; Track B (n8n compose) deferred |
 | 0009 | Phase 1 — `SEARCH_BEHAVIOR.md` multi-hop section, golden `multi_hop` tags; Phase 2 — automated 2-hop client eval script ([PR #8](https://github.com/Tusquito/codebase-indexer-mcp/pull/8)) | Phase 3+ server mechanisms; optional graph-backed hops per [0002](0002-graphrag-neo4j-qdrant.md) |
 | 0015 | Phase 1 — HTTP sidecar + remote backend ([PR #2](https://github.com/Tusquito/codebase-indexer-mcp/pull/2)); Phase 2 — GPU worker + benchmark ([PR #3](https://github.com/Tusquito/codebase-indexer-mcp/pull/3)) | MCP slim image when remote-only (phase 3+) |
 
@@ -392,6 +393,51 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 
 ### ADR 0014 — Vector discovery and ops automation
 
+#### 2026-07-03 — verification
+- **Phase / PR:** Track A — Phase 2 (outlier / diversity helper)
+- **Tracker status:** `verified`
+- **Choices:** Separate tool `find_outlier_chunks`; `RecommendStrategy.BEST_SCORE` negative-only; cosine-to-centroid ascending sort + `OUTLIER_MAX_SIMILARITY` filter; reuse `RECOMMEND_ENABLED` (no `OUTLIER_ENABLED`); scroll supplement only when `path_glob` set or no explicit `context_chunk_ids`; `limit` cap 20; dense-only single-collection
+- **Deviations:** Scroll supplement restricted when only `context_chunk_ids` provided — prevents outlier candidates being absorbed into context centroid during whole-collection scroll fill
+- **Code evidence:** `mcp_server/src/codebase_indexer/tools/outliers.py`, `mcp_server/src/codebase_indexer/storage/qdrant.py`, `mcp_server/src/codebase_indexer/config.py`, `mcp_server/src/codebase_indexer/main.py`, `docker-compose.yml`, `.env.example`, `docs/SEARCH_BEHAVIOR.md`, `docs/ARCHITECTURE.md`, `README.md`, `mcp_server/tests/test_outliers.py`, `mcp_server/tests/test_outlier_tool.py`, `mcp_server/tests/test_config.py`, `mcp_server/tests/test_main.py`, `mcp_server/tests/test_storage_integration.py`
+- **Test debt:** scroll-supplement restriction unit test; `main.py` positive registration gate; combined `path_glob`+`context_chunk_ids` integration; live HTTP/Ollama e2e for `find_outlier_chunks`; golden-set outlier quality eval; multi-collection/sparse fusion deferred
+- **Verify:** tests run + plan compliance pass — 287 unit tests passed; 17 targeted outlier tests passed; ruff clean; Docker integration report pass (8 pytest integration, smoke_recommend); review rounds: 1
+- **Git:** pending
+- **Changelog:** yes
+
+#### 2026-07-03 — implementation
+- **Phase / PR:** Track A — Phase 2 (outlier / diversity helper)
+- **Tracker status:** `implemented`
+- **Choices:** Separate tool `find_outlier_chunks` (not extending `recommend_code`); score = cosine similarity to context centroid (ascending = most distant); reuse `RECOMMEND_ENABLED` gate (no `OUTLIER_ENABLED`); config `OUTLIER_MAX_CONTEXT_SAMPLES` (200) + `OUTLIER_MAX_SIMILARITY` (0.55); Qdrant `RecommendStrategy.BEST_SCORE` negative-only; scroll supplement only when `path_glob` set or no explicit `context_chunk_ids`
+- **Deviations:** Scroll supplement restricted when only `context_chunk_ids` provided — prevents outlier candidates being absorbed into context centroid during whole-collection scroll fill
+- **Code evidence:** `mcp_server/src/codebase_indexer/config.py`, `mcp_server/src/codebase_indexer/storage/qdrant.py`, `mcp_server/src/codebase_indexer/tools/outliers.py`, `mcp_server/src/codebase_indexer/main.py`, `docker-compose.yml`, `.env.example`, `docs/SEARCH_BEHAVIOR.md`, `docs/ARCHITECTURE.md`, `README.md`, `mcp_server/tests/test_outliers.py`, `mcp_server/tests/test_outlier_tool.py`, `mcp_server/tests/test_config.py`, `mcp_server/tests/test_main.py`, `mcp_server/tests/test_storage_integration.py`
+- **Test debt:** `main.py` positive registration gate; live HTTP/Ollama e2e for `find_outlier_chunks`; combined `path_glob`+`context_chunk_ids` integration; golden-set outlier quality eval; multi-collection/sparse fusion deferred
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no
+
+#### 2026-07-03 — plan
+- **Phase / PR:** Track A — Phase 2 (outlier / diversity helper)
+- **Tracker status:** `planned`
+- **Choices:** Lock tool name **`find_outlier_chunks`** (separate tool, do not extend `recommend_code`); lock score semantics to **cosine similarity to context centroid** (ascending sort = most distant first; `max_similarity` excludes above-threshold chunks); lock config to **reuse `RECOMMEND_ENABLED`** + add **`OUTLIER_MAX_CONTEXT_SAMPLES`** and **`OUTLIER_MAX_SIMILARITY`**; context from `context_chunk_ids` and/or scroll sample with optional `path_glob`; Qdrant retrieval via **`BEST_SCORE` negative-only** recommend (not `AVERAGE_VECTOR`); one PR for entire phase. **Chosen scope:** Add separate MCP tool `find_outlier_chunks` + `QdrantStorage.find_outlier_chunks` using Qdrant `RecommendStrategy.BEST_SCORE` negative-only recommend on sampled context vectors, cosine-to-centroid threshold filtering (`max_similarity` / `OUTLIER_MAX_SIMILARITY`), bounded `limit` (cap 20) + explicit required `collection`, dense-only single-collection; gate via existing `RECOMMEND_ENABLED` (no `OUTLIER_ENABLED`); new config `OUTLIER_MAX_CONTEXT_SAMPLES` (default 200); unit + integration tests per ADR Validation §Phase 2; `main.py` registration + `SEARCH_BEHAVIOR.md` + `ARCHITECTURE.md`/`README.md` sync; defer sparse fusion, multi-collection, Track B n8n compose, Discovery API context pairs
+- **Assumptions:** Phase 1 `recommend_code` API frozen; whole-collection scan allowed when `path_glob` omitted (bounded by context sample cap); no new Python dependencies; `adr-finisher` updates ADR status after merge
+- **Deviations:** none
+- **Code evidence:** —
+- **Test debt:** unit + integration tests per ADR Validation §Phase 2; optional smoke script and compose harness step deferred
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing yes; entry at `verified` step
+
+#### 2026-07-03 — prioritization
+- **Phase / PR:** Track A — Phase 2 (outlier / diversity helper)
+- **Tracker status:** `candidate`
+- **Choices:** Prioritize 0014 Track A P2 over Proposed 0002 GraphRAG Phase 1 (higher raw unlock but Accept gate + optional Neo4j greenfield — decision rules 2 & 5); over 0008 test-debt closure PR (closest QA alternative, same weighted tier ~20 but no user-facing capability); over 0009 eval_multihop CI gate (benchmark-only); over 0015 Phase 3 slim image (ops/build, deferred twice); over 0014 Track B n8n (ops-only, new optional service); single phase per pipeline rule; no ADR Accept required (0014 already Accepted phase 1); finish vector discovery Track A before GraphRAG or n8n. **Chosen scope:** Add outlier/diversity MCP discovery tool per ADR 0014 §Phase 2 — `find_outlier_chunks` (or `recommend_code` extension with `strategy=diverse` / score inversion, lock at plan); `QdrantStorage` helper; bounded `limit` + required explicit `collection`; dense-only single-collection; config gate if needed; unit + integration tests per ADR Validation §Phase 2; `main.py` registration + `SEARCH_BEHAVIOR.md`; defer sparse fusion, multi-collection, Track B n8n compose. **Why now:** ColBERT arc (0008 all phases), sidecar (0015 P1–P2), multi-hop eval (0009 P2), and recommendation search (0014 P1) are merged; ADR 0014 explicitly deferred Track A Phase 2 after P1; `recommend_code` and `QdrantStorage.recommend` exist in code but no outlier/diversity tool (`find_outlier_chunks` absent from source); prerequisites satisfied; user-facing discovery on existing embedder/Qdrant stack; no new mandatory infra; default deploy unchanged; completes Track A before ops-only n8n (Track B) or greenfield GraphRAG (0002, still Proposed). **Suggested scope:** one phase (= one PR).
+- **Deviations:** none
+- **Code evidence:** —
+- **Test debt:** —
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing unknown (likely yes)
+
 #### 2026-07-03 — merge
 - **Phase / PR:** Track A — Phase 1 (Recommendation search tool) — [PR #5](https://github.com/Tusquito/codebase-indexer-mcp/pull/5)
 - **Tracker status:** `merged`
@@ -678,3 +724,15 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-03 | 0008 | `colbert_vector=None` interaction with storage rerank/adaptive paths | Verified — `colbert_vector=None` skips storage rerank and adaptive skip paths | no |
 | 2026-07-03 | 0008 | ADR 0008 phase completion at track 2b | Track 2b merged ([PR #7](https://github.com/Tusquito/codebase-indexer-mcp/pull/7)); ADR 0008 full **Accepted**; ColBERT arc complete | no |
 | 2026-07-03 | 0008 | Accept ADR 0008 full Accepted (phase 2 complete)? | **Accepted** after PR #7 merge; phase 1 + phase 2 tracks 1, 2a, 2b all merged | no |
+| 2026-07-03 | 0014 | Lock tool name/API (`find_outlier_chunks` vs `recommend_code` strategy param) | Decided at plan — separate tool `find_outlier_chunks`; do not extend `recommend_code` | no |
+| 2026-07-03 | 0014 | Similarity threshold / score inversion semantics | Decided at plan — cosine similarity to context centroid; ascending sort = most distant first; `max_similarity` excludes above-threshold chunks | no |
+| 2026-07-03 | 0014 | Whether to add `OUTLIER_ENABLED` config or reuse `RECOMMEND_ENABLED` | Decided at plan — reuse `RECOMMEND_ENABLED`; add `OUTLIER_MAX_CONTEXT_SAMPLES` (default 200) and `OUTLIER_MAX_SIMILARITY` | no |
+| 2026-07-03 | 0014 | Qdrant recommend strategy for outlier helper | Decided at plan — `RecommendStrategy.BEST_SCORE` negative-only (not `AVERAGE_VECTOR`) | no |
+| 2026-07-03 | 0014 | Context source for outlier helper | Decided at implementation — scroll supplement only when `path_glob` set or no explicit `context_chunk_ids`; restricted when only `context_chunk_ids` provided (prevents centroid pollution) | no |
+| 2026-07-03 | 0014 | Sparse fusion and multi-collection for outlier helper | Deferred — same as Phase 1 | no |
+| 2026-07-03 | 0014 | Discovery API context pairs | Deferred — out of Phase 2 scope | no |
+| 2026-07-03 | 0014 | Optional smoke script and compose harness step | Deferred | no |
+| 2026-07-03 | 0014 | `max_similarity` default value | Decided at implementation — shipped `OUTLIER_MAX_SIMILARITY=0.55`; golden-set tuning validation still open | no |
+| 2026-07-03 | 0014 | Parallel vs sequential with 0008 test-debt PR | Open — orchestrator decision | no |
+| 2026-07-03 | 0014 | Scroll supplement when only `context_chunk_ids` provided | Restricted at implementation — no whole-collection scroll fill; prevents outlier candidates polluting context centroid; verified at 2026-07-03 verification | no |
+| 2026-07-03 | 0014 | `OUTLIER_MAX_SIMILARITY` default after golden-set tuning | Shipped `0.55`; golden-set outlier quality eval still open — test debt at verification | no |

@@ -329,3 +329,17 @@ def test_recommend_settings_from_env(monkeypatch: pytest.MonkeyPatch):
     assert s.recommend_enabled is False
     assert s.recommend_max_examples == 5
 
+
+def test_outlier_defaults():
+    s = Settings()
+    assert s.outlier_max_context_samples == 200
+    assert s.outlier_max_similarity == 0.55
+
+
+def test_outlier_settings_from_env(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("OUTLIER_MAX_CONTEXT_SAMPLES", "50")
+    monkeypatch.setenv("OUTLIER_MAX_SIMILARITY", "0.4")
+    s = Settings()
+    assert s.outlier_max_context_samples == 50
+    assert s.outlier_max_similarity == 0.4
+
