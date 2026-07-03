@@ -61,7 +61,7 @@ Invoke the full pipeline with **`adr-orchestrator`**; resume a phase with `Resum
 | [0014](0014-vector-discovery-and-ops-automation.md) | Adopt Qdrant vector discovery APIs and optional n8n ops hooks | Accepted (phase 1; phase 2 — outlier / diversity helper) | 2026-07-02 |
 | [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 2026-07-03 |
 | [0016](0016-qwen3-embedding-default-dense-model.md) | Adopt Qwen3-Embedding-4B as default Ollama dense model | Proposed | 2026-07-03 |
-| [0017](0017-model-tokenizer-ollama-dense-truncation.md) | Model-accurate tokenizer for Ollama dense truncation | Proposed | 2026-07-03 |
+| [0017](0017-model-tokenizer-ollama-dense-truncation.md) | Model-accurate tokenizer for Ollama dense truncation | Accepted (phase 1 — loader + Ollama backend) | 2026-07-03 |
 
 ## Qdrant Build Prototypes & Improve Search map
 
