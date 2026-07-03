@@ -149,3 +149,13 @@ jobs:
 
       - name: Build MCP image
         run: docker build -t codebase-indexer ./mcp_server
+
+  colbert-gpu-image:
+    # Non-blocking: validates the GPU ColBERT sidecar Dockerfile builds.
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build ColBERT GPU sidecar image
+        run: docker build -f colbert_worker/Dockerfile.gpu -t colbert-worker-gpu ./mcp_server

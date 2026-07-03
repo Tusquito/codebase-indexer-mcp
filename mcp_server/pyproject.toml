@@ -54,10 +54,11 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 # Benchmarks are opt-in (run with `pytest -m benchmark`); excluded by default
 # because they load embedding models and need a reachable Qdrant.
-addopts = "-m 'not benchmark and not slow'"
+addopts = "-m 'not benchmark and not slow and not gpu'"
 markers = [
     "benchmark: performance benchmark (needs Qdrant; excluded from default run)",
     "slow: loads real embedding models; excluded from default run",
+    "gpu: requires CUDA GPU; excluded from default run",
 ]
 
 [tool.ruff]
