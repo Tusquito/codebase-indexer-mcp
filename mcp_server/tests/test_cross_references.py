@@ -7,6 +7,7 @@ import pytest
 from fastmcp import FastMCP
 
 from codebase_indexer.indexer.chunker import chunk_file
+from codebase_indexer.indexer.embedder import SparseVector
 from codebase_indexer.storage.qdrant import SearchResult
 from codebase_indexer.tools.cross_references import (
     UrlExtractors,
@@ -257,6 +258,39 @@ async def test_find_cross_references_call_site_receiver_qualifier_excludes_other
         receiver="featureManagmentService",
         limit_per_collection=10,
     )
+
+
+@pytest.mark.asyncio
+async def test_find_cross_references_semantic_path_passes_colbert_vector():
+    colbert = [[0.1, 0.2], [0.3, 0.4]]
+    storage = AsyncMock()
+    storage.list_collection_stats = AsyncMock(return_value=[])
+    storage.search = AsyncMock(return_value=[])
+    storage.find_symbol_in_collections = AsyncMock(return_value=[])
+    storage.find_callers_in_collections = AsyncMock(return_value=[])
+
+    embedder = MagicMock()
+    embedder.embed_query = AsyncMock(
+        return_value=([0.5], SparseVector(indices=[1], values=[1.0]), colbert)
+    )
+
+    ctx = SimpleNamespace(
+        storage=storage,
+        embedder=embedder,
+        url_extractors=UrlExtractors(),
+    )
+
+    mcp = FastMCP("test")
+    register_cross_references_tool(mcp, ctx)
+    find_cross_references = (await mcp.get_tool("find_cross_references")).fn
+
+    await find_cross_references(
+        query="HTTP client RestTemplate",
+        collections=["svc-a", "svc-b"],
+    )
+
+    storage.search.assert_awaited_once()
+    assert storage.search.await_args.kwargs["colbert_vector"] == colbert
 
 
 def test_build_link_summary_links_call_site_to_definition_same_collection():
