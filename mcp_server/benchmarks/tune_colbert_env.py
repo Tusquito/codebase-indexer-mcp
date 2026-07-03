@@ -67,7 +67,6 @@ def score(result: dict) -> float:
 
 
 def main() -> int:
-    phase1_keys = ["FLUSH_EVERY", "COLBERT_EMBED_BATCH_SIZE"]
     phase1_grid = list(
         product(
             [64, 96, 128, 192],
