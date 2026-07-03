@@ -1,9 +1,10 @@
 # 0016. Adopt Qwen3-Embedding-4B as default Ollama dense model
 
-- **Status:** Accepted (all phases complete)
+- **Status:** Accepted (all phases complete) — **default policy superseded by [0021](0021-revert-jina-production-default-retire-qwen3.md)**
 - **Date:** 2026-07-03
 - **Deciders:** Maintainers
 - **Related:** [0011](0011-ollama-only-dense-embedding.md) — Ollama-only dense path; [0017](0017-model-tokenizer-ollama-dense-truncation.md) — model-accurate pre-truncation for long Qwen3 inputs; [0007](0007-ranx-retrieval-evaluation.md) — golden-set eval; [0003](0003-hybrid-search-rrf-default.md) — hybrid dense + BM25; [CoIR leaderboard](https://mteb-leaderboard.hf.space/benchmarks?q=code) — code retrieval benchmark used for comparison
+- **Superseded by:** [0021](0021-revert-jina-production-default-retire-qwen3.md) — production default reverted to Jina after measured −63.1% recall@10 regression
 
 ## Context
 

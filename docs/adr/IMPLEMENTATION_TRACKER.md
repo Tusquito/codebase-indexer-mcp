@@ -56,6 +56,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0016](0016-qwen3-embedding-default-dense-model.md) | Adopt Qwen3-Embedding-4B as default Ollama dense model | Accepted (all phases complete) | Phase 2 — Eval baseline refresh (final phase) | `merged` | Jina comparison baseline; recall@10 gate waived with per-tag analysis (−63.1% vs Jina); refreshed `eval_baseline.json` + `golden_queries.jsonl`; alias line remapping; operational compose/env eval overrides not committed; final ADR 0016 phase complete; defer CI validate-labels gate, compose WORKSPACE_ROOT eval preset, optional non-blocking recall benchmark job, compose host-env URL isolation, `num_ctx`; [PR #14](https://github.com/Tusquito/codebase-indexer-mcp/pull/14) | 2026-07-03 |
 | [0018](0018-telemetry-observability-otel-prometheus.md) | Adopt OpenTelemetry instrumentation with Prometheus metrics and optional OTLP export | Accepted (phase 1 — Application Prometheus metrics (MCP + ColBERT worker)) | Phase 1 — Application Prometheus metrics (MCP + ColBERT worker) | `merged` | Opt-in `METRICS_ENABLED=false` default; `prometheus_client` on dedicated `CollectorRegistry`; metrics-only `@observe_tool` on all MCP tool handlers; no collection/rel_path labels; application counters/histograms + truncation counter; index metrics via IndexJobTracker; `GET /metrics` on MCP and ColBERT worker HTTP layer; unit tests (`test_telemetry_metrics.py`); `DEPLOYMENT.md` scrape docs; defer `METRICS_PORT`, docker-compose scrape wiring, Phase 2 OTel traces, Phase 3 observability compose stack; [PR #13](https://github.com/Tusquito/codebase-indexer-mcp/pull/13) | 2026-07-03 |
 | [0020](0020-qwen3-code-finetune-jina-quality-gate.md) | Fine-tune Qwen3 for code retrieval with Jina quality gate | Accepted (phase 1 — Dataset + training pipeline) | Phase 1 — Dataset + training pipeline | `merged` | Shipped: `mcp_server/benchmarks/train/` (`export_golden_pairs.py`, `mine_hard_negatives.py`, `finetune_qwen3_code.py`, `_schema.py`, `_split.py`, `_positives.py`, `README.md`); optional `[train]` pyproject extra isolated from runtime/CI; default validation holdout = all four `multi_hop` golden queries; hard-negative mining via base Qwen3 hybrid `run_search` (rerank off); LoRA via PEFT + sentence-transformers (TripletLoss when all pairs have mined negatives, else MnRL in-batch); outputs under `benchmarks/train/outputs/` gitignored; unit tests (export/split/mining + `test_finetune_mrr.py`); `DEPLOYMENT.md` training stub. Deviations: `resolve_positive_passage` (singular); single-pass checkpoint save (baseline + final val MRR in `train_summary.json`) vs per-epoch best (documented at verification). Defer Ollama export/registry (P2), Jina quality gate + baseline update (P3), CI observation job (P4); no Docker/runtime/registry changes; [PR #15](https://github.com/Tusquito/codebase-indexer-mcp/pull/15) | 2026-07-03 |
+| [0021](0021-revert-jina-production-default-retire-qwen3.md) | Revert default dense embedder to Jina code; retire Qwen3 as production default | Proposed | Phase 1 — Config + docs revert | `verified` | Jina production default @ 768 in env/bench/compose/docs; Qwen3 experimental preset (−63.1% recall@10); `OLLAMA_EMBED_MODEL` uncommented in `.env.example` REQUIRED; compose Jina pull manual-only; `config.py` Qwen3 registry/MRL retained; ADR index housekeeping in Phase 1 scope; defer Phase 2 (`eval_baseline.json`); CHANGELOG full update Phase 3; test debt: `smoke_recommend_code` until golden re-index @ 768 | 2026-07-03 |
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
 
@@ -71,7 +72,13 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 | 0015 | Phase 1 — HTTP sidecar + remote backend ([PR #2](https://github.com/Tusquito/codebase-indexer-mcp/pull/2)); Phase 2 — GPU worker + benchmark ([PR #3](https://github.com/Tusquito/codebase-indexer-mcp/pull/3)) | MCP slim image when remote-only (phase 3+) |
 | 0017 | Phase 1 — loader + Ollama backend ([PR #11](https://github.com/Tusquito/codebase-indexer-mcp/pull/11)) | Phase 2 observability + ADR 0011 body edit |
 | 0018 | Phase 1 — Application Prometheus metrics (MCP + ColBERT worker) ([PR #13](https://github.com/Tusquito/codebase-indexer-mcp/pull/13)) | Phase 2 OTel traces; Phase 3 observability compose stack; `METRICS_PORT`, docker-compose scrape wiring |
-| 0020 | Phase 1 — Dataset + training pipeline ([PR #15](https://github.com/Tusquito/codebase-indexer-mcp/pull/15)) | Phases 2–4 (Ollama export/registry, Jina quality gate + baseline update, CI observation job) |
+| 0020 | Phase 1 — Dataset + training pipeline ([PR #15](https://github.com/Tusquito/codebase-indexer-mcp/pull/15)) | Phases 2–4 cancelled per [ADR 0021](0021-revert-jina-production-default-retire-qwen3.md) (fine-tune gate failed path) |
+
+### Candidate (requires Accept)
+
+| ADR | Phase | Notes |
+|-----|-------|-------|
+| 0021 | Phase 2 — Eval baseline refresh | Phase 1 `verified` 2026-07-03; defers Phase 3 CHANGELOG full update |
 
 ---
 
@@ -957,6 +964,54 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 - **Git:** pending
 - **Changelog:** no — user-facing unknown
 
+### ADR 0021 — Revert default dense embedder to Jina code; retire Qwen3 as production default
+
+#### 2026-07-03 — verification
+- **Phase / PR:** Phase 1 — Config + docs revert
+- **Tracker status:** `verified`
+- **Review rounds:** 1
+- **Choices:** Jina production default @ 768 in env/bench/compose/docs; Qwen3 demoted to experimental preset with −63.1% recall@10 citation; `OLLAMA_EMBED_MODEL` uncommented in `.env.example` REQUIRED; compose Jina pull documented manual-only (no deploy auto-pull); Qwen3 registry/MRL in `config.py` retained; ADR index housekeeping included in Phase 1 PR scope; `eval_baseline.json` refresh deferred Phase 2; CHANGELOG full update deferred Phase 3
+- **Deviations:** ADR index housekeeping included in Phase 1 (plan deferred to Phase 3); CHANGELOG bullet added at `verified` (plan deferred full update to Phase 3)
+- **Code evidence:** `.env.example`, `mcp_server/benchmarks/_settings.py`, `scripts/run_compose_integration.py`, `README.md`, `docs/ARCHITECTURE.md`, `docs/DEPLOYMENT.md`, `mcp_server/tests/conftest.py`, `mcp_server/tests/test_config.py`, `docs/adr/0021-revert-jina-production-default-retire-qwen3.md`, `docs/adr/README.md`, `docs/adr/0016-qwen3-embedding-default-dense-model.md`, `docs/adr/0020-qwen3-code-finetune-jina-quality-gate.md`
+- **Test debt:** Optional `smoke_recommend_code` fails until golden collection re-indexed @ 768 (Phase 2); `eval_baseline.json` still Qwen3 @ 1024 until Phase 2 refresh
+- **Verify:** Full `uv run pytest` (346 passed); targeted embed/config tests (24 passed); plan compliance pass on all Phase 1 paths; Docker integration report verdict `pass`
+- **Git:** pending
+- **Changelog:** yes — user-facing; bullet added at `verified`; full CHANGELOG housekeeping deferred Phase 3
+
+#### 2026-07-03 — implementation
+- **Phase / PR:** Phase 1 — Config + docs revert
+- **Tracker status:** `implemented`
+- **Choices:** Reverted production defaults to Jina v2 base code @ 768 (`jinaai/jina-embeddings-v2-base-code` / `unclemusclez/jina-embeddings-v2-base-code`); demoted Qwen3 to experimental/CoIR preset with −63.1% recall@10 warning; left `config.py` Qwen3 registry/MRL untouched; deferred `eval_baseline.json` to Phase 2
+- **Deviations:** none
+- **Code evidence:** `.env.example`, `mcp_server/benchmarks/_settings.py`, `mcp_server/tests/conftest.py`, `mcp_server/tests/test_config.py`, `scripts/run_compose_integration.py`, `README.md`, `docs/ARCHITECTURE.md`, `docs/DEPLOYMENT.md`
+- **Test debt:** Full `uv run pytest` blocked locally by broken `tokenizers` in `.venv` (8 pre-existing failures); compose integration live Jina Ollama pull not run in this session; `eval_baseline.json` unchanged (Phase 2)
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no
+
+#### 2026-07-03 — plan
+- **Phase / PR:** Phase 1 — Config + docs revert
+- **Tracker status:** `planned`
+- **Choices:** `OLLAMA_EMBED_MODEL` uncommented in `.env.example` REQUIRED; compose integration pull documented in docstring + `write_integration_env()` pre-step only (no auto-pull in deploy); README lists ADR 0021 as primary default-dense ADR with 0016 one-line historical note; `.env.compose.integration` updated via generator only (gitignored); one PR for entire Phase 1. **Chosen scope:** Revert production defaults to Jina @ 768 in `.env.example` (with uncommented `OLLAMA_EMBED_MODEL` in REQUIRED), `mcp_server/benchmarks/_settings.py`, `scripts/run_compose_integration.py` (Jina generator env + documented manual pull, no deploy auto-pull), and primary docs (`README.md`, `docs/ARCHITECTURE.md`, `docs/DEPLOYMENT.md`); demote Qwen3 to experimental preset block with −63.1% recall@10 citation; align `conftest.py` + `test_config.py`; retain Qwen3 in `KNOWN_EMBED_MODEL_*` and MRL passthrough; defer Phase 2 (`eval_baseline.json`) and Phase 3 (ADR index/CHANGELOG housekeeping)
+- **Assumptions:** ADR 0021 Accept before dev per pipeline convention; Phase 1 docs-only for ADR index/CHANGELOG; breaking revert for Qwen3 adopters documented not automated
+- **Deviations:** none
+- **Code evidence:** —
+- **Test debt:** align `conftest.py` + `test_config.py` for Jina defaults; existing Jina registry tests
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing yes; entry at `verified` step (Phase 3 CHANGELOG housekeeping deferred)
+
+#### 2026-07-03 — prioritization
+- **Phase / PR:** Phase 1 — Config + docs revert
+- **Tracker status:** `candidate`
+- **Choices:** Prioritize 0021 Phase 1 over 0018 Phase 2 OTel traces (ops increment, lower retrieval impact); over 0002 Phase 2 GraphRAG payload linking (0021 explicitly defers until embed default stable); over 0017 Phase 2 truncation observability (small, can parallel after 0021 P1); over 0019 Phase 1 YAML tracker (meta-tooling, score ~19); over cancelled 0020 Phases 2–4; single phase per pipeline rule; fixture-beats-leaderboard principle (ADR 0007). **Chosen scope:** Phase 1 only — revert production defaults in `.env.example`, `.env.compose.integration`, `mcp_server/benchmarks/_settings.py`, `scripts/run_compose_integration.py`, and primary docs to Jina @ 768; demote Qwen3 to experimental preset block with regression citation; retain Qwen3 in `KNOWN_EMBED_MODEL_*` and MRL passthrough. Defer Phase 2 (golden re-index + `eval_baseline.json`) and Phase 3 (ADR index/tracker/CHANGELOG housekeeping) to subsequent cycles. Requires formal Accept of Proposed ADR 0021 before dev. **Why now:** ADR 0016 + 0020 embedding track closed through fine-tune gate failure; golden-set evidence (−63.1% recall@10 vs Jina) and `eval_baseline_jina.json` exist; code and docs still default to Qwen3 (`.env.example`, `_settings.py`, README, ARCHITECTURE, DEPLOYMENT, `eval_baseline.json`); ADR 0021 unblocks embedding-stable GraphRAG and telemetry phases; no new mandatory infra; validation path via existing `test_config.py` Jina registry tests and future Phase 2 `eval_retrieval`. **Suggested scope:** one phase (= one PR).
+- **Deviations:** none
+- **Code evidence:** —
+- **Test debt:** validation via existing `test_config.py` Jina registry tests; future Phase 2 `eval_retrieval`
+- **Verify:** existing `test_config.py` Jina registry tests; future Phase 2 `eval_retrieval`
+- **Git:** pending
+- **Changelog:** no — user-facing unknown
+
 ---
 
 ## How to update
@@ -1170,7 +1225,24 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-03 | 0016 | Phase 2 merge confirmed | [PR #14](https://github.com/Tusquito/codebase-indexer-mcp/pull/14) merged on `adr/0016-phase-2-eval-baseline`; release skipped; final ADR 0016 phase complete; `num_ctx` deferred (Phase 1 deviation) | no |
 | 2026-07-03 | 0020 | Accept ADR 0020 (Proposed → Accepted) before dev? | **Accepted (phase 1 — Dataset + training pipeline)** after [PR #15](https://github.com/Tusquito/codebase-indexer-mcp/pull/15) merge | no |
 | 2026-07-03 | 0020 | Maintainer GPU availability for first fine-tune run? | Open | no |
-| 2026-07-03 | 0020 | If Phase 3 gate fails — expand training data vs Jina revert preset (ADR 0020 §Rollout)? | Open | no |
+| 2026-07-03 | 0020 | If Phase 3 gate fails — expand training data vs Jina revert preset (ADR 0020 §Rollout)? | **Resolved** at 2026-07-03 — gate failed; Jina revert path via Proposed ADR 0021; Phases 2–4 cancelled per ADR 0021 | no |
+| 2026-07-03 | 0021 | Accept ADR 0021 (Proposed → Accepted) before dev? | Open | no |
+| 2026-07-03 | 0021 | Phase 1-only vs combined P1+P2 in one cycle? | **Decided at plan** — Phase 1 only; defer Phase 2 (`eval_baseline.json`) | no |
+| 2026-07-03 | 0021 | Breaking-change messaging timing (Phase 1 docs vs Phase 3 CHANGELOG)? | **Decided at plan** — Phase 1 docs (breaking revert documented not automated); Phase 3 CHANGELOG housekeeping deferred | no |
+| 2026-07-03 | 0021 | Single PR for Phase 1? | Decided at plan — yes | no |
+| 2026-07-03 | 0021 | `OLLAMA_EMBED_MODEL` uncommented in `.env.example` REQUIRED? | Decided at plan — yes | no |
+| 2026-07-03 | 0021 | Compose integration Jina pull mechanism? | Decided at plan — documented manual pull in docstring + `write_integration_env()` pre-step only; no auto-pull in deploy | no |
+| 2026-07-03 | 0021 | README default-dense ADR reference? | Decided at plan — ADR 0021 primary with 0016 one-line historical note | no |
+| 2026-07-03 | 0021 | `.env.compose.integration` update path? | Decided at plan — generator only (gitignored) | no |
+| 2026-07-03 | 0021 | 0021 Phase 1 plan complete? | **Planned** at 2026-07-03 plan — tracker `planned`; config + docs revert scope locked | no |
+| 2026-07-03 | 0021 | Prioritize 0021 Phase 1 over 0018 P2, 0002 P2, 0017 P2, 0019 P1, cancelled 0020 P2–P4? | **Prioritized** at 2026-07-03 prioritization — 0021 P1 `candidate`; fixture-beats-leaderboard (ADR 0007); embed default stable before GraphRAG P2 | no |
+| 2026-07-03 | 0021 | Phase 1 implementation complete? | **Implemented** at 2026-07-03 — config + docs revert; Jina @ 768 defaults; Qwen3 experimental; `config.py` registry/MRL untouched; `eval_baseline.json` deferred Phase 2 | no |
+| 2026-07-03 | 0021 | Phase 1 test debt | Full `uv run pytest` blocked by broken `tokenizers` in `.venv` (8 pre-existing failures); compose integration live Jina Ollama pull not run; `eval_baseline.json` unchanged (Phase 2) | no |
+| 2026-07-03 | 0021 | `config.py` Qwen3 registry/MRL at implementation? | **Decided at implementation** — left untouched (opt-in preset retained per ADR 0021 scope) | no |
+| 2026-07-03 | 0021 | Phase 1 verification complete? | **Verified** at 2026-07-03 — 346 pytest passed; 24 embed/config tests passed; plan compliance pass; Docker integration `pass`; review rounds 1 | no |
+| 2026-07-03 | 0021 | ADR index housekeeping in Phase 1 vs Phase 3? | **Decided at verification** — included in Phase 1 PR scope (plan deviation) | no |
+| 2026-07-03 | 0021 | CHANGELOG at verified vs Phase 3 full update? | **Decided at verification** — user-facing bullet at `verified`; full CHANGELOG housekeeping deferred Phase 3 | no |
+| 2026-07-03 | 0021 | Phase 1 test debt (post-verification) | Optional `smoke_recommend_code` fails until golden collection re-indexed @ 768 (Phase 2); `eval_baseline.json` still Qwen3 @ 1024 until Phase 2 refresh | no |
 | 2026-07-03 | 0020 | Prioritize 0020 Phase 1 over 0002 P2, 0018 P2, 0017 P2, 0019 P1? | **Prioritized** at 2026-07-03 prioritization — 0020 P1 `candidate`; embed-quality-first over GraphRAG payload linking; over OTel traces (tie ~25.5); over truncation logging (can parallel); over YAML tracker (meta-tooling) | no |
 | 2026-07-03 | 0020 | Single PR for Phase 1? | Decided at plan — yes | no |
 | 2026-07-03 | 0020 | Reuse eval harness for dataset export/mining? | Decided at plan — reuse `eval_retrieval.load_golden` / `resolve_labels` and `run_search` path | no |

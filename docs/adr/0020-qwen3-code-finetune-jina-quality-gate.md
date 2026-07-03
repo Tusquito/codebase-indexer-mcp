@@ -5,6 +5,7 @@
 - **Deciders:** Maintainers
 - **Related:** [0016](0016-qwen3-embedding-default-dense-model.md) — Qwen3 default and measured Jina regression; [0011](0011-ollama-only-dense-embedding.md) — Ollama-only dense inference; [0007](0007-ranx-retrieval-evaluation.md) — golden-set eval harness; [0017](0017-model-tokenizer-ollama-dense-truncation.md) — tokenizer-accurate truncation; [CoIR leaderboard](https://mteb-leaderboard.hf.space/benchmarks?q=code) — public code-retrieval benchmark
 - **Supersedes:** *(none — narrows ADR 0016 rollout policy when quality gate fails)*
+- **Superseded by:** [0021](0021-revert-jina-production-default-retire-qwen3.md) — Phases 2–4 cancelled; Jina restored as production default
 
 ## Context
 
@@ -237,9 +238,9 @@ If gate **fails:** keep base Qwen3 default; publish measured outcomes in this AD
 
 ## Measured outcomes
 
-*(Empty — fill after Phase 3 head-to-head eval. Record fine-tuned vs Jina vs Qwen3 base in a dated table.)*
+**Gate outcome (2026-07-03):** Base Qwen3 failed the mandatory Jina gate (−63.1% recall@10). Fine-tune Phases 2–4 **cancelled** per failed-path policy. Production default revert documented in [ADR 0021](0021-revert-jina-production-default-retire-qwen3.md).
 
-### Baseline summary (reference — not yet run)
+### Baseline summary (reference — gate not passed)
 
 | Variant | recall@10 | MRR | NDCG@10 | Notes |
 |---------|-----------|-----|---------|-------|
