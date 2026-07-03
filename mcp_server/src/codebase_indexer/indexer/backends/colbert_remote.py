@@ -11,6 +11,7 @@ import httpx
 
 from codebase_indexer.config import KNOWN_COLBERT_TOKEN_DIMENSIONS
 from codebase_indexer.indexer.backends.base import EmbeddingError
+from codebase_indexer.telemetry.metrics import record_embed_request
 
 _tlog = logging.getLogger(__name__)
 
@@ -154,11 +155,14 @@ class ColbertRemoteBackend:
                     len(texts),
                     time.monotonic() - t0,
                 )
+                record_embed_request("remote_colbert", "success")
                 return embeddings
             except (httpx.HTTPError, EmbeddingError) as exc:
                 last_exc = exc
                 if attempt < self.max_retries - 1:
                     await asyncio.sleep(2**attempt)
                     continue
+                record_embed_request("remote_colbert", "error")
                 raise EmbeddingError(f"ColBERT sidecar embed failed: {exc}") from exc
+        record_embed_request("remote_colbert", "error")
         raise EmbeddingError(f"ColBERT sidecar embed failed after retries: {last_exc}")
