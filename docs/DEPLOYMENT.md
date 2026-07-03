@@ -270,3 +270,63 @@ Client loop (pseudo):
 5. Join `query_id` with `eval-results.json` `per_query` for the 2×2 table
 
 See [ADR 0010](adr/0010-defer-ragas-to-client.md) for the full contract.
+
+## Observability (Prometheus metrics)
+
+Application metrics are **opt-in** via `METRICS_ENABLED=true` ([ADR 0018](adr/0018-telemetry-observability-otel-prometheus.md) Phase 1). Default deployments are unchanged (`METRICS_ENABLED=false`).
+
+### MCP server
+
+When enabled, the MCP server exposes `GET /metrics` on the same HTTP port as streamable-http (default `127.0.0.1:8000`). Metric names use the `codeindexer_*` prefix (tool latency histograms, index job counters, embed backend error rates, memory pressure events, etc.).
+
+If `MCP_AUTH_TOKEN` is set, `/metrics` follows the same bearer-auth rule as other routes — only `/health` stays unauthenticated. Loopback binding remains the primary guard.
+
+Example scrape config:
+
+```yaml
+scrape_configs:
+  - job_name: codeindexer-mcp
+    static_configs:
+      - targets: ["127.0.0.1:8000"]
+    metrics_path: /metrics
+    # When MCP_AUTH_TOKEN is set:
+    # authorization:
+    #   credentials: "<token>"
+    #   type: Bearer
+```
+
+Set in `.env`:
+
+```env
+METRICS_ENABLED=true
+```
+
+Restart `mcp_server` after env-only changes.
+
+### ColBERT sidecar
+
+When `METRICS_ENABLED=true` in the ColBERT worker container, `GET /metrics` is served on port **8082**. In default Compose, the sidecar is bound to **loopback only** (`127.0.0.1:8082`) — scrape from the host or a co-located Prometheus container; do not expose `/metrics` beyond localhost without auth review.
+
+```yaml
+  - job_name: codeindexer-colbert
+    static_configs:
+      - targets: ["127.0.0.1:8082"]
+    metrics_path: /metrics
+```
+
+### Qdrant (built-in, no code change)
+
+Qdrant v1.18+ exposes Prometheus metrics at:
+
+```text
+http://127.0.0.1:6333/metrics?per_collection=true
+```
+
+The `per_collection=true` query parameter adds a `collection` label on REST/gRPC latency metrics — useful for per-project SLOs when each indexed folder is its own collection ([ADR 0004](adr/0004-collection-per-project-isolation.md)). Import [Qdrant's official Grafana dashboard](https://qdrant.tech/documentation/observability/) for storage and query panels.
+
+Optional JSON probes (not Prometheus): `GET /telemetry`, `GET /cluster/telemetry` for shard/optimizer state.
+
+### Traces (Phase 2)
+
+FastMCP already emits OpenTelemetry spans for MCP tool calls when an OTel SDK is configured — see [FastMCP telemetry](https://gofastmcp.com/servers/telemetry). OTLP export and custom domain spans are Phase 2 of ADR 0018; Phase 1 adds **Prometheus metrics only**.
+
