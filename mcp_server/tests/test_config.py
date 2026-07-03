@@ -343,3 +343,46 @@ def test_outlier_settings_from_env(monkeypatch: pytest.MonkeyPatch):
     assert s.outlier_max_context_samples == 50
     assert s.outlier_max_similarity == 0.4
 
+
+def test_graph_defaults_disabled():
+    s = Settings()
+    assert s.graph_enabled is False
+    assert s.neo4j_uri == "bolt://neo4j:7687"
+    assert s.neo4j_user == "neo4j"
+    assert s.neo4j_password == ""
+    assert s.neo4j_database == "neo4j"
+    assert s.graph_writer_batch == 500
+    assert s.graph_schema_version == 1
+    assert s.graph_max_hops == 2
+    assert s.graph_max_nodes == 200
+
+
+def test_graph_settings_from_env(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("GRAPH_ENABLED", "true")
+    monkeypatch.setenv("NEO4J_URI", "bolt://localhost:7687")
+    monkeypatch.setenv("NEO4J_USER", "admin")
+    monkeypatch.setenv("NEO4J_PASSWORD", "secret")
+    monkeypatch.setenv("NEO4J_DATABASE", "codegraph")
+    monkeypatch.setenv("GRAPH_WRITER_BATCH", "250")
+    monkeypatch.setenv("GRAPH_SCHEMA_VERSION", "2")
+    s = Settings()
+    assert s.graph_enabled is True
+    assert s.neo4j_uri == "bolt://localhost:7687"
+    assert s.neo4j_user == "admin"
+    assert s.neo4j_password == "secret"
+    assert s.neo4j_database == "codegraph"
+    assert s.graph_writer_batch == 250
+    assert s.graph_schema_version == 2
+
+
+def test_graph_enabled_requires_password():
+    with pytest.raises(ValueError, match="NEO4J_PASSWORD"):
+        Settings(
+            dense_embed_model="nomic-ai/nomic-embed-text-v1.5",
+            sparse_embed_model="Qdrant/bm25",
+            dense_embed_vector_size=768,
+            sparse_threads=2,
+            graph_enabled=True,
+            neo4j_password="",
+        )
+

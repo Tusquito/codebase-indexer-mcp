@@ -213,6 +213,25 @@ class Settings(BaseSettings):
     # Separate multiple queries with a pipe (|) or newline. Empty by default.
     service_discovery_extra_queries: str = Field(default="")
 
+    # --- Optional GraphRAG (ADR 0002) ---
+    graph_enabled: bool = Field(default=False)
+    neo4j_uri: str = Field(default="bolt://neo4j:7687")
+    neo4j_user: str = Field(default="neo4j")
+    neo4j_password: str = Field(default="")
+    neo4j_database: str = Field(default="neo4j")
+    graph_writer_batch: int = Field(default=500, ge=1)
+    graph_schema_version: int = Field(default=1, ge=1)
+    graph_max_hops: int = Field(default=2, ge=1)
+    graph_max_nodes: int = Field(default=200, ge=1)
+
+    @model_validator(mode="after")
+    def validate_graph_password_when_enabled(self) -> Self:
+        if self.graph_enabled and not self.neo4j_password.strip():
+            raise ValueError(
+                "NEO4J_PASSWORD must be set when GRAPH_ENABLED=true."
+            )
+        return self
+
     @model_validator(mode="after")
     def validate_dense_embed_vector_size_matches_model(self) -> Self:
         expected = KNOWN_EMBED_MODEL_DIMENSIONS.get(self.dense_embed_model)

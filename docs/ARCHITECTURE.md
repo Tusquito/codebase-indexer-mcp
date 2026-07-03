@@ -167,7 +167,21 @@ Vector discovery Phase 1–2 is shipped: `recommend_code` and `find_outlier_chun
 
 ## GraphRAG (proposed)
 
-Optional Neo4j-backed code graph linked to Qdrant chunk IDs for vector→graph retrieval. Disabled by default; see [ADR 0002](adr/0002-graphrag-neo4j-qdrant.md). Based on [Qdrant’s GraphRAG + Neo4j pattern](https://qdrant.tech/documentation/examples/graphrag-qdrant-neo4j/#build-a-graphrag-agent-with-neo4j-and-qdrant), adapted to deterministic AST/extractor ingestion (no LLM ontology).
+Optional Neo4j-backed code graph linked to Qdrant chunk IDs for vector→graph retrieval. **Disabled by default** (`GRAPH_ENABLED=false`); no Neo4j driver init or index-time graph I/O unless enabled. See [ADR 0002](adr/0002-graphrag-neo4j-qdrant.md).
+
+**Phase 1 (shipped):** index-time graph writer — `storage/neo4j.py`, `indexer/graph_writer.py`, pipeline hooks mirroring Qdrant flush/delete cadence. Ontology: `Collection`, `File`, `Chunk`, `Symbol`, `Endpoint`, `Artifact` with relationships `IN_COLLECTION`, `IN_FILE`, `DEFINES`, `IMPORTS`, `CALLS`, `DECLARES_ENDPOINT`, `HTTP_CALLS`, `CONFIGURES`, `BUILD_DEPENDS`, `RESOLVES_TO`. Shared link: Qdrant payload `chunk_id` = Neo4j `Chunk.chunk_id`.
+
+**Deploy with Neo4j:**
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.neo4j.yml up -d --build
+```
+
+Set `GRAPH_ENABLED=true`, `NEO4J_PASSWORD`, and re-index collections when enabling graph on existing data.
+
+**Deferred:** Phase 2 Qdrant `graph_node_ids` payload linking; Phase 3 `expand_search_context` MCP tool; Phase 4 Neo4j-backed cross-project queries.
+
+Based on [Qdrant’s GraphRAG + Neo4j pattern](https://qdrant.tech/documentation/examples/graphrag-qdrant-neo4j/#build-a-graphrag-agent-with-neo4j-and-qdrant), adapted to deterministic AST/extractor ingestion (no LLM ontology).
 
 ## MCP tools
 

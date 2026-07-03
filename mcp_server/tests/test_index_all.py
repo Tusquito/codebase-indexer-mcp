@@ -25,6 +25,8 @@ async def _mock_run_pipeline(
     force,
     cancel_event=None,
     result=None,
+    graph_storage=None,
+    url_extractors=None,
 ):
     """Mock pipeline that copies counters into the shared result object."""
     if result is not None:
@@ -66,6 +68,7 @@ async def _setup(collection_names: list[str]):
         job_tracker=job_tracker,
         embedder=MagicMock(),
         url_extractors=MagicMock(),
+        graph_storage=None,
     )
 
     mcp = FastMCP("test")
@@ -229,11 +232,21 @@ class TestIndexAllCollectionFailure:
             force,
             cancel_event=None,
             result=None,
+            graph_storage=None,
+            url_extractors=None,
         ):
             if collection == "beta":
                 raise RuntimeError("disk full")
             return await _mock_run_pipeline(
-                settings, storage, collection, sub_path, force, cancel_event, result
+                settings,
+                storage,
+                collection,
+                sub_path,
+                force,
+                cancel_event,
+                result,
+                graph_storage,
+                url_extractors,
             )
 
         with patch("codebase_indexer.tools.index.run_pipeline", new=flaky_pipeline):
@@ -254,6 +267,8 @@ class TestIndexAllCollectionFailure:
             force,
             cancel_event=None,
             result=None,
+            graph_storage=None,
+            url_extractors=None,
         ):
             raise RuntimeError("storage unavailable")
 

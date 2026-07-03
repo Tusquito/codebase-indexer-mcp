@@ -693,7 +693,7 @@ _IMPORT_NAME_PARSERS: dict[str, object] = {
 }
 
 
-def _extract_imported_names(line: str, language: str) -> list[str] | None:
+def extract_imported_names(line: str, language: str) -> list[str] | None:
     """Names from an import line to match against chunk content.
 
     Returns None if the line should always be prepended (package, wildcard).
@@ -709,6 +709,9 @@ def _extract_imported_names(line: str, language: str) -> list[str] | None:
     return result
 
 
+_extract_imported_names = extract_imported_names
+
+
 def _filter_relevant_imports(
     import_lines: list[str],
     chunk_content: str,
@@ -717,7 +720,7 @@ def _filter_relevant_imports(
     """Return import lines whose symbols are referenced in chunk_content."""
     relevant: list[str] = []
     for line in import_lines:
-        names = _extract_imported_names(line, language)
+        names = extract_imported_names(line, language)
         if names is None:
             relevant.append(line)
             continue
