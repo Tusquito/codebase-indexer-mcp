@@ -181,6 +181,8 @@ Set **user-facing: yes** in Tracker append when the phase changes runtime behavi
 - **ADR:** <id> — <title>
 - **Phase / track:** …
 - **Status:** …
+- **Final phase:** yes | no — all planned work for this ADR done after this PR
+- **Accept after merge:** auto | yes | no — `auto` accepts when gates met (see `adr-finisher`)
 - **Constraints:** …
 - **Assumptions:** …
 
@@ -236,7 +238,7 @@ How this phase plugs into existing layers. (Mermaid optional.)
 |-----------|---------------|
 
 ### Follow-up notes (informational only)
-- Formal ADR Accept / index — when invoker decides
+- `adr-finisher` handles merge + accept + optional release after PR review `approve`
 - …
 
 ### Open questions

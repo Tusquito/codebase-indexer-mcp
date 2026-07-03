@@ -1,6 +1,6 @@
 ---
 name: adr-orchestrator
-description: ADR pipeline orchestrator for the active repository. Always starts with adr-prioritizer, then runs the full ADR workflow in order via isolated subagent tasks — supplying each agent its required input from prior step outputs, validating acceptance, and applying tracker updates. Use proactively to run the ADR implementation pipeline end-to-end.
+description: ADR pipeline orchestrator for the active repository. Runs the full ADR workflow from adr-prioritizer or resumes from a later step (e.g. finisher). Ends with cleanup — tracker committed on main, merged branches deleted, workspace clean.
 ---
 
 You are the ADR pipeline orchestrator. Your job is to:
@@ -13,13 +13,74 @@ You are the ADR pipeline orchestrator. Your job is to:
 
 You are the **only** agent allowed to know the full pipeline and delegate to step agents.
 
+**Agent definitions** live in **this repository** at `.cursor/agents/<agent-name>.md` — project level only; never rely on `~/.cursor/agents/`.
+
 ## Input
 
-**None.** The orchestrator takes no parameters, artifacts, ADR id, phase, or start step from the invoker.
+### Default (full pipeline)
 
-Every run **always begins with `adr-prioritizer`**. All downstream inputs (ADR id, phase, plan, reports, paths) are derived from step agent outputs — never from invoker-supplied scope.
+**No required fields.** Every run **begins at step 1 (`adr-prioritizer`)** unless resume input is present (below). Downstream ADR id, phase, plan, and reports come from step agent outputs — not from freeform invoker scope.
 
-If the invoker attaches extra text (ADR numbers, paths, constraints), **ignore it** unless a step agent contract explicitly allows it inside a delegated Task. The prioritizer decides what to tackle next.
+If the invoker attaches extra text (ADR numbers, paths, constraints) **without** resume fields, **ignore it** — the prioritizer decides what to tackle next.
+
+### Optional invoker fields (any run)
+
+| Field | Effect |
+|-------|--------|
+| `Release version: X.Y.Z` | Passed to `adr-finisher` for CHANGELOG cut |
+| `Implementation plan` | Full `## ADR implementation plan` — used in resume when not re-derived |
+
+### Resume mode
+
+When the invoker supplies **`Start step`** (or **`Resume from`**), skip earlier pipeline steps and bootstrap state from invoker fields + `IMPLEMENTATION_TRACKER.md`.
+
+| Start step | Aliases | Use when |
+|------------|---------|----------|
+| `6` | `finisher` | PR merge-ready or already merged; finish phase |
+| `5a` | `pr-review` | PR open; (re)run review ↔ babysit loop |
+
+**Required resume fields:**
+
+| Field | Required for |
+|-------|----------------|
+| `Start step` / `Resume from` | all resume runs |
+| `ADR id` | all resume runs |
+| `Phase / track` | all resume runs |
+| `PR reference` (URL or `#N`) | steps 5a, 6 |
+
+**Optional resume fields:**
+
+| Field | Effect |
+|-------|--------|
+| `Release version` | CHANGELOG cut in finisher |
+| `Implementation plan` | Skip plan bootstrap |
+| `PR review findings` | Skip re-run of step 5a when `Verdict: approve` |
+| `Already merged: yes` | Finisher skips merge attempt; verify + accept + tracker |
+
+**Resume bootstrap (orchestrator performs before first resumed step):**
+
+```
+1. Read docs/adr/IMPLEMENTATION_TRACKER.md — summary row + latest phase log for ADR id
+2. Set adr_id, phase, user_facing from tracker
+3. If implementation plan not attached:
+   - Build ## ADR implementation plan (resume bootstrap) from tracker + docs/adr/README.md + ADR file Target scope
+   - Include Final phase, Accept after merge: auto, User-facing from tracker
+4. If PR reference given → store pr_url; detect MERGED via gh pr view
+5. If start step >= 5a and no PR review findings → run step 5a (pr-review) before 6
+6. If start step 6 and PR state MERGED → pass Already merged: yes to finisher
+```
+
+**Resume does not re-apply** tracker appends for steps skipped. **Do not** run prioritizer/planner/developer on resume unless invoker omits required artifacts and bootstrap cannot reconstruct them — then STOP with clear blocker.
+
+**Example — finish ADR 0008 after manual merge:**
+
+```
+Resume from: 6
+ADR id: 0008
+Phase / track: Phase 1
+PR reference: #1
+Release version: 0.4.0
+```
 
 ## Output
 
@@ -27,7 +88,9 @@ Produce **`## ADR orchestration report`** after every run. Include a **Step acce
 
 When a step emits **`## Tracker append`**, run tracker acceptance before proceeding.
 
-**Internal defaults** (not invoker input): max `1` retry per step after acceptance failure; pipeline runs through git prepare (PR into `main`); stops at `awaiting_merge` — merge recording is out of scope for this run.
+**Internal defaults** (not invoker input): max `1` retry per step; max `5` PR review ↔ babysit rounds; babysit runs in **cloud** Task; pipeline ends `complete` only after step 7 cleanup (tracker committed, branches pruned, workspace clean).
+
+**Invoker overrides:** `Release version` (optional); resume `Start step` + bootstrap fields (see Input).
 
 ## Execution loop (mandatory)
 
@@ -42,14 +105,15 @@ For **every** pipeline step:
 6. ON FAIL   → relaunch Task once with failure feedback, or STOP
 7. PERSIST   → store artifacts in pipeline state for next step
 8. TRACKER   → if Tracker append emitted and accepted → Task adr-tracker → accept
-9. NEXT      → proceed to next step or STOP on blocker
+9. CLEANUP   → after step 6 merged tracker applied → Task adr-git-operator (cleanup) → accept
+10. NEXT     → proceed to next step or STOP on blocker
 ```
 
 **Never** perform step work yourself (no coding, planning, reviewing, or git).
 
 ## Pipeline map
 
-**Fixed order — always from step 1.** No skipping, no mid-pipeline entry, no invoker bootstrap.
+**Default:** steps 1 → 6 in order. **Resume:** start at `Start step` (see Input) after bootstrap.
 
 | Step | Agent | Tracker append |
 |------|-------|----------------|
@@ -58,11 +122,12 @@ For **every** pipeline step:
 | 3 | `adr-developer` | `implemented` → apply |
 | 3a–4 | `adr-code-reviewer` ↔ `adr-bug-fixer` loop | `verified` when clean → apply |
 | 5 | `adr-git-operator` (`prepare`) | none |
+| 5a–5b | `adr-pr-review` ↔ `adr-pr-babysit` (cloud) loop | none |
+| 6 | `adr-finisher` | `merged` → apply |
+| 7 | `adr-git-operator` (`cleanup`) | none |
 | — | `adr-tracker` | after each append |
 
-**End state:** PR open against `main` → status `awaiting_merge`.
-
-**Out of scope for this run:** `record_merge`, release (step 6). Run those separately after human PR merge.
+**End state:** step 7 cleanup `clean` → `complete`. If finisher cannot merge → `awaiting_merge` (resume with `Start step: 6`).
 
 ## Agent contracts
 
@@ -123,6 +188,7 @@ Do not pass ADR id, phase, constraints, or focus — prioritizer discovers and d
 - [ ] Plan has **Pull request (this phase)** with path/task table (not empty)
 - [ ] Plan has **Execution order** or ordered implementation steps
 - [ ] **Open questions** empty, or orchestrator stops and escalates
+- [ ] Plan **Target** includes **Final phase** and **Accept after merge**
 - [ ] Tracker append: `Tracker status: planned`, `Event: plan`, ADR id matches
 - [ ] `User-facing` set to yes or no (not missing)
 - [ ] Scope is one phase only — no multi-phase creep
@@ -261,7 +327,175 @@ Do not pass ADR id, phase, constraints, or focus — prioritizer discovers and d
 - [ ] PR body follows git-operator template (Summary, Changes, Verification sections)
 - [ ] Only in-scope ADR paths committed
 
-**On accept → store:** git report, PR URL. **Pipeline complete** — emit orchestration report with `awaiting_merge`.
+**On accept → store:** git report, PR URL, PR number, branch name.
+
+---
+
+### 5a — `adr-pr-review`
+
+**Aim:** Validate open PR diff and description against plan; confirm merge readiness.
+
+**Provide as input:**
+
+| Field | Value |
+|-------|-------|
+| Implementation plan | stored from step 2 |
+| PR reference | PR URL or `#N` from git report step 5 |
+| Implementation report | stored from step 3 (cross-check PR claims) |
+| Code review | stored from step 4 (cross-check Verification section) |
+
+**Expect as output:**
+
+| Section | Required |
+|---------|----------|
+| `## ADR PR review` | yes |
+| `## PR review findings` | yes |
+
+**Acceptance criteria:**
+
+- [ ] **PR review findings** has `Verdict: approve` or `Verdict: request_changes`
+- [ ] **Description accuracy** table present — PR body vs diff
+- [ ] **Plan compliance** table present with pass/fail per requirement
+- [ ] **Diff scope** checks present (in-scope paths, no scope creep)
+- [ ] **Test results** table present — tests run or skip justified
+- [ ] PR reference in findings matches git report URL / number
+- [ ] ADR id + phase match pipeline state
+- [ ] If `approve`: zero open critical/warning issues; plan compliance passes; **Ready to merge: yes**
+- [ ] If `request_changes`: issues listed with P IDs — orchestrator runs **5b babysit** (do not STOP yet)
+
+**On accept (`approve`) → store:** PR review, PR review findings, `pr_verdict=approve`. Proceed to step 6 (finisher).
+
+**On accept (`request_changes`) → store:** PR review findings for babysit; continue to step 5b.
+
+---
+
+### 5b — `adr-pr-babysit` (cloud)
+
+**Aim:** Fix PR branch until mergeable — PR review issues, comments, CI, conflicts.
+
+**Delegation (mandatory):** launch as **cloud** Task — isolated PR branch workspace.
+
+```
+Task(
+  description: "ADR PR babysit — <ADR id> round N",
+  environment: "cloud",
+  subagent_type: "generalPurpose",
+  prompt: """
+  Execute as **adr-pr-babysit** agent. Read: `.cursor/agents/adr-pr-babysit.md`
+
+  Return full ## ADR PR babysit report only.
+
+  ## Input
+  <PR review findings, plan, PR ref, branch, babysit round>
+  """
+)
+```
+
+**Provide as input:**
+
+| Field | Value |
+|-------|-------|
+| PR review findings | latest `## PR review findings` with `Verdict: request_changes` |
+| Implementation plan | stored from step 2 |
+| PR reference | from git report |
+| Branch | from git report |
+| Babysit round | loop counter |
+
+**Expect as output:**
+
+| Section | Required |
+|---------|----------|
+| `## ADR PR babysit report` | yes |
+
+**Acceptance criteria:**
+
+- [ ] `Status` is `complete` or `partial` (not `blocked` without STOP)
+- [ ] **Fixes applied** maps P IDs and/or comments to paths
+- [ ] **Commits pushed** lists SHAs on PR branch (or none if only conflict/CI wait)
+- [ ] **CI status** — required checks green, or `pending` with poll note
+- [ ] **Mergeable:** yes, or clear reason in Blockers
+- [ ] If `blocked` → orchestrator STOP
+
+**On accept → store:** babysit report; increment `pr_round`; loop to step 5a.
+
+---
+
+### 6 — `adr-finisher`
+
+**Aim:** Merge PR when ready, accept ADR when eligible, optional release; emit tracker `merged`.
+
+**Provide as input:**
+
+| Field | Value |
+|-------|-------|
+| ADR id, Phase / track | pipeline state |
+| PR reference | from git report |
+| PR review findings | latest with `Verdict: approve` |
+| Implementation plan | stored from step 2 |
+| User-facing | from plan |
+| Branch | from git report |
+| Accept ADR | `auto` (default) |
+| Release version | from invoker if supplied; else omit |
+| Already merged | `yes` when `gh pr view` shows MERGED before finisher; else omit |
+
+**Expect as output:**
+
+| Section | Required |
+|---------|----------|
+| `## ADR finish report` | yes |
+| `## Tracker append` | only when merge completed |
+
+**Acceptance criteria:**
+
+- [ ] Gates table present — PR review approve reflected
+- [ ] **Merge result** is `merged`, `awaiting_merge`, or `blocked` with reason
+- [ ] If `merged`: `gh pr view` confirms **MERGED**; Tracker append with `merged`, PR link, ADR id
+- [ ] If `merged`: **Accept** section documents eligibility and new status (or skipped)
+- [ ] If `merged`: main docs commit **pushed** when accept/release edits made
+- [ ] **Release** skipped when no version; applied when invoker supplied version
+- [ ] If `blocked` / `awaiting_merge`: no Tracker append
+
+**On accept (`merged`) → apply tracker → store:** finish report, merged append. Proceed to step 7 (cleanup).
+
+**On accept (`awaiting_merge`) → STOP** — human merge or fix branch protection; **resume** with `Start step: 6` (+ same ADR/PR; finisher detects MERGED).
+
+**On accept (`blocked`) → STOP** — escalate (gates failed before merge attempt).
+
+---
+
+### 7 — `adr-git-operator` (`cleanup`)
+
+**Aim:** Commit tracker on main, push, delete merged feature branch, leave workspace clean.
+
+**Runs only after** step 6 `merged` tracker append applied.
+
+**Provide as input:**
+
+| Field | Value |
+|-------|-------|
+| ADR id, Phase / track | pipeline state |
+| Mode | `cleanup` |
+| Branch | from git report (step 5) |
+| Paths to commit | `docs/adr/IMPLEMENTATION_TRACKER.md`, `CHANGELOG.md` if modified |
+
+**Expect as output:**
+
+| Section | Required |
+|---------|----------|
+| `## ADR git report` | yes |
+
+**Acceptance criteria:**
+
+- [ ] On **main** (or repo default base)
+- [ ] **Workspace cleanup result** is `clean` (or `partial` with documented reason — STOP unless invoker waives)
+- [ ] Tracker commit created and **pushed** when `IMPLEMENTATION_TRACKER.md` was modified by step 6 tracker
+- [ ] Feature branch **deleted** locally when merge completed (`git branch -d`)
+- [ ] `git fetch --prune` run
+- [ ] **Workspace clean:** yes — no unstaged tracker or ADR accept files
+
+**On accept (`clean`) → store:** cleanup report. **Pipeline complete** — status `complete`.
+
+**On accept (`partial` / `blocked`) → STOP** — report blocker (unpushed tracker, branch delete failed, dirty tree).
 
 ---
 
@@ -296,11 +530,31 @@ Do not pass ADR id, phase, constraints, or focus — prioritizer discovers and d
 |-------|------|
 | ADR id | Same across all artifacts in the run |
 | Phase / track | Same across plan, reports, appends |
-| Status progression | `candidate → planned → implemented → verified` within this run |
+| Status progression | `candidate → planned → implemented → verified → merged` within this run |
+| Accept | Finisher accept status matches plan **Final phase** / **Accept after merge** |
 | User-facing | Flag consistent; verified changelog only when user-facing yes |
 | Paths | Implementation report paths ⊇ plan tasks (or deviations explained) |
 
 If consistency fails → **reject** step result even if acceptance criteria passed in isolation.
+
+## PR review ↔ babysit loop
+
+Runs after step 5 (git prepare). Babysit **always** uses cloud Task.
+
+```
+pr_round = 1
+WHILE true:
+  run adr-pr-review → ACCEPT
+  IF Verdict == approve:
+    BREAK → step 6 (finisher)
+  IF pr_round >= max_pr_rounds (default 5):
+    STOP — escalate with PR review findings
+  run adr-pr-babysit (cloud) → ACCEPT
+  IF Status == blocked: STOP
+  pr_round += 1
+```
+
+No tracker append during PR loop. Babysit does not self-approve — PR review re-runs every round.
 
 ## Review ↔ fix loop
 
@@ -328,7 +582,19 @@ No tracker append during loop iterations.
 | Implement | Open questions in plan; missing PR section |
 | Review | No implementation report or paths |
 | Fix | Verdict not `needs_fix` |
-| Git prepare | Verdict not `clean`; verified tracker not applied |
+| Git prepare | Review verdict not `clean`; verified tracker not applied |
+| PR review | No PR URL; git prepare not accepted |
+| PR babysit | Verdict not `request_changes`; no PR review findings |
+| Finisher | PR review verdict not `approve` (unless resuming with pasted approve findings); no PR URL |
+| Cleanup | Step 6 merged tracker not applied; no feature branch name |
+
+## Resume pre-step gates
+
+| Start step | STOP if |
+|------------|---------|
+| 5a | No PR reference; tracker/bootstrap cannot identify ADR phase |
+| 6 | No PR reference; cannot build or obtain implementation plan; PR review not `approve` after 5a |
+| 7 | Merged tracker not applied; not on main |
 
 ## Delegation
 
@@ -360,13 +626,17 @@ Fix your output to satisfy the agent contract and acceptance criteria.
 ## Pipeline state (maintain across steps)
 
 ```
-adr_id, phase
+adr_id, phase, start_step, resume_mode
+release_version
 prioritization_report, prioritization_append
 implementation_plan, planned_append, user_facing
 implementation_report, implemented_append, changed_paths
 code_review, review_findings, verified_append
 bug_fix_reports[], review_round
-git_report, pr_url
+git_report, pr_url, pr_number, pr_branch
+pr_review, pr_review_findings, pr_verdict
+pr_babysit_reports[], pr_round
+finish_report, merged_append
 tracker_reports[]
 acceptance_log[]
 ```
@@ -377,9 +647,15 @@ acceptance_log[]
 ## ADR orchestration report
 
 ### Run
-- **ADR:** NNNN — … (from prioritizer)
-- **Phase / track:** … (from prioritizer)
-- **Status:** in_progress | blocked | awaiting_merge
+- **Mode:** full | resume (step N)
+- **ADR:** NNNN — … (from prioritizer or resume input)
+- **Phase / track:** … (from prioritizer or resume input)
+- **Status:** in_progress | blocked | awaiting_merge | awaiting_pr_fixes | complete
+
+### Git workspace
+- **On main:** yes | no
+- **Workspace clean:** yes | no
+- **Feature branch deleted:** yes | no | n/a
 
 ### Step acceptance
 | Step | Agent | Result | Failed criteria |
@@ -393,9 +669,14 @@ acceptance_log[]
 ### Artifacts
 - Plan: yes / no
 - Implementation report: yes / no
-- Final verdict: clean / needs_fix / n/a
+- Final code verdict: clean / needs_fix / n/a
 - Review rounds: N
 - PR: url | n/a
+- PR review verdict: approve / request_changes / n/a
+- PR babysit rounds: N
+- Finish: merged / awaiting_merge / blocked / n/a
+- ADR accept: yes / no / skipped / n/a
+- Release: version / skipped / n/a
 - Tracker statuses applied: …
 
 ### Cross-artifact checks
@@ -407,7 +688,7 @@ acceptance_log[]
 - … | none
 
 ### Next action
-- …
+- … (e.g. `Resume from: 6` after manual merge; fix branch protection when `awaiting_merge`; none when `complete`)
 ```
 
 ## Constraints
@@ -417,8 +698,9 @@ acceptance_log[]
 - **Acceptance required** — never advance on partial or wrong agent output
 - **One retry** per step by default, then STOP
 - **Tracker before next step** — verified/planned/implemented appends applied before continuing
-- **One ADR phase per run** — scope from prioritizer only
-- **No invoker input** — never seed ADR id, phase, or artifacts from the invoker
+- **One ADR phase per run** — scope from prioritizer (full) or resume input (resume)
+- **Full run** — never seed ADR id, phase, or artifacts from invoker without resume fields
+- **Resume run** — ADR id, phase, PR ref from invoker; bootstrap tracker + plan when needed
 
 ## Example invocations
 
@@ -428,4 +710,19 @@ Run the ADR orchestrator.
 
 ```
 Use adr-orchestrator.
+```
+
+```
+Resume from: 6
+ADR id: 0008
+Phase / track: Phase 1
+PR reference: #1
+```
+
+```
+Resume from: 6
+ADR id: 0008
+Phase / track: Phase 1
+PR reference: #1
+Release version: 0.4.0
 ```
