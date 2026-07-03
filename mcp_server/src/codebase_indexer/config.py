@@ -189,6 +189,10 @@ class Settings(BaseSettings):
     rerank_prefetch: int = Field(default=100, ge=1)
     # Max tokens for ColBERT query embedding. 0 = model registry default.
     rerank_max_query_tokens: int = Field(default=0)
+    # When rerank is on, probe hybrid RRF scores first; skip ColBERT MAX_SIM when
+    # rank-1 minus rank-2 gap >= rerank_adaptive_gap (per-collection).
+    rerank_adaptive_enabled: bool = Field(default=True)
+    rerank_adaptive_gap: float = Field(default=0.02, ge=0)
     colbert_embed_backend: Literal["onnx", "remote"] = Field(default="onnx")
     colbert_url: str = Field(default="http://colbert_worker:8082")
     colbert_timeout: int = Field(default=300)
@@ -233,6 +237,12 @@ class Settings(BaseSettings):
                 "RERANK_ENABLED=true requires HYBRID_SEARCH=true "
                 "(ColBERT rerank runs over hybrid prefetch candidates)."
             )
+        return self
+
+    @model_validator(mode="after")
+    def validate_adaptive_rerank_when_disabled(self) -> Self:
+        if not self.rerank_enabled:
+            object.__setattr__(self, "rerank_adaptive_enabled", False)
         return self
 
     @model_validator(mode="after")
