@@ -16,7 +16,7 @@ from fastmcp import FastMCP
 from starlette.middleware import Middleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
 
 from codebase_indexer.config import Settings
 from codebase_indexer.context import AppContext
@@ -35,6 +35,7 @@ from codebase_indexer.tools.outline import register_file_outline_tool
 from codebase_indexer.tools.recommend import register_recommend_tool
 from codebase_indexer.tools.outliers import register_find_outlier_chunks_tool
 from codebase_indexer.tools.summary import register_collection_summary_tool
+from codebase_indexer.telemetry.metrics import init_metrics, render_metrics
 
 _INSTRUCTIONS = """
     A local codebase semantic search server.
@@ -148,6 +149,7 @@ def create_app(settings: Settings | None = None, preload_models: bool | None = N
     """
     settings = settings or Settings()
     configure_logging(settings)
+    init_metrics(settings.metrics_enabled)
     log = structlog.get_logger()
 
     # --- Startup memory diagnostics & OOM-restart detection ---
@@ -235,6 +237,13 @@ def create_app(settings: Settings | None = None, preload_models: bool | None = N
         # Minimal, unauthenticated liveness probe. Deliberately does NOT echo the
         # model/config so the endpoint cannot be used to fingerprint the server.
         return JSONResponse({"status": "ok"})
+
+    @mcp.custom_route("/metrics", methods=["GET"])
+    async def metrics(request: Request) -> Response:
+        if not settings.metrics_enabled:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        body, content_type = render_metrics()
+        return Response(content=body, media_type=content_type)
 
     register_index_tool(mcp, ctx)
     register_search_tool(mcp, ctx)

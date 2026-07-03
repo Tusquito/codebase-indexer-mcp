@@ -18,6 +18,7 @@ class WorkerSettings(BaseSettings):
     colbert_device_ids: list[int] | None = Field(default=None)
     host: str = Field(default="0.0.0.0")
     port: int = Field(default=8082)
+    metrics_enabled: bool = Field(default=False)
 
     @field_validator("colbert_device_ids", mode="before")
     @classmethod

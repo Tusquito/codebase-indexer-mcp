@@ -9,11 +9,13 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
+from starlette.responses import Response
 
 from codebase_indexer.colbert_worker.cuda import cuda_available
 from codebase_indexer.colbert_worker.settings import WorkerSettings
 from codebase_indexer.indexer.backends.base import EmbeddingError
 from codebase_indexer.indexer.backends.colbert_onnx import ColbertOnnxBackend
+from codebase_indexer.telemetry.metrics import init_metrics, record_embed_request, render_metrics
 
 _tlog = logging.getLogger(__name__)
 
@@ -37,6 +39,7 @@ def create_app(
     backend: ColbertOnnxBackend | None = None,
 ) -> FastAPI:
     settings = settings or WorkerSettings()
+    init_metrics(settings.metrics_enabled)
     if backend is None:
         backend = ColbertOnnxBackend(
             model_name=settings.colbert_embed_model,
@@ -82,14 +85,24 @@ def create_app(
             "cuda_available": cuda_available(),
         }
 
+    @app.get("/metrics")
+    def metrics() -> Response:
+        if not settings.metrics_enabled:
+            raise HTTPException(status_code=404, detail="not found")
+        body, content_type = render_metrics()
+        return Response(content=body, media_type=content_type)
+
     @app.post("/v1/embed/colbert", response_model=ColbertEmbedResponse)
     async def embed_colbert(body: ColbertEmbedRequest) -> ColbertEmbedResponse:
         try:
             embeddings = await backend.embed_batch(body.texts)
+            record_embed_request("colbert_onnx", "success")
         except EmbeddingError as exc:
+            record_embed_request("colbert_onnx", "error")
             _tlog.exception("colbert_worker_embed_failed")
             raise HTTPException(status_code=500, detail=str(exc)) from exc
         except Exception as exc:
+            record_embed_request("colbert_onnx", "error")
             _tlog.exception("colbert_worker_embed_failed")
             raise HTTPException(status_code=500, detail=str(exc)) from exc
         return ColbertEmbedResponse(
