@@ -56,7 +56,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0016](0016-qwen3-embedding-default-dense-model.md) | Adopt Qwen3-Embedding-4B as default Ollama dense model | Accepted (all phases complete) | Phase 2 — Eval baseline refresh (final phase) | `merged` | Jina comparison baseline; recall@10 gate waived with per-tag analysis (−63.1% vs Jina); refreshed `eval_baseline.json` + `golden_queries.jsonl`; alias line remapping; operational compose/env eval overrides not committed; final ADR 0016 phase complete; defer CI validate-labels gate, compose WORKSPACE_ROOT eval preset, optional non-blocking recall benchmark job, compose host-env URL isolation, `num_ctx`; [PR #14](https://github.com/Tusquito/codebase-indexer-mcp/pull/14) | 2026-07-03 |
 | [0018](0018-telemetry-observability-otel-prometheus.md) | Adopt OpenTelemetry instrumentation with Prometheus metrics and optional OTLP export | Accepted (phase 1 — Application Prometheus metrics (MCP + ColBERT worker)) | Phase 1 — Application Prometheus metrics (MCP + ColBERT worker) | `merged` | Opt-in `METRICS_ENABLED=false` default; `prometheus_client` on dedicated `CollectorRegistry`; metrics-only `@observe_tool` on all MCP tool handlers; no collection/rel_path labels; application counters/histograms + truncation counter; index metrics via IndexJobTracker; `GET /metrics` on MCP and ColBERT worker HTTP layer; unit tests (`test_telemetry_metrics.py`); `DEPLOYMENT.md` scrape docs; defer `METRICS_PORT`, docker-compose scrape wiring, Phase 2 OTel traces, Phase 3 observability compose stack; [PR #13](https://github.com/Tusquito/codebase-indexer-mcp/pull/13) | 2026-07-03 |
 | [0020](0020-qwen3-code-finetune-jina-quality-gate.md) | Fine-tune Qwen3 for code retrieval with Jina quality gate | Accepted (phase 1 — Dataset + training pipeline) | Phase 1 — Dataset + training pipeline | `merged` | Shipped: `mcp_server/benchmarks/train/` (`export_golden_pairs.py`, `mine_hard_negatives.py`, `finetune_qwen3_code.py`, `_schema.py`, `_split.py`, `_positives.py`, `README.md`); optional `[train]` pyproject extra isolated from runtime/CI; default validation holdout = all four `multi_hop` golden queries; hard-negative mining via base Qwen3 hybrid `run_search` (rerank off); LoRA via PEFT + sentence-transformers (TripletLoss when all pairs have mined negatives, else MnRL in-batch); outputs under `benchmarks/train/outputs/` gitignored; unit tests (export/split/mining + `test_finetune_mrr.py`); `DEPLOYMENT.md` training stub. Deviations: `resolve_positive_passage` (singular); single-pass checkpoint save (baseline + final val MRR in `train_summary.json`) vs per-epoch best (documented at verification). Defer Ollama export/registry (P2), Jina quality gate + baseline update (P3), CI observation job (P4); no Docker/runtime/registry changes; [PR #15](https://github.com/Tusquito/codebase-indexer-mcp/pull/15) | 2026-07-03 |
-| [0021](0021-revert-jina-production-default-retire-qwen3.md) | Revert default dense embedder to Jina code; retire Qwen3 as production default | Proposed | Phase 1 — Config + docs revert | `verified` | Jina production default @ 768 in env/bench/compose/docs; Qwen3 experimental preset (−63.1% recall@10); `OLLAMA_EMBED_MODEL` uncommented in `.env.example` REQUIRED; compose Jina pull manual-only; `config.py` Qwen3 registry/MRL retained; ADR index housekeeping in Phase 1 scope; defer Phase 2 (`eval_baseline.json`); CHANGELOG full update Phase 3; test debt: `smoke_recommend_code` until golden re-index @ 768 | 2026-07-03 |
+| [0021](0021-revert-jina-production-default-retire-qwen3.md) | Revert default dense embedder to Jina code; retire Qwen3 as production default | Accepted (phase 1 — Config + docs revert) | Phase 1 — Config + docs revert | `merged` | Jina production default @ 768 in env/bench/compose/docs; Qwen3 experimental preset (−63.1% recall@10); `OLLAMA_EMBED_MODEL` uncommented in `.env.example` REQUIRED; compose Jina pull manual-only; `config.py` Qwen3 registry/MRL retained; ADR index housekeeping in Phase 1 scope; defer Phase 2 (`eval_baseline.json`); CHANGELOG full update Phase 3; test debt: `smoke_recommend` dim mismatch until Phase 2 re-index; [PR #16](https://github.com/Tusquito/codebase-indexer-mcp/pull/16) | 2026-07-03 |
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
 
@@ -73,12 +73,13 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 | 0017 | Phase 1 — loader + Ollama backend ([PR #11](https://github.com/Tusquito/codebase-indexer-mcp/pull/11)) | Phase 2 observability + ADR 0011 body edit |
 | 0018 | Phase 1 — Application Prometheus metrics (MCP + ColBERT worker) ([PR #13](https://github.com/Tusquito/codebase-indexer-mcp/pull/13)) | Phase 2 OTel traces; Phase 3 observability compose stack; `METRICS_PORT`, docker-compose scrape wiring |
 | 0020 | Phase 1 — Dataset + training pipeline ([PR #15](https://github.com/Tusquito/codebase-indexer-mcp/pull/15)) | Phases 2–4 cancelled per [ADR 0021](0021-revert-jina-production-default-retire-qwen3.md) (fine-tune gate failed path) |
+| 0021 | Phase 1 — Config + docs revert ([PR #16](https://github.com/Tusquito/codebase-indexer-mcp/pull/16)) | Phase 2 — Eval baseline refresh; Phase 3 — ADR housekeeping + CHANGELOG full update |
 
 ### Candidate (requires Accept)
 
 | ADR | Phase | Notes |
 |-----|-------|-------|
-| 0021 | Phase 2 — Eval baseline refresh | Phase 1 `verified` 2026-07-03; defers Phase 3 CHANGELOG full update |
+| 0021 | Phase 2 — Eval baseline refresh | Phase 1 merged [PR #16](https://github.com/Tusquito/codebase-indexer-mcp/pull/16) 2026-07-03; defers Phase 3 CHANGELOG full update |
 
 ---
 
@@ -966,6 +967,17 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 
 ### ADR 0021 — Revert default dense embedder to Jina code; retire Qwen3 as production default
 
+#### 2026-07-03 — merge
+- **Phase / PR:** Phase 1 — Config + docs revert — [PR #16](https://github.com/Tusquito/codebase-indexer-mcp/pull/16)
+- **Tracker status:** `merged`
+- **Choices:** squash merge `f50fa98` on feature branch `adr/0021-phase-1-revert-jina-default`; ADR accepted as `Accepted (phase 1 — Config + docs revert)` (docs accept `a4a61a6`); release skipped; Phase 2 eval baseline refresh and Phase 3 ADR housekeeping deferred
+- **Deviations:** none
+- **Code evidence:** merged via [PR #16](https://github.com/Tusquito/codebase-indexer-mcp/pull/16) (`adr/0021-phase-1-revert-jina-default`; squash `f50fa98`; docs accept `a4a61a6`)
+- **Test debt:** carried from verification — `smoke_recommend` dim mismatch until Phase 2 re-index; `eval_baseline.json` still Qwen3 until Phase 2
+- **Verify:** carried from verification — 346 pytest; Docker integration pass; 1 review round
+- **Git:** [PR #16](https://github.com/Tusquito/codebase-indexer-mcp/pull/16) merged (squash `f50fa98`)
+- **Changelog:** no — Unreleased bullet only; no version cut
+
 #### 2026-07-03 — verification
 - **Phase / PR:** Phase 1 — Config + docs revert
 - **Tracker status:** `verified`
@@ -1226,7 +1238,9 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-03 | 0020 | Accept ADR 0020 (Proposed → Accepted) before dev? | **Accepted (phase 1 — Dataset + training pipeline)** after [PR #15](https://github.com/Tusquito/codebase-indexer-mcp/pull/15) merge | no |
 | 2026-07-03 | 0020 | Maintainer GPU availability for first fine-tune run? | Open | no |
 | 2026-07-03 | 0020 | If Phase 3 gate fails — expand training data vs Jina revert preset (ADR 0020 §Rollout)? | **Resolved** at 2026-07-03 — gate failed; Jina revert path via Proposed ADR 0021; Phases 2–4 cancelled per ADR 0021 | no |
-| 2026-07-03 | 0021 | Accept ADR 0021 (Proposed → Accepted) before dev? | Open | no |
+| 2026-07-03 | 0021 | Accept ADR 0021 (Proposed → Accepted) before dev? | **Accepted (phase 1 — Config + docs revert)** after [PR #16](https://github.com/Tusquito/codebase-indexer-mcp/pull/16) merge | no |
+| 2026-07-03 | 0021 | Accept ADR 0021 phase 1 at merge? | **Accepted (phase 1 — Config + docs revert)** after [PR #16](https://github.com/Tusquito/codebase-indexer-mcp/pull/16) merge | no |
+| 2026-07-03 | 0021 | Phase 1 merge confirmed | [PR #16](https://github.com/Tusquito/codebase-indexer-mcp/pull/16) merged on `adr/0021-phase-1-revert-jina-default`; release skipped; Phase 2 eval baseline + Phase 3 CHANGELOG housekeeping deferred | no |
 | 2026-07-03 | 0021 | Phase 1-only vs combined P1+P2 in one cycle? | **Decided at plan** — Phase 1 only; defer Phase 2 (`eval_baseline.json`) | no |
 | 2026-07-03 | 0021 | Breaking-change messaging timing (Phase 1 docs vs Phase 3 CHANGELOG)? | **Decided at plan** — Phase 1 docs (breaking revert documented not automated); Phase 3 CHANGELOG housekeeping deferred | no |
 | 2026-07-03 | 0021 | Single PR for Phase 1? | Decided at plan — yes | no |
