@@ -192,6 +192,7 @@ def test_golden_fixture_has_multi_hop_queries():
     entries = load_golden(GOLDEN)
     multi = [e for e in entries if "multi_hop" in e.tags]
     assert len(multi) >= 4
+    assert all(e.hop2_query_text for e in multi)
 
 
 def test_golden_fixture_is_valid_jsonl():

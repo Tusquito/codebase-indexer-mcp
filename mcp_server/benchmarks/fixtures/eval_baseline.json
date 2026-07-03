@@ -47,5 +47,11 @@
     "mrr": 0.612903,
     "ndcg@10": 0.543605
   },
+  "multi_hop_2hop": {
+    "recall@10": 0.333333,
+    "mrr": 0.140278,
+    "ndcg@10": 0.192975,
+    "note": "Two-hop client RRF (eval_multihop.py) on 4 multi_hop queries; hop1+hop2 fused vs single-pass multi_hop recall@10 0.5 in metrics_by_tag"
+  },
   "n_queries": 26
 }

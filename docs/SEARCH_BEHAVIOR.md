@@ -218,4 +218,15 @@ Keep the best rank per `chunk_id` per hop, sort fused scores descending, then `g
 
 ### Evaluation
 
-Multi-hop queries in `mcp_server/benchmarks/fixtures/golden_queries.jsonl` are tagged `multi_hop`. Single-pass `search_codebase` often scores lower on those queries by design; compare against a 2-hop client script using [eval_retrieval](ARCHITECTURE.md#retrieval-evaluation-adr-0007).
+Multi-hop queries in `mcp_server/benchmarks/fixtures/golden_queries.jsonl` are tagged `multi_hop` and include curated `hop2_query_text` sub-questions. Single-pass `search_codebase` often scores lower on those queries by design.
+
+Compare single-pass vs 2-hop client fusion with the benchmark harness:
+
+```bash
+cd mcp_server
+uv sync --extra dev --extra benchmark
+uv run python -m benchmarks.eval_multihop --output eval-multihop.json
+uv run python -m benchmarks.eval_multihop --compare benchmarks/fixtures/eval_baseline.json
+```
+
+The script runs hop 1 (`query_text`) and hop 2 (`hop2_query_text`) through the same `run_search` path as MCP tools, fuses both ranked lists with client-side RRF (`rrf_k` from Settings, default 60), and reports ranx `recall@10`, MRR, and `NDCG@10` side-by-side against hop-1-only (single-pass). See [ARCHITECTURE.md](ARCHITECTURE.md#retrieval-evaluation-adr-0007).

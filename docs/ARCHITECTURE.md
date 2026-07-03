@@ -150,9 +150,11 @@ uv run python -m benchmarks.eval_retrieval --no-hybrid --output eval-dense-only.
 uv run python -m benchmarks.eval_retrieval --validate-labels
 uv run python -m benchmarks.eval_retrieval --rerank --output eval-rerank.json
 uv run python -m benchmarks.suggest_labels "class Embedder embedder.py"
+uv run python -m benchmarks.eval_multihop --output eval-multihop.json
+uv run python -m benchmarks.eval_multihop --compare benchmarks/fixtures/eval_baseline.json
 ```
 
-Reports include **`metrics_by_tag`** (`symbol`, `conceptual`, `config`, `cross_file`, `multi_hop`) for slice-level tuning. Baseline: `benchmarks/fixtures/eval_baseline.json`.
+Reports include **`metrics_by_tag`** (`symbol`, `conceptual`, `config`, `cross_file`, `multi_hop`) for slice-level tuning. Baseline: `benchmarks/fixtures/eval_baseline.json`. For the `multi_hop` slice, use `eval_multihop.py` to compare single-pass vs two-hop RRF fusion ([ADR 0009](adr/0009-multi-hop-retrieval-strategies.md)).
 
 Client-side pipeline eval (Ragas faithfulness / context precision on the same golden set) is documented in [DEPLOYMENT.md](DEPLOYMENT.md#pipeline-output-quality-client-side-ragas) ([ADR 0010](adr/0010-defer-ragas-to-client.md)).
 

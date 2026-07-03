@@ -55,6 +55,7 @@ class GoldenEntry:
     tags: list[str] = field(default_factory=list)
     aliases: dict[str, int] = field(default_factory=dict)
     ground_truth: str | None = None
+    hop2_query_text: str | None = None
 
 
 def load_golden(path: Path) -> list[GoldenEntry]:
@@ -76,6 +77,7 @@ def load_golden(path: Path) -> list[GoldenEntry]:
                 tags=list(data.get("tags", [])),
                 aliases=aliases,
                 ground_truth=data.get("ground_truth"),
+                hop2_query_text=data.get("hop2_query_text"),
             )
         )
     if not entries:
