@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Per-call ColBERT rerank override** ([ADR 0008](docs/adr/0008-optional-colbert-reranking.md)) — optional `rerank=false` on `search_codebase`, `search_symbols`, `find_cross_references`, and `map_service_dependencies` skips ColBERT query embed and MAX_SIM rerank when `RERANK_ENABLED=true` (hybrid RRF only, lower latency)
 - **Ollama-only dense embedding** ([ADR 0011](docs/adr/0011-ollama-only-dense-embedding.md)) — dense vectors via Ollama HTTP + in-process sparse BM25; `docker-compose.ollama.yml` (bundled or external Ollama; `docker-compose.ollama.gpu.yml` for NVIDIA GPU on bundled Ollama). Supersedes multi-backend scope in [ADR 0001](docs/adr/0001-pluggable-embed-backends.md).
 - **Call-site cross-references** — chunks now store a `callees` payload (bare method names and `receiver.method` tokens). `find_cross_references` accepts optional `member` and `receiver` params and returns `call_site` matches via exact callee filter (not semantic search), including same-collection consumer links for inherited-field call sites (e.g. Spring `@Autowired` fields used in subclasses).
+- **2-hop client eval harness** ([ADR 0009](docs/adr/0009-multi-hop-retrieval-strategies.md)) — `eval_multihop.py` benchmark for 2-hop client RRF evaluation on `multi_hop` golden queries; document CLI in `SEARCH_BEHAVIOR.md` and `ARCHITECTURE.md`
 
 ### Changed
 

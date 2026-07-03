@@ -41,7 +41,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0008](0008-optional-colbert-reranking.md) | Optional ColBERT reranking | Accepted | 2 — track 2a (adaptive rerank skip) | `merged` | `RERANK_ADAPTIVE_ENABLED=true`, `RERANK_ADAPTIVE_GAP=0.02`; hybrid RRF probe in `QdrantStorage._search_single` before ColBERT; probe limit `max(top_k, 2)`; fewer than 2 probe hits always runs ColBERT; `AdaptiveRerankStats` on storage for bench/eval skip-rate; ColBERT query embed unchanged; unit tests + `bench.py`/`eval_retrieval.py` skip-rate reporting; `SEARCH_BEHAVIOR.md` + `.env.example`; track 2b per-tool override deferred; default deploy unchanged (`RERANK_ENABLED=false`); [PR #6](https://github.com/Tusquito/codebase-indexer-mcp/pull/6) | 2026-07-03 |
 | [0008](0008-optional-colbert-reranking.md) | Optional ColBERT reranking | Accepted | 2 — track 2b (per-tool `rerank=false` override) | `merged` | Per-tool `rerank: bool \| None = None` on `search_codebase`, `search_symbols`, xref/service_map semantic paths; embed + tool layer override (`use_rerank = self.rerank and rerank is not False`); `colbert_vector=None` skips storage rerank/adaptive paths; `rerank=None` default; `rerank=false` skips ColBERT when `RERANK_ENABLED=true`; import-phrased xref inherits tool-level `rerank`; exact symbol/call_site unaffected; `recommend_code` excluded; final ADR 0008 phase complete; test debt: Embedder rerank unit tests, adaptive+override integration, golden-set `rerank=false` sweep, live Qdrant adaptive (carried from 2a); [PR #7](https://github.com/Tusquito/codebase-indexer-mcp/pull/7) | 2026-07-03 |
 | [0009](0009-multi-hop-retrieval-strategies.md) | Multi-hop retrieval | Accepted (phase 1) | 1 | `merged` | Client decomposition docs + golden tags | 2026-07-02 |
-| [0009](0009-multi-hop-retrieval-strategies.md) | Multi-hop retrieval | Accepted (phase 1) | 2 — automated 2-hop client eval script | `verified` | `eval_multihop.py` + `multihop_rrf.fuse_hop_rrf`; curated `hop2_query_text` inline in `golden_queries.jsonl`; client-side RRF fusion hop 1 + hop 2 via `run_search`; `--rerank` passthrough; side-by-side ranx vs single-pass on `multi_hop` slice; `eval_baseline.json` `multi_hop_2hop` snapshot (live verify, nomic embed); unit tests; `SEARCH_BEHAVIOR.md` + `ARCHITECTURE.md`; no MCP/compose/runtime changes; defer server-side hop fusion and GraphRAG to ADR 0002+ | 2026-07-03 |
+| [0009](0009-multi-hop-retrieval-strategies.md) | Multi-hop retrieval | Accepted (phase 1; phase 2 merged) | 2 — automated 2-hop client eval script | `merged` | `eval_multihop.py` + `multihop_rrf.fuse_hop_rrf`; curated `hop2_query_text` inline in `golden_queries.jsonl`; client-side RRF fusion hop 1 + hop 2 via `run_search`; `--rerank` passthrough; side-by-side ranx vs single-pass on `multi_hop` slice; `eval_baseline.json` `multi_hop_2hop` snapshot (live verify, nomic embed); unit tests; `SEARCH_BEHAVIOR.md` + `ARCHITECTURE.md`; no MCP/compose/runtime changes; defer server-side hop fusion and GraphRAG to ADR 0002+; [PR #8](https://github.com/Tusquito/codebase-indexer-mcp/pull/8) | 2026-07-03 |
 | [0010](0010-defer-ragas-to-client.md) | Defer Ragas to client | Accepted | all | `merged` | Export script + DEPLOYMENT guide | 2026-07-02 |
 | [0011](0011-ollama-only-dense-embedding.md) | Ollama-only dense embedding | Accepted | all | `merged` | See CHANGELOG [Unreleased] | 2026-07-02 |
 | [0012](0012-retrieval-only-rag-split.md) | Retrieval-only RAG split | Accepted | all | `merged` | Shipped | 2026-07-02 |
@@ -65,7 +65,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 | ADR | Done | Remaining |
 |-----|------|-----------|
 | 0014 | Track A Phase 1 — recommendation search tool ([PR #5](https://github.com/Tusquito/codebase-indexer-mcp/pull/5)) | Track A P2 (outlier helper) + Track B (n8n compose) deferred |
-| 0009 | Phase 1 — `SEARCH_BEHAVIOR.md` multi-hop section, golden `multi_hop` tags; Phase 2 — automated 2-hop client eval script (`verified`) | Phase 3+ server mechanisms; optional graph-backed hops per [0002](0002-graphrag-neo4j-qdrant.md) |
+| 0009 | Phase 1 — `SEARCH_BEHAVIOR.md` multi-hop section, golden `multi_hop` tags; Phase 2 — automated 2-hop client eval script ([PR #8](https://github.com/Tusquito/codebase-indexer-mcp/pull/8)) | Phase 3+ server mechanisms; optional graph-backed hops per [0002](0002-graphrag-neo4j-qdrant.md) |
 | 0015 | Phase 1 — HTTP sidecar + remote backend ([PR #2](https://github.com/Tusquito/codebase-indexer-mcp/pull/2)); Phase 2 — GPU worker + benchmark ([PR #3](https://github.com/Tusquito/codebase-indexer-mcp/pull/3)) | MCP slim image when remote-only (phase 3+) |
 
 ---
@@ -325,6 +325,17 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 ---
 
 ### ADR 0009 — Multi-hop retrieval
+
+#### 2026-07-03 — merge
+- **Phase / PR:** Phase 2 — automated 2-hop client eval script — [PR #8](https://github.com/Tusquito/codebase-indexer-mcp/pull/8)
+- **Tracker status:** `merged`
+- **Choices:** squash merge `b101be6` on feature branch `adr/0009-phase-2-multihop-eval` (deleted post-merge); ADR accepted as `Accepted (phase 1; phase 2 merged)` (commit `d761d09` on main); release skipped
+- **Deviations:** none
+- **Code evidence:** merged via PR #8 (`adr/0009-phase-2-multihop-eval`; squash `b101be6`)
+- **Test debt:** carried from verification — no CI gate for `eval_multihop`; baseline snapshot not aligned to jina embed model; no unit test for `compare_vs_baseline()`
+- **Verify:** carried from verification — 20 unit tests pass + plan compliance pass; Docker integration skipped per plan; review rounds: 1
+- **Git:** [PR #8](https://github.com/Tusquito/codebase-indexer-mcp/pull/8) merged (squash `b101be6`); branch `adr/0009-phase-2-multihop-eval` deleted post-merge
+- **Changelog:** no — release skipped; `[Unreleased]` bullet retained from verification step
 
 #### 2026-07-03 — verification
 - **Phase / PR:** Phase 2 — automated 2-hop client eval script
@@ -646,7 +657,8 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-03 | 0009 | Target `multi_hop` recall improvement threshold vs baseline 0.5 | Open — minimum recall lift threshold for `eval_baseline.json` `multi_hop_2hop` snapshot commit (plan or verification) | no |
 | 2026-07-03 | 0009 | `hop2_query_text` storage: inline in golden fixture vs separate file | Decided at implementation — inline in `golden_queries.jsonl` | no |
 | 2026-07-03 | 0009 | Ship `--rerank` passthrough on `eval_multihop.py` in Phase 2? | Decided at implementation — yes, included | no |
-| 2026-07-03 | 0009 | ADR index wording after Phase 2 merge | Open — deferred to merge gate; `Accepted (phase 1; phase 2 merged)` vs full **Accepted** | no |
+| 2026-07-03 | 0009 | ADR index wording after Phase 2 merge | `Accepted (phase 1; phase 2 merged)` after PR #8 merge (commit `d761d09` on main) | no |
+| 2026-07-03 | 0009 | Accept ADR 0009 phase 2 at merge? | `Accepted (phase 1; phase 2 merged)` after PR #8 merge | no |
 | 2026-07-03 | 0009 | `eval_baseline.json` `multi_hop_2hop` embed model alignment | Live snapshot used local nomic embed model (not baseline jina model); re-align at verification or merge | no |
 | 2026-07-03 | 0009 | CI gate for `eval_multihop` | Open — no CI gate at implementation; test debt | no |
 | 2026-07-03 | 0009 | Unit test for `compare_vs_baseline()` | Open — test debt at implementation | no |
