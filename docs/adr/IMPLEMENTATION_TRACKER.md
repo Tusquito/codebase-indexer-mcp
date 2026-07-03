@@ -46,7 +46,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0013](0013-external-agent-knowledge-base.md) | External agent knowledge base | Accepted | all | `merged` | MCP tools surface | 2026-07-02 |
 | [0014](0014-vector-discovery-and-ops-automation.md) | Vector discovery + n8n ops | Proposed | — | `not_started` | — | — |
 | [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 1 | `merged` | Opt-in `COLBERT_EMBED_BACKEND=remote` + `colbert_worker` sidecar; default in-process ONNX unchanged; FastAPI lifespan preload; `ColbertRemoteBackend` httpx client; `docker-compose.colbert-worker.yml` with shared `fastembed_cache`; `.env.example` + `SEARCH_BEHAVIOR.md`; [PR #2](https://github.com/Tusquito/codebase-indexer-mcp/pull/2) | 2026-07-03 |
-| [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 2 | `verified` | GPU sidecar via `colbert_worker/Dockerfile.gpu` (`onnxruntime-gpu==1.26.0`, `python:3.12-slim`); compose override `docker-compose.colbert-worker.gpu.yml` (NVIDIA reservations mirroring Ollama); `COLBERT_DEVICE_IDS` → `ColbertOnnxBackend.device_ids`; worker `/health` reports `device` + `cuda_available`; fail-fast CUDA preload; `bench_colbert_sidecar.py` remote throughput bench; single-GPU 8GB OOM documented (no auto-scheduler); CI-safe mocked/skipped GPU tests + non-blocking GPU Dockerfile CI job | 2026-07-03 |
+| [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 2 | `merged` | GPU sidecar via `colbert_worker/Dockerfile.gpu` (`onnxruntime-gpu==1.26.0`, `python:3.12-slim`); compose override `docker-compose.colbert-worker.gpu.yml` (NVIDIA reservations mirroring Ollama); `COLBERT_DEVICE_IDS` → `ColbertOnnxBackend.device_ids`; worker `/health` reports `device` + `cuda_available`; fail-fast CUDA preload; `bench_colbert_sidecar.py` remote throughput bench; single-GPU 8GB OOM documented (no auto-scheduler); CI-safe mocked/skipped GPU tests + non-blocking GPU Dockerfile CI job; [PR #3](https://github.com/Tusquito/codebase-indexer-mcp/pull/3) | 2026-07-03 |
 | [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 3+ | `not_started` | MCP slim image when remote-only | — |
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
@@ -66,7 +66,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 |-----|------|-----------|
 | 0008 | Phase 1 — opt-in ColBERT multivector rerank ([PR #1](https://github.com/Tusquito/codebase-indexer-mcp/pull/1)) | Adaptive rerank; per-tool overrides; cross_reference/service_map rerank wiring |
 | 0009 | Phase 1 — `SEARCH_BEHAVIOR.md` multi-hop section, golden `multi_hop` tags | Phase 2+ server mechanisms; optional graph-backed hops per [0002](0002-graphrag-neo4j-qdrant.md) |
-| 0015 | Phase 1 — HTTP sidecar + remote backend ([PR #2](https://github.com/Tusquito/codebase-indexer-mcp/pull/2)); Phase 2 — GPU worker + benchmark (`verified`) | MCP slim image when remote-only (phase 3+) |
+| 0015 | Phase 1 — HTTP sidecar + remote backend ([PR #2](https://github.com/Tusquito/codebase-indexer-mcp/pull/2)); Phase 2 — GPU worker + benchmark ([PR #3](https://github.com/Tusquito/codebase-indexer-mcp/pull/3)) | MCP slim image when remote-only (phase 3+) |
 
 ---
 
@@ -173,6 +173,17 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 ---
 
 ### ADR 0015 — ColBERT HTTP sidecar
+
+#### 2026-07-03 — merge
+- **Phase / PR:** Phase 2 — GPU ColBERT worker image + index throughput benchmark vs CPU sidecar — [PR #3](https://github.com/Tusquito/codebase-indexer-mcp/pull/3)
+- **Tracker status:** `merged`
+- **Choices:** squash merge `b53029ed` on feature branch `adr/0015-phase-2-colbert-gpu`; ADR accept skipped (already Accepted); release skipped; phase 3+ deferred (MCP slim when remote-only)
+- **Deviations:** none
+- **Code evidence:** merged via PR #3 (`adr/0015-phase-2-colbert-gpu`)
+- **Test debt:** carried from verification — Docker GPU image runtime smoke; live GPU embed integration beyond provider probe; `bench_colbert_sidecar --compare` unit test; host-side sidecar reachability docs
+- **Verify:** carried from verification — pytest 236 passed, 3 skipped, 5 deselected; all in-scope plan requirements pass; review rounds: 1
+- **Git:** [PR #3](https://github.com/Tusquito/codebase-indexer-mcp/pull/3) merged (squash `b53029ed`)
+- **Changelog:** no — already added at verified step
 
 #### 2026-07-03 — verification
 - **Phase / PR:** Phase 2 — GPU ColBERT worker image + index throughput benchmark vs CPU sidecar
