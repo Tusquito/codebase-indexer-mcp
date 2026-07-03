@@ -16,7 +16,7 @@ Skip ADRs for routine bug fixes, refactors with no design change, or dependency 
 ## How to add an ADR
 
 1. Copy [`template.md`](template.md) to a new file: `NNNN-short-kebab-title.md`
-2. Use the next available four-digit number (see index below — currently **0015**)
+2. Use the next available four-digit number (see index below — currently **0016**)
 3. Fill in all sections; leave **Status** as `Proposed` until reviewed
 4. Add a row to the index table below
 5. Link the ADR from related docs (e.g. [`ARCHITECTURE.md`](../ARCHITECTURE.md)) when relevant
@@ -59,6 +59,7 @@ Invoke the full pipeline with **`adr-orchestrator`**; resume a phase with `Resum
 | [0012](0012-retrieval-only-rag-split.md) | Keep MCP as retrieval-only RAG layer | Accepted | 2026-07-02 |
 | [0013](0013-external-agent-knowledge-base.md) | Expose Qdrant retrieval via MCP for external agent orchestrators | Accepted | 2026-07-02 |
 | [0014](0014-vector-discovery-and-ops-automation.md) | Adopt Qdrant vector discovery APIs and optional n8n ops hooks | Proposed | 2026-07-02 |
+| [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 2026-07-03 |
 
 ## Qdrant Build Prototypes & Improve Search map
 
@@ -73,7 +74,7 @@ Cross-reference for [Build Prototypes](https://qdrant.tech/documentation/example
 | GraphRAG Agent (Neo4j + Qdrant) | Yes | [0002](0002-graphrag-neo4j-qdrant.md) |
 | Basic RAG / Intro to Semantic Search | Yes | [0005](0005-mcp-retrieval-connector.md), [0006](0006-explicit-fastembed-pipeline.md) |
 | Build Semantic / Hybrid Search API (FastAPI) | Yes | [0005](0005-mcp-retrieval-connector.md), [0006](0006-explicit-fastembed-pipeline.md) — MCP replaces FastAPI search surface |
-| Hybrid Search with Reranking (ColBERT) | Yes | [0008](0008-optional-colbert-reranking.md) |
+| Hybrid Search with Reranking (ColBERT) | Yes | [0008](0008-optional-colbert-reranking.md), [0015](0015-colbert-http-sidecar.md) (sidecar deployment) |
 | Measuring Retrieval Relevance (ranx) | Yes | [0007](0007-ranx-retrieval-evaluation.md) |
 | Evaluating Pipeline Output Quality (Ragas) | Partial | [0010](0010-defer-ragas-to-client.md) — client-side only; export via `export_ragas_dataset.py` |
 | Query Decomposition (multi-hop) | Yes | [0009](0009-multi-hop-retrieval-strategies.md) |

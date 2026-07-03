@@ -45,6 +45,8 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0012](0012-retrieval-only-rag-split.md) | Retrieval-only RAG split | Accepted | all | `merged` | Shipped | 2026-07-02 |
 | [0013](0013-external-agent-knowledge-base.md) | External agent knowledge base | Accepted | all | `merged` | MCP tools surface | 2026-07-02 |
 | [0014](0014-vector-discovery-and-ops-automation.md) | Vector discovery + n8n ops | Proposed | — | `not_started` | — | — |
+| [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 1 | `not_started` | `colbert_worker` FastAPI; `ColbertRemoteBackend`; `COLBERT_EMBED_BACKEND` onnx or remote; `docker-compose.colbert-worker.yml`; shared `fastembed_cache`; tests + `.env.example` preset | 2026-07-03 |
+| [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 2+ | `not_started` | GPU worker image; MCP slim when remote-only | — |
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
 
@@ -63,6 +65,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 |-----|------|-----------|
 | 0008 | Phase 1 — opt-in ColBERT multivector rerank ([PR #1](https://github.com/Tusquito/codebase-indexer-mcp/pull/1)) | Adaptive rerank; per-tool overrides; cross_reference/service_map rerank wiring |
 | 0009 | Phase 1 — `SEARCH_BEHAVIOR.md` multi-hop section, golden `multi_hop` tags | Phase 2+ server mechanisms; optional graph-backed hops per [0002](0002-graphrag-neo4j-qdrant.md) |
+| 0015 | Phase 1 — HTTP sidecar + remote backend (this ADR) | GPU worker; MCP slim image when remote-only |
 
 ---
 
