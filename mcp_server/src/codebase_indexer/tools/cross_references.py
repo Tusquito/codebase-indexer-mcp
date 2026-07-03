@@ -312,7 +312,9 @@ def register_cross_references_tool(mcp: FastMCP, ctx: "AppContext") -> None:
             "featureManagmentService) to disambiguate; this uses indexed callees "
             "rather than semantic search. Consumer accuracy for inherited fields "
             "requires 'member' (call-expression grounding) rather than "
-            "semantic/import search."
+            "semantic/import search. "
+            "When RERANK_ENABLED=true, pass rerank=false to skip ColBERT "
+            "query embed and MAX_SIM on semantic search paths (hybrid RRF only)."
         ),
     )
     async def find_cross_references(
@@ -322,6 +324,7 @@ def register_cross_references_tool(mcp: FastMCP, ctx: "AppContext") -> None:
         top_k: int = 10,
         member: str | None = None,
         receiver: str | None = None,
+        rerank: bool | None = None,
     ) -> dict:
         if not query and not symbol_name and not member:
             return {"error": "Provide at least 'query', 'symbol_name', or 'member'."}
@@ -348,6 +351,7 @@ def register_cross_references_tool(mcp: FastMCP, ctx: "AppContext") -> None:
                 top_k,
                 language=None,
                 min_score=0.3,
+                rerank=rerank,
             )
             for r in semantic_results:
                 all_results.append({
@@ -403,6 +407,7 @@ def register_cross_references_tool(mcp: FastMCP, ctx: "AppContext") -> None:
                 top_k,
                 language=None,
                 min_score=0.3,
+                rerank=rerank,
             )
             seen_chunks = {r["rel_path"] + str(r["start_line"]) for r in all_results}
             for r in import_results:

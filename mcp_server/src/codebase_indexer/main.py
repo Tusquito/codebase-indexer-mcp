@@ -89,6 +89,8 @@ _INSTRUCTIONS = """
     search_codebase, search_symbols, find_cross_references, and
     map_service_dependencies participate in hybrid prefetch → MAX_SIM rerank
     when rerank is enabled and collections were indexed with colbert multivectors.
+    Pass rerank=false on any of these tools to skip ColBERT query embed and MAX_SIM
+    for that call (hybrid RRF only; lower latency when rerank quality is not needed).
 
     MULTI-HOP QUESTIONS (client-orchestrated — see docs/SEARCH_BEHAVIOR.md):
     When one search cannot surface all evidence (cross-file, config→code,

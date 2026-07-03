@@ -62,9 +62,12 @@ async def run_search(
     top_k: int,
     language: str | None,
     min_score: float,
+    rerank: bool | None = None,
 ) -> list[SearchResult]:
     """Embed the query and search one or many collections."""
-    dense_vector, sparse_vector, colbert_vector = await embedder.embed_query(query)
+    dense_vector, sparse_vector, colbert_vector = await embedder.embed_query(
+        query, rerank=rerank
+    )
     return await dispatch_search(
         storage,
         dense_vector,
