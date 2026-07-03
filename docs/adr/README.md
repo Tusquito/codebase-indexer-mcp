@@ -65,7 +65,7 @@ Invoke the full pipeline with **`adr-orchestrator`**; resume a phase with `Resum
 | [0018](0018-telemetry-observability-otel-prometheus.md) | Adopt OpenTelemetry instrumentation with Prometheus metrics and optional OTLP export | Accepted (phase 1 — Application Prometheus metrics (MCP + ColBERT worker)) | 2026-07-03 |
 | [0019](0019-yaml-structured-adr-tracker.md) | Adopt YAML structured events for ADR implementation tracking | Proposed | 2026-07-03 |
 | [0020](0020-qwen3-code-finetune-jina-quality-gate.md) | Fine-tune Qwen3 for code retrieval with Jina quality gate | Accepted (phase 1 only; phases 2–4 cancelled — gate failed) | 2026-07-03 |
-| [0021](0021-revert-jina-production-default-retire-qwen3.md) | Revert default dense embedder to Jina code; retire Qwen3 as production default | Proposed | 2026-07-03 |
+| [0021](0021-revert-jina-production-default-retire-qwen3.md) | Revert default dense embedder to Jina code; retire Qwen3 as production default | Accepted (phase 1 — Config + docs revert) | 2026-07-03 |
 
 ## Qdrant Build Prototypes & Improve Search map
 

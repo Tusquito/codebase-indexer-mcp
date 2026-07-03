@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Default dense embedding model** ([ADR 0021](docs/adr/0021-revert-jina-production-default-retire-qwen3.md)) — revert production default to **Jina Embeddings v2 base code** @ 768 dimensions (`unclemusclez/jina-embeddings-v2-base-code` via Ollama); Qwen3 @ 1024 MRL remains an optional experimental preset with documented golden-set regression (−63.1% recall@10). Requires `ollama pull`, env update, and full re-index when migrating from Qwen3 defaults
 - **Default dense embedding model** ([ADR 0016](docs/adr/0016-qwen3-embedding-default-dense-model.md)) — Qwen3-Embedding-4B at 1024 dimensions (MRL) via Ollama; Nomic preset remains documented for CPU/low-VRAM setups. Requires `ollama pull qwen3-embedding:4b` and full re-index when migrating
 - **Golden-set eval baseline** ([ADR 0016](docs/adr/0016-qwen3-embedding-default-dense-model.md)) — refreshed for Qwen3-Embedding-4B @ 1024 MRL; hybrid recall@10 0.24 on repo fixture (−63% vs prior Jina baseline — documented per-tag regression with mitigation notes in ADR 0016)
 - **Model-accurate dense truncation** ([ADR 0017](docs/adr/0017-model-tokenizer-ollama-dense-truncation.md)) — dense Ollama truncation now uses the HuggingFace model tokenizer (`DENSE_EMBED_MODEL`) instead of BM25 word-split approximation; set `HF_HOME` for persistent tokenizer cache in air-gapped deployments
