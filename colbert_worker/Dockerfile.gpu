@@ -21,8 +21,8 @@ COPY src/ ./src/
 RUN printf '# codebase-indexer\n' > /README.md
 ENV UV_PYTHON_PREFERENCE=only-system
 RUN uv sync --frozen --no-dev --no-editable --python /usr/local/bin/python3.12 \
-    && /app/.venv/bin/pip uninstall -y onnxruntime fastembed \
-    && /app/.venv/bin/pip install onnxruntime-gpu==1.26.0 fastembed-gpu==0.8.0 \
+    && uv pip uninstall onnxruntime fastembed \
+    && uv pip install onnxruntime-gpu==1.26.0 fastembed-gpu==0.8.0 \
     && /app/.venv/bin/python -c "import codebase_indexer.colbert_worker"
 
 FROM python:3.12-slim AS runtime
