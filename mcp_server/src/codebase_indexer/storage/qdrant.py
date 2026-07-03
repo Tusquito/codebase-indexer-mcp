@@ -92,6 +92,29 @@ def fuse_cross_collection_rrf(
 
 
 @dataclass
+class AdaptiveRerankStats:
+    """Counters for adaptive ColBERT skip decisions (per storage instance)."""
+
+    total: int = 0
+    skipped: int = 0
+    reranked: int = 0
+
+    @property
+    def skip_rate(self) -> float:
+        if self.total == 0:
+            return 0.0
+        return self.skipped / self.total
+
+    def as_dict(self) -> dict[str, float | int]:
+        return {
+            "total": self.total,
+            "skipped": self.skipped,
+            "reranked": self.reranked,
+            "skip_rate": round(self.skip_rate, 4),
+        }
+
+
+@dataclass
 class CollectionStats:
     """Summary statistics for one indexed Qdrant collection."""
 
@@ -117,6 +140,16 @@ class QdrantStorage:
         """Initialize storage with application settings (URL, timeouts, hybrid flags)."""
         self.settings = settings
         self._client: AsyncQdrantClient | None = None
+        self._adaptive_stats = AdaptiveRerankStats()
+
+    def reset_adaptive_stats(self) -> None:
+        """Reset adaptive rerank skip/rerank counters."""
+        self._adaptive_stats = AdaptiveRerankStats()
+
+    @property
+    def adaptive_rerank_stats(self) -> AdaptiveRerankStats:
+        """Read-only view of adaptive rerank counters."""
+        return self._adaptive_stats
 
     # Payload fields filtered by the query/lookup paths. Keyword indexes here
     # turn full payload scans into indexed lookups (large win as collections grow).
@@ -530,6 +563,73 @@ class QdrantStorage:
             )
         return SearchParams(quantization=quant, hnsw_ef=self.settings.hnsw_ef)
 
+    async def _hybrid_rrf_query(
+        self,
+        client: AsyncQdrantClient,
+        collection: str,
+        dense_vector: list[float],
+        sparse_vector: SparseVector,
+        *,
+        limit: int,
+        prefetch_limit: int,
+        query_filter: Filter | None,
+        dense_params: SearchParams,
+    ):
+        """Run hybrid dense+sparse prefetch fused with RRF."""
+        qdrant_sparse = QdrantSparseVector(
+            indices=sparse_vector.indices,
+            values=sparse_vector.values,
+        )
+        return await client.query_points(
+            collection_name=collection,
+            prefetch=[
+                Prefetch(
+                    query=dense_vector,
+                    using="dense",
+                    limit=prefetch_limit,
+                    params=dense_params,
+                ),
+                Prefetch(
+                    query=qdrant_sparse,
+                    using="sparse",
+                    limit=prefetch_limit,
+                ),
+            ],
+            query=FusionQuery(fusion=Fusion.RRF),
+            limit=limit,
+            query_filter=query_filter,
+            with_payload=True,
+        )
+
+    def _map_points_to_results(
+        self,
+        points,
+        collection: str,
+        *,
+        score_threshold: float,
+    ) -> list[SearchResult]:
+        search_results: list[SearchResult] = []
+        for point in points:
+            score = point.score if hasattr(point, "score") and point.score is not None else 0.0
+            if score < score_threshold:
+                continue
+            payload = point.payload or {}
+            search_results.append(
+                SearchResult(
+                    chunk_id=payload.get("chunk_id", ""),
+                    score=score,
+                    rel_path=payload.get("rel_path", ""),
+                    language=payload.get("language", ""),
+                    start_line=payload.get("start_line", 0),
+                    end_line=payload.get("end_line", 0),
+                    symbol_name=payload.get("symbol_name"),
+                    symbol_type=payload.get("symbol_type", "other"),
+                    content=payload.get("content", ""),
+                    collection=collection,
+                )
+            )
+        return search_results
+
     async def _search_single(
         self,
         collection: str,
@@ -550,12 +650,50 @@ class QdrantStorage:
             and colbert_vector is not None
             and used_hybrid
         )
+        used_adaptive = bool(
+            used_rerank and self.settings.rerank_adaptive_enabled
+        )
         dense_params = self._dense_search_params()
         prefetch_limit = (
             self.settings.rerank_prefetch
             if used_rerank
             else top_k * self.settings.prefetch_multiplier
         )
+        score_threshold = 0.0 if (used_hybrid or used_rerank) else min_score
+
+        if used_adaptive:
+            assert sparse_vector is not None
+            probe_limit = max(top_k, 2)
+            probe = await self._hybrid_rrf_query(
+                client,
+                collection,
+                dense_vector,
+                sparse_vector,
+                limit=probe_limit,
+                prefetch_limit=prefetch_limit,
+                query_filter=query_filter,
+                dense_params=dense_params,
+            )
+            self._adaptive_stats.total += 1
+            points = probe.points
+            if (
+                len(points) >= 2
+                and points[0].score - points[1].score >= self.settings.rerank_adaptive_gap
+            ):
+                gap = points[0].score - points[1].score
+                self._adaptive_stats.skipped += 1
+                log.debug(
+                    "adaptive_rerank_skip",
+                    collection=collection,
+                    gap=gap,
+                    threshold=self.settings.rerank_adaptive_gap,
+                )
+                return self._map_points_to_results(
+                    points[:top_k],
+                    collection,
+                    score_threshold=score_threshold,
+                )
+            self._adaptive_stats.reranked += 1
 
         if used_rerank:
             assert sparse_vector is not None
@@ -587,29 +725,15 @@ class QdrantStorage:
             )
         elif used_hybrid:
             assert sparse_vector is not None
-            qdrant_sparse = QdrantSparseVector(
-                indices=sparse_vector.indices,
-                values=sparse_vector.values,
-            )
-            results = await client.query_points(
-                collection_name=collection,
-                prefetch=[
-                    Prefetch(
-                        query=dense_vector,
-                        using="dense",
-                        limit=prefetch_limit,
-                        params=dense_params,
-                    ),
-                    Prefetch(
-                        query=qdrant_sparse,
-                        using="sparse",
-                        limit=prefetch_limit,
-                    ),
-                ],
-                query=FusionQuery(fusion=Fusion.RRF),
+            results = await self._hybrid_rrf_query(
+                client,
+                collection,
+                dense_vector,
+                sparse_vector,
                 limit=top_k,
+                prefetch_limit=prefetch_limit,
                 query_filter=query_filter,
-                with_payload=True,
+                dense_params=dense_params,
             )
         else:
             results = await client.query_points(
@@ -622,30 +746,11 @@ class QdrantStorage:
                 with_payload=True,
             )
 
-        # RRF / ColBERT rerank scores are NOT on the cosine [0,1] similarity scale,
-        # so a cosine-calibrated min_score silently drops relevant hybrid hits.
-        score_threshold = 0.0 if (used_hybrid or used_rerank) else min_score
-
-        search_results = []
-        for point in results.points:
-            score = point.score if hasattr(point, 'score') and point.score is not None else 0.0
-            if score < score_threshold:
-                continue
-            payload = point.payload or {}
-            search_results.append(SearchResult(
-                chunk_id=payload.get("chunk_id", ""),
-                score=score,
-                rel_path=payload.get("rel_path", ""),
-                language=payload.get("language", ""),
-                start_line=payload.get("start_line", 0),
-                end_line=payload.get("end_line", 0),
-                symbol_name=payload.get("symbol_name"),
-                symbol_type=payload.get("symbol_type", "other"),
-                content=payload.get("content", ""),
-                collection=collection,
-            ))
-
-        return search_results
+        return self._map_points_to_results(
+            results.points,
+            collection,
+            score_threshold=score_threshold,
+        )
 
     async def search(
         self,
