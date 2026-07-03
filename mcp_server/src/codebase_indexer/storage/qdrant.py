@@ -2,6 +2,7 @@
 """Qdrant vector database wrapper with hybrid (dense + sparse) support."""
 
 import asyncio
+import fnmatch
 import uuid
 from dataclasses import dataclass
 
@@ -23,6 +24,9 @@ from qdrant_client.models import (
     PointStruct,
     Prefetch,
     QuantizationSearchParams,
+    RecommendInput,
+    RecommendQuery,
+    RecommendStrategy,
     ScalarQuantization,
     ScalarQuantizationConfig,
     ScalarType,
@@ -1008,4 +1012,107 @@ class QdrantStorage:
             return []
 
         return [p.payload for p in points if p.payload]
+
+    @staticmethod
+    def chunk_id_to_point_id(chunk_id: str) -> str:
+        """Map a chunk_id to the deterministic Qdrant point UUID."""
+        return str(uuid.uuid5(uuid.NAMESPACE_URL, chunk_id))
+
+    async def verify_chunk_ids_exist(
+        self, collection: str, chunk_ids: list[str]
+    ) -> None:
+        """Raise ValueError listing unknown chunk_ids if any are missing."""
+        if not chunk_ids:
+            return
+        client = await self._get_client()
+        point_ids = [self.chunk_id_to_point_id(cid) for cid in chunk_ids]
+        records = await client.retrieve(
+            collection_name=collection,
+            ids=point_ids,
+            with_payload=False,
+            with_vectors=False,
+        )
+        found_point_ids = {str(r.id) for r in records}
+        unknown = [
+            cid
+            for cid, pid in zip(chunk_ids, point_ids, strict=True)
+            if str(pid) not in found_point_ids
+        ]
+        if unknown:
+            raise ValueError(
+                f"Unknown chunk_id(s) in collection {collection!r}: {', '.join(unknown)}"
+            )
+
+    async def recommend(
+        self,
+        collection: str,
+        positive: list[str | list[float]],
+        negative: list[str | list[float]] | None = None,
+        limit: int = 5,
+        language: str | None = None,
+        path_glob: str | None = None,
+    ) -> list[SearchResult]:
+        """Recommend chunks similar to positives and dissimilar from negatives.
+
+        ``positive`` / ``negative`` entries are either dense vectors (list[float])
+        or point IDs (str UUID from ``chunk_id_to_point_id``).
+
+        Uses Qdrant RecommendQuery with AVERAGE_VECTOR on the dense channel only.
+        ``path_glob`` is applied as a post-filter via fnmatch with over-fetch
+        ``limit * 3`` when set.
+        """
+        client = await self._get_client()
+        query_filter = self._build_query_filter(language)
+        fetch_limit = limit * 3 if path_glob else limit
+        dense_params = self._dense_search_params()
+
+        results = await client.query_points(
+            collection_name=collection,
+            query=RecommendQuery(
+                recommend=RecommendInput(
+                    positive=positive,
+                    negative=negative or [],
+                    strategy=RecommendStrategy.AVERAGE_VECTOR,
+                )
+            ),
+            using="dense",
+            limit=fetch_limit,
+            query_filter=query_filter,
+            search_params=dense_params,
+            with_payload=True,
+        )
+
+        search_results: list[SearchResult] = []
+        for point in results.points:
+            score = (
+                point.score
+                if hasattr(point, "score") and point.score is not None
+                else 0.0
+            )
+            payload = point.payload or {}
+            search_results.append(
+                SearchResult(
+                    chunk_id=payload.get("chunk_id", ""),
+                    score=score,
+                    rel_path=payload.get("rel_path", ""),
+                    language=payload.get("language", ""),
+                    start_line=payload.get("start_line", 0),
+                    end_line=payload.get("end_line", 0),
+                    symbol_name=payload.get("symbol_name"),
+                    symbol_type=payload.get("symbol_type", "other"),
+                    content=payload.get("content", ""),
+                    collection=collection,
+                )
+            )
+
+        if path_glob:
+            search_results = [
+                r
+                for r in search_results
+                if fnmatch.fnmatch(r.rel_path, path_glob)
+            ][:limit]
+        else:
+            search_results = search_results[:limit]
+
+        return search_results
 

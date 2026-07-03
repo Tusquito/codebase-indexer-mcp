@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`recommend_code` MCP tool** ([ADR 0014](docs/adr/0014-vector-discovery-and-ops-automation.md)) — find code chunks similar to positive examples and dissimilar from negative examples via Qdrant Recommendation API (dense-only, AVERAGE_VECTOR). Gated by `RECOMMEND_ENABLED` (default on); example count capped by `RECOMMEND_MAX_EXAMPLES`. Single-collection; optional `path_glob` post-filter. No re-index required.
 - **Optional ColBERT HTTP sidecar** ([ADR 0015](docs/adr/0015-colbert-http-sidecar.md)) — `COLBERT_EMBED_BACKEND=remote` offloads ColBERT inference to the `colbert_worker` sidecar; default in-process ONNX unchanged; enable with `docker-compose.colbert-worker.yml` when `RERANK_ENABLED=true`
 - **Optional GPU ColBERT sidecar** ([ADR 0015](docs/adr/0015-colbert-http-sidecar.md)) — `colbert_worker/Dockerfile.gpu` + `docker-compose.colbert-worker.gpu.yml` for faster index-time rerank embedding when using `COLBERT_EMBED_BACKEND=remote`; sidecar `/health` reports `device` and `cuda_available`; use `benchmarks/bench_colbert_sidecar.py` to compare CPU vs GPU sidecar throughput
 - **Optional ColBERT reranking** ([ADR 0008](docs/adr/0008-optional-colbert-reranking.md)) — set `RERANK_ENABLED=true` to add a third multivector embed at index time and MAX_SIM rerank over hybrid prefetch candidates at query time; requires full re-index when enabling (`COLBERT_EMBED_MODEL`, `RERANK_PREFETCH`, `RERANK_MAX_QUERY_TOKENS`)

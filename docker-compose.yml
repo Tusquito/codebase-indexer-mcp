@@ -104,6 +104,9 @@ services:
       COLBERT_URL: ${COLBERT_URL:-http://colbert_worker:8082}
       COLBERT_TIMEOUT: ${COLBERT_TIMEOUT:-300}
       COLBERT_EMBED_BATCH_SIZE: ${COLBERT_EMBED_BATCH_SIZE:-16}
+      # --- Recommendation search (ADR 0014; dense-only) ---
+      RECOMMEND_ENABLED: ${RECOMMEND_ENABLED:-true}
+      RECOMMEND_MAX_EXAMPLES: ${RECOMMEND_MAX_EXAMPLES:-10}
       # --- Service mapping / cross-references ---
       SERVICE_URL_KEYWORDS: ${SERVICE_URL_KEYWORDS:-rest,api,profile,service,internal,public,gateway,graphql,webhook,auth,users,accounts}
       SERVICE_DISCOVERY_EXTRA_QUERIES: ${SERVICE_DISCOVERY_EXTRA_QUERIES:-}

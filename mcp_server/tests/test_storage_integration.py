@@ -267,3 +267,63 @@ async def test_colbert_rerank_reorders_hybrid_candidates():
         assert {r.rel_path for r in hybrid_only} == {"a.py", "b.py"}
     finally:
         await client.delete_collection(coll)
+
+
+@pytest.mark.asyncio
+async def test_recommend_excludes_negative_paths_with_path_glob(storage):
+    """Recommendation with negative example and path_glob excludes test paths."""
+    coll = f"test_recommend_{uuid.uuid4().hex[:8]}"
+    client = await storage._get_client()
+    try:
+        await storage.ensure_collection(coll)
+
+        main_dense = [1.0 if i < 10 else 0.01 * (i % 7) for i in range(768)]
+        util_dense = [0.95 if i < 10 else 0.01 * ((i + 1) % 7) for i in range(768)]
+        test_dense = [0.01 * (i % 7) for i in range(768)]
+
+        main_chunk = _make_embedded("src/main.py", 1, "def main(): pass", dense_scale=0.0)
+        util_chunk = _make_embedded("src/util.py", 1, "def util(): pass", dense_scale=0.0)
+        test_chunk = _make_embedded("tests/test_main.py", 1, "def test_main(): pass", dense_scale=0.0)
+
+        embedded = [
+            EmbeddedChunk(chunk=main_chunk.chunk, dense_vector=main_dense, sparse_vector=main_chunk.sparse_vector),
+            EmbeddedChunk(chunk=util_chunk.chunk, dense_vector=util_dense, sparse_vector=util_chunk.sparse_vector),
+            EmbeddedChunk(chunk=test_chunk.chunk, dense_vector=test_dense, sparse_vector=test_chunk.sparse_vector),
+        ]
+        await storage.upsert_chunks(coll, embedded)
+
+        pos_id = storage.chunk_id_to_point_id("src/main.py:1")
+        neg_id = storage.chunk_id_to_point_id("tests/test_main.py:1")
+
+        results = await storage.recommend(
+            collection=coll,
+            positive=[pos_id],
+            negative=[neg_id],
+            limit=5,
+            path_glob="src/*.py",
+        )
+
+        rel_paths = {r.rel_path for r in results}
+        assert "tests/test_main.py" not in rel_paths
+        assert rel_paths.issubset({"src/main.py", "src/util.py"})
+        assert len(results) >= 1
+    finally:
+        await client.delete_collection(coll)
+
+
+@pytest.mark.asyncio
+async def test_verify_chunk_ids_exist_integration(storage):
+    """verify_chunk_ids_exist fails fast on missing chunk_id against live Qdrant."""
+    coll = f"test_verify_{uuid.uuid4().hex[:8]}"
+    client = await storage._get_client()
+    try:
+        await storage.ensure_collection(coll)
+        embedded = [_make_embedded("only.py", 1, "x = 1")]
+        await storage.upsert_chunks(coll, embedded)
+
+        await storage.verify_chunk_ids_exist(coll, ["only.py:1"])
+
+        with pytest.raises(ValueError, match="ghost.py:99"):
+            await storage.verify_chunk_ids_exist(coll, ["only.py:1", "ghost.py:99"])
+    finally:
+        await client.delete_collection(coll)

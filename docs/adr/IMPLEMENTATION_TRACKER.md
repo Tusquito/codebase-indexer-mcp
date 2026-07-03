@@ -44,7 +44,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0011](0011-ollama-only-dense-embedding.md) | Ollama-only dense embedding | Accepted | all | `merged` | See CHANGELOG [Unreleased] | 2026-07-02 |
 | [0012](0012-retrieval-only-rag-split.md) | Retrieval-only RAG split | Accepted | all | `merged` | Shipped | 2026-07-02 |
 | [0013](0013-external-agent-knowledge-base.md) | External agent knowledge base | Accepted | all | `merged` | MCP tools surface | 2026-07-02 |
-| [0014](0014-vector-discovery-and-ops-automation.md) | Vector discovery + n8n ops | Proposed | — | `not_started` | — | — |
+| [0014](0014-vector-discovery-and-ops-automation.md) | Vector discovery + n8n ops | Proposed | Track A — Phase 1 (Recommendation search tool) | `verified` | Tool `recommend_code`; `QdrantStorage.recommend`; config (`RECOMMEND_ENABLED`, `RECOMMEND_MAX_EXAMPLES`); RecommendStrategy AVERAGE_VECTOR; dense-only; path_glob fnmatch + limit×3; missing chunk IDs fail fast; single-collection; defer outlier helper (Track A P2), n8n compose (Track B), sparse fusion, multi-collection | 2026-07-03 |
 | [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 1 | `merged` | Opt-in `COLBERT_EMBED_BACKEND=remote` + `colbert_worker` sidecar; default in-process ONNX unchanged; FastAPI lifespan preload; `ColbertRemoteBackend` httpx client; `docker-compose.colbert-worker.yml` with shared `fastembed_cache`; `.env.example` + `SEARCH_BEHAVIOR.md`; [PR #2](https://github.com/Tusquito/codebase-indexer-mcp/pull/2) | 2026-07-03 |
 | [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 2 | `merged` | GPU sidecar via `colbert_worker/Dockerfile.gpu` (`onnxruntime-gpu==1.26.0`, `python:3.12-slim`); compose override `docker-compose.colbert-worker.gpu.yml` (NVIDIA reservations mirroring Ollama); `COLBERT_DEVICE_IDS` → `ColbertOnnxBackend.device_ids`; worker `/health` reports `device` + `cuda_available`; fail-fast CUDA preload; `bench_colbert_sidecar.py` remote throughput bench; single-GPU 8GB OOM documented (no auto-scheduler); CI-safe mocked/skipped GPU tests + non-blocking GPU Dockerfile CI job; [PR #3](https://github.com/Tusquito/codebase-indexer-mcp/pull/3) | 2026-07-03 |
 | [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 3+ | `not_started` | MCP slim image when remote-only | — |
@@ -58,7 +58,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 | ADR | Notes |
 |-----|-------|
 | 0002 | Four phases; default deploy stays Qdrant-only |
-| 0014 | Track A (MCP tools) vs Track B (n8n compose) |
+| 0014 | Track A P1 (`verified`) — recommendation tool ready for git/PR; Track A P2 (outlier helper) + Track B (n8n compose) deferred |
 
 ### Partial acceptance
 
@@ -224,7 +224,50 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 
 ### ADR 0014 — Vector discovery and ops automation
 
-*No implementation log yet.*
+#### 2026-07-03 — verification
+- **Phase / PR:** Track A — Phase 1 (Recommendation search tool)
+- **Tracker status:** `verified`
+- **Choices:** Tool name `recommend_code`; RecommendStrategy AVERAGE_VECTOR only; dense-only; path_glob post-filter fnmatch + limit×3; missing chunk IDs fail fast; multi-collection deferred
+- **Deviations:** none
+- **Code evidence:** `mcp_server/src/codebase_indexer/config.py`, `mcp_server/src/codebase_indexer/storage/qdrant.py`, `mcp_server/src/codebase_indexer/tools/recommend.py`, `mcp_server/src/codebase_indexer/main.py`, `docker-compose.yml`, `.env.example`, `docs/SEARCH_BEHAVIOR.md`, `mcp_server/tests/test_recommend.py`, `mcp_server/tests/test_recommend_tool.py`, `mcp_server/tests/test_config.py`, `mcp_server/tests/test_storage_integration.py`
+- **Test debt:** `main.py` registration gate; live HTTP/Ollama e2e; golden-set eval; multi-collection deferred
+- **Verify:** 258 pytest passed, ruff clean; review rounds: 2 (round 2 clean after R1 fix)
+- **Git:** pending
+- **Changelog:** yes
+
+#### 2026-07-03 — implementation
+- **Phase / PR:** Track A — Phase 1 (Recommendation search tool)
+- **Tracker status:** `implemented`
+- **Choices:** Tool name `recommend_code`; RecommendStrategy AVERAGE_VECTOR only; dense-only; path_glob post-filter fnmatch + limit×3; missing chunk IDs fail fast; multi-collection deferred
+- **Deviations:** none
+- **Code evidence:** `mcp_server/src/codebase_indexer/config.py`, `mcp_server/src/codebase_indexer/storage/qdrant.py`, `mcp_server/src/codebase_indexer/tools/recommend.py`, `mcp_server/src/codebase_indexer/main.py`, `docker-compose.yml`, `.env.example`, `docs/SEARCH_BEHAVIOR.md`, `mcp_server/tests/test_recommend.py`, `mcp_server/tests/test_recommend_tool.py`, `mcp_server/tests/test_config.py`, `mcp_server/tests/test_storage_integration.py`
+- **Test debt:** `main.py` registration gate; live HTTP/Ollama e2e; golden-set eval; multi-collection deferred
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no
+
+#### 2026-07-03 — plan
+- **Phase / PR:** Track A — Phase 1 (Recommendation search tool)
+- **Tracker status:** `planned`
+- **Choices:** Tool name `recommend_code`; RecommendStrategy AVERAGE_VECTOR only; dense-only; path_glob post-filter with fnmatch + limit*3 over-fetch; missing chunk IDs fail fast; multi-collection deferred; ADR Accept at merge via finisher. **Chosen scope:** `recommend_code` MCP tool + `QdrantStorage.recommend` helper + config (`RECOMMEND_ENABLED`, `RECOMMEND_MAX_EXAMPLES`) + unit/integration tests + `main.py` conditional registration + compose/.env.example + `SEARCH_BEHAVIOR.md` note; dense-only; single-collection; defer outlier helper (Track A P2), n8n compose (Track B), sparse fusion, multi-collection
+- **Assumptions:** Qdrant v1.18.2 RecommendQuery API stable; existing payload indexes sufficient; no re-index required
+- **Deviations:** none
+- **Code evidence:** —
+- **Test debt:** unit/integration tests per chosen scope; `SEARCH_BEHAVIOR.md` recommend note
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing yes; entry at `verified` step
+
+#### 2026-07-03 — prioritization
+- **Phase / PR:** Track A — Phase 1 (Recommendation search tool)
+- **Tracker status:** `candidate`
+- **Choices:** Prioritize 0014 Track A P1 over 0009 Phase 2 eval script (closest alternative, +1.5 weighted score but benchmark-only), 0008 Phase 2 track 2 adaptive rerank (incremental latency), Proposed 0002 GraphRAG Phase 1 (Neo4j greenfield), and 0015 Phase 3 slim image (deferred twice); single phase per pipeline rule; formal Accept of Proposed ADR required before dev. **Chosen scope:** `recommend_code` MCP tool + `QdrantStorage.recommend` helper + config (`RECOMMEND_ENABLED`, `RECOMMEND_MAX_EXAMPLES`) + unit/integration tests + `main.py` registration; dense-only; defer outlier helper (Track A P2), n8n compose (Track B), sparse fusion. **Why now:** ColBERT arc (0008 P1, 0015 P1–P2, 0008 P2 track 1) merged; open-decisions queue deferred Proposed 0002/0014 greenfield to this cycle; no recommend API in codebase; payload indexes already shipped; no new mandatory infra; user-facing discovery capability on existing embedder/Qdrant stack. **Suggested scope:** one phase (= one PR).
+- **Deviations:** none
+- **Code evidence:** —
+- **Test debt:** —
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing unknown (likely yes)
 
 ---
 
@@ -406,4 +449,11 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-03 | 0008 | xref semantic/import search dispatch | Route through `run_search()` (shared colbert-aware path) | no |
 | 2026-07-03 | 0008 | service_map batched discovery rerank wiring | Route through `dispatch_search()` with pre-embedded colbert vectors | no |
 | 2026-07-03 | 0008 | Order of remaining Phase 2 tracks (adaptive skip vs per-tool override) | Open — track 1 merged ([PR #4](https://github.com/Tusquito/codebase-indexer-mcp/pull/4)); decide at next prioritization | no |
-| 2026-07-03 | 0008 | Accept Proposed 0002 or 0014 in a subsequent cycle for greenfield work? | Open — defer to next prioritization | no |
+| 2026-07-03 | 0008 | Accept Proposed 0002 or 0014 in a subsequent cycle for greenfield work? | 0014 prioritized this cycle (Track A P1 `planned`); 0002 still deferred | no |
+| 2026-07-03 | 0014 | Accept ADR 0014? | ADR Accept at merge via finisher | no |
+| 2026-07-03 | 0014 | Lock tool name/schema | Tool name `recommend_code`; RecommendStrategy AVERAGE_VECTOR only | no |
+| 2026-07-03 | 0014 | Confirm dense-only Phase 1 | Dense-only confirmed; sparse fusion deferred | no |
+| 2026-07-03 | 0014 | path_glob post-filter strategy | fnmatch post-filter with limit*3 over-fetch | no |
+| 2026-07-03 | 0014 | Missing positive chunk IDs | Fail fast | no |
+| 2026-07-03 | 0014 | Multi-collection recommend | Deferred; single-collection Phase 1 | no |
+| 2026-07-03 | 0014 | Whether to run 0009 Phase 2 eval script as parallel lightweight PR | Open | no |
