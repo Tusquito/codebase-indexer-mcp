@@ -28,6 +28,17 @@ def test_create_backends_returns_dense_and_sparse():
     assert isinstance(sparse, OnnxSparseBackend)
 
 
+def test_factory_uses_remote_colbert_by_default_when_rerank_on():
+    settings = Settings(
+        ollama_embed_model="nomic-embed-text",
+        rerank_enabled=True,
+    )
+    assert settings.colbert_embed_backend == "remote"
+    backend = create_colbert_backend(settings)
+    assert isinstance(backend, ColbertRemoteBackend)
+    assert backend.colbert_url == "http://colbert_worker:8082"
+
+
 def test_factory_uses_remote_colbert_when_configured():
     settings = Settings(
         ollama_embed_model="nomic-embed-text",

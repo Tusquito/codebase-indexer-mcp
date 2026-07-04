@@ -47,6 +47,7 @@ async def test_real_colbert_embed_and_rerank_smoke():
         rerank_enabled=True,
         rerank_prefetch=10,
         dense_embed_vector_size=768,
+        colbert_embed_backend="onnx",
     )
     storage = QdrantStorage(settings)
     backend = create_colbert_backend(settings)

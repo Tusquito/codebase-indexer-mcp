@@ -59,6 +59,17 @@ def test_remote_colbert_cpu_omits_gpu_worker_override():
     assert REPO_ROOT / "docker-compose.colbert-worker.gpu.yml" not in paths
 
 
+def test_rerank_on_defaults_remote_sidecar_compose():
+    env = {
+        "ACCELERATOR": "gpu",
+        "RERANK_ENABLED": "true",
+    }
+    args = compose_file_args(repo_root=REPO_ROOT, env=env)
+    paths = _paths(args)
+    assert REPO_ROOT / "docker-compose.colbert-worker.yml" in paths
+    assert REPO_ROOT / "docker-compose.colbert-worker.gpu.yml" in paths
+
+
 def test_rerank_onnx_does_not_add_sidecar_compose():
     env = {
         "ACCELERATOR": "gpu",

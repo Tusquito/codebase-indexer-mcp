@@ -335,7 +335,24 @@ def test_colbert_specs_in_registry():
     assert KNOWN_COLBERT_MODEL_MAX_TOKENS["colbert-ir/colbertv2.0"] == 512
 
 
-def test_colbert_embed_backend_defaults_to_onnx():
+def test_colbert_embed_backend_defaults_to_onnx_when_rerank_off():
+    assert Settings().colbert_embed_backend == "onnx"
+
+
+def test_colbert_embed_backend_defaults_to_remote_when_rerank_on():
+    s = Settings(
+        dense_embed_model="nomic-ai/nomic-embed-text-v1.5",
+        sparse_embed_model="Qdrant/bm25",
+        dense_embed_vector_size=768,
+        sparse_threads=2,
+        rerank_enabled=True,
+    )
+    assert s.colbert_embed_backend == "remote"
+
+
+def test_colbert_embed_backend_explicit_onnx_when_rerank_on(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("RERANK_ENABLED", "true")
+    monkeypatch.setenv("COLBERT_EMBED_BACKEND", "onnx")
     assert Settings().colbert_embed_backend == "onnx"
 
 
