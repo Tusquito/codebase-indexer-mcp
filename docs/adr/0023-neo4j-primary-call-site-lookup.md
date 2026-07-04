@@ -1,6 +1,6 @@
 # 0023. Move call-site lookup from Qdrant callees to Neo4j CALLS
 
-- **Status:** Accepted (phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing)
+- **Status:** Accepted (phase 1; phase 2 — Stop dual-write to Qdrant)
 - **Date:** 2026-07-04
 - **Deciders:** Maintainers
 - **Related:** [ADR 0002](0002-graphrag-neo4j-qdrant.md), [ADR 0005](0005-mcp-retrieval-connector.md), [ADR 0009](0009-multi-hop-retrieval-strategies.md)
