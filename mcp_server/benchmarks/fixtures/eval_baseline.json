@@ -4,56 +4,57 @@
     "golden": "benchmarks/fixtures/golden_queries.jsonl",
     "hybrid_search": true,
     "top_k": 10,
-    "dense_embed_model": "Qwen/Qwen3-Embedding-4B",
-    "ollama_embed_model": "qwen3-embedding:4b",
-    "dense_embed_vector_size": 1024,
+    "dense_embed_model": "jinaai/jina-embeddings-v2-base-code",
+    "ollama_embed_model": "unclemusclez/jina-embeddings-v2-base-code",
+    "dense_embed_vector_size": 768,
     "sparse_embed_model": "Qdrant/bm25",
-    "indexed_at": "2026-07-03",
+    "accelerator": "gpu",
+    "indexed_at": "2026-07-04",
     "golden_set_version": "v3-multi-hop",
-    "note": "Hybrid baseline with 26 queries (4 multi_hop). Re-indexed codebase-indexer-mcp via bundled Ollama qwen3-embedding:4b @ 1024 MRL (GPU). Six queries include ground_truth for ADR 0010 client export. Prior baseline (2026-07-02) used jinaai/jina-embeddings-v2-base-code."
+    "note": "Hybrid baseline with 26 queries (4 multi_hop). GPU re-index of codebase-indexer-mcp via bundled Ollama unclemusclez/jina-embeddings-v2-base-code @ 768. RERANK_ENABLED=false. Golden alias line fix: scanner.py:113 (scan_files). Live verify recall@10 0.263 vs frozen eval_baseline_jina.json 0.660 (−60%) — alias/corpus drift since 2026-07-02; see ADR 0021 Measured outcomes."
   },
   "metrics": {
-    "recall@10": 0.24359,
-    "mrr": 0.262286,
-    "ndcg@10": 0.190977
+    "recall@10": 0.262821,
+    "mrr": 0.270513,
+    "ndcg@10": 0.194456
   },
   "metrics_by_tag": {
     "conceptual": {
       "recall@10": 0.190476,
-      "mrr": 0.301587,
+      "mrr": 0.261905,
       "ndcg@10": 0.131462
     },
     "config": {
-      "recall@10": 0.0,
-      "mrr": 0.0,
-      "ndcg@10": 0.0
+      "recall@10": 0.066667,
+      "mrr": 0.04,
+      "ndcg@10": 0.041134
     },
     "cross_file": {
-      "recall@10": 0.5,
-      "mrr": 0.566667,
-      "ndcg@10": 0.466341
+      "recall@10": 0.333333,
+      "mrr": 0.48,
+      "ndcg@10": 0.358318
     },
     "multi_hop": {
       "recall@10": 0.333333,
-      "mrr": 0.361111,
-      "ndcg@10": 0.28131
+      "mrr": 0.433333,
+      "ndcg@10": 0.325432
     },
     "symbol": {
-      "recall@10": 0.277778,
-      "mrr": 0.208333,
+      "recall@10": 0.388889,
+      "mrr": 0.288889,
       "ndcg@10": 0.190385
     }
   },
   "ab_dense_only": {
-    "recall@10": 0.230769,
-    "mrr": 0.219178,
-    "ndcg@10": 0.185149
+    "recall@10": 0.224359,
+    "mrr": 0.229808,
+    "ndcg@10": 0.173314
   },
   "multi_hop_2hop": {
     "recall@10": 0.166667,
-    "mrr": 0.277778,
-    "ndcg@10": 0.172924,
-    "note": "Two-hop client RRF (eval_multihop.py) on 4 multi_hop queries; hop1+hop2 fused vs single-pass multi_hop recall@10 0.333333 in metrics_by_tag. Prior Jina baseline (2026-07-02) multi_hop_2hop recall@10 was 0.333333."
+    "mrr": 0.285714,
+    "ndcg@10": 0.177217,
+    "note": "Two-hop client RRF (eval_multihop.py) on 4 multi_hop queries; hop1+hop2 fused vs single-pass multi_hop recall@10 0.333333 in metrics_by_tag. Frozen Jina reference (2026-07-02) multi_hop_2hop recall@10 was 0.333333."
   },
   "n_queries": 26
 }
