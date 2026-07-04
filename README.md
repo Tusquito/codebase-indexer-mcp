@@ -11,7 +11,7 @@ A fully self-hosted, Docker-based MCP server that indexes your codebase into a l
 - **Token Efficient** — Returns only relevant code chunks, not full files. Three dedicated low-cost orientation tools (`get_collection_summary`, `search_symbols`, `get_file_outline`) eliminate exploratory searches entirely.
 - **Vector Discovery** — `recommend_code` finds chunks similar to positive examples and dissimilar from negatives; `find_outlier_chunks` finds code semantically distant from a module context (Qdrant Recommendation API)
 - **MCP Compatible** — Works with Claude Desktop, Copilot CLI, Cursor, and more
-- **Optional GPU Acceleration** — Dense Ollama and ColBERT sidecar run on NVIDIA GPU by default ([ADR 0022](docs/adr/0022-gpu-default-cpu-fallback.md)); set `ACCELERATOR=cpu` only for explicit CPU-only hosts
+- **GPU-default acceleration** — Dense Ollama and ColBERT sidecar run on NVIDIA GPU by default ([ADR 0022](docs/adr/0022-gpu-default-cpu-fallback.md)); set `ACCELERATOR=cpu` only for explicit CPU-only hosts
 
 ## Documentation
 

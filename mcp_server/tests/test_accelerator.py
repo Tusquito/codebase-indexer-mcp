@@ -10,7 +10,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.accelerator import (
+from scripts.accelerator import (  # noqa: E402
     GpuRequiredError,
     get_accelerator,
     require_gpu,
