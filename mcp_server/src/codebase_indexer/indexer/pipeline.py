@@ -390,7 +390,6 @@ async def _flush_double_buffered(
                         url_extractors=url_extractors or UrlExtractors(),
                         workspace_path=settings.workspace_path,
                         collection_names=collection_names or [collection],
-                        schema_version=settings.graph_schema_version,
                     )
                 except Exception as e:
                     log.error("graph_write_error", error=str(e))

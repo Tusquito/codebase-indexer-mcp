@@ -422,7 +422,6 @@ def test_graph_defaults_disabled():
     assert s.neo4j_password == ""
     assert s.neo4j_database == "neo4j"
     assert s.graph_writer_batch == 500
-    assert s.graph_schema_version == 2
     assert s.graph_max_hops == 2
     assert s.graph_max_nodes == 200
 
@@ -434,7 +433,6 @@ def test_graph_settings_from_env(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("NEO4J_PASSWORD", "secret")
     monkeypatch.setenv("NEO4J_DATABASE", "codegraph")
     monkeypatch.setenv("GRAPH_WRITER_BATCH", "250")
-    monkeypatch.setenv("GRAPH_SCHEMA_VERSION", "2")
     s = Settings()
     assert s.graph_enabled is True
     assert s.neo4j_uri == "bolt://localhost:7687"
@@ -442,7 +440,6 @@ def test_graph_settings_from_env(monkeypatch: pytest.MonkeyPatch):
     assert s.neo4j_password == "secret"
     assert s.neo4j_database == "codegraph"
     assert s.graph_writer_batch == 250
-    assert s.graph_schema_version == 2
 
 
 def test_graph_enabled_requires_password():

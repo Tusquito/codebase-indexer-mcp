@@ -199,7 +199,6 @@ def create_app(settings: Settings | None = None, preload_models: bool | None = N
             "graph_enabled",
             uri=settings.neo4j_uri,
             database=settings.neo4j_database,
-            schema_version=settings.graph_schema_version,
         )
     else:
         log.info("graph_disabled")

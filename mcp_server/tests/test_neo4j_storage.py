@@ -84,7 +84,7 @@ async def test_ensure_schema_runs_constraints():
     await storage.ensure_schema()
 
     assert storage._schema_ready is True
-    assert len(driver.session_obj.queries) >= 8
+    assert len(driver.session_obj.queries) >= 7
     assert any("chunk_id_unique" in q for q, _ in driver.session_obj.queries)
     assert any("calls_call_token" in q for q, _ in driver.session_obj.queries)
 

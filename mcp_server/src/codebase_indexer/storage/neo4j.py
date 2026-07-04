@@ -68,17 +68,8 @@ class Neo4jStorage:
         async with driver.session(database=self._settings.neo4j_database) as session:
             for statement in _SCHEMA_STATEMENTS:
                 await session.run(statement)
-            await session.run(
-                "MERGE (m:GraphMeta {id: 'schema'}) "
-                "SET m.version = $version",
-                version=self._settings.graph_schema_version,
-            )
         self._schema_ready = True
-        log.info(
-            "neo4j_schema_ready",
-            database=self._settings.neo4j_database,
-            schema_version=self._settings.graph_schema_version,
-        )
+        log.info("neo4j_schema_ready", database=self._settings.neo4j_database)
 
     async def delete_files(self, collection: str, rel_paths: list[str]) -> None:
         """Remove File/Chunk subgraphs for the given paths."""
@@ -168,16 +159,6 @@ class Neo4jStorage:
 
     async def _write_batch_session(self, session, batch: GraphBatch) -> None:
         collection = batch.collection
-
-        if batch.collection_props:
-            await session.run(
-                """
-                MERGE (col:Collection {name: $name})
-                SET col.schema_version = $schema_version
-                """,
-                name=collection,
-                schema_version=batch.schema_version,
-            )
 
         for slice_start in range(0, len(batch.files), self._settings.graph_writer_batch):
             files = batch.files[slice_start : slice_start + self._settings.graph_writer_batch]

@@ -139,8 +139,6 @@ class GraphBatch:
     """Structured graph upsert payload for one flush batch."""
 
     collection: str
-    schema_version: int = 1
-    collection_props: bool = True
     files: list[dict] = field(default_factory=list)
     chunks: list[dict] = field(default_factory=list)
     defines: list[dict] = field(default_factory=list)
@@ -161,10 +159,9 @@ def build_graph_batch(
     url_extractors: UrlExtractors,
     workspace_path: str,
     collection_names: list[str],
-    schema_version: int = 1,
 ) -> GraphBatch:
     """Build a graph batch from indexed chunks (grouped by file)."""
-    batch = GraphBatch(collection=collection, schema_version=schema_version)
+    batch = GraphBatch(collection=collection)
     if not chunks:
         return batch
 
@@ -334,7 +331,6 @@ async def write_chunks_to_graph(
     url_extractors: UrlExtractors,
     workspace_path: str,
     collection_names: list[str],
-    schema_version: int = 1,
 ) -> None:
     """Build and persist a graph batch (no-op when storage disabled)."""
     if graph_storage is None or not graph_storage.enabled:
@@ -346,6 +342,5 @@ async def write_chunks_to_graph(
         url_extractors=url_extractors,
         workspace_path=workspace_path,
         collection_names=collection_names,
-        schema_version=schema_version,
     )
     await graph_storage.write_batch(batch)

@@ -51,7 +51,6 @@ def test_build_graph_batch_from_chunks():
         url_extractors=extractors,
         workspace_path="/workspace",
         collection_names=["demo", "other"],
-        schema_version=1,
     )
 
     assert batch.collection == "demo"
@@ -154,7 +153,6 @@ def test_build_graph_batch_build_manifest(tmp_path):
         url_extractors=extractors,
         workspace_path=str(tmp_path),
         collection_names=["demo", "other-service"],
-        schema_version=1,
     )
 
     assert len(batch.build_deps) == 1

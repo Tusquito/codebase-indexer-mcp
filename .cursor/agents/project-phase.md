@@ -12,6 +12,7 @@ This repository is **in active development**. External stability guarantees do n
 6. **Changelog still documents** operator-visible default changes — but they are not merge blockers.
 7. **Docker integration always required** — every ADR phase runs `scripts/run_compose_integration.py` before code review. The only acceptable skip is Docker unavailable (documented blocker).
 8. **Quality validation when required** — search/embed/rerank phases run golden-set eval in the same harness; **Performance report** is report-only.
+9. **No schema migration version env vars** — do not add `*_SCHEMA_VERSION`, bump counters, or upgrade-path env knobs for pre-release graph/index shape changes; document **re-index after pull** instead.
 
 ## When this policy relaxes
 

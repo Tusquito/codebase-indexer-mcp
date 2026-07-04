@@ -261,7 +261,6 @@ class Settings(BaseSettings):
     neo4j_password: str = Field(default="")
     neo4j_database: str = Field(default="neo4j")
     graph_writer_batch: int = Field(default=500, ge=1)
-    graph_schema_version: int = Field(default=2, ge=1)
     graph_max_hops: int = Field(default=2, ge=1)
     graph_max_nodes: int = Field(default=200, ge=1)
 

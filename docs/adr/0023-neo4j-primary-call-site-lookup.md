@@ -83,7 +83,7 @@ Chunk-to-chunk traversal for multi-hop call chains may use either:
 - `Neo4jStorage.find_callers` (Cypher) matching current `member` / `receiver` semantics via `call_token`
 - `find_cross_references` Path D routing: Neo4j when graph enabled for target collection(s), else Qdrant scroll
 - Conditional omission of `callees` from Qdrant upsert payload when graph enabled
-- Index/schema: index or constraint supporting `CALLS.call_token` and `Symbol.name` lookup; bump `GRAPH_SCHEMA_VERSION` when stub→unified migration runs
+- Index/schema: index or constraint supporting `CALLS.call_token` and `Symbol.name` lookup; full graph re-index when graph writer shape changes (pre-release: no `GRAPH_SCHEMA_VERSION` migration env)
 - Tests: parity between Qdrant and Neo4j caller lookup on shared fixtures; graph-disabled regression; unified-symbol traversal fixture (Phase 1); optional `CALLS_RESOLVED` fixture (Phase 4)
 
 ### Out of scope
@@ -107,7 +107,7 @@ No new env vars required beyond existing `GRAPH_*` / `NEO4J_*` from ADR 0002. Op
 
 **Phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing**
 
-- **Schema (requires `GRAPH_SCHEMA_VERSION` bump + graph re-index):**
+- **Schema (full graph re-index after pull when graph writer changes):**
   - Persist `call_token` on every `(Chunk)-[:CALLS]->(Symbol)` edge (raw value from `chunk.callees`)
   - Stop relying on `{collection}::callee::{token}` qualified names as the sole lookup key; retain stubs only for unresolved calls
   - When a token uniquely matches one in-scope `DEFINES` symbol (same collection; heuristic: exact `Symbol.name` or qualified import match — lock rules at implementation), `MERGE` the `CALLS` target to that symbol node
@@ -188,7 +188,7 @@ RETURN DISTINCT callee.chunk_id, callee
 - Mixed-mode queries (some collections graph-enabled, some not) need per-collection routing
 - Collections indexed before graph enablement need re-index to populate Neo4j `CALLS` before Qdrant `callees` can be dropped
 - Cypher caller lookup must match Qdrant token semantics exactly (`method` vs `receiver.method`) — regression-sensitive
-- `GRAPH_SCHEMA_VERSION` bump invalidates existing Neo4j graphs until re-index
+- Graph writer shape changes require full graph re-index (same as Qdrant re-index on embed model change); no versioned migration env in pre-release
 - `CALLS_RESOLVED` coverage will be partial by design; clients must not assume every `CALLS` has a resolved chunk edge
 - Slightly higher latency for Neo4j round-trip vs local Qdrant scroll on tiny collections (acceptable for structural queries)
 
@@ -249,5 +249,5 @@ RETURN DISTINCT callee.chunk_id, callee
 2. With graph enabled and collection re-indexed, `find_cross_references(..., member=...)` returns call sites without Qdrant `callees` filter
 3. Neo4j and Qdrant paths agree on fixture parity suite before Phase 2 merges
 4. After Phase 1 re-index, a Cypher path from caller chunk to callee definition chunk exists via unified `Symbol` for at least one fixture call chain
-5. Documented re-index path for existing deployments upgrading to graph-primary call sites (including `GRAPH_SCHEMA_VERSION` bump)
+5. Documented re-index when enabling graph or after graph writer changes (no schema-version env var pre-1.0)
 6. Phase 4 (optional): `CALLS_RESOLVED` enables single-hop call-chain query on unambiguous fixtures without removing stub `CALLS→Symbol` edges
