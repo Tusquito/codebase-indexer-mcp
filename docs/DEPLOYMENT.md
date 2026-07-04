@@ -8,9 +8,9 @@ Docker Compose runs Qdrant, the MCP server, and the cron reindex job. **Dense em
 |------|---------|
 | `docker-compose.yml` | Base stack: `codeindexer_qdrant`, `codeindexer_mcp`, `codeindexer_cron` |
 | `docker-compose.ollama.yml` | Optional bundled `ollama` service (`COMPOSE_PROFILES=bundled-ollama`) |
-| `docker-compose.ollama.gpu.yml` | NVIDIA GPU for bundled Ollama — use when `OLLAMA_GPU=1` in `.env` |
-| `docker-compose.colbert-worker.yml` | Optional ColBERT HTTP sidecar ([ADR 0015](adr/0015-colbert-http-sidecar.md)) |
-| `docker-compose.colbert-worker.gpu.yml` | NVIDIA GPU for ColBERT sidecar — use when `COLBERT_GPU=1` in `.env` |
+| `docker-compose.ollama.gpu.yml` | **Default stack** — NVIDIA GPU for bundled Ollama when `ACCELERATOR=gpu` (merged by `scripts/compose_files.py`) |
+| `docker-compose.colbert-worker.yml` | Optional ColBERT HTTP sidecar when `RERANK_ENABLED=true` and `COLBERT_EMBED_BACKEND=remote` |
+| `docker-compose.colbert-worker.gpu.yml` | **Default stack** — NVIDIA GPU for ColBERT sidecar when remote sidecar + `ACCELERATOR=gpu` |
 
 ### Docker Compose env passthrough
 
@@ -25,9 +25,60 @@ Compose reads your host `.env` at `docker compose up` time and injects variables
 
 **Not in `.env`:** `dense_embed_backend` is fixed to `ollama` in code ([ADR 0011](adr/0011-ollama-only-dense-embedding.md)). `FASTEMBED_CACHE_PATH` is set to the container cache volume path.
 
-**Compose-only variables** (not read by Python `Settings`): `WORKSPACE_ROOT`, `MCP_MEM_LIMIT`, `QDRANT_MEM_LIMIT`, `MCP_CPUS`, `QDRANT_CPUS`, `COMPOSE_PROFILES`, `OLLAMA_GPU`, `OLLAMA_GPU_COUNT`, `OLLAMA_PORT`, `OLLAMA_MEM_LIMIT`, `OLLAMA_CPUS`, `COLBERT_GPU`, `COLBERT_GPU_COUNT`, `COLBERT_MEM_LIMIT`, `COLBERT_CPUS`.
+**Compose-only variables** (not read by Python `Settings`): `WORKSPACE_ROOT`, `MCP_MEM_LIMIT`, `QDRANT_MEM_LIMIT`, `MCP_CPUS`, `QDRANT_CPUS`, `COMPOSE_PROFILES`, `ACCELERATOR`, `OLLAMA_GPU`, `OLLAMA_GPU_COUNT`, `OLLAMA_PORT`, `OLLAMA_MEM_LIMIT`, `OLLAMA_CPUS`, `COLBERT_GPU`, `COLBERT_GPU_COUNT`, `COLBERT_MEM_LIMIT`, `COLBERT_CPUS`.
 
 For local `uv run python -m codebase_indexer.main`, pydantic reads `.env` in `mcp_server/` directly — same variable names apply.
+
+## GPU-default compose ([ADR 0022](adr/0022-gpu-default-cpu-fallback.md))
+
+**Default:** `ACCELERATOR=gpu` (when unset). GPU compose overrides (`.ollama.gpu.yml`, and `.colbert-worker.gpu.yml` when rerank + remote sidecar) are merged automatically — do not hand-assemble `-f` lists.
+
+Requires NVIDIA driver + [Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). Fails fast when GPU is required but NVIDIA runtime is unavailable.
+
+`.env` (production preset):
+
+```env
+ACCELERATOR=gpu
+COMPOSE_PROFILES=bundled-ollama
+OLLAMA_URL=http://ollama:11434
+OLLAMA_GPU=1
+OLLAMA_EMBED_MODEL=unclemusclez/jina-embeddings-v2-base-code
+DENSE_EMBED_MODEL=jinaai/jina-embeddings-v2-base-code
+DENSE_EMBED_VECTOR_SIZE=768
+```
+
+```bash
+docker compose $(python scripts/compose_files.py) --profile bundled-ollama up -d --build
+docker exec codeindexer_ollama ollama pull unclemusclez/jina-embeddings-v2-base-code
+```
+
+Verify GPU: `docker exec codeindexer_ollama ollama ps` — `PROCESSOR` should show `GPU` while the model is loaded.
+
+**Hybrid topology:** GPU dense (Ollama) + **CPU sparse BM25** in MCP — unchanged from [ADR 0011](adr/0011-ollama-only-dense-embedding.md). `ACCELERATOR=gpu` does not move sparse embedding to GPU.
+
+### Explicit CPU-only (`ACCELERATOR=cpu`)
+
+The **only** supported CPU path. Use for GitHub Actions, air-gapped CPU servers, and developer choice — not documented as production default.
+
+`.env`:
+
+```env
+ACCELERATOR=cpu
+COMPOSE_PROFILES=bundled-ollama
+OLLAMA_URL=http://ollama:11434
+OLLAMA_GPU=0
+OLLAMA_EMBED_MODEL=unclemusclez/jina-embeddings-v2-base-code
+DENSE_EMBED_MODEL=jinaai/jina-embeddings-v2-base-code
+DENSE_EMBED_VECTOR_SIZE=768
+```
+
+```bash
+docker compose $(ACCELERATOR=cpu python scripts/compose_files.py) --profile bundled-ollama up -d --build
+docker exec codeindexer_ollama ollama pull unclemusclez/jina-embeddings-v2-base-code
+docker compose restart mcp_server
+```
+
+### External Ollama on the host
 
 Run Ollama natively or in your own container on `127.0.0.1:11434`. Leave `COMPOSE_PROFILES` unset.
 
@@ -41,58 +92,16 @@ DENSE_EMBED_VECTOR_SIZE=768
 ```
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.ollama.yml up -d --build
-docker exec codeindexer_ollama ollama pull unclemusclez/jina-embeddings-v2-base-code
+docker compose -f docker-compose.yml up -d --build
 docker compose restart mcp_server
 ```
-
-### Bundled Ollama in Compose (recommended)
-
-`.env`:
-
-```env
-COMPOSE_PROFILES=bundled-ollama
-OLLAMA_URL=http://ollama:11434
-OLLAMA_EMBED_MODEL=unclemusclez/jina-embeddings-v2-base-code
-DENSE_EMBED_MODEL=jinaai/jina-embeddings-v2-base-code
-DENSE_EMBED_VECTOR_SIZE=768
-OLLAMA_GPU=0
-```
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.ollama.yml up -d --build
-docker exec codeindexer_ollama ollama pull unclemusclez/jina-embeddings-v2-base-code
-docker compose restart mcp_server
-```
-
-### Ollama GPU (bundled service only)
-
-Requires NVIDIA driver + [Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html).
-
-`.env`:
-
-```env
-COMPOSE_PROFILES=bundled-ollama
-OLLAMA_GPU=1
-OLLAMA_GPU_COUNT=1
-OLLAMA_EMBED_MODEL=unclemusclez/jina-embeddings-v2-base-code
-DENSE_EMBED_MODEL=jinaai/jina-embeddings-v2-base-code
-DENSE_EMBED_VECTOR_SIZE=768
-```
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.ollama.yml \
-  -f docker-compose.ollama.gpu.yml up -d --build
-docker exec codeindexer_ollama ollama pull unclemusclez/jina-embeddings-v2-base-code
-```
-
-Verify GPU: `docker exec codeindexer_ollama ollama ps` — `PROCESSOR` should show `GPU` while the model is loaded. CPU-only shows `100% CPU`.
 
 | Variable | Default | Role |
 |----------|---------|------|
+| `ACCELERATOR` | `gpu` | Compose-only — `gpu` merges `.gpu.yml` overrides; `cpu` is explicit exception only |
 | `COMPOSE_PROFILES` | *(empty)* | Set to `bundled-ollama` to start the Compose-managed Ollama service |
 | `OLLAMA_URL` | `http://host.docker.internal:11434` (base compose); `http://ollama:11434` when `-f docker-compose.ollama.yml` is merged | MCP → Ollama base URL; set explicitly in `.env` for your setup |
-| `OLLAMA_GPU` | `0` | Document only — set `1` and add `docker-compose.ollama.gpu.yml` to enable NVIDIA GPU |
+| `OLLAMA_GPU` | `1` when `ACCELERATOR=gpu` | Document flag — GPU override merged by `compose_files.py` when `ACCELERATOR=gpu` |
 | `OLLAMA_GPU_COUNT` | `1` | GPUs reserved for bundled Ollama when using `.ollama.gpu.yml` |
 | `OLLAMA_EMBED_MODEL` | *(from `.env`)* | Ollama model tag for dense embedding (must match `DENSE_EMBED_VECTOR_SIZE`) |
 | `OLLAMA_EMBED_BATCH_SIZE` | `32` | Texts per Ollama `/api/embed` request |
@@ -168,18 +177,16 @@ COLBERT_GPU_COUNT=1
 ```
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.ollama.yml \
-  -f docker-compose.colbert-worker.yml \
-  -f docker-compose.colbert-worker.gpu.yml up -d --build
+docker compose $(python scripts/compose_files.py) --profile bundled-ollama up -d --build
 ```
 
 Verify sidecar device: `curl http://localhost:8082/health` — expect `"device":"cuda"`, `"cuda_available":true`, and `"execution_providers"` containing `CUDAExecutionProvider`. The worker fails at startup if `COLBERT_USE_CUDA=1` but CUDA libraries or the ORT CUDA provider are unavailable, or if the model loads on CPU despite CUDA being requested.
 
-**Single-GPU VRAM:** On an 8 GB GPU, running Ollama dense and ColBERT on the same device may OOM. Prefer a second GPU (`OLLAMA_GPU_COUNT=1` on GPU 0, `COLBERT_DEVICE_IDS=1` on GPU 1) or keep the CPU ColBERT sidecar (`docker-compose.colbert-worker.yml` without the GPU override). There is no automatic GPU scheduler.
+**Single-GPU VRAM:** On an 8 GB GPU, running Ollama dense and ColBERT on the same device may OOM. Prefer a second GPU (`OLLAMA_GPU_COUNT=1` on GPU 0, `COLBERT_DEVICE_IDS=1` on GPU 1) or set `ACCELERATOR=cpu` for CPU-only ColBERT sidecar. There is no automatic GPU scheduler.
 
 | Variable | Default | Role |
 |----------|---------|------|
-| `COLBERT_GPU` | `0` | Document only — set `1` and add `docker-compose.colbert-worker.gpu.yml` |
+| `COLBERT_GPU` | `1` when `ACCELERATOR=gpu` + remote sidecar | Document flag — GPU sidecar merged by `compose_files.py` |
 | `COLBERT_GPU_COUNT` | `1` | GPUs reserved for ColBERT sidecar when using `.colbert-worker.gpu.yml` |
 | `COLBERT_USE_CUDA` | `0` | Worker env — set to `1` automatically by GPU compose override |
 | `COLBERT_DEVICE_IDS` | *(empty)* | Optional comma-separated GPU indices passed to fastembed |

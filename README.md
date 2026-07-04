@@ -11,7 +11,7 @@ A fully self-hosted, Docker-based MCP server that indexes your codebase into a l
 - **Token Efficient** — Returns only relevant code chunks, not full files. Three dedicated low-cost orientation tools (`get_collection_summary`, `search_symbols`, `get_file_outline`) eliminate exploratory searches entirely.
 - **Vector Discovery** — `recommend_code` finds chunks similar to positive examples and dissimilar from negatives; `find_outlier_chunks` finds code semantically distant from a module context (Qdrant Recommendation API)
 - **MCP Compatible** — Works with Claude Desktop, Copilot CLI, Cursor, and more
-- **Optional GPU Acceleration** — Offload dense embedding to Ollama on NVIDIA GPU via `docker-compose.ollama.gpu.yml`
+- **Optional GPU Acceleration** — Dense Ollama and ColBERT sidecar run on NVIDIA GPU by default ([ADR 0022](docs/adr/0022-gpu-default-cpu-fallback.md)); set `ACCELERATOR=cpu` only for explicit CPU-only hosts
 
 ## Documentation
 
@@ -21,7 +21,7 @@ A fully self-hosted, Docker-based MCP server that indexes your codebase into a l
 | [CHANGELOG.md](CHANGELOG.md) | Release history (Keep a Changelog format) |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Per-component responsibilities, indexing pipeline, embedding layer, hybrid search |
 | [docs/adr/](docs/adr/) | Architecture Decision Records — see [0021](docs/adr/0021-revert-jina-production-default-retire-qwen3.md) (Jina production default), [0016](docs/adr/0016-qwen3-embedding-default-dense-model.md) (Qwen3 experimental preset — historical), [0012](docs/adr/0012-retrieval-only-rag-split.md) (retrieval-only RAG), [0011](docs/adr/0011-ollama-only-dense-embedding.md) (Ollama dense), [0008](docs/adr/0008-optional-colbert-reranking.md) (ColBERT rerank), [0014](docs/adr/0014-vector-discovery-and-ops-automation.md) (recommendation search), [0015](docs/adr/0015-colbert-http-sidecar.md) (ColBERT sidecar) |
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Ollama dense deployment (bundled/external/GPU), memory/CPU tuning |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | GPU-default Ollama compose, explicit `ACCELERATOR=cpu` exception, memory/CPU tuning |
 | [docs/SEARCH_BEHAVIOR.md](docs/SEARCH_BEHAVIOR.md) | `search_codebase` / `search_symbols` caps, `min_score` vs RRF, `recommend_code`, `find_outlier_chunks`, ColBERT rerank |
 
 ## System Architecture
@@ -54,8 +54,9 @@ cp .env.example .env
 # Every direct subdirectory becomes a separate indexed collection.
 # Example: WORKSPACE_ROOT=C:\Users\me\repos  (not a single project folder)
 
-# 2. Start services (Ollama required for dense embedding)
-docker compose -f docker-compose.yml -f docker-compose.ollama.yml up -d --build
+# 2. Start services (NVIDIA GPU default; bundled Ollama profile)
+docker compose $(python scripts/compose_files.py) --profile bundled-ollama up -d --build
+docker exec codeindexer_ollama ollama pull unclemusclez/jina-embeddings-v2-base-code
 
 # 3. Confirm all services are healthy
 docker compose ps
@@ -66,14 +67,15 @@ docker logs -f codeindexer_mcp
 # 5. Add MCP client config (see below)
 ```
 
-### Ollama GPU (optional)
+Requires NVIDIA driver + [Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) when `ACCELERATOR=gpu` (default). Verify GPU: `docker exec codeindexer_ollama ollama ps` — `PROCESSOR` should show `GPU`.
 
-Requires an NVIDIA GPU, the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html), and `OLLAMA_GPU=1` in `.env`. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+### Explicit CPU-only (`ACCELERATOR=cpu`)
+
+For CI, air-gapped CPU servers, or hosts without NVIDIA — not the production default. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.ollama.yml \
-  -f docker-compose.ollama.gpu.yml up -d --build
-docker exec codeindexer_ollama ollama ps
+# In .env: ACCELERATOR=cpu, OLLAMA_GPU=0
+docker compose $(ACCELERATOR=cpu python scripts/compose_files.py) --profile bundled-ollama up -d --build
 ```
 
 ## MCP Client Configuration
@@ -436,11 +438,12 @@ Settings are environment-variable driven. **Required variables** (no Python defa
 | `SPARSE_EMBED_MODEL` | fastembed sparse model; default `Qdrant/bm25` (lexical BM25) |
 | `DENSE_EMBED_VECTOR_SIZE` | Dense embedding dimensions; default `768` for Jina v2 base code (see [Jina](#jina-embedding-via-ollama) and [BGE v1.5](#baai-bge-english-v15)) |
 | `SPARSE_THREADS` | ONNX threads for `SPARSE_EMBED_MODEL`; `2` for `Qdrant/bm25` (default) |
-| `COMPOSE_PROFILES` | Compose profiles to activate. Set to `bundled-ollama` with `docker-compose.ollama.yml` to run Ollama inside the stack. |
+| `ACCELERATOR` | Compose-only — `gpu` (default) merges GPU compose overrides; `cpu` is explicit exception only ([ADR 0022](docs/adr/0022-gpu-default-cpu-fallback.md)). |
+| `COMPOSE_PROFILES` | Compose profiles to activate. Set to `bundled-ollama` with `scripts/compose_files.py` to run Ollama inside the stack. |
 | `OLLAMA_URL` | Ollama base URL for dense embedding. Default: `http://ollama:11434` (bundled) or `http://host.docker.internal:11434` (host Ollama). |
 | `OLLAMA_EMBED_MODEL` | Ollama embedding model tag (default: `unclemusclez/jina-embeddings-v2-base-code`). Must match `DENSE_EMBED_VECTOR_SIZE`. |
-| `OLLAMA_GPU` | Set to `1` and add `docker-compose.ollama.gpu.yml` to reserve NVIDIA GPU for bundled Ollama. |
-| `OLLAMA_GPU_COUNT` | GPUs reserved for bundled Ollama when using `docker-compose.ollama.gpu.yml`; defaults to `1`. |
+| `OLLAMA_GPU` | `1` when `ACCELERATOR=gpu` (default); GPU override merged by `scripts/compose_files.py`. |
+| `OLLAMA_GPU_COUNT` | GPUs reserved for bundled Ollama; defaults to `1`. |
 
 ### Jina Embedding (via Ollama)
 
@@ -615,9 +618,9 @@ Pull the default model after first start:
 docker exec codeindexer_ollama ollama pull unclemusclez/jina-embeddings-v2-base-code
 ```
 
-For CPU-only hosts, use the Nomic preset documented in `.env.example` instead (`ollama pull nomic-embed-text`).
+For CPU-only hosts, set `ACCELERATOR=cpu` in `.env` (see [DEPLOYMENT.md](docs/DEPLOYMENT.md#explicit-cpu-only-acceleratorcpu)) — not the production default.
 
-GPU for bundled Ollama: set `OLLAMA_GPU=1` and add `-f docker-compose.ollama.gpu.yml`. Verify with `docker exec codeindexer_ollama ollama ps`.
+GPU is the default when `ACCELERATOR=gpu`: use `docker compose $(python scripts/compose_files.py)`. Verify with `docker exec codeindexer_ollama ollama ps`.
 
 Full re-index required after changing `OLLAMA_EMBED_MODEL` or `DENSE_EMBED_VECTOR_SIZE`. See [ADR 0011](docs/adr/0011-ollama-only-dense-embedding.md).
 
