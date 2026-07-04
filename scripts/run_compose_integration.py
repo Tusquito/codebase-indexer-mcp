@@ -8,6 +8,9 @@ From repository root:
     python scripts/run_compose_integration.py
     python scripts/run_compose_integration.py --keep
     python scripts/run_compose_integration.py --skip-deploy   # stack already up
+    python scripts/run_compose_integration.py --json --quality-validation
+    python scripts/run_compose_integration.py --json --quality-validation --quality-rerank --quality-threshold 5
+    python scripts/run_compose_integration.py --json --performance-report
 
 Exits 0 when required checks pass, 1 on failure, 2 when Docker unavailable (skip).
 
@@ -31,6 +34,9 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MCP_SERVER = REPO_ROOT / "mcp_server"
 ENV_FILE = REPO_ROOT / ".env.compose.integration"
+EVAL_BASELINE = MCP_SERVER / "benchmarks" / "fixtures" / "eval_baseline.json"
+BENCH_BASELINE = MCP_SERVER / "benchmarks" / "baseline.json"
+REINDEX_SCRIPT = REPO_ROOT / "scripts" / "reindex_graphrag.py"
 COMPOSE_BASE = ["docker", "compose", "--env-file", str(ENV_FILE)]
 COMPOSE_FILES = [
     "-f",
@@ -171,6 +177,142 @@ def run_smoke_optional() -> tuple[str, str]:
     return "fail", out.strip()[-1000:]
 
 
+def run_validate_labels() -> tuple[bool, str]:
+    proc = _run(
+        [
+            "uv",
+            "run",
+            "python",
+            "-m",
+            "benchmarks.eval_retrieval",
+            "--validate-labels",
+        ],
+        cwd=MCP_SERVER,
+        env=_host_test_env(),
+    )
+    out = (proc.stdout or "") + (proc.stderr or "")
+    return proc.returncode == 0, out.strip()[-2000:]
+
+
+def run_index_golden_collection() -> tuple[bool, str]:
+    if not REINDEX_SCRIPT.is_file():
+        return False, f"missing {REINDEX_SCRIPT}"
+    proc = _run(
+        [sys.executable, str(REINDEX_SCRIPT)],
+        cwd=REPO_ROOT,
+        env=_host_test_env(),
+    )
+    out = (proc.stdout or "") + (proc.stderr or "")
+    return proc.returncode == 0, out.strip()[-2000:]
+
+
+def run_quality_eval(
+    *,
+    compare: Path,
+    threshold: float,
+    rerank: bool,
+) -> tuple[str, str]:
+    """Return (status, detail) — pass / fail / skip."""
+    cmd = [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "benchmarks.eval_retrieval",
+        "--compare",
+        str(compare),
+        "--threshold",
+        str(threshold),
+        "--output",
+        str(MCP_SERVER / ".eval-integration-results.json"),
+    ]
+    if rerank:
+        cmd.append("--rerank")
+    proc = _run(cmd, cwd=MCP_SERVER, env=_host_test_env())
+    out = (proc.stdout or "") + (proc.stderr or "")
+    if "SKIP:" in out:
+        return "skip", out.strip()[-2000:]
+    if proc.returncode == 0:
+        return "pass", out.strip()[-2000:]
+    return "fail", out.strip()[-2000:]
+
+
+def run_performance_report(*, compare: Path) -> tuple[str, str]:
+    """Report-only bench.py — never fails the harness verdict."""
+    cmd = [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "benchmarks.bench",
+        "--files",
+        "50",
+        "--iterations",
+        "10",
+        "--compare",
+        str(compare),
+        "--threshold",
+        "0",
+        "--output",
+        str(MCP_SERVER / ".bench-integration-results.json"),
+    ]
+    proc = _run(cmd, cwd=MCP_SERVER, env=_host_test_env())
+    out = (proc.stdout or "") + (proc.stderr or "")
+    if "SKIP:" in out:
+        return "skipped", out.strip()[-2000:]
+    if proc.returncode == 0:
+        return "pass", out.strip()[-2000:]
+    return "warn", out.strip()[-2000:]
+
+
+def run_quality_validation(
+    *,
+    compare: Path,
+    threshold: float,
+    rerank: bool,
+) -> dict[str, dict[str, str]]:
+    """Validate labels, index golden collection if needed, run eval_retrieval."""
+    rows: dict[str, dict[str, str]] = {}
+
+    ok, detail = run_validate_labels()
+    rows["validate_labels"] = {
+        "status": "pass" if ok else "fail",
+        "detail": detail,
+    }
+    if not ok:
+        indexed, index_detail = run_index_golden_collection()
+        rows["index_golden"] = {
+            "status": "pass" if indexed else "fail",
+            "detail": index_detail,
+        }
+        if indexed:
+            ok, detail = run_validate_labels()
+            rows["validate_labels_retry"] = {
+                "status": "pass" if ok else "fail",
+                "detail": detail,
+            }
+
+    if not ok:
+        rows["eval_retrieval"] = {
+            "status": "fail",
+            "detail": "skipped — golden labels not present in Qdrant after index attempt",
+        }
+        return rows
+
+    status, detail = run_quality_eval(
+        compare=compare,
+        threshold=threshold,
+        rerank=rerank,
+    )
+    rows["eval_retrieval"] = {"status": status, "detail": detail}
+    return rows
+
+
+def quality_validation_passed(rows: dict[str, dict[str, str]]) -> bool:
+    eval_row = rows.get("eval_retrieval", {})
+    return eval_row.get("status") == "pass"
+
+
 def teardown() -> None:
     _run(compose_cmd("--profile", COMPOSE_PROFILE, "down", "--remove-orphans"))
 
@@ -180,6 +322,39 @@ def main() -> int:
     parser.add_argument("--keep", action="store_true", help="Leave stack running after tests")
     parser.add_argument("--skip-deploy", action="store_true", help="Assume stack already up")
     parser.add_argument("--json", action="store_true", help="Print machine-readable report on stdout")
+    parser.add_argument(
+        "--quality-validation",
+        action="store_true",
+        help="Run golden-set validate + eval_retrieval vs baseline (after deploy)",
+    )
+    parser.add_argument(
+        "--quality-rerank",
+        action="store_true",
+        help="Pass --rerank to eval_retrieval (ColBERT must be indexed)",
+    )
+    parser.add_argument(
+        "--quality-threshold",
+        type=float,
+        default=0.0,
+        help="Fail quality eval when metrics drop more than N%% vs baseline (0 = report-only)",
+    )
+    parser.add_argument(
+        "--quality-compare",
+        type=Path,
+        default=EVAL_BASELINE,
+        help="Baseline JSON for eval_retrieval --compare",
+    )
+    parser.add_argument(
+        "--performance-report",
+        action="store_true",
+        help="Run bench.py vs baseline (report-only; does not fail harness)",
+    )
+    parser.add_argument(
+        "--bench-compare",
+        type=Path,
+        default=BENCH_BASELINE,
+        help="Baseline JSON for benchmarks.bench --compare",
+    )
     args = parser.parse_args()
 
     report: dict = {
@@ -189,6 +364,8 @@ def main() -> int:
         "ollama_health": {"status": "pending", "detail": ""},
         "pytest_integration": {"status": "pending", "detail": ""},
         "smoke_recommend": {"status": "pending", "detail": ""},
+        "quality_validation": {"required": args.quality_validation, "status": "skipped", "checks": {}},
+        "performance_report": {"requested": args.performance_report, "status": "skipped", "detail": ""},
         "verdict": "pending",
     }
 
@@ -233,10 +410,36 @@ def main() -> int:
         smoke_status, smoke_detail = run_smoke_optional()
         report["smoke_recommend"] = {"status": smoke_status, "detail": smoke_detail}
 
+        if args.quality_validation:
+            quality_rows = run_quality_validation(
+                compare=args.quality_compare,
+                threshold=args.quality_threshold,
+                rerank=args.quality_rerank,
+            )
+            report["quality_validation"] = {
+                "required": True,
+                "status": "pass" if quality_validation_passed(quality_rows) else "fail",
+                "threshold": args.quality_threshold,
+                "rerank": args.quality_rerank,
+                "compare": str(args.quality_compare),
+                "checks": quality_rows,
+            }
+
+        if args.performance_report:
+            perf_status, perf_detail = run_performance_report(compare=args.bench_compare)
+            report["performance_report"] = {
+                "requested": True,
+                "status": perf_status,
+                "detail": perf_detail,
+                "compare": str(args.bench_compare),
+            }
+
         required_ok = all(
             report[k]["status"] in ("pass", "skipped")
             for k in ("deploy", "qdrant_health", "mcp_health", "pytest_integration")
         )
+        if args.quality_validation:
+            required_ok = required_ok and report["quality_validation"]["status"] == "pass"
         report["verdict"] = "pass" if required_ok else "fail"
 
         if args.json:

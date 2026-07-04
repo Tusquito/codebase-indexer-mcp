@@ -51,11 +51,14 @@ Deploy the real stack and run integration checks from the **repository root**:
 python scripts/run_compose_integration.py
 python scripts/run_compose_integration.py --json    # machine-readable report
 python scripts/run_compose_integration.py --keep    # leave stack up for debugging
+python scripts/run_compose_integration.py --json --quality-validation   # + golden-set eval
+python scripts/run_compose_integration.py --json --quality-validation --quality-rerank --quality-threshold 5
+python scripts/run_compose_integration.py --json --performance-report   # + bench.py (report-only)
 ```
 
-This builds `mcp_server`, starts Qdrant + bundled Ollama + MCP via Compose, waits for health, runs `tests/test_storage_integration.py` against live Qdrant, and checks `http://127.0.0.1:8000/health`. Uses generated `.env.compose.integration` (does not overwrite your `.env`).
+This builds `mcp_server`, starts Qdrant + bundled Ollama + MCP via Compose, waits for health, runs `tests/test_storage_integration.py` against live Qdrant, and checks `http://127.0.0.1:8000/health`. When `--quality-validation` is set, it validates golden labels (auto-indexing via MCP if missing), runs `eval_retrieval` vs `fixtures/eval_baseline.json`, and optionally compares latency via `bench.py` with `--performance-report`. Uses generated `.env.compose.integration` (does not overwrite your `.env`).
 
-The ADR pipeline runs this via **`adr-integration-tester`** (step 3.5) before code review when the plan marks **Docker integration** as `required` or `auto` with deploy-touching changes.
+The ADR pipeline runs this via **`adr-integration-tester`** (step 3.5) before code review on **every phase**. Search/embed/rerank phases also require **`--quality-validation`** per the implementation plan.
 
 ### Integration smoke tests
 
