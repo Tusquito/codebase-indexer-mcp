@@ -75,12 +75,6 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 | 0020 | Phase 1 — Dataset + training pipeline ([PR #15](https://github.com/Tusquito/codebase-indexer-mcp/pull/15)) | Phases 2–4 cancelled per [ADR 0021](0021-revert-jina-production-default-retire-qwen3.md) (fine-tune gate failed path) |
 | 0021 | Phase 1 — Config + docs revert ([PR #16](https://github.com/Tusquito/codebase-indexer-mcp/pull/16)) | Phase 2 — Eval baseline refresh; Phase 3 — ADR housekeeping + CHANGELOG full update |
 
-### Candidate (requires Accept)
-
-| ADR | Phase | Notes |
-|-----|-------|-------|
-| 0021 | Phase 2 — Eval baseline refresh | Phase 1 merged [PR #16](https://github.com/Tusquito/codebase-indexer-mcp/pull/16) 2026-07-03; defers Phase 3 CHANGELOG full update |
-
 ---
 
 ## Phase logs
@@ -1047,7 +1041,7 @@ Pipeline steps output a **Tracker append** block; the **invoker** (or a dedicate
 1. **Prioritization** — append log; summary row → `candidate`.
 2. **Planning** — append log; summary row → `planned`; set chosen scope + user-facing flag.
 3. **Implementation** — append log; summary row → `implemented`; code evidence + test debt.
-3.5. **Docker integration** — `adr-integration-tester` deploys Compose stack, runs live Qdrant pytest + MCP health; required when plan touches deploy/runtime (see plan **Docker integration**).
+3.5. **Docker integration** — `adr-integration-tester` deploys Compose stack, runs live Qdrant pytest + MCP health, and **golden-set quality validation** when the plan marks **Quality validation: required**; optional **Performance report** (bench.py, report-only). **Mandatory deploy every phase**; quality eval is conditional on retrieval-touching work.
 3a–3b. **Review / fix loop** — invoker passes `## Review findings` (`Verdict: needs_fix`) to bug fix; passes `## ADR bug fix report` back to code review. Repeat until `Verdict: clean`. No tracker append during the loop.
 4. **Verification** — when review is clean, apply Tracker append (`verified`); if user-facing, add CHANGELOG `[Unreleased]` bullet when applying the append.
 5. **Git prepare** — feature branch `adr/NNNN-phase-N-<slug>`, grouped conventional commits, push, **PR into `main`**. No tracker append.

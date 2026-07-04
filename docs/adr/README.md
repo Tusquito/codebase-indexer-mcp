@@ -30,6 +30,8 @@ Skip ADRs for routine bug fixes, refactors with no design change, or dependency 
 
 Step agents (`adr-prioritizer`, `adr-orchestrator`, `adr-finisher`, etc.) live in **[`.cursor/agents/`](../../.cursor/agents/)** at **project level only** — versioned with this repository. Do **not** copy them to `~/.cursor/agents/`; the orchestrator and Tasks resolve definitions from `.cursor/agents/<name>.md` in the workspace.
 
+**Pre-release policy:** While the app is in active development, ADR agents do **not** treat backward compatibility as a constraint unless an ADR explicitly requires it. See [`.cursor/agents/project-phase.md`](../../.cursor/agents/project-phase.md). **Docker integration is mandatory for every ADR phase** before code review.
+
 Invoke the full pipeline with **`adr-orchestrator`**; resume a phase with `Resume from: 6` (see [`IMPLEMENTATION_TRACKER.md`](IMPLEMENTATION_TRACKER.md)).
 
 ## Status lifecycle

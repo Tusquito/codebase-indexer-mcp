@@ -40,7 +40,7 @@ State the choice clearly in one or two sentences, then add supporting detail.
 
 ### Default behavior and configuration
 
-- *Default:* unchanged | opt-in | breaking
+- *Default:* unchanged | opt-in | breaking — **pre-release:** prefer the target state from the Decision; no backward-compat requirement unless explicitly stated
 - *Configuration surface:* env vars, flags, compose profiles — or “none”
 
 ### Phased delivery *(optional)*
