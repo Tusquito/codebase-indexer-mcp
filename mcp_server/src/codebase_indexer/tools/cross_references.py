@@ -7,6 +7,7 @@ import re
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
+import structlog
 from fastmcp import FastMCP
 
 from codebase_indexer.config import DEFAULT_SERVICE_URL_KEYWORDS
@@ -16,6 +17,8 @@ from codebase_indexer.telemetry.metrics import observe_tool
 
 if TYPE_CHECKING:
     from codebase_indexer.context import AppContext
+
+log = structlog.get_logger()
 
 
 # ---------------------------------------------------------------------------
@@ -431,21 +434,47 @@ def register_cross_references_tool(mcp: FastMCP, ctx: "AppContext") -> None:
                         "reference_type": extractors.classify_reference(r.content, symbol_name, r.rel_path),
                     })
 
-        # Path D: precise call-site retrieval via indexed callees (Neo4j or Qdrant)
+        # Path D: precise call-site retrieval — Neo4j per graph-ready collection,
+        # Qdrant scroll for Qdrant-only collections in mixed batches.
         if member:
+            neo4j_collections: list[str] = []
+            qdrant_collections: list[str] = list(target_collections)
+
             if graph_storage is not None and graph_storage.enabled:
-                caller_results = await graph_storage.find_callers(
-                    method=member,
-                    collections=target_collections,
-                    receiver=receiver,
-                    limit_per_collection=top_k,
+                neo4j_collections = []
+                qdrant_collections = []
+                for coll in target_collections:
+                    if await storage.collection_has_graph_call_sites(coll):
+                        neo4j_collections.append(coll)
+                    else:
+                        qdrant_collections.append(coll)
+                        log.warning(
+                            "call_site_qdrant_fallback",
+                            collection=coll,
+                            hint=(
+                                "Collection lacks graph_call_sites metadata; "
+                                "re-index with GRAPH_ENABLED=true"
+                            ),
+                        )
+
+            caller_results: list = []
+            if neo4j_collections:
+                caller_results.extend(
+                    await graph_storage.find_callers(
+                        method=member,
+                        collections=neo4j_collections,
+                        receiver=receiver,
+                        limit_per_collection=top_k,
+                    )
                 )
-            else:
-                caller_results = await storage.find_callers_in_collections(
-                    method=member,
-                    collections=target_collections,
-                    receiver=receiver,
-                    limit_per_collection=top_k,
+            if qdrant_collections:
+                caller_results.extend(
+                    await storage.find_callers_in_collections(
+                        method=member,
+                        collections=qdrant_collections,
+                        receiver=receiver,
+                        limit_per_collection=top_k,
+                    )
                 )
             result_by_key = {
                 r["rel_path"] + str(r["start_line"]): r for r in all_results

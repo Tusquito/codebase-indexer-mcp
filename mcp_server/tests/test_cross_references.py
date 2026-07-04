@@ -194,10 +194,12 @@ async def _setup_find_cross_references(
     storage.search = AsyncMock(return_value=[])
     storage.find_symbol_in_collections = AsyncMock(return_value=[])
     storage.find_callers_in_collections = AsyncMock(side_effect=find_callers_in_collections)
+    storage.collection_has_graph_call_sites = AsyncMock(return_value=False)
 
     if graph_storage is not None:
         graph_storage.find_callers = AsyncMock(side_effect=find_callers_graph)
         graph_storage.enabled = True
+        storage.collection_has_graph_call_sites = AsyncMock(return_value=True)
 
     embedder = MagicMock()
     embedder.embed_query = AsyncMock(return_value=([], None, None))
@@ -300,6 +302,58 @@ async def test_find_cross_references_path_d_routes_neo4j_when_graph_enabled():
         receiver=None,
         limit_per_collection=10,
     )
+
+
+@pytest.mark.asyncio
+async def test_find_cross_references_path_d_mixed_batch_routing():
+    """Graph-ready collections use Neo4j; others fall back to Qdrant scroll."""
+    indexed, callees_map = _indexed_java_call_site_fixtures()
+    graph_storage = SimpleNamespace(enabled=True)
+    find_cross_references, storage, graph_storage = await _setup_find_cross_references(
+        indexed, callees_map, graph_storage=graph_storage
+    )
+
+    async def _has_graph(coll: str) -> bool:
+        return coll == "udh-graph"
+
+    storage.collection_has_graph_call_sites = AsyncMock(side_effect=_has_graph)
+
+    await find_cross_references(
+        member="isEnabled",
+        collections=["udh-graph", "udh-legacy"],
+    )
+
+    graph_storage.find_callers.assert_awaited_once_with(
+        method="isEnabled",
+        collections=["udh-graph"],
+        receiver=None,
+        limit_per_collection=10,
+    )
+    storage.find_callers_in_collections.assert_awaited_once_with(
+        method="isEnabled",
+        collections=["udh-legacy"],
+        receiver=None,
+        limit_per_collection=10,
+    )
+
+
+@pytest.mark.asyncio
+async def test_find_cross_references_path_d_graph_enabled_qdrant_fallback():
+    """Graph enabled but collection not re-indexed → Qdrant fallback."""
+    indexed, callees_map = _indexed_java_call_site_fixtures()
+    graph_storage = SimpleNamespace(enabled=True)
+    find_cross_references, storage, graph_storage = await _setup_find_cross_references(
+        indexed, callees_map, graph_storage=graph_storage
+    )
+    storage.collection_has_graph_call_sites = AsyncMock(return_value=False)
+
+    await find_cross_references(
+        member="isEnabled",
+        collections=["udh"],
+    )
+
+    graph_storage.find_callers.assert_not_awaited()
+    storage.find_callers_in_collections.assert_awaited_once()
 
 
 @pytest.mark.asyncio

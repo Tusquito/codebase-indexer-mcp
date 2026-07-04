@@ -128,6 +128,10 @@ class CollectionStats:
     hybrid: bool
     rerank_enabled: bool = False
     colbert_embed_model: str = ""
+    graph_call_sites: bool = False
+
+
+_GRAPH_CALL_SITES_METADATA_KEY = "graph_call_sites"
 
 
 class QdrantStorage:
@@ -399,7 +403,51 @@ class QdrantStorage:
         except Exception as e:
             log.warning("set_indexing_error", collection=collection, enabled=enabled, error=str(e))
 
-    def _build_point(self, ec: EmbeddedChunk) -> PointStruct:
+    @staticmethod
+    def _collection_metadata(info) -> dict:
+        """Read Qdrant collection metadata from a get_collection response."""
+        config = getattr(info, "config", None)
+        if config is not None:
+            meta = getattr(config, "metadata", None)
+            if meta:
+                return dict(meta)
+        return dict(getattr(info, "metadata", None) or {})
+
+    @staticmethod
+    def _metadata_flag_true(value) -> bool:
+        return value is True or value == "true"
+
+    async def set_collection_graph_call_sites(
+        self, collection: str, enabled: bool = True
+    ) -> None:
+        """Stamp collection metadata when graph-backed call-site lookup is active."""
+        client = await self._get_client()
+        await client.update_collection(
+            collection_name=collection,
+            metadata={_GRAPH_CALL_SITES_METADATA_KEY: enabled},
+        )
+        log.info(
+            "collection_graph_call_sites_set",
+            collection=collection,
+            enabled=enabled,
+        )
+
+    async def collection_has_graph_call_sites(self, collection: str) -> bool:
+        """Return True when collection metadata marks Neo4j as call-site engine."""
+        client = await self._get_client()
+        try:
+            info = await client.get_collection(collection)
+        except Exception as e:
+            log.warning(
+                "collection_graph_call_sites_read_error",
+                collection=collection,
+                error=str(e),
+            )
+            return False
+        meta = self._collection_metadata(info)
+        return self._metadata_flag_true(meta.get(_GRAPH_CALL_SITES_METADATA_KEY))
+
+    def _build_point(self, ec: EmbeddedChunk, *, omit_callees: bool = False) -> PointStruct:
         """Build a Qdrant point, converting the numpy dense vector to a list."""
         dense = ec.dense_vector
         # Lazily convert numpy float32 array -> plain list only at send time,
@@ -417,25 +465,33 @@ class QdrantStorage:
             if hasattr(colbert, "tolist"):
                 colbert = colbert.tolist()
             vectors["colbert"] = colbert
+        payload: dict = {
+            "chunk_id": ec.chunk.chunk_id,
+            "rel_path": ec.chunk.rel_path,
+            "language": ec.chunk.language,
+            "start_line": ec.chunk.start_line,
+            "end_line": ec.chunk.end_line,
+            "symbol_name": ec.chunk.symbol_name,
+            "symbol_type": ec.chunk.symbol_type,
+            "content": ec.chunk.content,
+            "file_sha256": ec.chunk.file_sha256,
+            "file_mtime": ec.chunk.file_mtime,
+        }
+        if not omit_callees:
+            payload["callees"] = ec.chunk.callees or []
         return PointStruct(
             id=str(uuid.uuid5(uuid.NAMESPACE_URL, ec.chunk.chunk_id)),
             vector=vectors,
-            payload={
-                "chunk_id": ec.chunk.chunk_id,
-                "rel_path": ec.chunk.rel_path,
-                "language": ec.chunk.language,
-                "start_line": ec.chunk.start_line,
-                "end_line": ec.chunk.end_line,
-                "symbol_name": ec.chunk.symbol_name,
-                "symbol_type": ec.chunk.symbol_type,
-                "callees": ec.chunk.callees or [],
-                "content": ec.chunk.content,
-                "file_sha256": ec.chunk.file_sha256,
-                "file_mtime": ec.chunk.file_mtime,
-            },
+            payload=payload,
         )
 
-    async def upsert_chunks(self, collection: str, embedded_chunks: list[EmbeddedChunk]) -> None:
+    async def upsert_chunks(
+        self,
+        collection: str,
+        embedded_chunks: list[EmbeddedChunk],
+        *,
+        omit_callees: bool = False,
+    ) -> None:
         """Batch upsert chunks with dense + sparse (+ optional ColBERT) vectors.
 
         Builds and sends points in sub-batches (size from settings.upsert_batch)
@@ -451,7 +507,7 @@ class QdrantStorage:
         upsert_batch = self.settings.upsert_batch
         for i in range(0, len(embedded_chunks), upsert_batch):
             batch = [
-                self._build_point(ec)
+                self._build_point(ec, omit_callees=omit_callees)
                 for ec in embedded_chunks[i : i + upsert_batch]
             ]
             last_exc: Exception | None = None
@@ -872,6 +928,7 @@ class QdrantStorage:
                 disk_bytes = getattr(info, "payload_storage_size", None)
                 if disk_bytes is None:
                     disk_bytes = getattr(info, "disk_data_size", 0) or 0
+                meta = self._collection_metadata(info)
                 stats.append(CollectionStats(
                     name=coll.name,
                     vector_count=info.points_count or 0,
@@ -885,6 +942,9 @@ class QdrantStorage:
                         self.settings.colbert_embed_model
                         if self.settings.rerank_enabled
                         else ""
+                    ),
+                    graph_call_sites=self._metadata_flag_true(
+                        meta.get(_GRAPH_CALL_SITES_METADATA_KEY)
                     ),
                 ))
             except Exception as e:
