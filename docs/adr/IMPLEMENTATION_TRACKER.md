@@ -62,6 +62,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0022](0022-gpu-default-cpu-fallback.md) | GPU-default acceleration; CPU only when explicit | Accepted (phase 1 — GPU-default compose + docs) | Phase 1 — GPU-default compose + docs | `merged` | Compose-only `ACCELERATOR=gpu` default; canonical `-f` via `scripts/compose_files.py`; fail-fast `require_gpu()` in integration harness; sparse BM25 unchanged (CPU in MCP); docs/compose updates; 12 unit tests pass; no `.github/workflows/ci.yml` changes. Defer Phase 2 (ColBERT remote GPU default + 0021 P2 baseline), Phase 3 (CI `ACCELERATOR=cpu`, self-hosted GPU smoke, `ollama ps` GPU assertion). [PR #17](https://github.com/Tusquito/codebase-indexer-mcp/pull/17) | 2026-07-04 |
 | [0022](0022-gpu-default-cpu-fallback.md) | GPU-default acceleration; CPU only when explicit | Accepted (phase 1; phase 2 — Retire CPU ColBERT defaults) | Phase 2 — Retire CPU ColBERT defaults | `merged` | Remote GPU sidecar default when `RERANK_ENABLED=true`; explicit onnx for `ACCELERATOR=cpu`; Phase 3 CI split deferred; 368 unit tests pass; integration pass; quality validation threshold 0 self-compare pass; plan compliance pass; review rounds: 1. [PR #19](https://github.com/Tusquito/codebase-indexer-mcp/pull/19) | 2026-07-04 |
 | [0022](0022-gpu-default-cpu-fallback.md) | GPU-default acceleration; CPU only when explicit | Accepted (all phases complete) | Phase 3 — CI split | `merged` | Squash merge [PR #20](https://github.com/Tusquito/codebase-indexer-mcp/pull/20); six ubuntu-latest jobs `ACCELERATOR=cpu`; blocking GHA `compose-integration`; non-blocking self-hosted `gpu-smoke`; `check_ollama_gpu_processor()` in harness; finisher bundled 0021 P3 README + CHANGELOG close-out (`53f68e0`); final ADR 0022 phase complete; test debt: gpu-smoke first run when self-hosted runner available | 2026-07-04 |
+| [0023](0023-neo4j-primary-call-site-lookup.md) | Move call-site lookup from Qdrant callees to Neo4j CALLS | Accepted (phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing) | Phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing | `verified` | `call_token` on CALLS; symbol unification Rules 1–3; `Neo4jStorage.find_callers`; Path D routes Neo4j when `GRAPH_ENABLED` else Qdrant; Qdrant `callees` dual-write retained; `GRAPH_SCHEMA_VERSION=2`; defer Phases 2–4; 383 unit tests pass; integration pass; quality validation threshold 0 pass; plan compliance pass; review rounds: 1; test debt: live Neo4j parity fixture, unified-symbol Cypher traversal, mixed-collection per-engine routing (Phase 2) | 2026-07-04 |
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
 
@@ -1261,6 +1262,55 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 - **Git:** pending
 - **Changelog:** no — user-facing unknown
 
+### ADR 0023 — Move call-site lookup from Qdrant callees to Neo4j CALLS
+
+#### 2026-07-04 — verification
+- **Phase / PR:** Phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing
+- **Tracker status:** `verified`
+- **Review rounds:** 1
+- **Choices:** `call_token` on CALLS; symbol unification Rules 1–3; Path D routes Neo4j when `GRAPH_ENABLED` else Qdrant; Qdrant `callees` dual-write retained; `GRAPH_SCHEMA_VERSION=2`; defer Phases 2–4 and live Neo4j test debt
+- **Deviations:** none
+- **Code evidence:** `graph_writer.py`, `neo4j.py`, `cross_references.py`, `config.py`, `test_graph_writer.py`, `test_neo4j_storage.py`, `test_cross_references.py`, `test_config.py`, `docs/ARCHITECTURE.md`, `.env.example`
+- **Test debt:** live Neo4j parity fixture; unified-symbol Cypher traversal; mixed-collection per-engine routing (Phase 2)
+- **Verify:** 383 unit tests pass; integration pass; quality validation threshold 0 pass; plan compliance pass
+- **Git:** pending
+- **Changelog:** no — user-facing no; invoker Changelog: no
+
+#### 2026-07-04 — implementation
+- **Phase / PR:** Phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing
+- **Tracker status:** `implemented`
+- **Choices:** Accepted ADR 0023 (partial Phase 1) before code; symbol unification Rules 1–3 (exact `Symbol.name` → qualified import fallback → stub); `call_token` on CALLS; `Neo4jStorage.find_callers`; Path D dual-read (Neo4j when `GRAPH_ENABLED`, else Qdrant); Qdrant `callees` dual-write retained; `GRAPH_SCHEMA_VERSION=2` + re-index note in `.env.example`; no CHANGELOG
+- **Deviations:** none
+- **Code evidence:** `graph_writer.py`, `neo4j.py`, `cross_references.py`, `config.py`, `docker-compose.neo4j.yml`, `.env.example`, `docs/ARCHITECTURE.md`, `docs/adr/0023-neo4j-primary-call-site-lookup.md`, `docs/adr/README.md`, `test_graph_writer.py`, `test_neo4j_storage.py`, `test_cross_references.py`, `test_config.py`
+- **Test debt:** live Neo4j parity fixture; unified-symbol Cypher traversal; mixed-collection routing
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing no; invoker Changelog: no
+
+#### 2026-07-04 — plan
+- **Phase / PR:** Phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing
+- **Tracker status:** `planned`
+- **Choices:** Accept ADR 0023 (Proposed → Accepted partial Phase 1) as **first PR task** before code changes; symbol unification: exact `Symbol.name` → qualified import fallback → stub on ambiguity; Phase 1 only — exclude ADR 0002 Phase 3 `expand_search_context` and 0023 Phases 2–4; re-index messaging in PR body + `.env.example` only; no CHANGELOG at this phase
+- **Assumptions:** ADR 0002 Phase 1 prerequisite satisfied; default `GRAPH_ENABLED=false` unchanged; CI uses mock Neo4j driver; quality validation report-only (threshold 0); Java inherited-field fixtures in `test_cross_references.py` are parity oracle
+- **Chosen scope:** Persist `call_token` on every `(Chunk)-[:CALLS]->(Symbol)` edge; symbol unification MERGE to DEFINES symbol when resolvable (exact `Symbol.name` match in same collection, qualified import match as fallback, keep stub when ambiguous); add `Neo4jStorage.find_callers(method, receiver, collections, limit)` matching `QdrantStorage.find_callers_in_collections` shape; `find_cross_references` Path D routes to Neo4j when `GRAPH_ENABLED=true`, else Qdrant scroll; parity tests (Qdrant vs Neo4j on Java/Spring fixtures) + graph-disabled regression; keep Qdrant `callees` dual-write; bump `GRAPH_SCHEMA_VERSION` to 2 with re-index documented in PR body + `.env.example` (no CHANGELOG)
+- **Deviations:** none
+- **Code evidence:** —
+- **Test debt:** parity tests (Qdrant vs Neo4j on Java/Spring fixtures) + graph-disabled regression; `test_cross_references.py` Java inherited-field fixtures as parity oracle
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing no; invoker Changelog: no
+
+#### 2026-07-04 — prioritization
+- **Phase / PR:** Phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing
+- **Tracker status:** `candidate`
+- **Choices:** Prioritizer ranked ADR 0023 Phase 1 (score ~26) over alternatives: 0002 Phase 3 `expand_search_context` (~24), 0017 Phase 2 truncation observability (~23), 0002 Phase 2 Qdrant `graph_node_ids` (~22); single phase per pipeline rule; pre-release: no backward-compat shrink. **Why now:** ADR 0022 all phases merged (GPU-default arc complete); ADR 0002 Phase 1 shipped Neo4j graph writer with CALLS edges but no caller query path; Qdrant `callees` payload duplicates graph data when `GRAPH_ENABLED=true`; call-site lookup is structural edge query — Neo4j is natural authority; unlocks multi-hop graph queries before ADR 0002 Phase 4. **Chosen scope:** `call_token` on CALLS relationships; symbol unification (CALLS target merges with DEFINES symbol when resolvable); `Neo4jStorage.find_callers` Cypher query; dual-engine routing in `cross_references.py` (Neo4j when graph enabled, Qdrant scroll fallback); parity tests; keep Qdrant `callees` dual-write (Phase 2 retires payload); bump `GRAPH_SCHEMA_VERSION` + graph re-index required. **Human gate resolved 2026-07-04:** (1) Accept ADR 0023 before planning; (2) symbol unification — exact `Symbol.name` match same-collection, qualified import fallback, keep stubs when ambiguous; (3) Phase 1 only, no 0002 P3 combine; (4) re-index messaging in PR body + `.env.example` comment, no CHANGELOG until user-facing phase. **Suggested scope:** one phase (= one PR).
+- **Deviations:** none
+- **Code evidence:** —
+- **Test debt:** —
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing unknown; invoker Changelog: no
+
 ---
 
 ## How to update
@@ -1609,3 +1659,16 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-04 | 0022 | Phase 3 test debt (post-merge) | gpu-smoke first run when self-hosted runner available | no |
 | 2026-07-04 | 0021 | Accept ADR 0021 all phases at merge? | **Accepted (all phases complete)** via bundled finisher docs commit `53f68e0` in [PR #20](https://github.com/Tusquito/codebase-indexer-mcp/pull/20) | no |
 | 2026-07-04 | 0021 | Phase 3 bundled close-out confirmed | Finisher bundled README index + CHANGELOG full update in docs commit `53f68e0`; release skipped | no |
+| 2026-07-04 | 0023 | Accept ADR 0023 (Proposed → Accepted) before dev? | **Decided at prioritization** — Accept ADR 0023 before planning (first PR task) | no |
+| 2026-07-04 | 0023 | Symbol unification heuristic for CALLS→DEFINES merge? | **Decided at prioritization** — exact `Symbol.name` match same-collection; qualified import fallback; keep stubs when ambiguous | no |
+| 2026-07-04 | 0023 | Combine ADR 0023 Phase 1 with ADR 0002 Phase 3? | **Decided at prioritization** — Phase 1 only; no 0002 P3 combine | no |
+| 2026-07-04 | 0023 | Re-index messaging and CHANGELOG timing? | **Decided at prioritization** — re-index messaging in PR body + `.env.example` comment; no CHANGELOG until user-facing phase | no |
+| 2026-07-04 | 0023 | Prioritize 0023 P1 over 0002 P3, 0017 P2, 0002 P2? | **Prioritized** at 2026-07-04 prioritization — 0023 P1 `candidate` (score ~26); single phase per pipeline rule | no |
+| 2026-07-04 | 0023 | Pre-release backward-compat policy for graph schema bump? | **Decided at prioritization** — no backward-compat shrink; bump `GRAPH_SCHEMA_VERSION` + graph re-index required | no |
+| 2026-07-04 | 0023 | Qdrant `callees` dual-write in Phase 1? | **Decided at prioritization** — keep Qdrant `callees` dual-write; Phase 2 retires payload | no |
+| 2026-07-04 | 0023 | Phase 1 open decisions (post-prioritization) | **None** — human gate cleared 2026-07-04 | no |
+| 2026-07-04 | 0023 | Accept ADR 0023 (Proposed → Accepted partial Phase 1) before dev? | **Decided at plan** — first PR task before code changes | no |
+| 2026-07-04 | 0023 | Phase 1 open decisions (post-plan) | **None** — plan step 2026-07-04 | no |
+| 2026-07-04 | 0023 | Phase 1 verification complete? | **Verified** at 2026-07-04 verification — 383 unit tests pass; integration pass; quality validation threshold 0 pass; plan compliance pass; tracker `verified`; awaiting merge | no |
+| 2026-07-04 | 0023 | Phase 1 verification review rounds? | **1** review round at verification | no |
+| 2026-07-04 | 0023 | Phase 1 test debt (post-verification) | live Neo4j parity fixture; unified-symbol Cypher traversal; mixed-collection per-engine routing (Phase 2) | no |
