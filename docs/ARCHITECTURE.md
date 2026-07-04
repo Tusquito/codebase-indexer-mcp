@@ -34,6 +34,7 @@ Each direct subdirectory of `/workspace` is one **collection** (indexed project)
 | stdio proxy | `mcp_server/src/codebase_indexer/stdio_proxy.py` | Optional fallback: runs in a separate `codeindexer_proxy` sidecar; forwards JSON-RPC from stdin/stdout to the HTTP server — no model reload per session. Primary clients (e.g. Cursor) connect via HTTP URL instead. |
 | Cron job | `cron/reindex.py` | Daily git pull + incremental `index_codebase` for changed repos |
 | Benchmark | `mcp_server/benchmarks/bench.py` | Async harness for indexing/search latency and payload-index A/B comparison |
+| Stack tuner *(proposed)* | `scripts/tune_stack.py` ([ADR 0024](adr/0024-resource-aware-stack-tuner.md)) | Allocates compose RSS/CPU from host budget and searches pipeline knobs for best index/search speed |
 
 ## Configuration
 
@@ -111,7 +112,8 @@ The `Embedder` facade in `indexer/embedder.py` orchestrates backends; factory wi
 `mcp_server/src/codebase_indexer/storage/qdrant.py` — `QdrantStorage` class.
 
 - **Collections**: one per project folder; hybrid dense + sparse vectors when `HYBRID_SEARCH=true`; optional `colbert` multivector when `RERANK_ENABLED=true`
-- **Payload**: `chunk_id`, `rel_path`, `content`, `symbol_name`, `symbol_type`, `language`, line range, `file_sha256`, `file_mtime`, `callees`
+- **Payload**: `chunk_id`, `rel_path`, `content`, `symbol_name`, `symbol_type`, `language`, line range, `file_sha256`, `file_mtime`, `callees` (omitted when graph indexing is active — see GraphRAG below)
+- **Collection metadata**: `graph_call_sites: true` stamped on collections indexed with `GRAPH_ENABLED=true` ([ADR 0023](adr/0023-neo4j-primary-call-site-lookup.md) Phase 2); drives per-collection Path D routing in `find_cross_references`
 - **Indexes**: optional keyword payload indexes (`PAYLOAD_INDEXES`) on `rel_path`, `chunk_id`, `symbol_name`, `language`, `callees`
 - **Tuning**: `VECTORS_ON_DISK`, `SPARSE_ON_DISK`, `QUANTIZATION`, `MEMMAP_THRESHOLD_KB`
 - **Search**: hybrid RRF via `query_points` + `Fusion.RRF`, or dense-only when hybrid disabled; optional ColBERT MAX_SIM rerank over prefetch pool ([ADR 0008](adr/0008-optional-colbert-reranking.md))
@@ -171,7 +173,9 @@ Optional Neo4j-backed code graph linked to Qdrant chunk IDs for vector→graph r
 
 **Phase 1 (shipped):** index-time graph writer — `storage/neo4j.py`, `indexer/graph_writer.py`, pipeline hooks mirroring Qdrant flush/delete cadence. Ontology: `Collection`, `File`, `Chunk`, `Symbol`, `Endpoint`, `Artifact` with relationships `IN_COLLECTION`, `IN_FILE`, `DEFINES`, `IMPORTS`, `CALLS`, `DECLARES_ENDPOINT`, `HTTP_CALLS`, `CONFIGURES`, `BUILD_DEPENDS`, `RESOLVES_TO`. Shared link: Qdrant payload `chunk_id` = Neo4j `Chunk.chunk_id`. ADR 0023 Phase 1 adds `call_token` on `CALLS` edges, symbol unification with `DEFINES`, and Neo4j-backed Path D call-site lookup in `find_cross_references` when `GRAPH_ENABLED=true`. Re-index after graph writer changes.
 
-**Path D (call-site lookup):** When `member` is set, `find_cross_references` resolves caller chunks via `Neo4jStorage.find_callers` (Cypher on `CALLS.call_token`) if the graph is enabled; otherwise Qdrant keyword scroll on the `callees` payload ([ADR 0023](adr/0023-neo4j-primary-call-site-lookup.md)).
+**ADR 0023 Phase 2 (shipped):** when `GRAPH_ENABLED=true`, indexing omits `callees` from Qdrant payloads (Neo4j `CALLS` is authoritative) and stamps collection metadata `graph_call_sites: true`. Full re-index required when enabling graph on existing collections or toggling graph mode.
+
+**Path D (call-site lookup):** When `member` is set, `find_cross_references` routes per collection: Neo4j `CALLS.call_token` Cypher for collections with `graph_call_sites` metadata; Qdrant keyword scroll on `callees` for Qdrant-only collections or when `GRAPH_ENABLED=false`. Mixed batches partition engines; graph-enabled deployments log a warning and fall back to Qdrant scroll for collections not yet re-indexed with graph ([ADR 0023](adr/0023-neo4j-primary-call-site-lookup.md)).
 
 **Deploy with Neo4j:**
 

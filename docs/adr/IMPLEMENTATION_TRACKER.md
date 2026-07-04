@@ -63,6 +63,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0022](0022-gpu-default-cpu-fallback.md) | GPU-default acceleration; CPU only when explicit | Accepted (phase 1; phase 2 — Retire CPU ColBERT defaults) | Phase 2 — Retire CPU ColBERT defaults | `merged` | Remote GPU sidecar default when `RERANK_ENABLED=true`; explicit onnx for `ACCELERATOR=cpu`; Phase 3 CI split deferred; 368 unit tests pass; integration pass; quality validation threshold 0 self-compare pass; plan compliance pass; review rounds: 1. [PR #19](https://github.com/Tusquito/codebase-indexer-mcp/pull/19) | 2026-07-04 |
 | [0022](0022-gpu-default-cpu-fallback.md) | GPU-default acceleration; CPU only when explicit | Accepted (all phases complete) | Phase 3 — CI split | `merged` | Squash merge [PR #20](https://github.com/Tusquito/codebase-indexer-mcp/pull/20); six ubuntu-latest jobs `ACCELERATOR=cpu`; blocking GHA `compose-integration`; non-blocking self-hosted `gpu-smoke`; `check_ollama_gpu_processor()` in harness; finisher bundled 0021 P3 README + CHANGELOG close-out (`53f68e0`); final ADR 0022 phase complete; test debt: gpu-smoke first run when self-hosted runner available | 2026-07-04 |
 | [0023](0023-neo4j-primary-call-site-lookup.md) | Move call-site lookup from Qdrant callees to Neo4j CALLS | Accepted (phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing) | Phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing | `merged` | `call_token` on CALLS; symbol unification Rules 1–3; `Neo4jStorage.find_callers`; Path D routes Neo4j when `GRAPH_ENABLED` else Qdrant; Qdrant `callees` dual-write retained; re-index on graph writer changes (removed `GRAPH_SCHEMA_VERSION` pre-1.0); defer Phases 2–4; 383 unit tests pass; integration pass; quality validation threshold 0 pass; plan compliance pass; review rounds: 1; test debt: live Neo4j parity fixture, unified-symbol Cypher traversal, mixed-collection per-engine routing (Phase 2). [PR #21](https://github.com/Tusquito/codebase-indexer-mcp/pull/21) | 2026-07-04 |
+| [0023](0023-neo4j-primary-call-site-lookup.md) | Move call-site lookup from Qdrant callees to Neo4j CALLS | Accepted (phase 1; phase 2 — Stop dual-write to Qdrant) | Phase 2 — Stop dual-write to Qdrant | `verified` | Reused `graph_call_sites` metadata; per-collection Path D routing; Qdrant fallback + warning; retain callees index until Phase 3; 391 unit tests pass; integration pass; plan compliance pass; review rounds: 2; test debt: Testcontainers slow test optional CI job; defer Phases 3–4 and ADR 0002 Phase 2 `graph_node_ids`; awaiting merge | 2026-07-04 |
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
 
@@ -79,7 +80,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 | 0017 | Phase 1 — loader + Ollama backend ([PR #11](https://github.com/Tusquito/codebase-indexer-mcp/pull/11)) | Phase 2 observability + ADR 0011 body edit |
 | 0018 | Phase 1 — Application Prometheus metrics (MCP + ColBERT worker) ([PR #13](https://github.com/Tusquito/codebase-indexer-mcp/pull/13)) | Phase 2 OTel traces; Phase 3 observability compose stack; `METRICS_PORT`, docker-compose scrape wiring |
 | 0020 | Phase 1 — Dataset + training pipeline ([PR #15](https://github.com/Tusquito/codebase-indexer-mcp/pull/15)) | Phases 2–4 cancelled per [ADR 0021](0021-revert-jina-production-default-retire-qwen3.md) (fine-tune gate failed path) |
-| 0023 | Phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing ([PR #21](https://github.com/Tusquito/codebase-indexer-mcp/pull/21)) | Phases 2–4 (stop Qdrant dual-write, retire callees index, optional CALLS_RESOLVED edges) |
+| 0023 | Phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing ([PR #21](https://github.com/Tusquito/codebase-indexer-mcp/pull/21)); Phase 2 — Stop dual-write to Qdrant (verified 2026-07-04, awaiting merge) | Phases 3–4 (retire callees keyword index, optional CALLS_RESOLVED edges) |
 
 ---
 
@@ -1265,6 +1266,53 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 
 ### ADR 0023 — Move call-site lookup from Qdrant callees to Neo4j CALLS
 
+#### 2026-07-04 — verification
+- **Phase / PR:** Phase 2 — Stop dual-write to Qdrant
+- **Tracker status:** `verified`
+- **Review rounds:** 2
+- **Choices:** Reused `graph_call_sites` metadata; per-collection Path D routing; Qdrant fallback + warning; retain callees index until Phase 3
+- **Deviations:** none
+- **Code evidence:** `qdrant.py`, `pipeline.py`, `cross_references.py`, test files, `ARCHITECTURE.md`, `.env.example`, `CHANGELOG.md`
+- **Test debt:** Testcontainers slow test optional CI job
+- **Verify:** tests run + plan compliance pass; `cd mcp_server && uv run pytest -q` — 391 passed; Docker integration pass
+- **Git:** pending
+- **Changelog:** yes — user-facing; bullet already in `[Unreleased]` from implementation
+
+#### 2026-07-04 — implementation
+- **Phase / PR:** Phase 2 — Stop dual-write to Qdrant
+- **Tracker status:** `implemented`
+- **Choices:** Reused Qdrant collection metadata key `graph_call_sites`; per-collection Path D engine partition; Qdrant fallback + warning; retained `callees` keyword index until Phase 3; no `GRAPH_SCHEMA_VERSION` env
+- **Deviations:** none
+- **Code evidence:** `mcp_server/src/codebase_indexer/storage/qdrant.py`, `mcp_server/src/codebase_indexer/indexer/pipeline.py`, `mcp_server/src/codebase_indexer/tools/cross_references.py`, `mcp_server/tests/test_qdrant_graph_call_sites.py`, `mcp_server/tests/test_cross_references.py`, `mcp_server/tests/test_pipeline_graph.py`, `mcp_server/tests/test_neo4j_call_site_integration.py`, `docs/ARCHITECTURE.md`, `.env.example`, `CHANGELOG.md`
+- **Test debt:** Testcontainers integration test marked `slow` — optional CI job with Docker
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing yes; status `implemented` (not verified); invoker Changelog: yes; bullet already in `[Unreleased]` from implementation
+
+#### 2026-07-04 — plan
+- **Phase / PR:** Phase 2 — Stop dual-write to Qdrant
+- **Tracker status:** `planned`
+- **Choices:** Per-collection engine selection for mixed batches; Testcontainers Neo4j integration test in Phase 2; `[Unreleased]` CHANGELOG bullet in Phase 2; reuse Qdrant collection metadata key `graph_call_sites`; single PR per phase; pre-release: no `GRAPH_SCHEMA_VERSION` env; retain `callees` keyword index until Phase 3
+- **Assumptions:** Phase 1 merged ([PR #21](https://github.com/Tusquito/codebase-indexer-mcp/pull/21)); quality validation report-only (threshold 0); no new env vars
+- **Chosen scope:** Omit `callees` from Qdrant upsert when `GRAPH_ENABLED=true` during indexing; stamp Qdrant collection metadata `graph_call_sites: true` on successful graph-indexed runs; per-collection Path D engine selection in `find_cross_references` (Neo4j for graph-ready collections, Qdrant scroll for Qdrant-only collections in mixed batches); Qdrant fallback + warning when graph enabled but collection not re-indexed; unit tests + Testcontainers Neo4j caller-query parity fixture; document forced re-index in `ARCHITECTURE.md` and `.env.example`; `[Unreleased]` CHANGELOG bullet; Docker integration required; defer Phases 3–4 and ADR 0002 Phase 2 `graph_node_ids`
+- **Deviations:** none
+- **Code evidence:** —
+- **Test debt:** Testcontainers Neo4j caller-query parity fixture; mixed-collection per-engine routing
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — draft at verify; invoker Changelog: yes; user-facing yes
+
+#### 2026-07-04 — prioritization
+- **Phase / PR:** Phase 2 — Stop dual-write to Qdrant
+- **Tracker status:** `candidate`
+- **Choices:** Prioritize 0023 Phase 2 over 0002 Phase 2 (tie-breaker: lower scope/risk); single phase per pipeline rule. **Why now:** Phase 1 merged 2026-07-04 ([PR #21](https://github.com/Tusquito/codebase-indexer-mcp/pull/21)); `call_token`, `Neo4jStorage.find_callers`, and Path D Neo4j routing exist; Qdrant still dual-writes `callees`; ADR and tracker explicitly defer payload retirement to Phase 2; prerequisites satisfied. **Chosen scope:** Omit `callees` from Qdrant upsert when `GRAPH_ENABLED=true` for graph-indexed collections; add/reuse collection metadata flag (`graph_call_sites` or `graph_enabled`); per-collection engine routing in `find_cross_references` Path D for mixed batches; unit/integration tests; Testcontainers Neo4j parity fixture; document forced re-index; `[Unreleased]` CHANGELOG bullet; Docker integration required. **Suggested scope:** one phase (= one PR). **Human gate resolved 2026-07-04:** (1) per-collection engine selection for mixed batches; (2) Testcontainers Neo4j fixture in Phase 2; (3) CHANGELOG bullet in Phase 2.
+- **Deviations:** none
+- **Code evidence:** —
+- **Test debt:** —
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing unknown; invoker Changelog: no
+
 #### 2026-07-04 — merge
 - **Phase / PR:** Phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing — [PR #21](https://github.com/Tusquito/codebase-indexer-mcp/pull/21)
 - **Tracker status:** `merged`
@@ -1687,3 +1735,18 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-04 | 0023 | Accept ADR 0023 phase 1 at merge? | **Skipped** — unchanged `Accepted (phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing)` | no |
 | 2026-07-04 | 0023 | Phase 1 merge confirmed | [PR #21](https://github.com/Tusquito/codebase-indexer-mcp/pull/21) merged on `adr/0023-phase-1-neo4j-call-site-lookup` (`963f041df73ac6e1fbb05287debe4bccdd91526d`); release skipped; Phases 2–4 deferred | no |
 | 2026-07-04 | 0023 | Remove `GRAPH_SCHEMA_VERSION` env var? | **Decided at maintainer request** — removed config/compose/metadata; pre-release policy: re-index after graph writer changes only; ADR 0023 + project-phase updated | no |
+| 2026-07-04 | 0023 | Per-collection engine selection for mixed batches in Path D? | **Decided at prioritization** — per-collection engine routing in `find_cross_references` Path D for mixed batches (Phase 2 scope) | no |
+| 2026-07-04 | 0023 | Testcontainers Neo4j parity fixture in Phase 2? | **Decided at prioritization** — yes; Testcontainers Neo4j parity fixture in Phase 2 scope | no |
+| 2026-07-04 | 0023 | CHANGELOG bullet timing for Phase 2? | **Decided at prioritization** — `[Unreleased]` CHANGELOG bullet in Phase 2 scope | no |
+| 2026-07-04 | 0023 | Prioritize 0023 Phase 2 over 0002 Phase 2? | **Prioritized** at 2026-07-04 prioritization — 0023 P2 `candidate`; tie-breaker: lower scope/risk | no |
+| 2026-07-04 | 0023 | Phase 2 open decisions (post-prioritization) | **None** — human gate cleared 2026-07-04 | no |
+| 2026-07-04 | 0023 | Reuse `graph_call_sites` collection metadata key? | **Decided at plan** — reuse Qdrant collection metadata key `graph_call_sites` | no |
+| 2026-07-04 | 0023 | Retain `callees` keyword index until Phase 3? | **Decided at plan** — retain `callees` keyword index until Phase 3 | no |
+| 2026-07-04 | 0023 | `GRAPH_SCHEMA_VERSION` env in Phase 2? | **Decided at plan** — no `GRAPH_SCHEMA_VERSION` env (pre-release) | no |
+| 2026-07-04 | 0023 | Defer ADR 0002 Phase 2 `graph_node_ids`? | **Decided at plan** — defer ADR 0002 Phase 2 `graph_node_ids` | no |
+| 2026-07-04 | 0023 | Phase 2 open decisions (post-plan) | **None** — plan step 2026-07-04 | no |
+| 2026-07-04 | 0023 | Phase 2 implementation complete? | **Implemented** at 2026-07-04 implementation — tracker `implemented`; awaiting verification | no |
+| 2026-07-04 | 0023 | Phase 2 test debt (post-implementation) | Testcontainers integration test marked `slow` — optional CI job with Docker | no |
+| 2026-07-04 | 0023 | Phase 2 verification complete? | **Verified** at 2026-07-04 verification — 391 unit tests pass; integration pass; plan compliance pass; tracker `verified`; awaiting merge | no |
+| 2026-07-04 | 0023 | Phase 2 verification review rounds? | **2** review rounds at verification | no |
+| 2026-07-04 | 0023 | Phase 2 test debt (post-verification) | Testcontainers slow test optional CI job | no |

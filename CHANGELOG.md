@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Graph call-site lookup (ADR 0023 Phase 2)** — when `GRAPH_ENABLED=true`, indexing omits `callees` from Qdrant payloads and stamps `graph_call_sites: true` collection metadata; `find_cross_references` Path D routes per collection (Neo4j for graph-ready collections, Qdrant scroll for others); force re-index when enabling graph on existing collections
 - **Golden-set eval baseline** ([ADR 0021](docs/adr/0021-revert-jina-production-default-retire-qwen3.md)) — committed Jina @768 GPU eval baseline (`eval_baseline.json`) aligned with production defaults; frozen `eval_baseline_jina.json` gate reference preserved
 - **CI accelerator split** ([ADR 0022](docs/adr/0022-gpu-default-cpu-fallback.md)) — GitHub Actions `ubuntu-latest` jobs set `ACCELERATOR=cpu` explicitly; blocking `compose-integration` validates the CPU stack; optional non-blocking `gpu-smoke` on self-hosted GPU runners exercises the full GPU compose path
 - **Qwen3 experimental preset only** ([ADR 0021](docs/adr/0021-revert-jina-production-default-retire-qwen3.md)) — [ADR 0016](docs/adr/0016-qwen3-embedding-default-dense-model.md) default policy superseded; Qwen3 @1024 and [ADR 0020](docs/adr/0020-qwen3-code-finetune-jina-quality-gate.md) fine-tune track documented as opt-in/cancelled, not production default
