@@ -29,6 +29,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -49,6 +50,8 @@ SERVICES = ("qdrant", "ollama", "mcp_server")
 QDRANT_URL = "http://127.0.0.1:6333"
 MCP_HEALTH_URL = "http://127.0.0.1:8000/health"
 OLLAMA_URL = "http://127.0.0.1:11434"
+OLLAMA_CONTAINER = "codeindexer_ollama"
+JINA_OLLAMA_MODEL = "unclemusclez/jina-embeddings-v2-base-code"
 
 # Host-side pytest/smoke must match compose Jina preset — not developer .env.
 _INTEGRATION_EMBED_ENV = {
@@ -164,6 +167,71 @@ def wait_http(url: str, *, attempts: int = 30, interval: float = 2.0) -> tuple[b
         last = msg
         time.sleep(interval)
     return False, last
+
+
+def ollama_ps_shows_gpu(ps_output: str) -> bool:
+    """True when ``ollama ps`` lists a loaded model with GPU in PROCESSOR."""
+    data_lines = [
+        line
+        for line in ps_output.splitlines()
+        if line.strip() and not line.upper().startswith("NAME")
+    ]
+    if not data_lines:
+        return False
+    return any("gpu" in line.lower() for line in data_lines)
+
+
+def check_ollama_gpu_processor(
+    *,
+    embed_model: str = JINA_OLLAMA_MODEL,
+    ollama_container: str = OLLAMA_CONTAINER,
+    ollama_url: str = OLLAMA_URL,
+    run_cmd: Callable[..., subprocess.CompletedProcess] | None = None,
+    embed_fn: Callable[[str, str], tuple[bool, str]] | None = None,
+) -> tuple[bool, str]:
+    """Pull Jina, embed once, assert ``ollama ps`` reports GPU processor (ADR 0022 P3)."""
+    runner = run_cmd or _run
+    embed = embed_fn or _ollama_embed
+
+    pull = runner(
+        ["docker", "exec", ollama_container, "ollama", "pull", embed_model],
+    )
+    if pull.returncode != 0:
+        detail = (pull.stderr or pull.stdout or "ollama pull failed").strip()
+        return False, detail[-2000:]
+
+    ok, detail = embed(ollama_url, embed_model)
+    if not ok:
+        return False, f"embed failed: {detail}"
+
+    ps = runner(["docker", "exec", ollama_container, "ollama", "ps"])
+    if ps.returncode != 0:
+        detail = (ps.stderr or ps.stdout or "ollama ps failed").strip()
+        return False, detail[-2000:]
+
+    ps_out = (ps.stdout or "") + (ps.stderr or "")
+    if ollama_ps_shows_gpu(ps_out):
+        return True, ps_out.strip()[-2000:]
+    return False, f"PROCESSOR not GPU:\n{ps_out.strip()[-2000:]}"
+
+
+def _ollama_embed(ollama_url: str, model: str) -> tuple[bool, str]:
+    payload = json.dumps({"model": model, "input": "gpu integration probe"}).encode()
+    req = urllib.request.Request(
+        f"{ollama_url}/api/embed",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            body = resp.read(500).decode("utf-8", errors="replace")
+            return True, body[:200]
+    except urllib.error.HTTPError as exc:
+        err_body = exc.read(500).decode("utf-8", errors="replace")
+        return False, f"HTTP {exc.code}: {err_body}"
+    except Exception as exc:
+        return False, str(exc)
 
 
 def run_pytest_integration() -> tuple[bool, str]:
@@ -376,6 +444,7 @@ def main() -> int:
         "qdrant_health": {"status": "pending", "detail": ""},
         "mcp_health": {"status": "pending", "detail": ""},
         "ollama_health": {"status": "pending", "detail": ""},
+        "ollama_gpu_processor": {"status": "pending", "detail": ""},
         "pytest_integration": {"status": "pending", "detail": ""},
         "smoke_recommend": {"status": "pending", "detail": ""},
         "quality_validation": {"required": args.quality_validation, "status": "skipped", "checks": {}},
@@ -429,6 +498,19 @@ def main() -> int:
             "detail": detail if ok else detail,
         }
 
+        accelerator = get_accelerator()
+        if accelerator == "gpu":
+            ok, detail = check_ollama_gpu_processor()
+            report["ollama_gpu_processor"] = {
+                "status": "pass" if ok else "fail",
+                "detail": detail,
+            }
+        else:
+            report["ollama_gpu_processor"] = {
+                "status": "skipped",
+                "detail": f"ACCELERATOR={accelerator}",
+            }
+
         ok, detail = run_pytest_integration()
         report["pytest_integration"] = {"status": "pass" if ok else "fail", "detail": detail}
 
@@ -463,6 +545,8 @@ def main() -> int:
             report[k]["status"] in ("pass", "skipped")
             for k in ("deploy", "qdrant_health", "mcp_health", "pytest_integration")
         )
+        if get_accelerator() == "gpu":
+            required_ok = required_ok and report["ollama_gpu_processor"]["status"] == "pass"
         if args.quality_validation:
             required_ok = required_ok and report["quality_validation"]["status"] == "pass"
         report["verdict"] = "pass" if required_ok else "fail"
