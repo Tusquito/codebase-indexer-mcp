@@ -23,6 +23,7 @@ jobs:
           --health-retries 20
     env:
       QDRANT_URL: http://localhost:6333
+      ACCELERATOR: cpu
     steps:
       - uses: actions/checkout@v4
 
@@ -64,6 +65,7 @@ jobs:
           --health-retries 20
     env:
       QDRANT_URL: http://localhost:6333
+      ACCELERATOR: cpu
     steps:
       - uses: actions/checkout@v4
 
@@ -111,6 +113,7 @@ jobs:
           --health-retries 20
     env:
       QDRANT_URL: http://localhost:6333
+      ACCELERATOR: cpu
     steps:
       - uses: actions/checkout@v4
 
@@ -144,6 +147,8 @@ jobs:
     # Non-blocking: validates the MCP Docker image builds successfully.
     runs-on: ubuntu-latest
     continue-on-error: true
+    env:
+      ACCELERATOR: cpu
     steps:
       - uses: actions/checkout@v4
 
@@ -154,8 +159,55 @@ jobs:
     # Non-blocking: validates the GPU ColBERT sidecar Dockerfile builds.
     runs-on: ubuntu-latest
     continue-on-error: true
+    env:
+      ACCELERATOR: cpu
     steps:
       - uses: actions/checkout@v4
 
       - name: Build ColBERT GPU sidecar image
         run: docker build -f colbert_worker/Dockerfile.gpu -t colbert-worker-gpu ./mcp_server
+
+  compose-integration:
+    # Blocking: full Docker Compose stack on CPU (ADR 0022 — sole CI CPU exception).
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      ACCELERATOR: cpu
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        working-directory: mcp_server
+        run: uv sync --extra dev
+
+      - name: Run compose integration (CPU stack)
+        run: python scripts/run_compose_integration.py --json
+
+  gpu-smoke:
+    # Non-blocking: real GPU stack smoke on self-hosted runner (ADR 0022 Phase 3).
+    runs-on: [self-hosted, gpu]
+    continue-on-error: true
+    timeout-minutes: 45
+    env:
+      ACCELERATOR: gpu
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        working-directory: mcp_server
+        run: uv sync --extra dev
+
+      - name: Run compose integration (GPU stack)
+        run: python scripts/run_compose_integration.py --json

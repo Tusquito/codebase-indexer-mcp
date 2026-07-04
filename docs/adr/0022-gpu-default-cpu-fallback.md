@@ -1,6 +1,6 @@
 # 0022. GPU-default acceleration; CPU only when explicit
 
-- **Status:** Accepted (phase 1 — GPU-default compose + docs; phase 2 — Retire CPU ColBERT defaults)
+- **Status:** Accepted (phase 1 — GPU-default compose + docs; phase 2 — Retire CPU ColBERT defaults; phase 3 — CI split)
 - **Date:** 2026-07-04
 - **Deciders:** Maintainers
 - **Related:** [0011](0011-ollama-only-dense-embedding.md) — Ollama dense + in-process sparse; [0015](0015-colbert-http-sidecar.md) — ColBERT sidecar + GPU worker; [0016](0016-qwen3-embedding-default-dense-model.md) — GPU throughput assumptions; [0021](0021-revert-jina-production-default-retire-qwen3.md) — Jina production default; [0020](0020-qwen3-code-finetune-jina-quality-gate.md) — maintainer GPU training

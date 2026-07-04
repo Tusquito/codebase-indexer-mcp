@@ -355,3 +355,31 @@ Full workflow: [`mcp_server/benchmarks/train/README.md`](../mcp_server/benchmark
 
 **Production default is Jina** — keep `OLLAMA_EMBED_MODEL=unclemusclez/jina-embeddings-v2-base-code` in `.env` ([ADR 0021](adr/0021-revert-jina-production-default-retire-qwen3.md)).
 
+## Continuous integration ([ADR 0022](adr/0022-gpu-default-cpu-fallback.md) Phase 3)
+
+GitHub Actions (`.github/workflows/ci.yml`) is the **sole supported CPU exception** for this repository: every `ubuntu-latest` job sets `ACCELERATOR=cpu` explicitly. Production defaults assume GPU; CI never relies on silent CPU fallback.
+
+| Job | Runner | `ACCELERATOR` | Gates merge? |
+|-----|--------|---------------|--------------|
+| `test` | `ubuntu-latest` | `cpu` | yes |
+| `compose-integration` | `ubuntu-latest` | `cpu` | yes — full Docker Compose stack via `scripts/run_compose_integration.py --json` (45 min timeout) |
+| `benchmark` | `ubuntu-latest` | `cpu` | no (`continue-on-error`) |
+| `eval-retrieval` | `ubuntu-latest` | `cpu` | no |
+| `docker-image` | `ubuntu-latest` | `cpu` | no |
+| `colbert-gpu-image` | `ubuntu-latest` | `cpu` | no |
+| `gpu-smoke` | `[self-hosted, gpu]` | `gpu` | no — real GPU stack smoke; `ollama ps` GPU assertion when runner available |
+
+**Blocking compose integration** runs the same harness as local pre-PR validation on the CPU stack (`ACCELERATOR=cpu`): deploy Qdrant + bundled Ollama + MCP, health checks, and `tests/test_storage_integration.py`. The GPU processor check is skipped in CPU mode.
+
+**Optional GPU smoke** on a self-hosted NVIDIA runner exercises the production path (`ACCELERATOR=gpu`): the harness pulls Jina, runs a probe embed, and asserts `docker exec codeindexer_ollama ollama ps` shows `GPU` in `PROCESSOR`. Failures do not block merges.
+
+Local maintainer validation before review:
+
+```bash
+# CPU path (matches GHA compose-integration)
+ACCELERATOR=cpu python scripts/run_compose_integration.py --json
+
+# GPU path (matches gpu-smoke when NVIDIA + Container Toolkit present)
+ACCELERATOR=gpu python scripts/run_compose_integration.py --json
+```
+
