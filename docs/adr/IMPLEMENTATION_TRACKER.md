@@ -57,6 +57,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0018](0018-telemetry-observability-otel-prometheus.md) | Adopt OpenTelemetry instrumentation with Prometheus metrics and optional OTLP export | Accepted (phase 1 — Application Prometheus metrics (MCP + ColBERT worker)) | Phase 1 — Application Prometheus metrics (MCP + ColBERT worker) | `merged` | Opt-in `METRICS_ENABLED=false` default; `prometheus_client` on dedicated `CollectorRegistry`; metrics-only `@observe_tool` on all MCP tool handlers; no collection/rel_path labels; application counters/histograms + truncation counter; index metrics via IndexJobTracker; `GET /metrics` on MCP and ColBERT worker HTTP layer; unit tests (`test_telemetry_metrics.py`); `DEPLOYMENT.md` scrape docs; defer `METRICS_PORT`, docker-compose scrape wiring, Phase 2 OTel traces, Phase 3 observability compose stack; [PR #13](https://github.com/Tusquito/codebase-indexer-mcp/pull/13) | 2026-07-03 |
 | [0020](0020-qwen3-code-finetune-jina-quality-gate.md) | Fine-tune Qwen3 for code retrieval with Jina quality gate | Accepted (phase 1 — Dataset + training pipeline) | Phase 1 — Dataset + training pipeline | `merged` | Shipped: `mcp_server/benchmarks/train/` (`export_golden_pairs.py`, `mine_hard_negatives.py`, `finetune_qwen3_code.py`, `_schema.py`, `_split.py`, `_positives.py`, `README.md`); optional `[train]` pyproject extra isolated from runtime/CI; default validation holdout = all four `multi_hop` golden queries; hard-negative mining via base Qwen3 hybrid `run_search` (rerank off); LoRA via PEFT + sentence-transformers (TripletLoss when all pairs have mined negatives, else MnRL in-batch); outputs under `benchmarks/train/outputs/` gitignored; unit tests (export/split/mining + `test_finetune_mrr.py`); `DEPLOYMENT.md` training stub. Deviations: `resolve_positive_passage` (singular); single-pass checkpoint save (baseline + final val MRR in `train_summary.json`) vs per-epoch best (documented at verification). Defer Ollama export/registry (P2), Jina quality gate + baseline update (P3), CI observation job (P4); no Docker/runtime/registry changes; [PR #15](https://github.com/Tusquito/codebase-indexer-mcp/pull/15) | 2026-07-03 |
 | [0021](0021-revert-jina-production-default-retire-qwen3.md) | Revert default dense embedder to Jina code; retire Qwen3 as production default | Accepted (phase 1 — Config + docs revert) | Phase 1 — Config + docs revert | `merged` | Jina production default @ 768 in env/bench/compose/docs; Qwen3 experimental preset (−63.1% recall@10); `OLLAMA_EMBED_MODEL` uncommented in `.env.example` REQUIRED; compose Jina pull manual-only; `config.py` Qwen3 registry/MRL retained; ADR index housekeeping in Phase 1 scope; defer Phase 2 (`eval_baseline.json`); CHANGELOG full update Phase 3; test debt: `smoke_recommend` dim mismatch until Phase 2 re-index; [PR #16](https://github.com/Tusquito/codebase-indexer-mcp/pull/16) | 2026-07-03 |
+| [0022](0022-gpu-default-cpu-fallback.md) | GPU-default acceleration; CPU only when explicit | Accepted (phase 1 — GPU-default compose + docs) | Phase 1 — GPU-default compose + docs | `verified` | Compose-only `ACCELERATOR=gpu` default; canonical `-f` via `scripts/compose_files.py`; fail-fast `require_gpu()` in integration harness; sparse BM25 unchanged (CPU in MCP); docs/compose updates; 12 unit tests pass; no `.github/workflows/ci.yml` changes. Defer Phase 2 (ColBERT remote GPU default + 0021 P2 baseline), Phase 3 (CI `ACCELERATOR=cpu`, self-hosted GPU smoke, `ollama ps` GPU assertion). | 2026-07-04 |
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
 
@@ -74,6 +75,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 | 0018 | Phase 1 — Application Prometheus metrics (MCP + ColBERT worker) ([PR #13](https://github.com/Tusquito/codebase-indexer-mcp/pull/13)) | Phase 2 OTel traces; Phase 3 observability compose stack; `METRICS_PORT`, docker-compose scrape wiring |
 | 0020 | Phase 1 — Dataset + training pipeline ([PR #15](https://github.com/Tusquito/codebase-indexer-mcp/pull/15)) | Phases 2–4 cancelled per [ADR 0021](0021-revert-jina-production-default-retire-qwen3.md) (fine-tune gate failed path) |
 | 0021 | Phase 1 — Config + docs revert ([PR #16](https://github.com/Tusquito/codebase-indexer-mcp/pull/16)) | Phase 2 — Eval baseline refresh; Phase 3 — ADR housekeeping + CHANGELOG full update |
+| 0022 | Phase 1 — GPU-default compose + docs (pending PR) | Phase 2 (ColBERT remote GPU default + 0021 P2 baseline); Phase 3 (CI `ACCELERATOR=cpu`, self-hosted GPU smoke, `ollama ps` GPU assertion) |
 
 ---
 
@@ -1018,6 +1020,53 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 - **Git:** pending
 - **Changelog:** no — user-facing unknown
 
+### ADR 0022 — GPU-default acceleration; CPU only when explicit
+
+#### 2026-07-04 — verification
+- **Phase / PR:** Phase 1 — GPU-default compose + docs
+- **Tracker status:** `verified`
+- **Review rounds:** 1
+- **Choices:** Compose-only `ACCELERATOR=gpu` default; canonical `-f` via `scripts/compose_files.py`; fail-fast `require_gpu()`; sparse BM25 unchanged; CI/`ollama ps` deferred Phase 3; ColBERT remote GPU default deferred Phase 2
+- **Deviations:** none
+- **Code evidence:** `scripts/accelerator.py`, `scripts/compose_files.py`, `scripts/run_compose_integration.py`, `.env.example`, `README.md`, `docs/DEPLOYMENT.md`, `docs/ARCHITECTURE.md`, docker-compose GPU overrides, `mcp_server/tests/test_accelerator.py`, `mcp_server/tests/test_compose_files.py`
+- **Test debt:** `ollama ps` GPU assertion; CI `ACCELERATOR=cpu` — Phase 3
+- **Verify:** 12 unit tests pass; plan compliance pass; integration verdict pass
+- **Git:** pending
+- **Changelog:** yes — user-facing; bullet added at `verified`
+
+#### 2026-07-04 — implementation
+- **Phase / PR:** Phase 1 — GPU-default compose + docs
+- **Tracker status:** `implemented`
+- **Choices:** Accepted ADR 0022 partial Phase 1 in same PR; `ACCELERATOR=gpu` default via compose-only env; canonical `-f` list in `scripts/compose_files.py`; fail-fast `require_gpu()` in integration harness; sparse BM25 unchanged (CPU in MCP); no `ci.yml` changes (Phase 3)
+- **Deviations:** none
+- **Code evidence:** `scripts/accelerator.py`, `scripts/compose_files.py`, `scripts/run_compose_integration.py`, `.env.example`, `README.md`, `docs/DEPLOYMENT.md`, `docs/ARCHITECTURE.md`, docker-compose files, `.github/copilot-instructions.md`, `mcp_server/tests/test_compose_files.py`, `mcp_server/tests/test_accelerator.py`, `docs/adr/0022-gpu-default-cpu-fallback.md`, `docs/adr/README.md`
+- **Test debt:** `ollama ps` GPU assertion and CI `ACCELERATOR=cpu` deferred to Phase 3
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing yes; status `implemented` (not verified); invoker Changelog: no
+
+#### 2026-07-04 — plan
+- **Phase / PR:** Phase 1 — GPU-default compose + docs
+- **Tracker status:** `planned`
+- **Choices:** Accept ADR 0022 (Proposed → Accepted, partial Phase 1) + README index row (next-number → 0023) are **first tasks in this phase PR**, before code changes. Phase 1 does not modify `.github/workflows/ci.yml`. After 0022 P1 merge, next cycle is 0021 P2 then 0022 P2. Pre-release: breaking GPU default; sparse BM25 stays in-process CPU. **Chosen scope:** `ACCELERATOR=gpu` default; new `scripts/compose_files.py` + `scripts/accelerator.py` (`require_gpu()`); merge GPU compose overrides by default; update `.env.example`, `README.md`, `docs/DEPLOYMENT.md`, `docs/ARCHITECTURE.md`, compose header comments; wire `scripts/run_compose_integration.py` to GPU stack; unit tests (`test_compose_files.py`, `test_accelerator.py`). Defer Phase 2 (ColBERT remote GPU default + 0021 P2 baseline), Phase 3 (CI `ACCELERATOR=cpu`, self-hosted GPU smoke, `ollama ps` GPU assertion). **Assumptions:** NVIDIA + Container Toolkit on maintainer integration host; integration harness keeps `RERANK_ENABLED=false`.
+- **Deviations:** none
+- **Code evidence:** —
+- **Test debt:** unit tests (`test_compose_files.py`, `test_accelerator.py`)
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing yes; draft at verified
+
+#### 2026-07-04 — prioritization
+- **Phase / PR:** Phase 1 — GPU-default compose + docs
+- **Tracker status:** `candidate`
+- **Choices:** Prioritize 0022 P1 over 0021 P2 (Accepted, eval baseline still Qwen3 — sequenced after GPU compose default per ADR 0022); over 0002 P2 GraphRAG payload linking (large re-index, embed stable but topology wrong); over 0018 P2 OTel traces (ops increment, lower immediate deploy impact); over 0019 P1 YAML tracker (meta-tooling, score ~20.5); over cancelled 0020 P2–4; single phase per pipeline rule; pre-release: breaking GPU default acceptable, no CPU parallel default preservation. **Chosen scope:** Phase 1 only — `ACCELERATOR=gpu` default; `scripts/compose_files.py` + `scripts/accelerator.py`; merge GPU compose overrides by default; update `.env.example`, `README.md`, `docs/DEPLOYMENT.md`; wire `scripts/run_compose_integration.py`; unit tests (`test_compose_files.py`, `require_gpu()`); CI jobs set explicit `ACCELERATOR=cpu`. Defer Phase 2 (ColBERT remote GPU default + 0021 P2 baseline) and Phase 3 (self-hosted GPU CI smoke). Requires formal Accept of Proposed ADR 0022 and README index row before dev. **Why now:** GPU infra from ADR 0015 P2 and Jina defaults from ADR 0021 P1 are merged, but deploy/eval/integration still CPU-opt-in (`OLLAMA_GPU`, no `ACCELERATOR`, CPU-only `run_compose_integration.py` compose list). ADR 0022 P1 establishes production topology and fail-fast before 0021 P2 GPU baseline capture. Pre-release policy accepts breaking GPU defaults. **Suggested scope:** one phase (= one PR).
+- **Deviations:** none
+- **Code evidence:** —
+- **Test debt:** unit tests (`test_compose_files.py`, `require_gpu()`)
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing unknown
+
 ---
 
 ## How to update
@@ -1271,3 +1320,20 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-03 | 0020 | Phase 1 verification complete? | **Verified** at 2026-07-03 verification — tracker `verified`; 17 scoped unit tests pass; plan compliance pass (documented checkpoint deviation); ready for git/merge | no |
 | 2026-07-03 | 0020 | Accept ADR 0020 phase 1 at merge? | **Accepted (phase 1 — Dataset + training pipeline)** after [PR #15](https://github.com/Tusquito/codebase-indexer-mcp/pull/15) merge | no |
 | 2026-07-03 | 0020 | Phase 1 merge confirmed | [PR #15](https://github.com/Tusquito/codebase-indexer-mcp/pull/15) merged on `adr/0020-phase-1-qwen3-code-finetune` (squash `02b8794`; 6 commits); release skipped; Phases 2–4 deferred (Ollama export/registry P2, Jina quality gate P3, CI observation P4) | no |
+| 2026-07-04 | 0022 | Accept ADR 0022 (Proposed → Accepted) before dev? | **Decided at plan** — first PR tasks (partial Phase 1 Accept) before code changes | no |
+| 2026-07-04 | 0022 | Add ADR 0022 to `docs/adr/README.md` index? | **Decided at plan** — first PR task; next-number row → 0023 | no |
+| 2026-07-04 | 0022 | Cycle after P1 merge: 0021 P2 vs 0022 P2 ordering? | **Decided at plan** — 0021 P2 then 0022 P2 after 0022 P1 merge | no |
+| 2026-07-04 | 0022 | Phase 1 CI workflow changes? | **Decided at plan** — no `.github/workflows/ci.yml` changes in Phase 1; CI `ACCELERATOR=cpu` deferred to Phase 3 | no |
+| 2026-07-04 | 0022 | Sparse BM25 acceleration posture? | **Decided at plan** — stays in-process CPU (not GPU-accelerated) | no |
+| 2026-07-04 | 0022 | Integration harness rerank posture? | **Assumed at plan** — `RERANK_ENABLED=false`; NVIDIA + Container Toolkit on maintainer integration host | no |
+| 2026-07-04 | 0022 | Self-hosted GPU CI smoke? | Deferred to Phase 3 per prioritization | no |
+| 2026-07-04 | 0022 | Prioritize 0022 P1 over 0021 P2, 0002 P2, 0018 P2, 0019 P1, cancelled 0020 P2–4? | **Prioritized** at 2026-07-04 prioritization — 0022 P1 `candidate`; pre-release breaking GPU default acceptable; no CPU parallel default preservation | no |
+| 2026-07-04 | 0022 | Pre-release breaking GPU default policy? | **Decided at prioritization** — breaking GPU default acceptable; no CPU parallel default preservation | no |
+| 2026-07-04 | 0022 | Accept ADR 0022 partial Phase 1 in same PR? | **Decided at implementation** — Accepted in same PR as Phase 1 code | no |
+| 2026-07-04 | 0022 | `ACCELERATOR=gpu` default mechanism? | **Decided at implementation** — compose-only env (not MCP runtime config) | no |
+| 2026-07-04 | 0022 | Canonical compose `-f` list location? | **Decided at implementation** — `scripts/compose_files.py` | no |
+| 2026-07-04 | 0022 | Integration harness GPU enforcement? | **Decided at implementation** — fail-fast `require_gpu()` in `scripts/run_compose_integration.py` | no |
+| 2026-07-04 | 0022 | Phase 1 implementation complete? | **Implemented** at 2026-07-04 implementation — tracker `implemented`; awaiting verification | no |
+| 2026-07-04 | 0022 | Phase 1 test debt | `ollama ps` GPU assertion and CI `ACCELERATOR=cpu` deferred to Phase 3 | no |
+| 2026-07-04 | 0022 | Phase 1 verification complete? | **Verified** at 2026-07-04 verification — 12 unit tests pass; plan compliance pass; integration verdict pass; tracker `verified`; awaiting merge | no |
+| 2026-07-04 | 0022 | Phase 1 verification review rounds? | **1** review round at verification | no |
