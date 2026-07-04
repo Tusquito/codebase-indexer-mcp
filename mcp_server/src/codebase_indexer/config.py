@@ -313,6 +313,12 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
+    def default_remote_colbert_when_rerank_enabled(self) -> Self:
+        if self.rerank_enabled and "colbert_embed_backend" not in self.model_fields_set:
+            object.__setattr__(self, "colbert_embed_backend", "remote")
+        return self
+
+    @model_validator(mode="after")
     def validate_colbert_embed_backend(self) -> Self:
         if self.colbert_embed_backend not in ("onnx", "remote"):
             raise ValueError(

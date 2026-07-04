@@ -583,7 +583,7 @@ Requires **full re-index** when enabling. See [DEPLOYMENT.md](docs/DEPLOYMENT.md
 | `COLBERT_EMBED_MODEL` | `colbert-ir/colbertv2.0` | Late-interaction model |
 | `RERANK_PREFETCH` | `100` | Hybrid candidate pool size before rerank |
 | `RERANK_MAX_QUERY_TOKENS` | `0` | Query token cap (`0` = model registry default) |
-| `COLBERT_EMBED_BACKEND` | `onnx` | `onnx` (in-process) or `remote` (HTTP sidecar) |
+| `COLBERT_EMBED_BACKEND` | `remote` when `RERANK_ENABLED=true`, else `onnx` | `remote` (GPU sidecar default) or `onnx` (in-process; `ACCELERATOR=cpu` only) |
 | `COLBERT_URL` | `http://colbert_worker:8082` | Sidecar URL when `COLBERT_EMBED_BACKEND=remote` |
 | `COLBERT_TIMEOUT` | `300` | Sidecar HTTP timeout (seconds) |
 | `COLBERT_EMBED_BATCH_SIZE` | `16` | ColBERT embed batch size |

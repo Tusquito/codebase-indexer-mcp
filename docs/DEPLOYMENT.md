@@ -159,9 +159,11 @@ The MCP upsert path retries up to **5 times** with exponential backoff on transi
 
 See [SEARCH_BEHAVIOR.md](SEARCH_BEHAVIOR.md#optional-colbert-reranking-rerank_enabledtrue) for search-path details.
 
-### ColBERT GPU sidecar
+### ColBERT GPU sidecar (default when rerank on)
 
-Optional GPU acceleration for the ColBERT HTTP sidecar ([ADR 0015](adr/0015-colbert-http-sidecar.md) phase 2). The MCP container stays on CPU fastembed/onnxruntime; only the sidecar image swaps to `fastembed-gpu` + `onnxruntime-gpu==1.26.0` via `colbert_worker/Dockerfile.gpu`. The GPU runtime stage copies CUDA 12 + cuDNN 9 libraries from `nvidia/cuda:12.6.3-cudnn-runtime-ubuntu22.04` into the slim Python image (required for ORT's CUDA execution provider).
+When `RERANK_ENABLED=true`, `COLBERT_EMBED_BACKEND` defaults to **`remote`** and `compose_files.py` merges the ColBERT sidecar compose files ([ADR 0022](adr/0022-gpu-default-cpu-fallback.md) phase 2). With `ACCELERATOR=gpu` (default), the GPU sidecar image (`colbert_worker/Dockerfile.gpu`) is used automatically — fastembed-gpu + `onnxruntime-gpu==1.26.0`, with CUDA 12 + cuDNN 9 libraries copied from `nvidia/cuda:12.6.3-cudnn-runtime-ubuntu22.04`. The MCP container stays on CPU fastembed/onnxruntime for sparse BM25 only.
+
+For **explicit CPU-only** hosts (`ACCELERATOR=cpu`), set `COLBERT_EMBED_BACKEND=onnx` for in-process ColBERT in MCP, or keep `remote` with the CPU sidecar image (no `.gpu.yml` merge). See [ADR 0015](adr/0015-colbert-http-sidecar.md) (superseded default policy: [ADR 0022](adr/0022-gpu-default-cpu-fallback.md)).
 
 Requires NVIDIA driver + [Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html).
 
@@ -169,7 +171,7 @@ Requires NVIDIA driver + [Container Toolkit](https://docs.nvidia.com/datacenter/
 
 ```env
 RERANK_ENABLED=true
-COLBERT_EMBED_BACKEND=remote
+# COLBERT_EMBED_BACKEND=remote  # default when rerank on
 COLBERT_GPU=1
 COLBERT_GPU_COUNT=1
 # Optional: pin sidecar to specific GPU(s) when multiple are visible

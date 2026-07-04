@@ -77,7 +77,7 @@ flowchart LR
 
 - **Dense**: Ollama HTTP (`OLLAMA_EMBED_MODEL`, `OLLAMA_URL`)
 - **Sparse**: fastembed BM25 (`SPARSE_EMBED_MODEL`) on CPU
-- **ColBERT** (optional): multivector late-interaction when `RERANK_ENABLED=true` — in-process ONNX (`colbert_onnx.py`) or HTTP sidecar (`colbert_remote.py`, [ADR 0015](adr/0015-colbert-http-sidecar.md))
+- **ColBERT** (optional): multivector late-interaction when `RERANK_ENABLED=true` — **remote GPU sidecar by default** (`colbert_remote.py`, [ADR 0015](adr/0015-colbert-http-sidecar.md), [ADR 0022](adr/0022-gpu-default-cpu-fallback.md)); in-process ONNX (`colbert_onnx.py`) only under `ACCELERATOR=cpu` with explicit `COLBERT_EMBED_BACKEND=onnx`
 - Sparse model singleton; `release_models_after_index` and `model_idle_timeout` reclaim RAM
 - Cgroup memory guard (`memory.py`) for indexing pressure
 
@@ -94,7 +94,7 @@ flowchart LR
 |-------|--------|-------|
 | Dense Ollama | `indexer/backends/ollama_dense.py` | HTTP `/api/embed`; MRL `dimensions` for Qwen3 when below native size; orchestrated by `Embedder` facade |
 | Sparse BM25 | `indexer/backends/onnx_sparse.py` | In-process CPU; `SPARSE_THREADS` required in `.env` |
-| ColBERT (opt-in) | `indexer/backends/colbert_onnx.py`, `colbert_remote.py` | Multivector at index time when `RERANK_ENABLED=true`; MAX_SIM rerank at query time |
+| ColBERT (opt-in) | `indexer/backends/colbert_remote.py`, `colbert_onnx.py` | Multivector at index time when `RERANK_ENABLED=true`; remote GPU sidecar default; in-process ONNX for `ACCELERATOR=cpu` only |
 | Truncation | `indexer/truncation.py`, `indexer/tokenizer_loader.py` | Dense: model tokenizer from `DENSE_EMBED_MODEL` via `tokenizers` (Ollama path); sparse/ColBERT: FastEmbed cache tokenizer; caps via `MAX_DENSE_EMBED_TOKENS` / `MAX_SPARSE_EMBED_TOKENS` |
 
 Dense embedding is Ollama-only ([ADR 0011](adr/0011-ollama-only-dense-embedding.md), [ADR 0001](adr/0001-pluggable-embed-backends.md) superseded for backend selection). Default dense model is **Jina Embeddings v2 base code** at 768 dimensions ([ADR 0021](adr/0021-revert-jina-production-default-retire-qwen3.md)); Qwen3 remains an optional experimental preset ([ADR 0016](adr/0016-qwen3-embedding-default-dense-model.md)). **GPU-default compose** ([ADR 0022](adr/0022-gpu-default-cpu-fallback.md)): bundled Ollama and ColBERT sidecar use NVIDIA GPU by default via `scripts/compose_files.py`; sparse BM25 stays **CPU in-process** for all accelerator modes.

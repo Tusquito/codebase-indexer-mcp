@@ -28,11 +28,19 @@ def _truthy(value: str | None) -> bool:
     return value.strip().lower() in ("1", "true", "yes", "on")
 
 
+def _resolve_colbert_backend(env: Mapping[str, str]) -> str:
+    explicit = env.get("COLBERT_EMBED_BACKEND")
+    if explicit is not None and explicit.strip():
+        return explicit.strip().lower()
+    if _truthy(env.get("RERANK_ENABLED")):
+        return "remote"
+    return "onnx"
+
+
 def _colbert_sidecar_enabled(env: Mapping[str, str]) -> bool:
     if not _truthy(env.get("RERANK_ENABLED")):
         return False
-    backend = (env.get("COLBERT_EMBED_BACKEND") or "onnx").strip().lower()
-    return backend == "remote"
+    return _resolve_colbert_backend(env) == "remote"
 
 
 def compose_file_args(

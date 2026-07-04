@@ -131,12 +131,12 @@ Index-time: a third multivector field `colbert` is stored on each point (HNSW di
 | `RERANK_MAX_QUERY_TOKENS` | `0` | Query truncation; `0` = registry default |
 | `RERANK_ADAPTIVE_ENABLED` | `true` | Probe hybrid RRF scores before ColBERT (when rerank on) |
 | `RERANK_ADAPTIVE_GAP` | `0.02` | Skip ColBERT when rank-1 minus rank-2 RRF gap ≥ threshold |
-| `COLBERT_EMBED_BACKEND` | `onnx` | `onnx` (in MCP) or `remote` (HTTP sidecar) |
+| `COLBERT_EMBED_BACKEND` | `remote` when rerank on | `remote` (GPU sidecar default) or `onnx` (in MCP; `ACCELERATOR=cpu` only) |
 | `COLBERT_URL` | `http://colbert_worker:8082` | Sidecar base URL when `remote` |
 | `COLBERT_TIMEOUT` | `300` | Per-request HTTP timeout (seconds) |
 | `COLBERT_EMBED_BATCH_SIZE` | `16` | MCP → sidecar batch size |
 
-When `COLBERT_EMBED_BACKEND=remote`, ColBERT model weights and inference run in the `colbert_worker` container (see `docker-compose.colbert-worker.yml`). MCP still holds returned multivectors per flush batch until upsert — the sidecar removes ColBERT **model and compute** RAM from MCP, not the upsert payload. Switching `onnx` ↔ `remote` with the same `COLBERT_EMBED_MODEL` does **not** require re-index.
+When `COLBERT_EMBED_BACKEND=remote` (default when `RERANK_ENABLED=true`), ColBERT model weights and inference run in the `colbert_worker` container (merged by `compose_files.py`; GPU image when `ACCELERATOR=gpu`). MCP still holds returned multivectors per flush batch until upsert — the sidecar removes ColBERT **model and compute** RAM from MCP, not the upsert payload. Switching `onnx` ↔ `remote` with the same `COLBERT_EMBED_MODEL` does **not** require re-index.
 
 ### Index-time tuning (upsert batch size)
 
