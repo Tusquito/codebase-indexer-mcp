@@ -45,6 +45,63 @@ def callee_qualified_name(collection: str, callee: str) -> str:
     return f"{collection}::callee::{callee}"
 
 
+@dataclass(frozen=True)
+class _DefineEntry:
+    """One DEFINES symbol candidate for call-target resolution."""
+
+    qualified_name: str
+    rel_path: str
+    name: str
+    kind: str
+
+
+def resolve_call_target(
+    call_token: str,
+    collection: str,
+    rel_path: str,
+    defines_by_name: dict[str, list[_DefineEntry]],
+    file_imports: list[str],
+) -> tuple[str, str]:
+    """Resolve CALLS target symbol (qualified_name, display name).
+
+    Rule 1: exact ``Symbol.name`` in same collection — unify when unique.
+    Rule 2: qualified import fallback when Rule 1 is ambiguous/zero and token has a dot.
+    Rule 3: stub ``{collection}::callee::{token}`` when still ambiguous.
+    """
+    del rel_path  # reserved for future file-scoped heuristics
+
+    entries = defines_by_name.get(call_token, [])
+    if len(entries) == 1:
+        e = entries[0]
+        return e.qualified_name, e.name
+
+    if "." not in call_token:
+        return callee_qualified_name(collection, call_token), call_token
+
+    receiver, method = call_token.rsplit(".", 1)
+
+    entries = defines_by_name.get(method, [])
+    if len(entries) == 1:
+        e = entries[0]
+        return e.qualified_name, e.name
+
+    matching_imports = [imp for imp in file_imports if imp.lower() == receiver.lower()]
+    if matching_imports:
+        filtered = [
+            e
+            for e in defines_by_name.get(method, [])
+            if any(
+                imp.lower() in e.rel_path.lower() or imp.lower() in e.qualified_name.lower()
+                for imp in matching_imports
+            )
+        ]
+        if len(filtered) == 1:
+            e = filtered[0]
+            return e.qualified_name, e.name
+
+    return callee_qualified_name(collection, call_token), call_token
+
+
 def artifact_key(group: str, name: str, ecosystem: str) -> str:
     """Stable Artifact key across collections."""
     return f"{ecosystem}:{group}:{name}" if group else f"{ecosystem}:{name}"
@@ -115,6 +172,22 @@ def build_graph_batch(
     for chunk in chunks:
         by_file.setdefault(chunk.rel_path, []).append(chunk)
 
+    defines_by_name: dict[str, list[_DefineEntry]] = {}
+    for chunk in chunks:
+        if not chunk.symbol_name:
+            continue
+        qn = symbol_qualified_name(collection, chunk.rel_path, chunk.symbol_name)
+        defines_by_name.setdefault(chunk.symbol_name, []).append(
+            _DefineEntry(
+                qualified_name=qn,
+                rel_path=chunk.rel_path,
+                name=chunk.symbol_name,
+                kind=chunk.symbol_type,
+            )
+        )
+
+    imports_by_file: dict[str, list[str]] = {}
+
     seen_files: set[str] = set()
     seen_build_keys: set[str] = set()
 
@@ -152,11 +225,26 @@ def build_graph_batch(
                 )
 
             for callee in chunk.callees:
+                if rel_path not in imports_by_file:
+                    file_content = _read_file_content(workspace_path, rel_path)
+                    if file_content is None:
+                        file_content = "\n".join(c.content for c in file_chunks)
+                    imports_by_file[rel_path] = extract_file_import_names(
+                        file_content, first.language
+                    )
+                qn, sym_name = resolve_call_target(
+                    callee,
+                    collection,
+                    rel_path,
+                    defines_by_name,
+                    imports_by_file[rel_path],
+                )
                 batch.calls.append(
                     {
                         "chunk_id": chunk.chunk_id,
-                        "qualified_name": callee_qualified_name(collection, callee),
-                        "name": callee,
+                        "qualified_name": qn,
+                        "name": sym_name,
+                        "call_token": callee,
                     }
                 )
 
