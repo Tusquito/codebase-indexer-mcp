@@ -59,6 +59,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0021](0021-revert-jina-production-default-retire-qwen3.md) | Revert default dense embedder to Jina code; retire Qwen3 as production default | Accepted (phase 1 — Config + docs revert) | Phase 1 — Config + docs revert | `merged` | Jina production default @ 768 in env/bench/compose/docs; Qwen3 experimental preset (−63.1% recall@10); `OLLAMA_EMBED_MODEL` uncommented in `.env.example` REQUIRED; compose Jina pull manual-only; `config.py` Qwen3 registry/MRL retained; ADR index housekeeping in Phase 1 scope; defer Phase 2 (`eval_baseline.json`); CHANGELOG full update Phase 3; test debt: `smoke_recommend` dim mismatch until Phase 2 re-index; [PR #16](https://github.com/Tusquito/codebase-indexer-mcp/pull/16) | 2026-07-03 |
 | [0021](0021-revert-jina-production-default-retire-qwen3.md) | Revert default dense embedder to Jina code; retire Qwen3 as production default | Accepted (phase 1; phase 2 — Eval baseline refresh) | Phase 2 — Eval baseline refresh | `merged` | GPU Jina @768 live baseline committed (`eval_baseline.json`; `ACCELERATOR=gpu`, `RERANK_ENABLED=false`); pre-commit gate vs `eval_baseline_jina.json` failed (recall@10 0.263 vs 0.660 — golden alias drift, not embedder regression); post-commit Docker self-compare pass; frozen `eval_baseline_jina.json` preserved; scanner `.venv*` prune + golden alias fixes; `_settings.py` `ollama_embed_model` default; defer golden label realignment, pre-commit recall gate CI, optional `eval_multihop` CI gate; Phase 3 (CHANGELOG/ADR index housekeeping); [PR #18](https://github.com/Tusquito/codebase-indexer-mcp/pull/18) | 2026-07-04 |
 | [0022](0022-gpu-default-cpu-fallback.md) | GPU-default acceleration; CPU only when explicit | Accepted (phase 1 — GPU-default compose + docs) | Phase 1 — GPU-default compose + docs | `merged` | Compose-only `ACCELERATOR=gpu` default; canonical `-f` via `scripts/compose_files.py`; fail-fast `require_gpu()` in integration harness; sparse BM25 unchanged (CPU in MCP); docs/compose updates; 12 unit tests pass; no `.github/workflows/ci.yml` changes. Defer Phase 2 (ColBERT remote GPU default + 0021 P2 baseline), Phase 3 (CI `ACCELERATOR=cpu`, self-hosted GPU smoke, `ollama ps` GPU assertion). [PR #17](https://github.com/Tusquito/codebase-indexer-mcp/pull/17) | 2026-07-04 |
+| [0022](0022-gpu-default-cpu-fallback.md) | GPU-default acceleration; CPU only when explicit | Accepted (phase 1 — GPU-default compose + docs; phase 2 — Retire CPU ColBERT defaults) | Phase 2 — Retire CPU ColBERT defaults | `verified` | Remote GPU sidecar default when `RERANK_ENABLED=true`; explicit onnx for `ACCELERATOR=cpu`; Phase 3 CI split deferred; 368 unit tests pass; integration pass; quality validation threshold 0 self-compare pass; plan compliance pass; review rounds: 1 | 2026-07-04 |
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
 
@@ -76,7 +77,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 | 0018 | Phase 1 — Application Prometheus metrics (MCP + ColBERT worker) ([PR #13](https://github.com/Tusquito/codebase-indexer-mcp/pull/13)) | Phase 2 OTel traces; Phase 3 observability compose stack; `METRICS_PORT`, docker-compose scrape wiring |
 | 0020 | Phase 1 — Dataset + training pipeline ([PR #15](https://github.com/Tusquito/codebase-indexer-mcp/pull/15)) | Phases 2–4 cancelled per [ADR 0021](0021-revert-jina-production-default-retire-qwen3.md) (fine-tune gate failed path) |
 | 0021 | Phase 1 — Config + docs revert ([PR #16](https://github.com/Tusquito/codebase-indexer-mcp/pull/16)); Phase 2 — Eval baseline refresh ([PR #18](https://github.com/Tusquito/codebase-indexer-mcp/pull/18)) | Phase 3 — ADR housekeeping + CHANGELOG full update |
-| 0022 | Phase 1 — GPU-default compose + docs ([PR #17](https://github.com/Tusquito/codebase-indexer-mcp/pull/17)) | Phase 2 (ColBERT remote GPU default; 0021 P2 baseline merged); Phase 3 (CI `ACCELERATOR=cpu`, self-hosted GPU smoke, `ollama ps` GPU assertion) |
+| 0022 | Phase 1 — GPU-default compose + docs ([PR #17](https://github.com/Tusquito/codebase-indexer-mcp/pull/17)); Phase 2 — Retire CPU ColBERT defaults (`verified`) | Phase 3 (CI `ACCELERATOR=cpu`, self-hosted GPU smoke, `ollama ps` GPU assertion) |
 
 ---
 
@@ -1079,6 +1080,52 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 
 ### ADR 0022 — GPU-default acceleration; CPU only when explicit
 
+#### 2026-07-04 — verification
+- **Phase / PR:** Phase 2 — Retire CPU ColBERT defaults
+- **Tracker status:** `verified`
+- **Review rounds:** 1
+- **Choices:** Remote GPU sidecar default when `RERANK_ENABLED=true`; explicit onnx for `ACCELERATOR=cpu`; Phase 3 CI split deferred
+- **Deviations:** none
+- **Code evidence:** `config.py`, `compose_files.py`, `docker-compose.yml`, `docker-compose.colbert-worker.yml`, `docker-compose.colbert-worker.gpu.yml`, `.env.example`, `README.md`, `docs/DEPLOYMENT.md`, `docs/ARCHITECTURE.md`, `docs/SEARCH_BEHAVIOR.md`, `docs/adr/0015-colbert-http-sidecar.md`, `docs/adr/0022-gpu-default-cpu-fallback.md`, `test_config.py`, `test_compose_files.py`, `test_factory.py`
+- **Test debt:** Phase 3 CI `ACCELERATOR=cpu`; optional `bench_colbert_sidecar.py`; golden label realignment deferred
+- **Verify:** 368 unit tests pass; integration pass; quality validation threshold 0 self-compare pass; plan compliance pass
+- **Git:** pending
+- **Changelog:** yes — user-facing; bullet added at `verified`
+
+#### 2026-07-04 — implementation
+- **Phase / PR:** Phase 2 — Retire CPU ColBERT defaults
+- **Tracker status:** `implemented`
+- **Choices:** When `RERANK_ENABLED=true`, `COLBERT_EMBED_BACKEND` defaults to remote in Settings, compose env, and `compose_files.py`; explicit onnx for `ACCELERATOR=cpu` only; rerank off keeps onnx default
+- **Deviations:** none
+- **Code evidence:** `config.py`, `compose_files.py`, `docker-compose.yml`, `docker-compose.colbert-worker.yml`, `docker-compose.colbert-worker.gpu.yml`, `.env.example`, `README.md`, `docs/DEPLOYMENT.md`, `docs/ARCHITECTURE.md`, `docs/SEARCH_BEHAVIOR.md`, `docs/adr/0015-colbert-http-sidecar.md`, `docs/adr/0022-gpu-default-cpu-fallback.md`, `test_config.py`, `test_compose_files.py`, `test_factory.py`, `test_colbert_rerank_slow.py`
+- **Test debt:** Phase 3 CI split; optional `bench_colbert_sidecar.py` performance report
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing yes; status `implemented` (not verified); invoker Changelog: no
+
+#### 2026-07-04 — plan
+- **Phase / PR:** Phase 2 — Retire CPU ColBERT defaults
+- **Tracker status:** `planned`
+- **Choices:** onnx default unchanged when `RERANK_ENABLED=false`; remote+GPU sidecar default when rerank on; self-compare quality gate (`--threshold 0`); CHANGELOG at verification; single PR; no `ci.yml` changes. **Chosen scope:** When `RERANK_ENABLED=true`, default `COLBERT_EMBED_BACKEND=remote` in Settings (via `model_fields_set` validator) and `compose_files.py`; GPU sidecar compose merged automatically on `ACCELERATOR=gpu`; in-process ONNX retained only for explicit `COLBERT_EMBED_BACKEND=onnx` (`ACCELERATOR=cpu`). When `RERANK_ENABLED=false`, onnx default unchanged. Update `.env.example`, `README.md`, `docs/DEPLOYMENT.md`, `docs/ARCHITECTURE.md`, `docs/SEARCH_BEHAVIOR.md`, compose headers, ADR 0015 cross-link; unit tests; partial ADR accept in PR. Defer Phase 3 (CI `ACCELERATOR=cpu`, self-hosted GPU smoke); defer golden label realignment; defer ADR 0019 Accept; defer CHANGELOG to verification.
+- **Assumptions:** Phase 1 merged ([PR #17](https://github.com/Tusquito/codebase-indexer-mcp/pull/17)); ADR 0015 remote+GPU sidecar code complete; integration harness keeps `RERANK_ENABLED=false` for default smoke
+- **Deviations:** none
+- **Code evidence:** —
+- **Test debt:** unit tests for factory defaults and compose resolution; integration via `run_compose_integration.py` with rerank-on remote sidecar on GPU host (default smoke keeps `RERANK_ENABLED=false`); golden label realignment deferred
+- **Verify:** unit tests + integration harness; self-compare quality gate (`--threshold 0`)
+- **Git:** pending
+- **Changelog:** no — user-facing yes; draft at verification
+
+#### 2026-07-04 — prioritization
+- **Phase / PR:** Phase 2 — Retire CPU ColBERT defaults
+- **Tracker status:** `candidate`
+- **Choices:** Prioritize 0022 Phase 2 over 0002 Phase 2 GraphRAG payload linking; over 0021 Phase 3 housekeeping; over Proposed 0019 Phase 1 YAML tracker; single phase per pipeline rule. **Why now:** ADR 0022 Phase 1 merged ([PR #17](https://github.com/Tusquito/codebase-indexer-mcp/pull/17)); prerequisite ADR 0021 Phase 2 (GPU Jina baseline) merged 2026-07-04 ([PR #18](https://github.com/Tusquito/codebase-indexer-mcp/pull/18)). GPU-default compose exists but ColBERT still defaults to in-process CPU ONNX. **Chosen scope:** When `RERANK_ENABLED=true` on `ACCELERATOR=gpu` stack, default `COLBERT_EMBED_BACKEND=remote` and GPU sidecar compose; update `factory.py` / Settings defaults and validation; ensure `compose_files.py` includes GPU ColBERT worker files in rerank-on mode; update `.env.example`, `DEPLOYMENT.md`, `ARCHITECTURE.md`, ADR 0015 cross-links; unit tests for factory defaults and compose resolution; integration via `run_compose_integration.py` with rerank-on remote sidecar on GPU host. Defer Phase 3 (explicit `ACCELERATOR=cpu` in CI, self-hosted GPU smoke). **Suggested scope:** one phase (= one PR).
+- **Deviations:** none
+- **Code evidence:** —
+- **Test debt:** unit tests for factory defaults and compose resolution; integration via `run_compose_integration.py` with rerank-on remote sidecar on GPU host; golden-set realignment deferred
+- **Verify:** unit tests + integration harness rerank-on remote sidecar on GPU host
+- **Git:** pending
+- **Changelog:** no — user-facing yes; draft at verification
+
 #### 2026-07-04 — merge
 - **Phase / PR:** Phase 1 — GPU-default compose + docs — [PR #17](https://github.com/Tusquito/codebase-indexer-mcp/pull/17)
 - **Tracker status:** `merged`
@@ -1435,3 +1482,19 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-04 | 0021 | Accept ADR 0021 phase 2 at merge? | **Accepted (phase 1; phase 2 — Eval baseline refresh)** after [PR #18](https://github.com/Tusquito/codebase-indexer-mcp/pull/18) merge | no |
 | 2026-07-04 | 0021 | Phase 2 merge confirmed | [PR #18](https://github.com/Tusquito/codebase-indexer-mcp/pull/18) merged on `adr/0021-phase-2-eval-baseline-refresh` (squash `a076004`); release skipped; Phase 3 ADR housekeeping + CHANGELOG full update deferred; ADR 0022 P2 unblocked | no |
 | 2026-07-04 | 0022 | 0021 P2 baseline dependency for Phase 2? | **Resolved** at 2026-07-04 — [PR #18](https://github.com/Tusquito/codebase-indexer-mcp/pull/18) merged; 0022 P2 no longer blocked on 0021 P2 baseline | no |
+| 2026-07-04 | 0022 | Prioritize 0022 P2 over 0002 P2, 0021 P3, Proposed 0019 P1? | **Prioritized** at 2026-07-04 prioritization — 0022 P2 `candidate`; single phase per pipeline rule | no |
+| 2026-07-04 | 0022 | ONNX ColBERT default when `RERANK_ENABLED=false`? | **Resolved** at prioritization — onnx default unchanged when `RERANK_ENABLED=false` | no |
+| 2026-07-04 | 0022 | Phase 2 user-facing CHANGELOG? | **Resolved** at prioritization — user-facing yes; bullet at verification | no |
+| 2026-07-04 | 0022 | Golden label realignment in Phase 2 scope? | **Deferred** at prioritization — golden-set realignment deferred | no |
+| 2026-07-04 | 0022 | ADR 0019 Accept timing relative to 0022 arc? | **Resolved** at prioritization — defer 0019 Accept until 0022 arc complete | no |
+| 2026-07-04 | 0022 | 0022 Phase 2 retire CPU ColBERT defaults prioritized? | **Prioritized** at 2026-07-04 prioritization — tracker `candidate`; prerequisite 0021 P2 merged ([PR #18](https://github.com/Tusquito/codebase-indexer-mcp/pull/18)) | no |
+| 2026-07-04 | 0022 | Phase 2 implementation complete? | **Implemented** at 2026-07-04 implementation — tracker `implemented`; awaiting verification | no |
+| 2026-07-04 | 0022 | `COLBERT_EMBED_BACKEND` default when `RERANK_ENABLED=true`? | **Decided at implementation** — defaults to `remote` in Settings, compose env, and `compose_files.py` | no |
+| 2026-07-04 | 0022 | In-process ONNX ColBERT path? | **Decided at implementation** — explicit `onnx` only for `ACCELERATOR=cpu` | no |
+| 2026-07-04 | 0022 | ONNX ColBERT default when `RERANK_ENABLED=false`? | **Decided at implementation** — onnx default unchanged when rerank off | no |
+| 2026-07-04 | 0022 | Phase 2 test debt | Phase 3 CI split; optional `bench_colbert_sidecar.py` performance report | no |
+| 2026-07-04 | 0022 | Phase 2 verification complete? | **Verified** at 2026-07-04 verification — 368 unit tests pass; integration pass; quality validation threshold 0 self-compare pass; plan compliance pass; tracker `verified`; awaiting merge | no |
+| 2026-07-04 | 0022 | Phase 2 verification review rounds? | **1** review round at verification | no |
+| 2026-07-04 | 0022 | Phase 3 CI split timing? | **Deferred** at verification — explicit `ACCELERATOR=cpu` on CI jobs remains Phase 3 | no |
+| 2026-07-04 | 0022 | Golden label realignment in Phase 2? | **Deferred** at verification — golden label realignment deferred | no |
+| 2026-07-04 | 0022 | Optional `bench_colbert_sidecar.py` performance report? | **Deferred** at verification — optional sidecar benchmark report remains open | no |

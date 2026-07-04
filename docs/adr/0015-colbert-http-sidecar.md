@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-07-03
 - **Deciders:** Maintainers
-- **Related:** [0008](0008-optional-colbert-reranking.md), [0011](0011-ollama-only-dense-embedding.md), [0001](0001-pluggable-embed-backends.md)
+- **Related:** [0008](0008-optional-colbert-reranking.md), [0011](0011-ollama-only-dense-embedding.md), [0001](0001-pluggable-embed-backends.md), [0022](0022-gpu-default-cpu-fallback.md) — GPU remote sidecar default when rerank on (supersedes in-process ONNX as default)
 - **Supersedes:** *(none — extends ADR 0008 deployment topology; Qdrant schema and rerank query path unchanged)*
 
 ## Context
@@ -22,7 +22,7 @@ We need a path that:
 
 1. **Offloads ColBERT inference RAM** from MCP (model + compute peak in a separate cgroup)
 2. **Preserves ADR 0008 semantics** — same multivector schema, MAX_SIM rerank, `colbert-ir/colbertv2.0` default
-3. **Stays opt-in** — default `COLBERT_EMBED_BACKEND=onnx` unchanged for simple deployments
+3. **Stays opt-in for rerank** — `RERANK_ENABLED=false` by default; when rerank is on, **`COLBERT_EMBED_BACKEND=remote`** + GPU sidecar is the default ([ADR 0022](0022-gpu-default-cpu-fallback.md) phase 2 supersedes in-process ONNX default)
 4. **Does not wait on Ollama multivector API** — HTTP sidecar with fastembed ONNX today; GPU sidecar optional later
 
 ### Evaluation stack
@@ -51,7 +51,7 @@ flowchart LR
 
 - **Sidecar** runs `ColbertOnnxBackend` (same fastembed `LateInteractionTextEmbedding` as MCP) in its own container with its own memory limit (`COLBERT_MEM_LIMIT`).
 - **MCP** calls the sidecar over HTTP for index-time and query-time ColBERT embeds when `RERANK_ENABLED=true` and `COLBERT_EMBED_BACKEND=remote`.
-- **Default** remains in-process `ColbertOnnxBackend` (`COLBERT_EMBED_BACKEND=onnx`).
+- **Default when rerank on:** `COLBERT_EMBED_BACKEND=remote` + GPU sidecar via `compose_files.py` ([ADR 0022](0022-gpu-default-cpu-fallback.md)); in-process `ColbertOnnxBackend` only with explicit `COLBERT_EMBED_BACKEND=onnx` under `ACCELERATOR=cpu`
 - **MCP still holds** dense + sparse + returned ColBERT multivectors per flush batch until upsert — the sidecar removes ColBERT **model and compute** RAM from MCP, not the upsert payload itself.
 
 ### Sidecar HTTP contract
@@ -116,12 +116,12 @@ flowchart LR
 
 ### Default behavior and configuration
 
-- **Default:** unchanged — `COLBERT_EMBED_BACKEND=onnx`, no sidecar required
-- **Opt-in sidecar:** `RERANK_ENABLED=true`, `COLBERT_EMBED_BACKEND=remote`, compose override, MCP `depends_on` sidecar health
+- **Default:** when `RERANK_ENABLED=true`, `COLBERT_EMBED_BACKEND=remote` + sidecar merged by `compose_files.py` ([ADR 0022](0022-gpu-default-cpu-fallback.md)); in-process ONNX only under `ACCELERATOR=cpu` with explicit `COLBERT_EMBED_BACKEND=onnx`
+- **Sidecar compose:** merged automatically when rerank on + remote backend; MCP `depends_on` sidecar health
 
 | Variable | Default | Role |
 |----------|---------|------|
-| `COLBERT_EMBED_BACKEND` | `onnx` | `onnx` (in MCP) or `remote` (HTTP sidecar) |
+| `COLBERT_EMBED_BACKEND` | `remote` when rerank on | `remote` (GPU sidecar default) or `onnx` (in MCP; `ACCELERATOR=cpu` only) |
 | `COLBERT_URL` | `http://colbert_worker:8082` | Sidecar base URL when `remote` |
 | `COLBERT_TIMEOUT` | `300` | Per-request HTTP timeout (seconds) |
 | `COLBERT_EMBED_BATCH_SIZE` | `16` | MCP → sidecar batch size |
