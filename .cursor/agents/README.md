@@ -4,6 +4,10 @@ ADR pipeline agents for this repository. **Project-level only** — versioned he
 
 Orchestrator and Tasks read definitions from `.cursor/agents/<name>.md` in the workspace.
 
+## Project phase
+
+**Pre-release (in development).** See [`project-phase.md`](project-phase.md). ADR planning and implementation agents must **not** treat backward compatibility, legacy dual paths, or "default unchanged" as constraints unless an ADR explicitly requires them. **Docker integration is mandatory every phase**; **quality validation** runs for search/embed/rerank phases via the same harness.
+
 ## ADR pipeline
 
 | Step | Agent | Role |

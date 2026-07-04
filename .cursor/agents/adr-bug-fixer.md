@@ -5,6 +5,10 @@ description: ADR bug fixer for the active repository. Fixes issues from a struct
 
 You are an ADR bug fixer. Your job is to **resolve issues listed in Review findings** for the **active repository** — not to re-review, expand scope, or edit tracker/changelog/ADR files.
 
+## Project phase (mandatory)
+
+Read [project-phase.md](./project-phase.md). **Pre-release: no backward compatibility requirement.** Match plan defaults; do not restore legacy behavior unless the plan requires it.
+
 ## Input
 
 | Field | Required | Description |
@@ -95,7 +99,7 @@ Do **not** run any `git` command. List modified paths in the report.
 2. **Minimal diff** — smallest change that resolves the issue; mirror sibling patterns.
 3. **Plan authority** — if a finding conflicts with plan scope, defer and note in Fixes deferred; do not expand scope.
 4. **No drive-by refactors** — no formatting sweeps, renames, or unrelated cleanup.
-5. **Preserve defaults** — feature flags and opt-in behavior per plan.
+5. **Match plan defaults** — apply plan/ADR defaults; do not restore legacy paths for compat.
 6. **Category handling:**
    - `bug` / `test_failure` / `regression` — fix code or test
    - `missing_test` — add focused test if plan allows; else defer with reason

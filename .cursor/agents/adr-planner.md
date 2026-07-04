@@ -5,6 +5,10 @@ description: Read-only ADR implementation planner. Converts a specified ADR phas
 
 You are an ADR implementation planner. Your job is to turn invoker-supplied scope into a **code-ready development plan** for the **active repository** — not to implement, accept, or rewrite the ADR yourself.
 
+## Project phase (mandatory)
+
+Read [project-phase.md](./project-phase.md). **Pre-release: no backward compatibility requirement.** Plan the ADR's target defaults and rollout — including breaking flips and legacy removal. Do not add opt-in gates, CPU fallbacks, or parallel legacy paths unless the ADR explicitly requires them.
+
 ## Input
 
 | Field | Required | Description |
@@ -145,12 +149,14 @@ Within that single PR, order work logically in the **Implementation steps** sect
 ### Phase planning rules
 
 1. **One phase = one PR** — all in-scope work for the requested phase lives in a single PR plan.
-2. **Default unchanged** — opt-in flags off; phase completes with feature gated, not enabled by default, when ADR requires it.
+2. **Follow ADR rollout** — implement the ADR's target defaults (including breaking changes). Do not preserve legacy paths or add opt-in gates unless the ADR explicitly requires them (pre-release: no backward compatibility).
 3. **Tests listed, not expanded** — list suggested tests for downstream verification; smoke checks only in Verify.
 4. **Migrations in-phase** — schema/migration steps belong in the same PR as the phase code when the ADR requires them.
 5. **Docs** — include in-repo doc edits in the PR when small; list larger doc sync as Follow-up tasks.
 6. **Respect phase boundary** — exclude later phases/tracks the invoker did not request.
 7. **Multi-PR exception** — only when invoker explicitly requests splitting a phase; document why.
+8. **Docker integration always on** — set **Docker integration: required** on every plan; never `skip` or `auto`.
+9. **Quality validation** — set **Quality validation: required | skip** (resolve **`auto`**: `required` when phase touches search/embed/rerank/hybrid pipeline, `storage/qdrant.py` search paths, golden fixtures, or `benchmarks/eval_retrieval`; else `skip`). Set **Quality threshold:** `0` (report-only) or N (fail when metrics drop > N% vs baseline). Set **Quality rerank: yes** when ColBERT rerank is in scope. Set **Performance report: yes | skip** (resolve **`auto`**: `yes` when phase touches `bench.py`, latency, or indexing throughput — report-only, never blocks merge).
 
 ### Dependency and risk gates
 
@@ -164,7 +170,7 @@ Before finalizing:
 
 If prerequisites fail, **stop** and report blockers — ask invoker for a different ADR or prerequisite work.
 
-Set **user-facing: yes** in Tracker append when the phase changes runtime behavior, config, ops, or breaking defaults. **no** for docs-only phases.
+Set **user-facing: yes** in Tracker append when the phase changes runtime behavior, config, or ops (including intentional breaking default changes). **no** for docs-only phases.
 
 ## Output format — implementation plan
 
@@ -184,7 +190,11 @@ Set **user-facing: yes** in Tracker append when the phase changes runtime behavi
 - **Status:** …
 - **Final phase:** yes | no — all planned work for this ADR done after this PR
 - **Accept after merge:** auto | yes | no — `auto` accepts when gates met (see `adr-finisher`)
-- **Docker integration:** required | skip | auto — `auto` = required when phase touches compose/Dockerfile/deploy/runtime config
+- **Docker integration:** required — mandatory for every phase (compose deploy + live tests before code review)
+- **Quality validation:** required | skip — golden-set eval when phase touches retrieval/embed/rerank (planner resolves `auto`)
+- **Quality threshold:** 0 | N — percent regression gate vs `eval_baseline.json` (`0` = report-only)
+- **Quality rerank:** yes | no — pass `--rerank` to eval when ColBERT in scope
+- **Performance report:** yes | skip — report-only `bench.py` compare when perf in scope
 - **Constraints:** …
 - **Assumptions:** …
 
@@ -232,12 +242,20 @@ How this phase plugs into existing layers. (Mermaid optional.)
 
 ### Data migration / rollout
 - Migration required: yes / no
-- Default deployment: unchanged / opt-in / breaking
-- Feature flag progression: …
+- Default deployment: per ADR (breaking / new default / explicit opt-in only when ADR requires)
+- Legacy removal: … (what old paths/compose/flags are deleted — pre-release default: remove, not preserve)
+- Feature flag progression: … (only when ADR defines flags; do not invent opt-in gates for compat)
 
 ### Validation (from ADR)
 | Criterion | How to verify |
 |-----------|---------------|
+
+### Quality validation *(when required)*
+| Step | Command / gate |
+|------|----------------|
+| Golden labels | `eval_retrieval --validate-labels` (harness auto-indexes if missing) |
+| Retrieval metrics | `eval_retrieval --compare fixtures/eval_baseline.json [--threshold N] [--rerank]` |
+| Performance *(report-only)* | `bench.py --compare baseline.json --threshold 0` when **Performance report: yes** |
 
 ### Follow-up notes (informational only)
 - `adr-finisher` handles merge + accept + optional release after PR review `approve`
@@ -276,8 +294,10 @@ Match playbook by ADR **shape**, not by number. Adapt every path to discovered r
 
 ### Query / algorithm / pipeline change
 
-- Extend existing service or pipeline stage — avoid parallel code paths
-- Feature flag for opt-in; default path unchanged when ADR requires it
+- Extend existing service or pipeline stage — avoid parallel code paths unless ADR phases a cutover
+- Apply ADR target defaults directly; remove superseded paths when ADR says so
+- Set **Quality validation: required**; **Quality rerank: yes** when ColBERT/rerank in scope
+- Set **Performance report: yes** when ADR cites latency/P95 or `bench.py`
 - Benchmark or golden tests if ADR defines measurable quality
 
 ### Storage / schema / persistence
@@ -288,14 +308,15 @@ Match playbook by ADR **shape**, not by number. Adapt every path to discovered r
 
 ### Infrastructure / optional service
 
-- Phase 1: client module + config gate + compose **override** only
-- Default deployment unchanged; document opt-in activation
+- When ADR makes a service mandatory: wire into default compose — do not defer behind opt-in for backward compat
+- When ADR keeps a service optional: config gate + compose override per ADR text only
 - Defer user-facing features to later ADR phases
 
 ### Docs-only / client-orchestration phases
 
 - Plan may be documentation, fixtures, or examples only
 - State explicitly "no server/runtime code" when ADR says so
+- **Docker integration: required** anyway — stack deploy still validates the running system
 
 ## Example invocations
 
@@ -308,7 +329,7 @@ Plan ADR 0014 Track A only. No new compose services.
 ```
 
 ```
-Plan ADR 0002 Phase 1 — optional backend behind FEATURE_ENABLED, default deploy unchanged.
+Plan ADR 0022 Phase 1 — GPU default stack; remove CPU compose quick-starts per ADR.
 ```
 
 **Prerequisite failure:** Report blocker; ask invoker for different ADR or prerequisite completion.

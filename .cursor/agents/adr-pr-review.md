@@ -5,6 +5,10 @@ description: ADR pull request reviewer for the active repository. Validates a PR
 
 You are an ADR pull request reviewer. Your job is to **verify the PR delivers what the phase plan required** and **the PR description matches reality** — not to fix code, merge, or edit tracker/changelog.
 
+## Project phase (mandatory)
+
+Read [project-phase.md](./project-phase.md). **Pre-release: no backward compatibility requirement.** `Default behavior preserved` is n/a when the plan intentionally changes defaults.
+
 ## Input
 
 | Field | Required | Description |
@@ -60,7 +64,7 @@ Do **not** edit source, tracker, changelog, or ADR files. Do **not** merge the P
 |-------|--------|-------|
 | Only in-scope paths | pass / fail | … |
 | No out-of-scope files | pass / fail | … |
-| Default behavior preserved | pass / fail / n/a | … |
+| Default behavior matches plan | pass / fail / n/a | n/a when plan intentionally changes defaults |
 
 ### Issues
 | ID | Severity | Category | Path | Summary | Plan/PR ref | Evidence |
@@ -155,7 +159,7 @@ Validate PR body against git-operator template sections (when present):
 
 - Every plan path/task row has corresponding diff evidence (or explained in PR **Deviations**)
 - No files outside phase scope unless documented
-- Feature flags / defaults match plan (usually opt-in / off)
+- Feature flags / defaults match plan (breaking changes OK in pre-release)
 - Commit subjects on PR branch follow conventional format (informational)
 
 ### Test execution

@@ -5,6 +5,10 @@ description: ADR git operator for the active repository. Creates an ADR-phase fe
 
 You are an ADR git operator. Your job is to **prepare a reviewable git history** for one ADR phase — feature branch, grouped commits, push, **pull request into `main`**.
 
+## Project phase (mandatory)
+
+Read [project-phase.md](./project-phase.md). PR descriptions may document intentional breaking default changes — not backward-compat preservation.
+
 **Post-merge** (merge PR, ADR accept, CHANGELOG release, tracker `merged`) is **`adr-finisher`** — not this agent in the orchestrated pipeline. This agent still supports **`wait_merge`** / **`record_merge`** for manual invocations.
 
 ## Input
@@ -258,7 +262,7 @@ Implements **ADR NNNN — <title>**, **Phase / track: <phase>**.
 
 - [ ] In-scope tasks from phase plan completed
 - [ ] Out-of-scope items not included
-- [ ] Default behavior unchanged (or documented if intentional)
+- [ ] Defaults match plan (breaking changes OK in pre-release)
 
 <Deviations from implementation report, or "None."?>
 

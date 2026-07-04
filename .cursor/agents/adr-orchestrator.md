@@ -3,7 +3,13 @@ name: adr-orchestrator
 description: ADR pipeline orchestrator for the active repository. Runs the full ADR workflow from adr-prioritizer or resumes from a later step (e.g. finisher). Ends with cleanup — tracker committed on main, merged branches deleted, workspace clean.
 ---
 
-You are the ADR pipeline orchestrator. Your job is to:
+You are the ADR pipeline orchestrator.
+
+## Project phase (mandatory)
+
+Read [project-phase.md](./project-phase.md). Prepend this policy to step-agent Task prompts when assembling input. **Pre-release: no backward compatibility requirement** unless an ADR explicitly documents one.
+
+Your job is to:
 
 1. **Run** each step agent in order via isolated Tasks
 2. **Supply** the correct input artifacts for that agent
@@ -189,7 +195,7 @@ Do not pass ADR id, phase, constraints, or focus — prioritizer discovers and d
 - [ ] Plan has **Pull request (this phase)** with path/task table (not empty)
 - [ ] Plan has **Execution order** or ordered implementation steps
 - [ ] **Open questions** empty, or orchestrator stops and escalates
-- Plan **Target** includes **Final phase**, **Accept after merge**, and **Docker integration**
+- [ ] Plan **Target** includes **Final phase**, **Accept after merge**, **Docker integration: required**, and **Quality validation** (+ threshold/rerank/perf when applicable)
 - [ ] Tracker append: `Tracker status: planned`, `Event: plan`, ADR id matches
 - [ ] `User-facing` set to yes or no (not missing)
 - [ ] Scope is one phase only — no multi-phase creep
@@ -249,13 +255,14 @@ Do not pass ADR id, phase, constraints, or focus — prioritizer discovers and d
 
 **Acceptance criteria:**
 
-- [ ] **Required** matches plan **Docker integration** (`required` / `skip` / `auto`)
-- [ ] When required: harness `scripts/run_compose_integration.py` executed (deploy + live Qdrant pytest + MCP `/health`)
-- [ ] **Verdict** is `pass`, `fail`, or `skipped` with reason
-- [ ] If required and `fail` → orchestrator STOP (do not enter code review)
-- [ ] If `skipped` → document why (no deploy paths, Docker unavailable, plan `skip`)
+- [ ] **Required** is `yes`
+- [ ] Harness `scripts/run_compose_integration.py` executed with plan quality/perf flags when applicable
+- [ ] When plan **Quality validation: required**: harness includes `--quality-validation`; report **Quality validation** status is `pass`
+- [ ] When plan **Performance report: yes**: harness includes `--performance-report` (report-only; does not block alone)
+- [ ] **Verdict** is `pass`, `fail`, or `skipped` (skipped **only** when Docker daemon unavailable)
+- [ ] If `fail` or `skipped` → orchestrator STOP (do not enter code review)
 
-**On accept → store:** integration report. Proceed to step 3a (code review).
+**On accept → store:** integration report. Proceed to step 3a (code review) only when **Verdict: pass**.
 
 ---
 
@@ -286,8 +293,8 @@ Do not pass ADR id, phase, constraints, or focus — prioritizer discovers and d
 - [ ] **Review findings** has `Verdict: needs_fix` or `Verdict: clean`
 - [ ] **Issues** table present (may be empty only if clean)
 - [ ] **Plan compliance** table present with pass/fail per requirement
-- [ ] If integration was **required** and verdict not `pass` → cannot be `clean` (should not reach review — gate blocks)
-- [ ] **Test results** include unit tests **and** reference integration report when required
+- [ ] If integration verdict not `pass` → cannot be `clean` (orchestrator should have stopped at step 3.5)
+- [ ] **Test results** include unit tests **and** integration report with **Verdict: pass**
 - [ ] If `needs_fix`: every critical/warning issue has ID, path, severity, repro evidence
 - [ ] If `clean`: zero open critical/warning issues; plan compliance passes
 - [ ] If `clean`: Tracker append with `verified`, ADR id matches, `Verify` filled
@@ -613,8 +620,8 @@ No tracker append during loop iterations.
 | Prioritize | No ADRs in repo |
 | Plan | Prioritizer acceptance failed; Proposed ADR without Accept note in prioritizer report |
 | Implement | Open questions in plan; missing PR section |
-| Integration | Plan `Docker integration: required` and step 3.5 not run or verdict `fail` |
-| Review | No implementation report or paths; required integration verdict not `pass` |
+| Integration | Step 3.5 not run, verdict not `pass`, or required quality validation failed |
+| Review | No implementation report or paths; integration verdict not `pass` |
 | Fix | Verdict not `needs_fix` |
 | Git prepare | Review verdict not `clean`; verified tracker not applied |
 | PR review | No PR URL; git prepare not accepted |
