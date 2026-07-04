@@ -63,7 +63,8 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0022](0022-gpu-default-cpu-fallback.md) | GPU-default acceleration; CPU only when explicit | Accepted (phase 1; phase 2 — Retire CPU ColBERT defaults) | Phase 2 — Retire CPU ColBERT defaults | `merged` | Remote GPU sidecar default when `RERANK_ENABLED=true`; explicit onnx for `ACCELERATOR=cpu`; Phase 3 CI split deferred; 368 unit tests pass; integration pass; quality validation threshold 0 self-compare pass; plan compliance pass; review rounds: 1. [PR #19](https://github.com/Tusquito/codebase-indexer-mcp/pull/19) | 2026-07-04 |
 | [0022](0022-gpu-default-cpu-fallback.md) | GPU-default acceleration; CPU only when explicit | Accepted (all phases complete) | Phase 3 — CI split | `merged` | Squash merge [PR #20](https://github.com/Tusquito/codebase-indexer-mcp/pull/20); six ubuntu-latest jobs `ACCELERATOR=cpu`; blocking GHA `compose-integration`; non-blocking self-hosted `gpu-smoke`; `check_ollama_gpu_processor()` in harness; finisher bundled 0021 P3 README + CHANGELOG close-out (`53f68e0`); final ADR 0022 phase complete; test debt: gpu-smoke first run when self-hosted runner available | 2026-07-04 |
 | [0023](0023-neo4j-primary-call-site-lookup.md) | Move call-site lookup from Qdrant callees to Neo4j CALLS | Accepted (phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing) | Phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing | `merged` | `call_token` on CALLS; symbol unification Rules 1–3; `Neo4jStorage.find_callers`; Path D routes Neo4j when `GRAPH_ENABLED` else Qdrant; Qdrant `callees` dual-write retained; re-index on graph writer changes (removed `GRAPH_SCHEMA_VERSION` pre-1.0); defer Phases 2–4; 383 unit tests pass; integration pass; quality validation threshold 0 pass; plan compliance pass; review rounds: 1; test debt: live Neo4j parity fixture, unified-symbol Cypher traversal, mixed-collection per-engine routing (Phase 2). [PR #21](https://github.com/Tusquito/codebase-indexer-mcp/pull/21) | 2026-07-04 |
-| [0023](0023-neo4j-primary-call-site-lookup.md) | Move call-site lookup from Qdrant callees to Neo4j CALLS | Accepted (phase 1; phase 2 — Stop dual-write to Qdrant) | Phase 2 — Stop dual-write to Qdrant | `verified` | Reused `graph_call_sites` metadata; per-collection Path D routing; Qdrant fallback + warning; retain callees index until Phase 3; 391 unit tests pass; integration pass; plan compliance pass; review rounds: 2; test debt: Testcontainers slow test optional CI job; defer Phases 3–4 and ADR 0002 Phase 2 `graph_node_ids`; awaiting merge | 2026-07-04 |
+| [0023](0023-neo4j-primary-call-site-lookup.md) | Move call-site lookup from Qdrant callees to Neo4j CALLS | Accepted (phase 1; phase 2 — Stop dual-write to Qdrant) | Phase 2 — Stop dual-write to Qdrant | `merged` | Reused `graph_call_sites` metadata; per-collection Path D routing; Qdrant fallback + warning; retain callees index until Phase 3; 391 unit tests pass; integration pass; plan compliance pass; review rounds: 2; test debt: Testcontainers slow test optional CI job; defer Phases 3–4 and ADR 0002 Phase 2 `graph_node_ids`. [PR #22](https://github.com/Tusquito/codebase-indexer-mcp/pull/22) | 2026-07-04 |
+| [0025](0025-huggingface-tei-dense-embedding.md) | Adopt HuggingFace TEI sidecar for dense embedding | Proposed | 1 — TEI hard replace | `candidate` | Hard replace Ollama dense with TEI (OpenAI `/v1/embeddings`); GPU default `89-1.9`, CPU fallback `cpu-1.9`; full Ollama removal inventory; requires formal Accept before dev | 2026-07-04 |
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
 
@@ -80,7 +81,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 | 0017 | Phase 1 — loader + Ollama backend ([PR #11](https://github.com/Tusquito/codebase-indexer-mcp/pull/11)) | Phase 2 observability + ADR 0011 body edit |
 | 0018 | Phase 1 — Application Prometheus metrics (MCP + ColBERT worker) ([PR #13](https://github.com/Tusquito/codebase-indexer-mcp/pull/13)) | Phase 2 OTel traces; Phase 3 observability compose stack; `METRICS_PORT`, docker-compose scrape wiring |
 | 0020 | Phase 1 — Dataset + training pipeline ([PR #15](https://github.com/Tusquito/codebase-indexer-mcp/pull/15)) | Phases 2–4 cancelled per [ADR 0021](0021-revert-jina-production-default-retire-qwen3.md) (fine-tune gate failed path) |
-| 0023 | Phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing ([PR #21](https://github.com/Tusquito/codebase-indexer-mcp/pull/21)); Phase 2 — Stop dual-write to Qdrant (verified 2026-07-04, awaiting merge) | Phases 3–4 (retire callees keyword index, optional CALLS_RESOLVED edges) |
+| 0023 | Phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing ([PR #21](https://github.com/Tusquito/codebase-indexer-mcp/pull/21)); Phase 2 — Stop dual-write to Qdrant ([PR #22](https://github.com/Tusquito/codebase-indexer-mcp/pull/22)) | Phases 3–4 (retire callees keyword index, optional CALLS_RESOLVED edges) |
 
 ---
 
@@ -1266,6 +1267,17 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 
 ### ADR 0023 — Move call-site lookup from Qdrant callees to Neo4j CALLS
 
+#### 2026-07-04 — merge
+- **Phase / PR:** Phase 2 — Stop dual-write to Qdrant — [PR #22](https://github.com/Tusquito/codebase-indexer-mcp/pull/22)
+- **Tracker status:** `merged`
+- **Choices:** merge on feature branch `adr/0023-phase-2-stop-qdrant-dual-write`; ADR accept — `Accepted (phase 1; phase 2 — Stop dual-write to Qdrant)`; release skipped; Phases 3–4 deferred
+- **Deviations:** none
+- **Code evidence:** merged via [PR #22](https://github.com/Tusquito/codebase-indexer-mcp/pull/22) (`adr/0023-phase-2-stop-qdrant-dual-write`; squash `d0e8348`)
+- **Test debt:** carried from verification — Testcontainers slow test optional CI job
+- **Verify:** carried from verification — 391 unit tests pass; integration pass; plan compliance pass; review rounds: 2
+- **Git:** [PR #22](https://github.com/Tusquito/codebase-indexer-mcp/pull/22) merged (squash `d0e8348`)
+- **Changelog:** no — user-facing yes; invoker Changelog: no; `[Unreleased]` bullet retained from verification step
+
 #### 2026-07-04 — verification
 - **Phase / PR:** Phase 2 — Stop dual-write to Qdrant
 - **Tracker status:** `verified`
@@ -1750,3 +1762,5 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-04 | 0023 | Phase 2 verification complete? | **Verified** at 2026-07-04 verification — 391 unit tests pass; integration pass; plan compliance pass; tracker `verified`; awaiting merge | no |
 | 2026-07-04 | 0023 | Phase 2 verification review rounds? | **2** review rounds at verification | no |
 | 2026-07-04 | 0023 | Phase 2 test debt (post-verification) | Testcontainers slow test optional CI job | no |
+| 2026-07-04 | 0023 | Accept ADR 0023 phase 2 at merge? | **Accepted** — `Accepted (phase 1; phase 2 — Stop dual-write to Qdrant)` | no |
+| 2026-07-04 | 0023 | Phase 2 merge confirmed | [PR #22](https://github.com/Tusquito/codebase-indexer-mcp/pull/22) merged on `adr/0023-phase-2-stop-qdrant-dual-write` (squash `d0e8348`); release skipped; Phases 3–4 deferred | no |
