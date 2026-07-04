@@ -1,6 +1,6 @@
 # 0021. Revert default dense embedder to Jina code; retire Qwen3 as production default
 
-- **Status:** Accepted (phase 1 — Config + docs revert)
+- **Status:** Accepted (phase 1; phase 2 — Eval baseline refresh)
 - **Date:** 2026-07-03
 - **Deciders:** Maintainers
 - **Related:** [0016](0016-qwen3-embedding-default-dense-model.md) — Qwen3 default (superseded for production); [0020](0020-qwen3-code-finetune-jina-quality-gate.md) — fine-tune gate (failed path); [0007](0007-ranx-retrieval-evaluation.md) — golden-set eval; [0011](0011-ollama-only-dense-embedding.md) — Ollama-only dense; [0017](0017-model-tokenizer-ollama-dense-truncation.md) — tokenizer truncation (model-agnostic)
