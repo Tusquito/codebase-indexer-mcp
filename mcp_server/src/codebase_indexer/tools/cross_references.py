@@ -295,6 +295,7 @@ def register_cross_references_tool(mcp: FastMCP, ctx: "AppContext") -> None:
     storage = ctx.storage
     embedder = ctx.embedder
     extractors = ctx.url_extractors
+    graph_storage = ctx.graph_storage
 
     @mcp.tool(
         name="find_cross_references",
@@ -430,14 +431,22 @@ def register_cross_references_tool(mcp: FastMCP, ctx: "AppContext") -> None:
                         "reference_type": extractors.classify_reference(r.content, symbol_name, r.rel_path),
                     })
 
-        # Path D: precise call-site retrieval via indexed callees
+        # Path D: precise call-site retrieval via indexed callees (Neo4j or Qdrant)
         if member:
-            caller_results = await storage.find_callers_in_collections(
-                method=member,
-                collections=target_collections,
-                receiver=receiver,
-                limit_per_collection=top_k,
-            )
+            if graph_storage is not None and graph_storage.enabled:
+                caller_results = await graph_storage.find_callers(
+                    method=member,
+                    collections=target_collections,
+                    receiver=receiver,
+                    limit_per_collection=top_k,
+                )
+            else:
+                caller_results = await storage.find_callers_in_collections(
+                    method=member,
+                    collections=target_collections,
+                    receiver=receiver,
+                    limit_per_collection=top_k,
+                )
             result_by_key = {
                 r["rel_path"] + str(r["start_line"]): r for r in all_results
             }
