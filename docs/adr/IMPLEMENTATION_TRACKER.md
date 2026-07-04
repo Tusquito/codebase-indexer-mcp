@@ -60,6 +60,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0021](0021-revert-jina-production-default-retire-qwen3.md) | Revert default dense embedder to Jina code; retire Qwen3 as production default | Accepted (phase 1; phase 2 — Eval baseline refresh) | Phase 2 — Eval baseline refresh | `merged` | GPU Jina @768 live baseline committed (`eval_baseline.json`; `ACCELERATOR=gpu`, `RERANK_ENABLED=false`); pre-commit gate vs `eval_baseline_jina.json` failed (recall@10 0.263 vs 0.660 — golden alias drift, not embedder regression); post-commit Docker self-compare pass; frozen `eval_baseline_jina.json` preserved; scanner `.venv*` prune + golden alias fixes; `_settings.py` `ollama_embed_model` default; defer golden label realignment, pre-commit recall gate CI, optional `eval_multihop` CI gate; Phase 3 (CHANGELOG/ADR index housekeeping); [PR #18](https://github.com/Tusquito/codebase-indexer-mcp/pull/18) | 2026-07-04 |
 | [0022](0022-gpu-default-cpu-fallback.md) | GPU-default acceleration; CPU only when explicit | Accepted (phase 1 — GPU-default compose + docs) | Phase 1 — GPU-default compose + docs | `merged` | Compose-only `ACCELERATOR=gpu` default; canonical `-f` via `scripts/compose_files.py`; fail-fast `require_gpu()` in integration harness; sparse BM25 unchanged (CPU in MCP); docs/compose updates; 12 unit tests pass; no `.github/workflows/ci.yml` changes. Defer Phase 2 (ColBERT remote GPU default + 0021 P2 baseline), Phase 3 (CI `ACCELERATOR=cpu`, self-hosted GPU smoke, `ollama ps` GPU assertion). [PR #17](https://github.com/Tusquito/codebase-indexer-mcp/pull/17) | 2026-07-04 |
 | [0022](0022-gpu-default-cpu-fallback.md) | GPU-default acceleration; CPU only when explicit | Accepted (phase 1; phase 2 — Retire CPU ColBERT defaults) | Phase 2 — Retire CPU ColBERT defaults | `merged` | Remote GPU sidecar default when `RERANK_ENABLED=true`; explicit onnx for `ACCELERATOR=cpu`; Phase 3 CI split deferred; 368 unit tests pass; integration pass; quality validation threshold 0 self-compare pass; plan compliance pass; review rounds: 1. [PR #19](https://github.com/Tusquito/codebase-indexer-mcp/pull/19) | 2026-07-04 |
+| [0022](0022-gpu-default-cpu-fallback.md) | GPU-default acceleration; CPU only when explicit | Accepted (phase 1; phase 2; phase 3 — CI split) | Phase 3 — CI split | `verified` | Six ubuntu-latest jobs `ACCELERATOR=cpu`; blocking GHA `compose-integration`; non-blocking self-hosted `gpu-smoke`; `check_ollama_gpu_processor()` gates GPU verdict; quality validation skipped; 375 unit tests pass; integration pass GPU+CPU; plan compliance pass; review rounds: 1; awaiting merge; finisher bundles 0021 P3 | 2026-07-04 |
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
 
@@ -77,7 +78,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 | 0018 | Phase 1 — Application Prometheus metrics (MCP + ColBERT worker) ([PR #13](https://github.com/Tusquito/codebase-indexer-mcp/pull/13)) | Phase 2 OTel traces; Phase 3 observability compose stack; `METRICS_PORT`, docker-compose scrape wiring |
 | 0020 | Phase 1 — Dataset + training pipeline ([PR #15](https://github.com/Tusquito/codebase-indexer-mcp/pull/15)) | Phases 2–4 cancelled per [ADR 0021](0021-revert-jina-production-default-retire-qwen3.md) (fine-tune gate failed path) |
 | 0021 | Phase 1 — Config + docs revert ([PR #16](https://github.com/Tusquito/codebase-indexer-mcp/pull/16)); Phase 2 — Eval baseline refresh ([PR #18](https://github.com/Tusquito/codebase-indexer-mcp/pull/18)) | Phase 3 — ADR housekeeping + CHANGELOG full update |
-| 0022 | Phase 1 — GPU-default compose + docs ([PR #17](https://github.com/Tusquito/codebase-indexer-mcp/pull/17)); Phase 2 — Retire CPU ColBERT defaults ([PR #19](https://github.com/Tusquito/codebase-indexer-mcp/pull/19)) | Phase 3 (CI `ACCELERATOR=cpu`, self-hosted GPU smoke, `ollama ps` GPU assertion) |
+| 0022 | Phase 1 — GPU-default compose + docs ([PR #17](https://github.com/Tusquito/codebase-indexer-mcp/pull/17)); Phase 2 — Retire CPU ColBERT defaults ([PR #19](https://github.com/Tusquito/codebase-indexer-mcp/pull/19)) | Phase 3 — CI split (`verified`): merge pending; first green compose-integration GHA run; gpu-smoke self-hosted runner; 0021 P3 finisher |
 
 ---
 
@@ -1080,6 +1081,52 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 
 ### ADR 0022 — GPU-default acceleration; CPU only when explicit
 
+#### 2026-07-04 — verification
+- **Phase / PR:** Phase 3 — CI split
+- **Tracker status:** `verified`
+- **Review rounds:** 1
+- **Choices:** Six ubuntu-latest jobs `ACCELERATOR=cpu`; blocking compose-integration; non-blocking gpu-smoke; `check_ollama_gpu_processor()` gates GPU verdict; quality validation skipped; finisher bundles 0021 P3
+- **Deviations:** none
+- **Code evidence:** `.github/workflows/ci.yml`, `scripts/run_compose_integration.py`, `mcp_server/tests/test_run_compose_integration_gpu.py`, `docs/DEPLOYMENT.md`, `docs/adr/0022-gpu-default-cpu-fallback.md`
+- **Test debt:** First green GHA compose-integration; gpu-smoke self-hosted runner; 0021 P3 finisher
+- **Verify:** 375 unit tests pass; integration pass GPU+CPU; plan compliance pass
+- **Git:** pending
+- **Changelog:** no — user-facing yes; invoker Changelog: no
+
+#### 2026-07-04 — implementation
+- **Phase / PR:** Phase 3 — CI split
+- **Tracker status:** `implemented`
+- **Choices:** All five ubuntu-latest jobs `ACCELERATOR=cpu`; blocking compose-integration job; non-blocking gpu-smoke; `check_ollama_gpu_processor()` in harness; quality validation skipped
+- **Deviations:** none
+- **Code evidence:** `.github/workflows/ci.yml`, `scripts/run_compose_integration.py`, `mcp_server/tests/test_run_compose_integration_gpu.py`, `docs/DEPLOYMENT.md`, `docs/adr/0022-gpu-default-cpu-fallback.md`
+- **Test debt:** first green compose-integration GHA run; gpu-smoke runner verification; maintainer GPU harness
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing yes; status `implemented` (not verified); invoker Changelog: no
+
+#### 2026-07-04 — plan
+- **Phase / PR:** Phase 3 — CI split
+- **Tracker status:** `planned`
+- **Choices:** Human decisions incorporated 2026-07-04 — GPU smoke in PR; GHA compose-integration job; 0021 P3 bundled in finisher docs commit. Single PR for Phase 3. Quality validation skipped (CI-only phase). **Chosen scope:** Add `ACCELERATOR: cpu` to every existing `ubuntu-latest` job in `.github/workflows/ci.yml`; add blocking GHA `compose-integration` job running `scripts/run_compose_integration.py` with `ACCELERATOR=cpu`; add optional non-blocking self-hosted `gpu-smoke` job with `ACCELERATOR=gpu`; extend integration harness with `ollama ps` GPU processor assertion when `ACCELERATOR=gpu`; update `docs/DEPLOYMENT.md` CI section; ADR 0022 partial status → Phase 3 track. Finisher bundles ADR 0021 Phase 3 housekeeping in separate docs commit.
+- **Assumptions:** ADR 0022 Phases 1–2 merged; `ci.yml` has zero `ACCELERATOR` today; self-hosted GPU runner available; integration harness keeps `RERANK_ENABLED=false`
+- **Deviations:** none
+- **Code evidence:** —
+- **Test debt:** blocking GHA compose-integration job; optional non-blocking self-hosted GPU smoke; `ollama ps` GPU processor assertion when `ACCELERATOR=gpu`
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing yes; status `planned` (not verified); invoker Changelog: no
+
+#### 2026-07-04 — prioritization
+- **Phase / PR:** Phase 3 — CI split
+- **Tracker status:** `candidate`
+- **Choices:** Prioritize 0022 Phase 3; human decisions resolved 2026-07-04: GPU smoke included in PR; GHA compose integration job added; 0021 P3 bundled in finisher docs commit. **Why now:** ADR 0022 Phases 1 and 2 merged ([PR #17](https://github.com/Tusquito/codebase-indexer-mcp/pull/17), [PR #19](https://github.com/Tusquito/codebase-indexer-mcp/pull/19)); both explicitly deferred `.github/workflows/ci.yml` changes. Code grep confirms zero `ACCELERATOR` in `ci.yml` while ADR 0022 mandates `ACCELERATOR=cpu` on every ubuntu-latest job as the sole CPU exception. Completing Phase 3 closes the GPU-default accelerator arc. **Chosen scope:** Add `ACCELERATOR: cpu` to every job `env` in `.github/workflows/ci.yml`; add GHA compose-integration job with `ACCELERATOR=cpu`; include optional non-blocking self-hosted GPU smoke job in same PR; finisher bundles ADR 0021 Phase 3 housekeeping (README index + CHANGELOG). Maintainer GPU host runs `scripts/run_compose_integration.py` before code review per project-phase. **Suggested scope:** one phase (= one PR).
+- **Deviations:** none
+- **Code evidence:** `.github/workflows/ci.yml` — zero `ACCELERATOR` matches (grep 2026-07-04)
+- **Test debt:** —
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing unknown
+
 #### 2026-07-04 — merge
 - **Phase / PR:** Phase 2 — Retire CPU ColBERT defaults — [PR #19](https://github.com/Tusquito/codebase-indexer-mcp/pull/19)
 - **Tracker status:** `merged`
@@ -1511,3 +1558,27 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-04 | 0022 | Optional `bench_colbert_sidecar.py` performance report? | **Deferred** at verification — optional sidecar benchmark report remains open | no |
 | 2026-07-04 | 0022 | Accept ADR 0022 phase 2 at merge? | **Accepted (phase 1; phase 2 — Retire CPU ColBERT defaults)** after [PR #19](https://github.com/Tusquito/codebase-indexer-mcp/pull/19) merge | no |
 | 2026-07-04 | 0022 | Phase 2 merge confirmed | [PR #19](https://github.com/Tusquito/codebase-indexer-mcp/pull/19) merged on `adr/0022-phase-2-retire-cpu-colbert-defaults` (squash `7fb7e7c`; accept docs `bddadc6`); release skipped; Phase 3 deferred | no |
+| 2026-07-04 | 0022 | Prioritize 0022 Phase 3 (CI split)? | **Prioritized** at 2026-07-04 prioritization — 0022 P3 `candidate`; P1+P2 merged; zero `ACCELERATOR` in `ci.yml`; closes GPU-default accelerator arc | no |
+| 2026-07-04 | 0022 | Self-hosted GPU smoke in Phase 3 PR? | **Resolved** at prioritization — optional non-blocking GPU smoke job included in same PR | no |
+| 2026-07-04 | 0022 | GHA compose-integration job in Phase 3? | **Resolved** at prioritization — add compose-integration job with `ACCELERATOR=cpu` | no |
+| 2026-07-04 | 0022 | ADR 0021 Phase 3 housekeeping bundling? | **Resolved** at prioritization — finisher bundles 0021 P3 (README index + CHANGELOG) in docs commit | no |
+| 2026-07-04 | 0022 | Maintainer GPU integration before code review? | **Resolved** at prioritization — maintainer GPU host runs `scripts/run_compose_integration.py` before code review per project-phase | no |
+| 2026-07-04 | 0022 | Phase 3 open decisions | **None** — all resolved by invoker at 2026-07-04 prioritization | no |
+| 2026-07-04 | 0022 | Single PR for Phase 3? | **Decided at plan** — single PR for Phase 3 CI split | no |
+| 2026-07-04 | 0022 | Quality validation in Phase 3? | **Decided at plan** — skipped (CI-only phase) | no |
+| 2026-07-04 | 0022 | GHA compose-integration job blocking vs optional? | **Decided at plan** — blocking GHA `compose-integration` job with `ACCELERATOR=cpu` | no |
+| 2026-07-04 | 0022 | Self-hosted GPU smoke job name and posture? | **Decided at plan** — optional non-blocking `gpu-smoke` job with `ACCELERATOR=gpu` | no |
+| 2026-07-04 | 0022 | Integration harness GPU assertion? | **Decided at plan** — extend with `ollama ps` GPU processor assertion when `ACCELERATOR=gpu` | no |
+| 2026-07-04 | 0022 | ADR 0021 Phase 3 housekeeping bundling mechanism? | **Decided at plan** — finisher bundles 0021 P3 in separate docs commit | no |
+| 2026-07-04 | 0022 | ADR 0022 partial acceptance at Phase 3? | **Decided at plan** — partial status → Phase 3 track in same PR | no |
+| 2026-07-04 | 0022 | Phase 3 plan complete? | **Planned** at 2026-07-04 plan — tracker `planned`; CI split scope locked | no |
+| 2026-07-04 | 0022 | Phase 3 open decisions (post-plan) | **None** — invoker confirmed no open decisions at plan | no |
+| 2026-07-04 | 0022 | Phase 3 implementation complete? | **Implemented** at 2026-07-04 implementation — tracker `implemented`; awaiting verification | no |
+| 2026-07-04 | 0022 | ubuntu-latest jobs `ACCELERATOR` posture? | **Decided at implementation** — all five ubuntu-latest jobs `ACCELERATOR=cpu` | no |
+| 2026-07-04 | 0022 | compose-integration job posture? | **Decided at implementation** — blocking GHA compose-integration job | no |
+| 2026-07-04 | 0022 | gpu-smoke job posture? | **Decided at implementation** — non-blocking self-hosted gpu-smoke | no |
+| 2026-07-04 | 0022 | Integration harness GPU assertion implementation? | **Decided at implementation** — `check_ollama_gpu_processor()` in harness when `ACCELERATOR=gpu` | no |
+| 2026-07-04 | 0022 | Phase 3 test debt | first green compose-integration GHA run; gpu-smoke runner verification; maintainer GPU harness | no |
+| 2026-07-04 | 0022 | Phase 3 verification complete? | **Verified** at 2026-07-04 verification — 375 unit tests pass; integration pass GPU+CPU; plan compliance pass; review rounds: 1; tracker `verified`; awaiting merge | no |
+| 2026-07-04 | 0022 | Phase 3 verification review rounds? | **1** review round at verification | no |
+| 2026-07-04 | 0022 | Phase 3 test debt (post-verification) | First green GHA compose-integration; gpu-smoke self-hosted runner; 0021 P3 finisher | no |
