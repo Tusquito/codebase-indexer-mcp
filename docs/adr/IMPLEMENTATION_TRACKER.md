@@ -57,7 +57,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0018](0018-telemetry-observability-otel-prometheus.md) | Adopt OpenTelemetry instrumentation with Prometheus metrics and optional OTLP export | Accepted (phase 1 — Application Prometheus metrics (MCP + ColBERT worker)) | Phase 1 — Application Prometheus metrics (MCP + ColBERT worker) | `merged` | Opt-in `METRICS_ENABLED=false` default; `prometheus_client` on dedicated `CollectorRegistry`; metrics-only `@observe_tool` on all MCP tool handlers; no collection/rel_path labels; application counters/histograms + truncation counter; index metrics via IndexJobTracker; `GET /metrics` on MCP and ColBERT worker HTTP layer; unit tests (`test_telemetry_metrics.py`); `DEPLOYMENT.md` scrape docs; defer `METRICS_PORT`, docker-compose scrape wiring, Phase 2 OTel traces, Phase 3 observability compose stack; [PR #13](https://github.com/Tusquito/codebase-indexer-mcp/pull/13) | 2026-07-03 |
 | [0020](0020-qwen3-code-finetune-jina-quality-gate.md) | Fine-tune Qwen3 for code retrieval with Jina quality gate | Accepted (phase 1 — Dataset + training pipeline) | Phase 1 — Dataset + training pipeline | `merged` | Shipped: `mcp_server/benchmarks/train/` (`export_golden_pairs.py`, `mine_hard_negatives.py`, `finetune_qwen3_code.py`, `_schema.py`, `_split.py`, `_positives.py`, `README.md`); optional `[train]` pyproject extra isolated from runtime/CI; default validation holdout = all four `multi_hop` golden queries; hard-negative mining via base Qwen3 hybrid `run_search` (rerank off); LoRA via PEFT + sentence-transformers (TripletLoss when all pairs have mined negatives, else MnRL in-batch); outputs under `benchmarks/train/outputs/` gitignored; unit tests (export/split/mining + `test_finetune_mrr.py`); `DEPLOYMENT.md` training stub. Deviations: `resolve_positive_passage` (singular); single-pass checkpoint save (baseline + final val MRR in `train_summary.json`) vs per-epoch best (documented at verification). Defer Ollama export/registry (P2), Jina quality gate + baseline update (P3), CI observation job (P4); no Docker/runtime/registry changes; [PR #15](https://github.com/Tusquito/codebase-indexer-mcp/pull/15) | 2026-07-03 |
 | [0021](0021-revert-jina-production-default-retire-qwen3.md) | Revert default dense embedder to Jina code; retire Qwen3 as production default | Accepted (phase 1 — Config + docs revert) | Phase 1 — Config + docs revert | `merged` | Jina production default @ 768 in env/bench/compose/docs; Qwen3 experimental preset (−63.1% recall@10); `OLLAMA_EMBED_MODEL` uncommented in `.env.example` REQUIRED; compose Jina pull manual-only; `config.py` Qwen3 registry/MRL retained; ADR index housekeeping in Phase 1 scope; defer Phase 2 (`eval_baseline.json`); CHANGELOG full update Phase 3; test debt: `smoke_recommend` dim mismatch until Phase 2 re-index; [PR #16](https://github.com/Tusquito/codebase-indexer-mcp/pull/16) | 2026-07-03 |
-| [0022](0022-gpu-default-cpu-fallback.md) | GPU-default acceleration; CPU only when explicit | Accepted (phase 1 — GPU-default compose + docs) | Phase 1 — GPU-default compose + docs | `verified` | Compose-only `ACCELERATOR=gpu` default; canonical `-f` via `scripts/compose_files.py`; fail-fast `require_gpu()` in integration harness; sparse BM25 unchanged (CPU in MCP); docs/compose updates; 12 unit tests pass; no `.github/workflows/ci.yml` changes. Defer Phase 2 (ColBERT remote GPU default + 0021 P2 baseline), Phase 3 (CI `ACCELERATOR=cpu`, self-hosted GPU smoke, `ollama ps` GPU assertion). | 2026-07-04 |
+| [0022](0022-gpu-default-cpu-fallback.md) | GPU-default acceleration; CPU only when explicit | Accepted (phase 1 — GPU-default compose + docs) | Phase 1 — GPU-default compose + docs | `merged` | Compose-only `ACCELERATOR=gpu` default; canonical `-f` via `scripts/compose_files.py`; fail-fast `require_gpu()` in integration harness; sparse BM25 unchanged (CPU in MCP); docs/compose updates; 12 unit tests pass; no `.github/workflows/ci.yml` changes. Defer Phase 2 (ColBERT remote GPU default + 0021 P2 baseline), Phase 3 (CI `ACCELERATOR=cpu`, self-hosted GPU smoke, `ollama ps` GPU assertion). [PR #17](https://github.com/Tusquito/codebase-indexer-mcp/pull/17) | 2026-07-04 |
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
 
@@ -75,7 +75,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 | 0018 | Phase 1 — Application Prometheus metrics (MCP + ColBERT worker) ([PR #13](https://github.com/Tusquito/codebase-indexer-mcp/pull/13)) | Phase 2 OTel traces; Phase 3 observability compose stack; `METRICS_PORT`, docker-compose scrape wiring |
 | 0020 | Phase 1 — Dataset + training pipeline ([PR #15](https://github.com/Tusquito/codebase-indexer-mcp/pull/15)) | Phases 2–4 cancelled per [ADR 0021](0021-revert-jina-production-default-retire-qwen3.md) (fine-tune gate failed path) |
 | 0021 | Phase 1 — Config + docs revert ([PR #16](https://github.com/Tusquito/codebase-indexer-mcp/pull/16)) | Phase 2 — Eval baseline refresh; Phase 3 — ADR housekeeping + CHANGELOG full update |
-| 0022 | Phase 1 — GPU-default compose + docs (pending PR) | Phase 2 (ColBERT remote GPU default + 0021 P2 baseline); Phase 3 (CI `ACCELERATOR=cpu`, self-hosted GPU smoke, `ollama ps` GPU assertion) |
+| 0022 | Phase 1 — GPU-default compose + docs ([PR #17](https://github.com/Tusquito/codebase-indexer-mcp/pull/17)) | Phase 2 (ColBERT remote GPU default + 0021 P2 baseline); Phase 3 (CI `ACCELERATOR=cpu`, self-hosted GPU smoke, `ollama ps` GPU assertion) |
 
 ---
 
@@ -1022,6 +1022,17 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 
 ### ADR 0022 — GPU-default acceleration; CPU only when explicit
 
+#### 2026-07-04 — merge
+- **Phase / PR:** Phase 1 — GPU-default compose + docs — [PR #17](https://github.com/Tusquito/codebase-indexer-mcp/pull/17)
+- **Tracker status:** `merged`
+- **Choices:** merge on feature branch `adr/0022-phase-1-gpu-default-compose`; ADR accepted as `Accepted (phase 1 — GPU-default compose + docs)`; release skipped; Phase 2 (ColBERT remote GPU default + 0021 P2 baseline) and Phase 3 (CI `ACCELERATOR=cpu`, self-hosted GPU smoke, `ollama ps` GPU assertion) deferred; next cycle: 0021 P2 then 0022 P2 per plan
+- **Deviations:** none
+- **Code evidence:** merged via [PR #17](https://github.com/Tusquito/codebase-indexer-mcp/pull/17) (`adr/0022-phase-1-gpu-default-compose`; `efdc14de6470cceb9abaf7bce2096ebb03331513`)
+- **Test debt:** carried from verification — `ollama ps` GPU assertion; CI `ACCELERATOR=cpu` — Phase 3
+- **Verify:** carried from verification — 12 unit tests pass; plan compliance pass; integration verdict pass; review rounds: 1
+- **Git:** [PR #17](https://github.com/Tusquito/codebase-indexer-mcp/pull/17) merged (`efdc14de6470cceb9abaf7bce2096ebb03331513`)
+- **Changelog:** no — release skipped; `[Unreleased]` bullet retained from verification step
+
 #### 2026-07-04 — verification
 - **Phase / PR:** Phase 1 — GPU-default compose + docs
 - **Tracker status:** `verified`
@@ -1337,3 +1348,5 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-04 | 0022 | Phase 1 test debt | `ollama ps` GPU assertion and CI `ACCELERATOR=cpu` deferred to Phase 3 | no |
 | 2026-07-04 | 0022 | Phase 1 verification complete? | **Verified** at 2026-07-04 verification — 12 unit tests pass; plan compliance pass; integration verdict pass; tracker `verified`; awaiting merge | no |
 | 2026-07-04 | 0022 | Phase 1 verification review rounds? | **1** review round at verification | no |
+| 2026-07-04 | 0022 | Accept ADR 0022 phase 1 at merge? | **Accepted (phase 1 — GPU-default compose + docs)** after [PR #17](https://github.com/Tusquito/codebase-indexer-mcp/pull/17) merge | no |
+| 2026-07-04 | 0022 | Phase 1 merge confirmed | [PR #17](https://github.com/Tusquito/codebase-indexer-mcp/pull/17) merged on `adr/0022-phase-1-gpu-default-compose` (`efdc14de6470cceb9abaf7bce2096ebb03331513`); release skipped; Phase 2 (ColBERT remote GPU default + 0021 P2 baseline) and Phase 3 deferred; next cycle 0021 P2 then 0022 P2 | no |
