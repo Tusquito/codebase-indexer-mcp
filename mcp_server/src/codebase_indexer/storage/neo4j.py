@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import structlog
 from neo4j import AsyncGraphDatabase, AsyncDriver
 
 from codebase_indexer.config import Settings
 from codebase_indexer.indexer.graph_writer import GraphBatch
+from codebase_indexer.storage.qdrant import SearchResult
 
 log = structlog.get_logger()
 
@@ -23,6 +26,10 @@ _SCHEMA_STATEMENTS = (
     "FOR (a:Artifact) REQUIRE a.key IS UNIQUE",
     "CREATE INDEX endpoint_collection_path IF NOT EXISTS "
     "FOR (e:Endpoint) ON (e.collection, e.path)",
+    "CREATE INDEX symbol_name_collection IF NOT EXISTS "
+    "FOR (s:Symbol) ON (s.collection, s.name)",
+    "CREATE INDEX calls_call_token IF NOT EXISTS "
+    "FOR ()-[r:CALLS]-() ON (r.call_token)",
 )
 
 
@@ -91,6 +98,64 @@ class Neo4jStorage:
                 paths=rel_paths,
             )
         log.debug("neo4j_deleted_files", collection=collection, count=len(rel_paths))
+
+    async def find_callers(
+        self,
+        method: str,
+        collections: list[str],
+        receiver: str | None = None,
+        limit_per_collection: int = 10,
+    ) -> list[SearchResult]:
+        """Find caller chunks via CALLS.call_token (ADR 0023 Phase 1)."""
+        if not self.enabled or not collections:
+            return []
+
+        token = f"{receiver}.{method}" if receiver else method
+        driver = await self._get_driver()
+
+        async def _query_collection(coll: str) -> list[SearchResult]:
+            async with driver.session(database=self._settings.neo4j_database) as session:
+                result = await session.run(
+                    """
+                    MATCH (col:Collection {name: $collection})<-[:IN_COLLECTION]-(f:File)
+                          <-[:IN_FILE]-(ch:Chunk)-[r:CALLS]->(s:Symbol)
+                    WHERE r.call_token IN $tokens
+                    OPTIONAL MATCH (ch)-[:DEFINES]->(def:Symbol)
+                    RETURN ch.chunk_id AS chunk_id,
+                           f.rel_path AS rel_path,
+                           ch.start_line AS start_line,
+                           ch.end_line AS end_line,
+                           f.language AS language,
+                           def.name AS symbol_name,
+                           coalesce(def.kind, 'other') AS symbol_type
+                    LIMIT $limit
+                    """,
+                    collection=coll,
+                    tokens=[token],
+                    limit=limit_per_collection,
+                )
+                records = await result.data()
+                return [
+                    SearchResult(
+                        chunk_id=rec["chunk_id"],
+                        score=0.0,
+                        rel_path=rec["rel_path"],
+                        language=rec.get("language") or "",
+                        start_line=rec["start_line"] or 0,
+                        end_line=rec["end_line"] or 0,
+                        symbol_name=rec.get("symbol_name"),
+                        symbol_type=rec.get("symbol_type") or "other",
+                        content="",
+                        collection=coll,
+                    )
+                    for rec in records
+                ]
+
+        results = await asyncio.gather(*[_query_collection(c) for c in collections])
+        all_results: list[SearchResult] = []
+        for batch in results:
+            all_results.extend(batch)
+        return all_results
 
     async def write_batch(self, batch: GraphBatch) -> None:
         """Upsert one graph batch produced by the index-time graph writer."""
@@ -168,10 +233,12 @@ class Neo4jStorage:
                 UNWIND $rows AS row
                 MATCH (ch:Chunk {chunk_id: row.chunk_id})
                 MERGE (s:Symbol {qualified_name: row.qualified_name})
-                SET s.name = row.name,
-                    s.kind = 'callee',
-                    s.collection = $collection
-                MERGE (ch)-[:CALLS]->(s)
+                ON CREATE SET s.name = row.name,
+                              s.kind = 'callee',
+                              s.collection = $collection
+                SET s.collection = $collection
+                MERGE (ch)-[r:CALLS]->(s)
+                SET r.call_token = row.call_token
                 """,
                 collection=collection,
                 rows=rows,

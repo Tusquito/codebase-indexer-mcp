@@ -422,7 +422,7 @@ def test_graph_defaults_disabled():
     assert s.neo4j_password == ""
     assert s.neo4j_database == "neo4j"
     assert s.graph_writer_batch == 500
-    assert s.graph_schema_version == 1
+    assert s.graph_schema_version == 2
     assert s.graph_max_hops == 2
     assert s.graph_max_nodes == 200
 
