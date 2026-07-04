@@ -1,8 +1,8 @@
-# GPU override for bundled Ollama (use with docker-compose.ollama.yml).
+# GPU override for bundled Ollama — part of the default stack when ACCELERATOR=gpu (ADR 0022).
 # Requires NVIDIA driver + Container Toolkit. Set OLLAMA_GPU=1 in .env.
 #
-#   docker compose -f docker-compose.yml -f docker-compose.ollama.yml \
-#     -f docker-compose.ollama.gpu.yml up -d --build
+# Canonical invocation (do not hand-assemble -f lists):
+#   docker compose $(python scripts/compose_files.py) --profile bundled-ollama up -d --build
 #
 # Verify processor after loading a model:
 #   docker exec codeindexer_ollama ollama ps
