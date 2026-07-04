@@ -28,11 +28,23 @@ _tlog = logging.getLogger(__name__)
 # Deliberately excludes
 # project-specific or content-bearing folders (e.g. "docs") — those belong in a
 # per-project .codeindexignore. Override the default set via Settings.excluded_dirs.
+def _should_prune_dir(dirname: str, excluded: set[str]) -> bool:
+    """Return True if a directory should be skipped during os.walk."""
+    if dirname in excluded:
+        return True
+    # uv / tool-specific venvs: .venv-bench, .venv-train, etc.
+    if dirname.startswith(".venv"):
+        return True
+    return False
+
+
 EXCLUDED_DIRS = {
     "node_modules",
     ".git",
     "__pycache__",
     ".venv",
+    ".venv-bench",
+    ".venv-train",
     "venv",
     "dist",
     "build",
@@ -163,7 +175,7 @@ async def scan_files(
 
             for dirpath, dirnames, filenames in os.walk(scan_root):
                 # Filter out excluded directories in-place
-                dirnames[:] = [d for d in dirnames if d not in excluded]
+                dirnames[:] = [d for d in dirnames if not _should_prune_dir(d, excluded)]
 
                 # Only index CI workflows under .github/, not AGENTS.md or other metadata
                 try:

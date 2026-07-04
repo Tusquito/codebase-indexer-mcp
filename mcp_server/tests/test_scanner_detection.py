@@ -5,7 +5,12 @@ import tempfile
 from pathlib import Path
 
 from codebase_indexer.indexer.languages import FILENAME_LANGUAGE_MAP
-from codebase_indexer.indexer.scanner import EXCLUDED_DIRS, _detect_language, scan_files
+from codebase_indexer.indexer.scanner import (
+    EXCLUDED_DIRS,
+    _detect_language,
+    _should_prune_dir,
+    scan_files,
+)
 
 
 def test_github_not_in_excluded_dirs():
@@ -14,6 +19,37 @@ def test_github_not_in_excluded_dirs():
 
 def test_migrations_in_excluded_dirs():
     assert "migrations" in EXCLUDED_DIRS
+
+
+def test_should_prune_dir_venv_variants():
+    excluded = EXCLUDED_DIRS
+    assert _should_prune_dir(".venv", excluded)
+    assert _should_prune_dir(".venv-bench", excluded)
+    assert _should_prune_dir(".venv-train", excluded)
+    assert not _should_prune_dir("src", excluded)
+
+
+def test_scan_skips_venv_variant_dirs():
+    async def _run() -> list[str]:
+        paths: list[str] = []
+        async for record in scan_files(workspace_path, readahead=4):
+            paths.append(record.rel_path)
+        return paths
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "src").mkdir()
+        (root / "src" / "main.py").write_text("print('ok')\n", encoding="utf-8")
+        for venv_name in (".venv", ".venv-bench", ".venv-train"):
+            venv = root / "mcp_server" / venv_name
+            venv.mkdir(parents=True)
+            (venv / "lib.py").write_text("ignored\n", encoding="utf-8")
+
+        workspace_path = str(root)
+        paths = asyncio.run(_run())
+
+    assert "src/main.py" in paths
+    assert not any(".venv" in p for p in paths)
 
 
 def test_detect_language_env_dotfiles():
