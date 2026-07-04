@@ -9,6 +9,7 @@ from codebase_indexer.config import Settings
 # Match .env.example — required Settings fields have no Python defaults.
 _BENCH_EMBED_DEFAULTS: dict[str, object] = {
     "dense_embed_model": "jinaai/jina-embeddings-v2-base-code",
+    "ollama_embed_model": "unclemusclez/jina-embeddings-v2-base-code",
     "sparse_embed_model": "Qdrant/bm25",
     "dense_embed_vector_size": 768,
     "sparse_threads": 2,
