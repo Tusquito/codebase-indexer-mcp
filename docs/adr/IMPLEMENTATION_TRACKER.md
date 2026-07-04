@@ -62,7 +62,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0022](0022-gpu-default-cpu-fallback.md) | GPU-default acceleration; CPU only when explicit | Accepted (phase 1 — GPU-default compose + docs) | Phase 1 — GPU-default compose + docs | `merged` | Compose-only `ACCELERATOR=gpu` default; canonical `-f` via `scripts/compose_files.py`; fail-fast `require_gpu()` in integration harness; sparse BM25 unchanged (CPU in MCP); docs/compose updates; 12 unit tests pass; no `.github/workflows/ci.yml` changes. Defer Phase 2 (ColBERT remote GPU default + 0021 P2 baseline), Phase 3 (CI `ACCELERATOR=cpu`, self-hosted GPU smoke, `ollama ps` GPU assertion). [PR #17](https://github.com/Tusquito/codebase-indexer-mcp/pull/17) | 2026-07-04 |
 | [0022](0022-gpu-default-cpu-fallback.md) | GPU-default acceleration; CPU only when explicit | Accepted (phase 1; phase 2 — Retire CPU ColBERT defaults) | Phase 2 — Retire CPU ColBERT defaults | `merged` | Remote GPU sidecar default when `RERANK_ENABLED=true`; explicit onnx for `ACCELERATOR=cpu`; Phase 3 CI split deferred; 368 unit tests pass; integration pass; quality validation threshold 0 self-compare pass; plan compliance pass; review rounds: 1. [PR #19](https://github.com/Tusquito/codebase-indexer-mcp/pull/19) | 2026-07-04 |
 | [0022](0022-gpu-default-cpu-fallback.md) | GPU-default acceleration; CPU only when explicit | Accepted (all phases complete) | Phase 3 — CI split | `merged` | Squash merge [PR #20](https://github.com/Tusquito/codebase-indexer-mcp/pull/20); six ubuntu-latest jobs `ACCELERATOR=cpu`; blocking GHA `compose-integration`; non-blocking self-hosted `gpu-smoke`; `check_ollama_gpu_processor()` in harness; finisher bundled 0021 P3 README + CHANGELOG close-out (`53f68e0`); final ADR 0022 phase complete; test debt: gpu-smoke first run when self-hosted runner available | 2026-07-04 |
-| [0023](0023-neo4j-primary-call-site-lookup.md) | Move call-site lookup from Qdrant callees to Neo4j CALLS | Accepted (phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing) | Phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing | `verified` | `call_token` on CALLS; symbol unification Rules 1–3; `Neo4jStorage.find_callers`; Path D routes Neo4j when `GRAPH_ENABLED` else Qdrant; Qdrant `callees` dual-write retained; `GRAPH_SCHEMA_VERSION=2`; defer Phases 2–4; 383 unit tests pass; integration pass; quality validation threshold 0 pass; plan compliance pass; review rounds: 1; test debt: live Neo4j parity fixture, unified-symbol Cypher traversal, mixed-collection per-engine routing (Phase 2) | 2026-07-04 |
+| [0023](0023-neo4j-primary-call-site-lookup.md) | Move call-site lookup from Qdrant callees to Neo4j CALLS | Accepted (phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing) | Phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing | `merged` | `call_token` on CALLS; symbol unification Rules 1–3; `Neo4jStorage.find_callers`; Path D routes Neo4j when `GRAPH_ENABLED` else Qdrant; Qdrant `callees` dual-write retained; `GRAPH_SCHEMA_VERSION=2`; defer Phases 2–4; 383 unit tests pass; integration pass; quality validation threshold 0 pass; plan compliance pass; review rounds: 1; test debt: live Neo4j parity fixture, unified-symbol Cypher traversal, mixed-collection per-engine routing (Phase 2). [PR #21](https://github.com/Tusquito/codebase-indexer-mcp/pull/21) | 2026-07-04 |
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
 
@@ -79,6 +79,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 | 0017 | Phase 1 — loader + Ollama backend ([PR #11](https://github.com/Tusquito/codebase-indexer-mcp/pull/11)) | Phase 2 observability + ADR 0011 body edit |
 | 0018 | Phase 1 — Application Prometheus metrics (MCP + ColBERT worker) ([PR #13](https://github.com/Tusquito/codebase-indexer-mcp/pull/13)) | Phase 2 OTel traces; Phase 3 observability compose stack; `METRICS_PORT`, docker-compose scrape wiring |
 | 0020 | Phase 1 — Dataset + training pipeline ([PR #15](https://github.com/Tusquito/codebase-indexer-mcp/pull/15)) | Phases 2–4 cancelled per [ADR 0021](0021-revert-jina-production-default-retire-qwen3.md) (fine-tune gate failed path) |
+| 0023 | Phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing ([PR #21](https://github.com/Tusquito/codebase-indexer-mcp/pull/21)) | Phases 2–4 (stop Qdrant dual-write, retire callees index, optional CALLS_RESOLVED edges) |
 
 ---
 
@@ -1264,6 +1265,17 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 
 ### ADR 0023 — Move call-site lookup from Qdrant callees to Neo4j CALLS
 
+#### 2026-07-04 — merge
+- **Phase / PR:** Phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing — [PR #21](https://github.com/Tusquito/codebase-indexer-mcp/pull/21)
+- **Tracker status:** `merged`
+- **Choices:** merge on feature branch `adr/0023-phase-1-neo4j-call-site-lookup`; ADR accept skipped — unchanged `Accepted (phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing)`; release skipped; Phases 2–4 deferred
+- **Deviations:** none
+- **Code evidence:** merged via [PR #21](https://github.com/Tusquito/codebase-indexer-mcp/pull/21) (`adr/0023-phase-1-neo4j-call-site-lookup`; `963f041df73ac6e1fbb05287debe4bccdd91526d`)
+- **Test debt:** carried from verification — live Neo4j parity fixture; unified-symbol Cypher traversal; mixed-collection per-engine routing (Phase 2)
+- **Verify:** carried from verification — 383 unit tests pass; integration pass; quality validation threshold 0 pass; plan compliance pass; review rounds: 1
+- **Git:** [PR #21](https://github.com/Tusquito/codebase-indexer-mcp/pull/21) merged (`963f041df73ac6e1fbb05287debe4bccdd91526d`)
+- **Changelog:** no — user-facing no; invoker Changelog: no
+
 #### 2026-07-04 — verification
 - **Phase / PR:** Phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing
 - **Tracker status:** `verified`
@@ -1672,3 +1684,5 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-04 | 0023 | Phase 1 verification complete? | **Verified** at 2026-07-04 verification — 383 unit tests pass; integration pass; quality validation threshold 0 pass; plan compliance pass; tracker `verified`; awaiting merge | no |
 | 2026-07-04 | 0023 | Phase 1 verification review rounds? | **1** review round at verification | no |
 | 2026-07-04 | 0023 | Phase 1 test debt (post-verification) | live Neo4j parity fixture; unified-symbol Cypher traversal; mixed-collection per-engine routing (Phase 2) | no |
+| 2026-07-04 | 0023 | Accept ADR 0023 phase 1 at merge? | **Skipped** — unchanged `Accepted (phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing)` | no |
+| 2026-07-04 | 0023 | Phase 1 merge confirmed | [PR #21](https://github.com/Tusquito/codebase-indexer-mcp/pull/21) merged on `adr/0023-phase-1-neo4j-call-site-lookup` (`963f041df73ac6e1fbb05287debe4bccdd91526d`); release skipped; Phases 2–4 deferred | no |
