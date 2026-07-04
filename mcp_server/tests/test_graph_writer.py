@@ -4,9 +4,12 @@ from codebase_indexer.indexer.chunker import Chunk
 from codebase_indexer.indexer.graph_writer import (
     artifact_key,
     build_graph_batch,
+    callee_qualified_name,
     extract_file_import_names,
     import_qualified_name,
+    resolve_call_target,
     symbol_qualified_name,
+    _DefineEntry,
 )
 from codebase_indexer.tools.cross_references import UrlExtractors
 
@@ -55,8 +58,64 @@ def test_build_graph_batch_from_chunks():
     assert len(batch.files) == 1
     assert len(batch.chunks) == 1
     assert any(d["name"] == "getUsers" for d in batch.defines)
-    assert any(c["name"] == "get" for c in batch.calls)
+    assert any(c["name"] == "get" and c["call_token"] == "get" for c in batch.calls)
     assert batch.declares_endpoint or batch.http_calls
+
+
+def test_resolve_call_target_unifies_unique_method_name():
+    defines = {
+        "isEnabled": [
+            _DefineEntry(
+                qualified_name="demo:Feature.java::isEnabled",
+                rel_path="Feature.java",
+                name="isEnabled",
+                kind="method",
+            )
+        ]
+    }
+    qn, name = resolve_call_target("isEnabled", "demo", "Caller.java", defines, [])
+    assert qn == "demo:Feature.java::isEnabled"
+    assert name == "isEnabled"
+
+
+def test_resolve_call_target_stub_when_ambiguous():
+    defines = {
+        "run": [
+            _DefineEntry("demo:a.py::run", "a.py", "run", "function"),
+            _DefineEntry("demo:b.py::run", "b.py", "run", "function"),
+        ]
+    }
+    qn, name = resolve_call_target("run", "demo", "Caller.py", defines, [])
+    assert qn == callee_qualified_name("demo", "run")
+    assert name == "run"
+
+
+def test_resolve_call_target_qualified_import_fallback():
+    defines = {
+        "save": [
+            _DefineEntry(
+                qualified_name="demo:OrderRepo.java::save",
+                rel_path="OrderRepo.java",
+                name="save",
+                kind="method",
+            ),
+            _DefineEntry(
+                qualified_name="demo:UserRepo.java::save",
+                rel_path="UserRepo.java",
+                name="save",
+                kind="method",
+            ),
+        ]
+    }
+    qn, name = resolve_call_target(
+        "orderRepo.save",
+        "demo",
+        "Service.java",
+        defines,
+        ["orderRepo"],
+    )
+    assert qn == "demo:OrderRepo.java::save"
+    assert name == "save"
 
 
 def test_build_graph_batch_build_manifest(tmp_path):

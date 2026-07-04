@@ -161,6 +161,8 @@ def _indexed_java_call_site_fixtures() -> tuple[list[SearchResult], dict[str, li
 async def _setup_find_cross_references(
     indexed_results: list[SearchResult],
     callees_by_chunk_id: dict[str, list[str]],
+    *,
+    graph_storage=None,
 ):
     """Register find_cross_references with a fake storage scroll on callees."""
     async def find_callers_in_collections(
@@ -177,11 +179,25 @@ async def _setup_find_cross_references(
         ]
         return matched[: limit_per_collection * len(collections)]
 
+    async def find_callers_graph(
+        method: str,
+        collections: list[str],
+        receiver: str | None = None,
+        limit_per_collection: int = 10,
+    ) -> list[SearchResult]:
+        return await find_callers_in_collections(
+            method, collections, receiver=receiver, limit_per_collection=limit_per_collection
+        )
+
     storage = AsyncMock()
     storage.list_collection_stats = AsyncMock(return_value=[])
     storage.search = AsyncMock(return_value=[])
     storage.find_symbol_in_collections = AsyncMock(return_value=[])
     storage.find_callers_in_collections = AsyncMock(side_effect=find_callers_in_collections)
+
+    if graph_storage is not None:
+        graph_storage.find_callers = AsyncMock(side_effect=find_callers_graph)
+        graph_storage.enabled = True
 
     embedder = MagicMock()
     embedder.embed_query = AsyncMock(return_value=([], None, None))
@@ -190,12 +206,13 @@ async def _setup_find_cross_references(
         storage=storage,
         embedder=embedder,
         url_extractors=UrlExtractors(),
+        graph_storage=graph_storage,
     )
 
     mcp = FastMCP("test")
     register_cross_references_tool(mcp, ctx)
     tool = await mcp.get_tool("find_cross_references")
-    return tool.fn, storage
+    return tool.fn, storage, graph_storage
 
 
 def _call_site_symbol_names(found_in: dict) -> set[str]:
@@ -210,7 +227,7 @@ def _call_site_symbol_names(found_in: dict) -> set[str]:
 @pytest.mark.asyncio
 async def test_find_cross_references_call_site_path_excludes_passive_inheritor():
     indexed, callees_map = _indexed_java_call_site_fixtures()
-    find_cross_references, storage = await _setup_find_cross_references(indexed, callees_map)
+    find_cross_references, storage, _ = await _setup_find_cross_references(indexed, callees_map)
 
     result = await find_cross_references(
         symbol_name="isEnabled",
@@ -240,7 +257,7 @@ async def test_find_cross_references_call_site_path_excludes_passive_inheritor()
 @pytest.mark.asyncio
 async def test_find_cross_references_call_site_receiver_qualifier_excludes_other_receiver():
     indexed, callees_map = _indexed_java_call_site_fixtures()
-    find_cross_references, storage = await _setup_find_cross_references(indexed, callees_map)
+    find_cross_references, storage, _ = await _setup_find_cross_references(indexed, callees_map)
 
     result = await find_cross_references(
         symbol_name="isEnabled",
@@ -261,6 +278,122 @@ async def test_find_cross_references_call_site_receiver_qualifier_excludes_other
 
 
 @pytest.mark.asyncio
+async def test_find_cross_references_path_d_routes_neo4j_when_graph_enabled():
+    indexed, callees_map = _indexed_java_call_site_fixtures()
+    graph_storage = SimpleNamespace(enabled=True)
+    find_cross_references, storage, graph_storage = await _setup_find_cross_references(
+        indexed, callees_map, graph_storage=graph_storage
+    )
+
+    result = await find_cross_references(
+        symbol_name="isEnabled",
+        member="isEnabled",
+        collections=["udh"],
+    )
+
+    call_sites = _call_site_symbol_names(result["found_in"])
+    assert "CreateTieBusinessService" in call_sites
+    storage.find_callers_in_collections.assert_not_awaited()
+    graph_storage.find_callers.assert_awaited_once_with(
+        method="isEnabled",
+        collections=["udh"],
+        receiver=None,
+        limit_per_collection=10,
+    )
+
+
+@pytest.mark.asyncio
+async def test_find_cross_references_path_d_qdrant_when_graph_disabled():
+    indexed, callees_map = _indexed_java_call_site_fixtures()
+    find_cross_references, storage, _ = await _setup_find_cross_references(
+        indexed, callees_map, graph_storage=None
+    )
+
+    await find_cross_references(
+        symbol_name="isEnabled",
+        member="isEnabled",
+        collections=["udh"],
+    )
+
+    storage.find_callers_in_collections.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_call_site_parity_qdrant_vs_neo4j_tokens():
+    """Neo4j call_token lookup must return the same caller set as Qdrant callees scroll."""
+    from contextlib import asynccontextmanager
+
+    from codebase_indexer.config import Settings
+    from codebase_indexer.storage.neo4j import Neo4jStorage
+
+    indexed, callees_map = _indexed_java_call_site_fixtures()
+
+    def _qdrant_ids(method: str, receiver: str | None) -> set[str]:
+        token = f"{receiver}.{method}" if receiver else method
+        return {
+            r.chunk_id
+            for r in indexed
+            if token in callees_map.get(r.chunk_id, [])
+        }
+
+    class _ParityResult:
+        def __init__(self, records: list[dict]) -> None:
+            self._records = records
+
+        async def data(self) -> list[dict]:
+            return self._records
+
+    class _ParitySession:
+        def __init__(self) -> None:
+            self.last_token: str | None = None
+
+        async def run(self, query: str, **params):
+            self.last_token = params["tokens"][0]
+            records = [
+                {
+                    "chunk_id": r.chunk_id,
+                    "rel_path": r.rel_path,
+                    "start_line": r.start_line,
+                    "end_line": r.end_line,
+                    "language": r.language,
+                    "symbol_name": r.symbol_name,
+                    "symbol_type": r.symbol_type,
+                }
+                for r in indexed
+                if self.last_token in callees_map.get(r.chunk_id, [])
+            ]
+            return _ParityResult(records)
+
+    class _ParityDriver:
+        def __init__(self) -> None:
+            self.session_obj = _ParitySession()
+
+        @asynccontextmanager
+        async def session(self, *, database: str):
+            yield self.session_obj
+
+    settings = Settings(
+        dense_embed_model="nomic-ai/nomic-embed-text-v1.5",
+        sparse_embed_model="Qdrant/bm25",
+        dense_embed_vector_size=768,
+        sparse_threads=2,
+        graph_enabled=True,
+        neo4j_password="secret",
+    )
+    storage = Neo4jStorage(settings, driver=_ParityDriver())  # type: ignore[arg-type]
+
+    for receiver in (None, "featureManagmentService"):
+        qdrant_ids = _qdrant_ids("isEnabled", receiver)
+        neo4j_results = await storage.find_callers(
+            method="isEnabled",
+            collections=["udh"],
+            receiver=receiver,
+        )
+        neo4j_ids = {r.chunk_id for r in neo4j_results}
+        assert neo4j_ids == qdrant_ids
+
+
+@pytest.mark.asyncio
 async def test_find_cross_references_semantic_path_passes_colbert_vector():
     colbert = [[0.1, 0.2], [0.3, 0.4]]
     storage = AsyncMock()
@@ -278,6 +411,7 @@ async def test_find_cross_references_semantic_path_passes_colbert_vector():
         storage=storage,
         embedder=embedder,
         url_extractors=UrlExtractors(),
+        graph_storage=None,
     )
 
     mcp = FastMCP("test")
@@ -308,6 +442,7 @@ async def test_find_cross_references_rerank_false_skips_colbert_on_semantic_path
         storage=storage,
         embedder=embedder,
         url_extractors=UrlExtractors(),
+        graph_storage=None,
     )
 
     mcp = FastMCP("test")
