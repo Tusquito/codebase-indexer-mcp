@@ -59,7 +59,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0021](0021-revert-jina-production-default-retire-qwen3.md) | Revert default dense embedder to Jina code; retire Qwen3 as production default | Accepted (phase 1 — Config + docs revert) | Phase 1 — Config + docs revert | `merged` | Jina production default @ 768 in env/bench/compose/docs; Qwen3 experimental preset (−63.1% recall@10); `OLLAMA_EMBED_MODEL` uncommented in `.env.example` REQUIRED; compose Jina pull manual-only; `config.py` Qwen3 registry/MRL retained; ADR index housekeeping in Phase 1 scope; defer Phase 2 (`eval_baseline.json`); CHANGELOG full update Phase 3; test debt: `smoke_recommend` dim mismatch until Phase 2 re-index; [PR #16](https://github.com/Tusquito/codebase-indexer-mcp/pull/16) | 2026-07-03 |
 | [0021](0021-revert-jina-production-default-retire-qwen3.md) | Revert default dense embedder to Jina code; retire Qwen3 as production default | Accepted (phase 1; phase 2 — Eval baseline refresh) | Phase 2 — Eval baseline refresh | `merged` | GPU Jina @768 live baseline committed (`eval_baseline.json`; `ACCELERATOR=gpu`, `RERANK_ENABLED=false`); pre-commit gate vs `eval_baseline_jina.json` failed (recall@10 0.263 vs 0.660 — golden alias drift, not embedder regression); post-commit Docker self-compare pass; frozen `eval_baseline_jina.json` preserved; scanner `.venv*` prune + golden alias fixes; `_settings.py` `ollama_embed_model` default; defer golden label realignment, pre-commit recall gate CI, optional `eval_multihop` CI gate; Phase 3 (CHANGELOG/ADR index housekeeping); [PR #18](https://github.com/Tusquito/codebase-indexer-mcp/pull/18) | 2026-07-04 |
 | [0022](0022-gpu-default-cpu-fallback.md) | GPU-default acceleration; CPU only when explicit | Accepted (phase 1 — GPU-default compose + docs) | Phase 1 — GPU-default compose + docs | `merged` | Compose-only `ACCELERATOR=gpu` default; canonical `-f` via `scripts/compose_files.py`; fail-fast `require_gpu()` in integration harness; sparse BM25 unchanged (CPU in MCP); docs/compose updates; 12 unit tests pass; no `.github/workflows/ci.yml` changes. Defer Phase 2 (ColBERT remote GPU default + 0021 P2 baseline), Phase 3 (CI `ACCELERATOR=cpu`, self-hosted GPU smoke, `ollama ps` GPU assertion). [PR #17](https://github.com/Tusquito/codebase-indexer-mcp/pull/17) | 2026-07-04 |
-| [0022](0022-gpu-default-cpu-fallback.md) | GPU-default acceleration; CPU only when explicit | Accepted (phase 1 — GPU-default compose + docs; phase 2 — Retire CPU ColBERT defaults) | Phase 2 — Retire CPU ColBERT defaults | `verified` | Remote GPU sidecar default when `RERANK_ENABLED=true`; explicit onnx for `ACCELERATOR=cpu`; Phase 3 CI split deferred; 368 unit tests pass; integration pass; quality validation threshold 0 self-compare pass; plan compliance pass; review rounds: 1 | 2026-07-04 |
+| [0022](0022-gpu-default-cpu-fallback.md) | GPU-default acceleration; CPU only when explicit | Accepted (phase 1; phase 2 — Retire CPU ColBERT defaults) | Phase 2 — Retire CPU ColBERT defaults | `merged` | Remote GPU sidecar default when `RERANK_ENABLED=true`; explicit onnx for `ACCELERATOR=cpu`; Phase 3 CI split deferred; 368 unit tests pass; integration pass; quality validation threshold 0 self-compare pass; plan compliance pass; review rounds: 1. [PR #19](https://github.com/Tusquito/codebase-indexer-mcp/pull/19) | 2026-07-04 |
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
 
@@ -77,7 +77,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 | 0018 | Phase 1 — Application Prometheus metrics (MCP + ColBERT worker) ([PR #13](https://github.com/Tusquito/codebase-indexer-mcp/pull/13)) | Phase 2 OTel traces; Phase 3 observability compose stack; `METRICS_PORT`, docker-compose scrape wiring |
 | 0020 | Phase 1 — Dataset + training pipeline ([PR #15](https://github.com/Tusquito/codebase-indexer-mcp/pull/15)) | Phases 2–4 cancelled per [ADR 0021](0021-revert-jina-production-default-retire-qwen3.md) (fine-tune gate failed path) |
 | 0021 | Phase 1 — Config + docs revert ([PR #16](https://github.com/Tusquito/codebase-indexer-mcp/pull/16)); Phase 2 — Eval baseline refresh ([PR #18](https://github.com/Tusquito/codebase-indexer-mcp/pull/18)) | Phase 3 — ADR housekeeping + CHANGELOG full update |
-| 0022 | Phase 1 — GPU-default compose + docs ([PR #17](https://github.com/Tusquito/codebase-indexer-mcp/pull/17)); Phase 2 — Retire CPU ColBERT defaults (`verified`) | Phase 3 (CI `ACCELERATOR=cpu`, self-hosted GPU smoke, `ollama ps` GPU assertion) |
+| 0022 | Phase 1 — GPU-default compose + docs ([PR #17](https://github.com/Tusquito/codebase-indexer-mcp/pull/17)); Phase 2 — Retire CPU ColBERT defaults ([PR #19](https://github.com/Tusquito/codebase-indexer-mcp/pull/19)) | Phase 3 (CI `ACCELERATOR=cpu`, self-hosted GPU smoke, `ollama ps` GPU assertion) |
 
 ---
 
@@ -1080,6 +1080,17 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 
 ### ADR 0022 — GPU-default acceleration; CPU only when explicit
 
+#### 2026-07-04 — merge
+- **Phase / PR:** Phase 2 — Retire CPU ColBERT defaults — [PR #19](https://github.com/Tusquito/codebase-indexer-mcp/pull/19)
+- **Tracker status:** `merged`
+- **Choices:** merge on feature branch `adr/0022-phase-2-retire-cpu-colbert-defaults`; ADR accepted as `Accepted (phase 1; phase 2 — Retire CPU ColBERT defaults)`; release skipped; Phase 3 (CI `ACCELERATOR=cpu`, self-hosted GPU smoke, `ollama ps` GPU assertion) deferred
+- **Deviations:** none
+- **Code evidence:** merged via [PR #19](https://github.com/Tusquito/codebase-indexer-mcp/pull/19) (`adr/0022-phase-2-retire-cpu-colbert-defaults`; squash `7fb7e7c`; accept docs `bddadc6`)
+- **Test debt:** carried from verification — Phase 3 CI `ACCELERATOR=cpu`; optional `bench_colbert_sidecar.py`; golden label realignment deferred
+- **Verify:** carried from verification — 368 unit tests pass; integration pass; quality validation threshold 0 self-compare pass; plan compliance pass; review rounds: 1
+- **Git:** [PR #19](https://github.com/Tusquito/codebase-indexer-mcp/pull/19) merged (`7fb7e7c`; accept docs `bddadc6`)
+- **Changelog:** no — already in `[Unreleased]` from verified step
+
 #### 2026-07-04 — verification
 - **Phase / PR:** Phase 2 — Retire CPU ColBERT defaults
 - **Tracker status:** `verified`
@@ -1498,3 +1509,5 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-04 | 0022 | Phase 3 CI split timing? | **Deferred** at verification — explicit `ACCELERATOR=cpu` on CI jobs remains Phase 3 | no |
 | 2026-07-04 | 0022 | Golden label realignment in Phase 2? | **Deferred** at verification — golden label realignment deferred | no |
 | 2026-07-04 | 0022 | Optional `bench_colbert_sidecar.py` performance report? | **Deferred** at verification — optional sidecar benchmark report remains open | no |
+| 2026-07-04 | 0022 | Accept ADR 0022 phase 2 at merge? | **Accepted (phase 1; phase 2 — Retire CPU ColBERT defaults)** after [PR #19](https://github.com/Tusquito/codebase-indexer-mcp/pull/19) merge | no |
+| 2026-07-04 | 0022 | Phase 2 merge confirmed | [PR #19](https://github.com/Tusquito/codebase-indexer-mcp/pull/19) merged on `adr/0022-phase-2-retire-cpu-colbert-defaults` (squash `7fb7e7c`; accept docs `bddadc6`); release skipped; Phase 3 deferred | no |
