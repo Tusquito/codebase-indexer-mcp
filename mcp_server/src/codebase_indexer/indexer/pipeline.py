@@ -289,6 +289,13 @@ async def run_pipeline(
         peak_rss_mb=get_rss_mb(),
     )
 
+    if graph_active:
+        try:
+            await storage.set_collection_graph_call_sites(coll, True)
+        except Exception as e:
+            log.warning("graph_call_sites_metadata_error", collection=coll, error=str(e))
+            result.errors.append(f"Graph call-sites metadata error: {e}")
+
     # Release ONNX models and reclaim native memory.
     # On by default: frees ~300-500 MB immediately after indexing.
     # Models reload in ~1.5s from cache on the next search query.
@@ -379,7 +386,8 @@ async def _flush_double_buffered(
         # can be freed first (it stays alive until upsert finishes).
         async def _do_upsert():
             ut0 = time.monotonic()
-            await storage.upsert_chunks(collection, embedded)
+            omit_callees = graph_storage is not None and graph_storage.enabled
+            await storage.upsert_chunks(collection, embedded, omit_callees=omit_callees)
             log.info("upsert_complete", chunks=chunk_count, upsert_s=round(time.monotonic() - ut0, 2))
             if graph_storage is not None and graph_storage.enabled:
                 try:

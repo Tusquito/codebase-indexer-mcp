@@ -78,6 +78,8 @@ async def test_flush_double_buffered_writes_graph_after_upsert():
         await task
 
         storage.upsert_chunks.assert_awaited_once()
+        upsert_kwargs = storage.upsert_chunks.await_args.kwargs
+        assert upsert_kwargs.get("omit_callees") is True
         mock_write.assert_awaited_once()
         assert mock_write.await_args.kwargs["collection"] == "demo"
 
@@ -142,3 +144,35 @@ async def test_run_pipeline_graph_error_appended_to_result():
         )
 
     assert any("Graph schema init error" in err for err in result.errors)
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_stamps_graph_call_sites_metadata():
+    settings = _settings()
+    storage = MagicMock()
+    storage.ensure_collection = AsyncMock()
+    storage.get_file_metadata = AsyncMock(return_value={})
+    storage.set_indexing = AsyncMock()
+    storage.list_collection_stats = AsyncMock(return_value=[])
+    storage.set_collection_graph_call_sites = AsyncMock()
+
+    graph_storage = MagicMock()
+    graph_storage.enabled = True
+    graph_storage.ensure_schema = AsyncMock()
+
+    with patch("codebase_indexer.indexer.pipeline.scan_files") as mock_scan:
+        async def _empty_scan(*args, **kwargs):
+            if False:
+                yield  # pragma: no cover
+            return
+
+        mock_scan.return_value = _empty_scan()
+
+        await run_pipeline(
+            settings=settings,
+            storage=storage,
+            collection="demo",
+            graph_storage=graph_storage,
+        )
+
+    storage.set_collection_graph_call_sites.assert_awaited_once_with("demo", True)
