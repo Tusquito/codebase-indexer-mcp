@@ -7,12 +7,11 @@ A fully self-hosted MCP server that indexes codebases into a local Qdrant vector
 ## Running the server
 
 ```bash
-# Start services (Ollama required — bundled or external)
-docker compose -f docker-compose.yml -f docker-compose.ollama.yml up -d --build
+# Start services (GPU default — bundled Ollama profile)
+docker compose $(python scripts/compose_files.py) --profile bundled-ollama up -d --build
 
-# Optional: NVIDIA GPU for bundled Ollama
-docker compose -f docker-compose.yml -f docker-compose.ollama.yml \
-  -f docker-compose.ollama.gpu.yml up -d --build
+# Explicit CPU-only (CI / no NVIDIA)
+docker compose $(ACCELERATOR=cpu python scripts/compose_files.py) --profile bundled-ollama up -d --build
 
 # Check health
 curl http://localhost:8000/health
@@ -21,7 +20,7 @@ curl http://localhost:8000/health
 docker logs -f codeindexer_mcp
 ```
 
-All config is env-var driven via `.env` (copy from `.env.example`). **Required in `.env` (no Python defaults):** `WORKSPACE_ROOT`, `MCP_MEM_LIMIT`, `QDRANT_MEM_LIMIT`, `MCP_CPUS`, `QDRANT_CPUS`, `OMP_NUM_THREADS`, `DENSE_EMBED_MODEL`, `SPARSE_EMBED_MODEL`, `DENSE_EMBED_VECTOR_SIZE`, `SPARSE_THREADS`. **Ollama (dense):** `OLLAMA_URL`, `OLLAMA_EMBED_MODEL` (or derive from `DENSE_EMBED_MODEL`), optional `COMPOSE_PROFILES=bundled-ollama`, `OLLAMA_GPU=1` + `docker-compose.ollama.gpu.yml` for GPU. Optional: `HYBRID_SEARCH`, `MCP_TRANSPORT`, pipeline/storage knobs in `config.py`. Default sparse is `Qdrant/bm25` with `SPARSE_THREADS=2` (see `.env.example`). Performance/RAM knobs: batching `BATCH_SIZE`/`FLUSH_EVERY`/`UPSERT_BATCH`/`READAHEAD_BUFFER`/`MAX_DENSE_EMBED_TOKENS`/`MAX_SPARSE_EMBED_TOKENS`, `SEQUENTIAL_EMBED`, glibc `MALLOC_ARENA_MAX`/`MALLOC_TRIM_THRESHOLD_`, Qdrant storage `VECTORS_ON_DISK`/`SPARSE_ON_DISK`/`QUANTIZATION`/`MEMMAP_THRESHOLD_KB`, memory pressure `MEMORY_PRESSURE_WARN_PCT`/`MEMORY_PRESSURE_HALT_PCT`, and model lifecycle `RELEASE_MODELS_AFTER_INDEX`/`MODEL_IDLE_TIMEOUT`. See [ADR 0011](docs/adr/0011-ollama-only-dense-embedding.md).
+All config is env-var driven via `.env` (copy from `.env.example`). **Required in `.env` (no Python defaults):** `WORKSPACE_ROOT`, `MCP_MEM_LIMIT`, `QDRANT_MEM_LIMIT`, `MCP_CPUS`, `QDRANT_CPUS`, `OMP_NUM_THREADS`, `ACCELERATOR`, `DENSE_EMBED_MODEL`, `SPARSE_EMBED_MODEL`, `DENSE_EMBED_VECTOR_SIZE`, `SPARSE_THREADS`. **Ollama (dense):** `OLLAMA_URL`, `OLLAMA_EMBED_MODEL`, `COMPOSE_PROFILES=bundled-ollama`, `OLLAMA_GPU=1` with GPU compose merged by `scripts/compose_files.py` when `ACCELERATOR=gpu` (default). Set `ACCELERATOR=cpu` for CPU-only hosts. Optional: `HYBRID_SEARCH`, `MCP_TRANSPORT`, pipeline/storage knobs in `config.py`. Default sparse is `Qdrant/bm25` with `SPARSE_THREADS=2` (always CPU in MCP — see [ADR 0022](docs/adr/0022-gpu-default-cpu-fallback.md)). Performance/RAM knobs: batching `BATCH_SIZE`/`FLUSH_EVERY`/`UPSERT_BATCH`/`READAHEAD_BUFFER`/`MAX_DENSE_EMBED_TOKENS`/`MAX_SPARSE_EMBED_TOKENS`, `SEQUENTIAL_EMBED`, glibc `MALLOC_ARENA_MAX`/`MALLOC_TRIM_THRESHOLD_`, Qdrant storage `VECTORS_ON_DISK`/`SPARSE_ON_DISK`/`QUANTIZATION`/`MEMMAP_THRESHOLD_KB`, memory pressure `MEMORY_PRESSURE_WARN_PCT`/`MEMORY_PRESSURE_HALT_PCT`, and model lifecycle `RELEASE_MODELS_AFTER_INDEX`/`MODEL_IDLE_TIMEOUT`. See [ADR 0011](docs/adr/0011-ollama-only-dense-embedding.md).
 
 **Important:** `MCP_MEM_LIMIT + QDRANT_MEM_LIMIT` must leave at least 2–3 GiB for the Linux kernel, Docker daemon, and WSL2 overhead. Over-allocating causes silent OOM kills.
 
@@ -114,7 +113,7 @@ Never call `search_codebase` without `max_content_chars` when you only need symb
 - **Chunk sizes**: verbose/markup languages (`xml`, `yaml`, `json`, `markdown`, etc.) are capped at 60 lines per chunk; all others use `MAX_CHUNK_LINES` (default 150).
 - **Cross-collection search**: pass multiple collection names in the `collections` parameter of `search_codebase` / `find_cross_references`. Single-collection search goes through a faster code path.
 - **Build dependency detection**: `tools/build_deps.py` provides `extract_build_deps(content, rel_path)`, `is_build_manifest(rel_path)`, and `match_deps_to_collections(deps, collection_names)`. These parse Maven/NuGet/npm/Gradle/Go/Cargo/Python manifests and fuzzy-match artifact names against indexed collection names (e.g. artifact `my-core-definitions` matches collection `my-core`). Reference type `build_dependency` is returned by `find_cross_references` for manifest files. `map_service_dependencies` adds a Phase 2b that emits `build_dependency` edges. `get_collection_summary` auto-detects and reports `build_dependencies` when other collections are indexed.
-- **Ollama GPU**: set `OLLAMA_GPU=1` and add `docker-compose.ollama.gpu.yml` when using bundled Ollama. See [ADR 0011](docs/adr/0011-ollama-only-dense-embedding.md).
+- **Ollama GPU**: default when `ACCELERATOR=gpu` — use `docker compose $(python scripts/compose_files.py)`; set `ACCELERATOR=cpu` for CPU-only. See [ADR 0022](docs/adr/0022-gpu-default-cpu-fallback.md), [ADR 0011](docs/adr/0011-ollama-only-dense-embedding.md).
 - **Documentation**: whenever you add, remove, or change an MCP tool (signature, behaviour, description), you **must** also update:
   1. `README.md` — the tool table and any relevant sections (Quick Start, Configuration, Architecture)
   2. `.github/copilot-instructions.md` — the tool table and Key conventions

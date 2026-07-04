@@ -97,11 +97,11 @@ flowchart LR
 | ColBERT (opt-in) | `indexer/backends/colbert_onnx.py`, `colbert_remote.py` | Multivector at index time when `RERANK_ENABLED=true`; MAX_SIM rerank at query time |
 | Truncation | `indexer/truncation.py`, `indexer/tokenizer_loader.py` | Dense: model tokenizer from `DENSE_EMBED_MODEL` via `tokenizers` (Ollama path); sparse/ColBERT: FastEmbed cache tokenizer; caps via `MAX_DENSE_EMBED_TOKENS` / `MAX_SPARSE_EMBED_TOKENS` |
 
-Dense embedding is Ollama-only ([ADR 0011](adr/0011-ollama-only-dense-embedding.md), [ADR 0001](adr/0001-pluggable-embed-backends.md) superseded for backend selection). Default dense model is **Jina Embeddings v2 base code** at 768 dimensions ([ADR 0021](adr/0021-revert-jina-production-default-retire-qwen3.md)); Qwen3 remains an optional experimental preset ([ADR 0016](adr/0016-qwen3-embedding-default-dense-model.md)); Nomic remains a documented CPU/low-VRAM preset.
+Dense embedding is Ollama-only ([ADR 0011](adr/0011-ollama-only-dense-embedding.md), [ADR 0001](adr/0001-pluggable-embed-backends.md) superseded for backend selection). Default dense model is **Jina Embeddings v2 base code** at 768 dimensions ([ADR 0021](adr/0021-revert-jina-production-default-retire-qwen3.md)); Qwen3 remains an optional experimental preset ([ADR 0016](adr/0016-qwen3-embedding-default-dense-model.md)). **GPU-default compose** ([ADR 0022](adr/0022-gpu-default-cpu-fallback.md)): bundled Ollama and ColBERT sidecar use NVIDIA GPU by default via `scripts/compose_files.py`; sparse BM25 stays **CPU in-process** for all accelerator modes.
 
 | Backend | Module | When |
 |---------|--------|------|
-| Ollama | `indexer/backends/ollama_dense.py` | Always (dense); optional bundled service via `COMPOSE_PROFILES=bundled-ollama`; GPU via `docker-compose.ollama.gpu.yml` |
+| Ollama | `indexer/backends/ollama_dense.py` | Always (dense); bundled service via `COMPOSE_PROFILES=bundled-ollama`; GPU override merged by default (`ACCELERATOR=gpu`) |
 | Sparse ONNX | `indexer/backends/onnx_sparse.py` | Always (BM25 hybrid search) |
 
 The `Embedder` facade in `indexer/embedder.py` orchestrates backends; factory wiring lives in `indexer/backends/factory.py`.

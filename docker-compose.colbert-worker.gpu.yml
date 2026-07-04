@@ -1,11 +1,8 @@
-# GPU override for ColBERT sidecar (use with docker-compose.colbert-worker.yml).
-# Requires NVIDIA driver + Container Toolkit. Set COLBERT_GPU=1 in .env.
+# GPU override for ColBERT sidecar — part of default stack when ACCELERATOR=gpu + remote sidecar (ADR 0022).
+# Requires NVIDIA driver + Container Toolkit. Set COLBERT_GPU=1 when sidecar is active.
 #
-#   docker compose -f docker-compose.yml \
-#     -f docker-compose.ollama.yml \
-#     -f docker-compose.ollama.gpu.yml \
-#     -f docker-compose.colbert-worker.yml \
-#     -f docker-compose.colbert-worker.gpu.yml up -d --build
+# Canonical invocation (RERANK_ENABLED=true, COLBERT_EMBED_BACKEND=remote):
+#   docker compose $(python scripts/compose_files.py) --profile bundled-ollama up -d --build
 #
 # Verify device after sidecar is healthy:
 #   curl http://localhost:8082/health
