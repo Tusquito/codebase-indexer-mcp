@@ -16,7 +16,7 @@ Skip ADRs for routine bug fixes, refactors with no design change, or dependency 
 ## How to add an ADR
 
 1. Copy [`template.md`](template.md) to a new file: `NNNN-short-kebab-title.md`
-2. Use the next available four-digit number (see index below — currently **0024**)
+2. Use the next available four-digit number (see index below — currently **0026**)
 3. Fill in all sections; leave **Status** as `Proposed` until reviewed
 4. Add a row to the index table below
 5. Link the ADR from related docs (e.g. [`ARCHITECTURE.md`](../ARCHITECTURE.md)) when relevant
@@ -70,6 +70,8 @@ Invoke the full pipeline with **`adr-orchestrator`**; resume a phase with `Resum
 | [0021](0021-revert-jina-production-default-retire-qwen3.md) | Revert default dense embedder to Jina code; retire Qwen3 as production default | Accepted | 2026-07-04 |
 | [0022](0022-gpu-default-cpu-fallback.md) | GPU-default acceleration; CPU only when explicit | Accepted | 2026-07-04 |
 | [0023](0023-neo4j-primary-call-site-lookup.md) | Move call-site lookup from Qdrant callees to Neo4j CALLS | Accepted (phase 1; phase 2 — Stop dual-write to Qdrant) | 2026-07-04 |
+| [0024](0024-resource-aware-stack-tuner.md) | Add resource-aware stack tuner for RSS allocation and performance tuning | Proposed | 2026-07-04 |
+| [0025](0025-huggingface-tei-dense-embedding.md) | Adopt HuggingFace TEI sidecar for dense embedding (hard replace of Ollama dense) | Proposed | 2026-07-04 |
 
 ## Qdrant Build Prototypes & Improve Search map
 
