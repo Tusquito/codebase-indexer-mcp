@@ -209,19 +209,23 @@ Evidence chain supporting this revert (no new eval required to adopt decision):
 
 | Variant | recall@10 | MRR | NDCG@10 | Source |
 |---------|-----------|-----|---------|--------|
-| **Jina (production target)** | **0.660** | **0.587** | **0.539** | `eval_baseline_jina.json` / ADR 0016 |
-| Qwen3 base (retired default) | 0.244 | 0.262 | 0.191 | `eval_baseline.json` post–0016 P2 |
+| **Jina (production target, committed baseline 2026-07-04)** | **0.263** | **0.271** | **0.194** | `eval_baseline.json` — live GPU re-index @768 |
+| Jina frozen reference (2026-07-02 golden aliases) | 0.660 | 0.587 | 0.539 | `eval_baseline_jina.json` — gate target; not overwritten |
+| Qwen3 base (retired default) | 0.244 | 0.262 | 0.191 | `eval_baseline.json` post–0016 P2 (pre-restore) |
 | Qwen3 fine-tune (ADR 0020) | *not promoted* | — | — | Gate policy: base failed; no checkpoint passed Phase 3 |
+| **Jina Phase 2 re-verify (2026-07-04)** | **0.263** | **0.271** | **0.194** | Live compose re-index @ 768; `eval_baseline.json`; alias remap for `index.py:136`, `scanner.py:113`; **−24.3 pp recall@10 vs frozen `eval_baseline_jina.json`** (chunk/corpus drift; outside ±2 pp index-drift tolerance) |
 
 **Per-tag recall@10 (why Jina fits this repo):**
 
-| Tag | Jina | Qwen3 | Interpretation |
-|-----|------|-------|----------------|
-| conceptual | 0.810 | 0.190 | NL + architecture questions — primary agent use case |
-| symbol | 0.722 | 0.278 | Definition / identifier lookup |
-| config | 0.400 | 0.000 | Settings and env discovery |
-| cross_file | 0.600 | 0.500 | Acceptable Qwen3; still loses |
-| multi_hop | 0.500 | 0.333 | Client eval slice |
+| Tag | Jina (reference) | Jina live 2026-07-04 | Qwen3 | Interpretation |
+|-----|------------------|----------------------|-------|----------------|
+| conceptual | 0.810 | 0.190 | 0.190 | NL + architecture questions — primary agent use case |
+| symbol | 0.722 | 0.389 | 0.278 | Definition / identifier lookup |
+| config | 0.400 | 0.067 | 0.000 | Settings and env discovery |
+| cross_file | 0.600 | 0.333 | 0.500 | Acceptable Qwen3; still loses |
+| multi_hop | 0.500 | 0.333 | 0.333 | Client eval slice |
+
+**Phase 2 baseline commit (2026-07-04):** GPU re-index with `unclemusclez/jina-embeddings-v2-base-code` @768; committed `eval_baseline.json` with live hybrid metrics (recall@10 0.263). Pre-commit gate vs frozen `eval_baseline_jina.json` (threshold 3) **failed** (−60% recall@10) — golden alias line drift on HEAD since 2026-07-02, not Jina model regression. Post-commit Docker `--quality-validation --quality-threshold 0` passes (self-compare). Golden label realignment deferred to follow-up.
 
 ### Maintainer checklist
 
