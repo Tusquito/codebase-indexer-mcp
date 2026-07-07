@@ -1,6 +1,6 @@
 # 0025. Adopt HuggingFace TEI sidecar for dense embedding
 
-- **Status:** Accepted
+- **Status:** Accepted (all phases complete)
 - **Date:** 2026-07-04
 - **Deciders:** Maintainers
 - **Related:** [0011](0011-ollama-only-dense-embedding.md), [0015](0015-colbert-http-sidecar.md), [0017](0017-model-tokenizer-tei-dense-truncation.md), [0022](0022-gpu-default-cpu-fallback.md), [0021](0021-revert-jina-production-default-retire-qwen3.md), [0001](0001-pluggable-embed-backends.md), [Text Embeddings Inference](https://github.com/huggingface/text-embeddings-inference), [OpenAI Embeddings API](https://platform.openai.com/docs/api-reference/embeddings)
