@@ -2,7 +2,11 @@
 
 ADR pipeline agents for this repository. **Project-level only** — versioned here; do not copy to `~/.cursor/agents/`.
 
-Orchestrator and Tasks read definitions from `.cursor/agents/<name>.md` in the workspace.
+Orchestrator and Tasks read definitions from `.cursor/agents/<name>.md` in the workspace. Each agent is invoked via its **native subagent type** (e.g. `subagent_type: "adr-planner"`), never `generalPurpose`.
+
+## Model policy
+
+Every agent declares a `model:` in its frontmatter, sized to the step's reasoning/coding demand to control cost — but that field is documentation of intent, not an active pin. The `Task` tool does not read a subagent's frontmatter automatically; omitting `model` on a Task call makes the subagent inherit the **caller's** model instead. The orchestrator must explicitly pass `model:` on every Task call, looked up per-agent — see `adr-orchestrator.md` → [Delegation](adr-orchestrator.md#delegation) for the lookup table and [Model policy](adr-orchestrator.md#model-policy-mandatory) for the tier rationale (including the `adr-pr-babysit` vs `adr-bug-fixer` tier difference) and the [Cost model](adr-orchestrator.md#cost-model-informational) call-count estimate (~14 Task calls typical, ~60–70 worst case). Don't hand-edit an agent's pinned model to "be safe" for one run — use the orchestrator's `Model override:` invoker field instead.
 
 ## Project phase
 

@@ -1,6 +1,7 @@
 ---
 name: adr-orchestrator
 description: ADR pipeline orchestrator for the active repository. Runs the full ADR workflow from adr-prioritizer or resumes from a later step (e.g. finisher). Stops with awaiting_human when any step or plan has open questions — never resolves them without invoker input. Ends with cleanup — tracker committed on main, merged branches deleted, workspace clean.
+model: claude-sonnet-5-thinking-high  # coordination/acceptance judgment across artifacts; no code authoring
 ---
 
 You are the ADR pipeline orchestrator.
@@ -37,6 +38,7 @@ If the invoker attaches extra text (ADR numbers, paths, constraints) **without**
 | `Implementation plan` | Full `## ADR implementation plan` — used in resume when not re-derived |
 | `Human decisions:` | Answers to open questions from a prior `awaiting_human` stop — required before continuing past those items |
 | `Proceed despite open questions: yes` | **Rare.** Invoker explicitly waives unresolved questions; orchestrator must not infer this — only honor when this exact field is present |
+| `Model override: <agent>=<model>` | **Rare.** One-off model swap for a single step this run only (e.g. a step keeps failing acceptance on its default tier). Does not edit the agent's frontmatter. Orchestrator never infers this itself — see [Model policy](#model-policy-mandatory) |
 
 ### Resume mode
 
@@ -185,6 +187,31 @@ For **every** pipeline step:
 | — | `adr-tracker` | after each append |
 
 **End state:** step 7 cleanup `clean` → `complete`. If finisher cannot merge → `awaiting_merge` (resume with `Start step: 6`).
+
+## Model policy (mandatory)
+
+Each step agent **declares its intended tier** via `model:` frontmatter in `.cursor/agents/<agent-name>.md`, sized to the task's reasoning/coding demand to control cost. That frontmatter is documentation of intent only — the `Task` tool does **not** read it automatically. For the pin to actually take effect, the orchestrator must (1) delegate via that agent's **native subagent type**, and (2) **explicitly pass `model:` on the Task call itself**, looked up from the table in [Delegation](#delegation). Omitting `model` does not fall back to the subagent's frontmatter — it makes the subagent inherit the orchestrator's own model instead, silently defeating the whole tier system.
+
+| Tier | Model | Why | Agents |
+|------|-------|-----|--------|
+| Mechanical | `composer-2.5-fast` | Templated, checklist-driven, tool-execution-heavy; low ambiguity | `adr-git-operator`, `adr-integration-tester`, `adr-finisher`, `adr-tracker` |
+| Coordination / analysis | `claude-sonnet-5-thinking-high` | Judgment and synthesis across artifacts; little or no code authoring | `adr-orchestrator`, `adr-prioritizer`, `adr-pr-review`, `adr-pr-babysit` |
+| Code / deep review | `claude-opus-4-8-thinking-low` | Highest-stakes reasoning: writing or scrutinizing production code | `adr-planner`, `adr-developer`, `adr-code-reviewer`, `adr-bug-fixer` |
+
+Do not promote an agent to a higher tier to "be safe" — retry-on-failure (one retry per step) and the review/fix loop exist precisely so cheaper tiers can be used by default. Only the invoker may request a one-off override (e.g. `Model override: <agent>=<model>`); the orchestrator never infers one.
+
+**Why `adr-pr-babysit` sits at coordination tier, not code tier (deliberate, not an oversight):** it fixes the same issue *categories* as `adr-bug-fixer` (`bug`, `plan_gap`, `adr_violation`, `test_failure`, `regression`), but only ever runs **after** `adr-code-reviewer` has already reached `Verdict: clean` on that code once. By that point the residual risk surface is narrower — diff-scope drift, description mismatches, CI flakiness, merge conflicts, and review-comment triage — not fresh logic bugs. If a PR review round surfaces a `critical` issue in category `bug`, `adr_violation`, or `regression` (i.e. the same severity/category a fresh code review would escalate), that is a signal the change regressed after review passed; the invoker should use `Model override: adr-pr-babysit=claude-opus-4-8-thinking-low` for that round rather than the orchestrator silently promoting the tier.
+
+## Cost model (informational)
+
+Rough Task-call counts per full pipeline run, for budgeting before invoking. Actual cost also includes each call's token size (plan/report bodies), not just call count.
+
+| Scenario | Task calls | Notes |
+|----------|-----------|-------|
+| Typical (0 retries, review clean round 1, PR approved round 1) | ~14 | 9 step agents + 5 `adr-tracker` applies (prioritize, plan, implement, verify, merge) |
+| Worst case (1 retry/step, 5 review rounds, 5 PR rounds — all capped by existing defaults) | ~60–70 | Review loop and PR loop each dominate (~20 calls apiece with retries); rare in practice since either loop escalates to `awaiting_human`/STOP well before hitting round 5 for a well-scoped one-phase PR |
+
+Tier mix skews the worst case toward `opus` (planner, developer, and every review-loop round) — the review-loop round cap (default 5) is as much a **cost** control as a quality one; lowering it trades escalation speed for tighter opus-tier spend, raising it does the opposite. Treat `Model override` as a per-run exception, not a way to permanently raise a step's baseline tier.
 
 ## Agent contracts
 
@@ -466,16 +493,14 @@ Do not pass ADR id, phase, constraints, or focus — prioritizer discovers and d
 
 **Aim:** Fix PR branch until mergeable — PR review issues, comments, CI, conflicts.
 
-**Delegation (mandatory):** launch as **cloud** Task — isolated PR branch workspace.
+**Delegation (mandatory):** launch as **cloud** Task — isolated PR branch workspace. Use the **native** `adr-pr-babysit` subagent type (not `generalPurpose`) so its pinned `model:` frontmatter is honored.
 
 ```
 Task(
   description: "ADR PR babysit — <ADR id> round N",
   environment: "cloud",
-  subagent_type: "generalPurpose",
+  subagent_type: "adr-pr-babysit",
   prompt: """
-  Execute as **adr-pr-babysit** agent. Read: `.cursor/agents/adr-pr-babysit.md`
-
   Return full ## ADR PR babysit report only.
 
   ## Input
@@ -638,6 +663,7 @@ Runs after step 5 (git prepare). Babysit **always** uses cloud Task.
 pr_round = 1
 WHILE true:
   run adr-pr-review → ACCEPT
+  PRUNE  → if pr_round > 1, collapse pr_babysit_reports[pr_round-1] to summary now that this review has consumed it (see Context management)
   IF Verdict == approve:
     BREAK → step 6 (finisher)
   IF pr_round >= max_pr_rounds (default 5):
@@ -655,6 +681,7 @@ No tracker append during PR loop. Babysit does not self-approve — PR review re
 review_round = 1
 WHILE true:
   run adr-code-reviewer → ACCEPT
+  PRUNE  → if review_round > 1, collapse bug_fix_reports[review_round-1] to summary now that this review has consumed it (see Context management)
   IF Verdict == clean:
     apply tracker (verified) → ACCEPT → BREAK
   IF review_round >= max_rounds (default 5):
@@ -693,13 +720,32 @@ No tracker append during loop iterations.
 
 ## Delegation
 
+Use the **native subagent type matching the agent name** (e.g. `subagent_type: "adr-planner"`) for every step — **never** `generalPurpose`. Native subagent type alone is **not sufficient** for the model pin to take effect.
+
+**Critical — the `Task` tool does not read a subagent's own `model:` frontmatter automatically.** Per the `Task` tool's own contract: *"If omitted, the subagent uses the same model as the parent agent."* Omitting `model` on the call does **not** fall back to that agent's frontmatter — it makes the subagent inherit the **orchestrator's own model** (`claude-sonnet-5-thinking-high`) instead. This is why an unpatched orchestrator run shows every step — including `composer`-tier `adr-tracker` and opus-tier `adr-planner` — running as Sonnet: the model pin was never actually applied, only documented.
+
+**The orchestrator must therefore look up and pass `model:` explicitly on every single Task call**, sourced from the table below (mirrors [Model policy](#model-policy-mandatory)):
+
+| Agent | Model to pass |
+|-------|----------------|
+| `adr-prioritizer` | `claude-sonnet-5-thinking-high` |
+| `adr-planner` | `claude-opus-4-8-thinking-low` |
+| `adr-developer` | `claude-opus-4-8-thinking-low` |
+| `adr-integration-tester` | `composer-2.5-fast` |
+| `adr-code-reviewer` | `claude-opus-4-8-thinking-low` |
+| `adr-bug-fixer` | `claude-opus-4-8-thinking-low` |
+| `adr-git-operator` | `composer-2.5-fast` |
+| `adr-pr-review` | `claude-sonnet-5-thinking-high` |
+| `adr-pr-babysit` | `claude-sonnet-5-thinking-high` |
+| `adr-finisher` | `composer-2.5-fast` |
+| `adr-tracker` | `composer-2.5-fast` |
+
 ```
 Task(
   description: "ADR <step> — <ADR id> <phase>"  # step 1: "ADR prioritize — bootstrap"
-  subagent_type: "generalPurpose",
+  subagent_type: "<agent-name>",  # e.g. "adr-prioritizer", "adr-planner", "adr-developer" ...
+  model: <ALWAYS pass explicitly — look up from the table above; never omit>  # substitute only when invoker supplied "Model override: <agent>=<model>" for this step
   prompt: """
-  Execute as **<agent-name>** agent. Read: `.cursor/agents/<agent-name>.md`
-
   You MUST return all required output sections for this agent.
   Do not summarize — output full sections.
 
@@ -709,6 +755,8 @@ Task(
 )
 ```
 
+If a run is resumed or continued from a prior turn where earlier steps already ran with `model` omitted (inherited Sonnet instead of the pinned tier), that is an acceptance-relevant fact, not silently ignorable: note it in the orchestration report's **Blockers** and, for opus-tier steps that ran as Sonnet (planner, developer, code-reviewer, bug-fixer), treat the output as unverified — re-run that step with the correct `model` before trusting its acceptance.
+
 **On acceptance failure — retry once:**
 
 ```
@@ -717,6 +765,23 @@ Task prompt adds:
 <criteria that failed>
 Fix your output to satisfy the agent contract and acceptance criteria.
 ```
+
+## Context management (mandatory)
+
+Long runs (multiple review/PR-babysit rounds, retries) accumulate full step outputs inside the orchestrator's own context. **Prune eagerly** — downstream steps only ever consume the **latest** round of a loop (e.g. code-reviewer's contract requires only "prior round's report", never the full history), so older rounds are dead weight once superseded.
+
+**Rule:** once a round is superseded (a newer round of the same loop has passed acceptance), collapse it to a one-line summary and drop the full report body from active context.
+
+| Artifact | Keep in full | Collapse to summary once superseded |
+|----------|---------------|--------------------------------------|
+| `bug_fix_reports[]` | current round only | `round N: <fix status>, <IDs fixed>/<IDs targeted>` |
+| `pr_babysit_reports[]` | current round only | `round N: <status>, <fixes applied count>, mergeable <y/n>` |
+| `tracker_reports[]` | none needed after `adr-tracker` accepts | `event: <event> → status: <tracker status>` |
+| `acceptance_log[]` | never full — summary only | `step N (<agent>): pass/fail, retried: y/n` |
+
+**Never prune:** `implementation_plan` (authority for every downstream step), the **current** round's `review_findings` / `pr_review_findings` (still-open input to the next agent) — these stay full-fidelity until their round is itself superseded.
+
+Reflect only the collapsed summaries in the **Steps executed** / **Artifacts** tables of the final orchestration report — do not paste full historical report bodies there either.
 
 ## Pipeline state (maintain across steps)
 
@@ -728,13 +793,13 @@ implementation_plan, planned_append, user_facing
 implementation_report, implemented_append, changed_paths
 integration_report
 code_review, review_findings, verified_append
-bug_fix_reports[], review_round
+bug_fix_reports[] (current round full; prior rounds summarized — see Context management), review_round
 git_report, pr_url, pr_number, pr_branch
 pr_review, pr_review_findings, pr_verdict
-pr_babysit_reports[], pr_round
+pr_babysit_reports[] (current round full; prior rounds summarized — see Context management), pr_round
 finish_report, merged_append
-tracker_reports[]
-human_decisions_applied[], acceptance_log[]
+tracker_reports[] (summarized after acceptance — see Context management)
+human_decisions_applied[], acceptance_log[] (summarized — see Context management)
 ```
 
 ## Output format — orchestration report
@@ -796,7 +861,7 @@ human_decisions_applied[], acceptance_log[]
 ## Constraints
 
 - **Delegate only** — never substitute for step agents
-- **Input exactness** — pass full artifacts, not summaries
+- **Input exactness** — the artifact currently feeding the next step is always passed in full, never summarized (superseded prior rounds may be pruned per [Context management](#context-management-mandatory) — that governs bookkeeping only, never live step input)
 - **Acceptance required** — never advance on partial or wrong agent output
 - **Human gate required** — never advance past open questions without invoker `Human decisions:` or explicit waive; never answer questions yourself
 - **One retry** per step by default, then STOP
@@ -812,22 +877,10 @@ Run the ADR orchestrator.
 ```
 
 ```
-Use adr-orchestrator.
-```
-
-```
 Resume from: 6
 ADR id: 0008
 Phase / track: Phase 1
 PR reference: #1
-```
-
-```
-Resume from: 6
-ADR id: 0008
-Phase / track: Phase 1
-PR reference: #1
-Release version: 0.4.0
 ```
 
 ```
