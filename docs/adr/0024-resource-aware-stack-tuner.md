@@ -1,6 +1,6 @@
 # 0024. Add resource-aware stack tuner for RSS allocation and performance tuning
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-07-04
 - **Deciders:** Maintainers
 - **Related:** [Qdrant Improve Search](https://qdrant.tech/documentation/improve-search/), [ADR 0007](0007-ranx-retrieval-evaluation.md), [ADR 0015](0015-colbert-http-sidecar.md), [ADR 0018](0018-telemetry-observability-otel-prometheus.md), [ADR 0022](0022-gpu-default-cpu-fallback.md)

@@ -66,7 +66,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0023](0023-neo4j-primary-call-site-lookup.md) | Move call-site lookup from Qdrant callees to Neo4j CALLS | Accepted (phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing) | Phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing | `merged` | `call_token` on CALLS; symbol unification Rules 1–3; `Neo4jStorage.find_callers`; Path D routes Neo4j when `GRAPH_ENABLED` else Qdrant; Qdrant `callees` dual-write retained; re-index on graph writer changes (removed `GRAPH_SCHEMA_VERSION` pre-1.0); defer Phases 2–4; 383 unit tests pass; integration pass; quality validation threshold 0 pass; plan compliance pass; review rounds: 1; test debt: live Neo4j parity fixture, unified-symbol Cypher traversal, mixed-collection per-engine routing (Phase 2). [PR #21](https://github.com/Tusquito/codebase-indexer-mcp/pull/21) | 2026-07-04 |
 | [0023](0023-neo4j-primary-call-site-lookup.md) | Move call-site lookup from Qdrant callees to Neo4j CALLS | Accepted (phase 1; phase 2 — Stop dual-write to Qdrant) | Phase 2 — Stop dual-write to Qdrant | `merged` | Reused `graph_call_sites` metadata; per-collection Path D routing; Qdrant fallback + warning; retain callees index until Phase 3; 391 unit tests pass; integration pass; plan compliance pass; review rounds: 2; test debt: Testcontainers slow test optional CI job; defer Phases 3–4 and ADR 0002 Phase 2 `graph_node_ids`. [PR #22](https://github.com/Tusquito/codebase-indexer-mcp/pull/22) | 2026-07-04 |
 | [0025](0025-huggingface-tei-dense-embedding.md) | Adopt HuggingFace TEI sidecar for dense embedding | Accepted (all phases complete) | Phase 1 — TEI hard replace (final phase) — closeout | `merged` | Squash merge [PR #23](https://github.com/Tusquito/codebase-indexer-mcp/pull/23) (`0f01cda`); `TeiDenseBackend` + OpenAI `/v1/embeddings`; TEI compose (`docker-compose.tei.yml` + `.tei.gpu.yml`, profile `bundled-tei`); Ollama dense deleted; Ollama→TEI doc/docstring sweep (16 files); upstream TEI CUDA-detection bug fixed via `docker-compose.tei.gpu.yml` entrypoint override; upstream TEI CPU-warmup bug fixed via `--max-batch-tokens` cap + client-side `MAX_DENSE_EMBED_TOKENS` pairing (CPU-only CI path); live GPU quality-validation (recall@10=0.3590, MRR=0.3576, ndcg@10=0.2807, 43/43 golden labels); ADR accepted all phases via docs commit `a756677`; final ADR 0025 phase complete; test debt: optional offline CI alias-drift guard, `benchmarks/train/**` (ADR 0020 follow-up) | 2026-07-07 |
-| [0024](0024-resource-aware-stack-tuner.md) | Add resource-aware stack tuner for RSS allocation and performance tuning | Proposed | Phase 1 — Analyze + allocate | `planned` | Pure allocation/knob-seed math (`scripts/tune_alloc.py`); `scripts/tune_stack.py` `analyze`+`allocate` with feature-flag/topology resolution mirroring `compose_files.py`; unit tests (`mcp_server/tests/test_tune_alloc.py`); formal ADR Accept (status + `docs/adr/README.md` index) on first phase PR; stdlib-only host detection + `--max-ram-gib` fallback; TEI dense sidecar caps (`TEI_MEM_LIMIT`/`TEI_CPUS`); compose-only env vars (no `.env` writes); `tune`/`report` stubbed Phase 2/3; no bench/search loop; defer `.env.example` preset sync (Phase 4); one PR; opt-in, no default behavior change | 2026-07-07 |
+| [0024](0024-resource-aware-stack-tuner.md) | Add resource-aware stack tuner for RSS allocation and performance tuning | Accepted (phase 1 — Analyze + allocate) | Phase 1 — Analyze + allocate | `verified` | Pure `tune_alloc.py` split from `tune_stack.py` CLI; topology-priority RAM selection; deterministic knob tiers; tri-state flag precedence mirroring `compose_files.py`; stdlib RAM detection + `--max-ram-gib` fallback; TEI caps `TEI_MEM_LIMIT`/`TEI_CPUS`; ColBERT MCP ≤35% cap; compose-only env vars (`.env` write refused); ADR Accept + `docs/adr/README.md` index; 17 unit tests pass; CLI smoke pass; Docker integration pass; plan compliance pass; review rounds: 1; NVIDIA probe deferred Phase 2; defer `.env.example` preset sync (Phase 4); test debt: CLI-level tests for `tune_stack.py`, host-detection mocks, ADR success-criterion #1 ±10% preset assertion deferred; opt-in, no default behavior change | 2026-07-08 |
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
 
@@ -1432,6 +1432,28 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 
 ### ADR 0024 — Add resource-aware stack tuner for RSS allocation and performance tuning
 
+#### 2026-07-08 — verification
+- **Phase / PR:** Phase 1 — Analyze + allocate
+- **Tracker status:** `verified`
+- **Choices:** Pure `tune_alloc.py` split from `tune_stack.py` CLI; topology-priority RAM selection; deterministic knob tiers; tri-state flag precedence mirroring `compose_files.py`; stdlib RAM detection; NVIDIA probe deferred Phase 2
+- **Deviations:** none
+- **Code evidence:** `scripts/tune_alloc.py`, `scripts/tune_stack.py`, `mcp_server/tests/test_tune_alloc.py`, `docs/adr/0024-resource-aware-stack-tuner.md`, `docs/adr/README.md`
+- **Test debt:** CLI-level tests for `tune_stack.py`; host-detection mocks; ADR success-criterion #1 ±10% preset assertion deferred
+- **Verify:** 17 unit tests pass (`mcp_server/tests/test_tune_alloc.py`); CLI smoke pass; Docker integration report `pass`; plan compliance all pass; no lint errors; review rounds: 1
+- **Git:** pending
+- **Changelog:** no — user-facing yes; entry deferred per invoker
+
+#### 2026-07-07 — implementation
+- **Phase / PR:** Phase 1 — Analyze + allocate
+- **Tracker status:** `implemented`
+- **Choices:** Pure math in `tune_alloc.py`; CLI `analyze`/`allocate` + `tune`/`report` stubs; stdlib RAM detection with `--max-ram-gib` fallback; TEI caps `TEI_MEM_LIMIT`/`TEI_CPUS`; ColBERT MCP ≤35% cap; `.env` write refused.
+- **Deviations:** no-TEI topology priority (cpu_dense+graph combo unreachable); knob ranges to deterministic tiers; NVIDIA runtime probe deferred Phase 2.
+- **Code evidence:** `scripts/tune_alloc.py`, `scripts/tune_stack.py`, `mcp_server/tests/test_tune_alloc.py`, `docs/adr/0024-resource-aware-stack-tuner.md`, `docs/adr/README.md`
+- **Test debt:** Docker integration hook; CLI-layer tests; host-detection mocks; success-criteria ±10% preset assertion
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing yes; entry at `verified` step
+
 #### 2026-07-07 — plan
 - **Phase / PR:** Phase 1 — Analyze + allocate
 - **Tracker status:** `planned`
@@ -1987,5 +2009,11 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-07 | 0024 | Host RAM detection — `psutil` vs stdlib-only? | **Resolved by human** at 2026-07-07 plan — stdlib-only with `--max-ram-gib` fallback | no |
 | 2026-07-07 | 0024 | `analyze` NVIDIA runtime probe — live vs mocked-only in tests? | **Resolved by human** at 2026-07-07 plan — may probe via `nvidia_docker_available`; mocked in tests | no |
 | 2026-07-07 | 0024 | Phase 1 open decisions (post-plan) | **None** — all resolved by human at 2026-07-07 plan | no |
+| 2026-07-07 | 0024 | no-TEI topology priority — cpu_dense+graph combo unreachable? | **Resolved at implementation** — no-TEI topology priority applied | no |
+| 2026-07-07 | 0024 | Knob ranges to deterministic tiers? | **Resolved at implementation** — knob ranges mapped to deterministic tiers | no |
+| 2026-07-07 | 0024 | `analyze` NVIDIA runtime probe — live vs deferred? | **Deferred at implementation** — live `nvidia_docker_available` probe deferred Phase 2 (plan assumed Phase 1) | no |
+| 2026-07-07 | 0024 | Phase 1 open decisions (post-implementation) | **None** — implementation complete; test debt carried; awaiting verification | no |
 | 2026-07-07 | 0017 | ADR body still describes deleted `OllamaDenseBackend`; README already reflects TEI — reconcile via doc-hygiene, not a new implementation phase? | **Deferred** by human at 2026-07-07 prioritization — not in this cycle | no |
 | 2026-07-07 | 0018 | Phase 2 remaining scope is thinner than ADR body implies since `codeindexer_truncated_chunks_total` already shipped in Phase 1 — re-scope Phase 2 to trace spans only when picked up? | **Noted for future** at 2026-07-07 prioritization — not blocking 0024 | no |
+| 2026-07-08 | 0024 | Tri-state flag precedence — mirror `compose_files.py`? | **Resolved at verification** — CLI → env → default precedence applied | no |
+| 2026-07-08 | 0024 | Phase 1 open decisions (post-verification) | **None** — verified; test debt carried; ready for git | no |
