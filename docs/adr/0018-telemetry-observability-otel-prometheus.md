@@ -1,5 +1,7 @@
 # 0018. Adopt OpenTelemetry instrumentation with Prometheus metrics and optional OTLP export
 
+> **Historical context:** Dependency lists and diagrams below reference Ollama dense. Production dense is **TEI HTTP** per [ADR 0025](0025-huggingface-tei-dense-embedding.md).
+
 - **Status:** Accepted (phase 1 — Application Prometheus metrics (MCP + ColBERT worker))
 - **Date:** 2026-07-03
 - **Deciders:** Maintainers
@@ -8,13 +10,13 @@
 
 ## Context
 
-The codebase-indexer is a **self-hosted, Docker Compose–first** retrieval platform: MCP server (FastMCP / Starlette), Qdrant, optional Ollama, optional ColBERT sidecar, optional Neo4j, and a cron reindex sidecar. Operators debug production-like issues that logs alone do not surface cleanly:
+The codebase-indexer is a **self-hosted, Docker Compose–first** retrieval platform: MCP server (FastMCP / Starlette), Qdrant, TEI dense sidecar, optional ColBERT sidecar, optional Neo4j, and a cron reindex sidecar. Operators debug production-like issues that logs alone do not surface cleanly:
 
 | Symptom | Today | Gap |
 |---------|-------|-----|
 | Index OOM / silent restart | structlog `possible_oom_restart`, cgroup diagnostics in `memory.py` | No time-series of memory pressure, flush duration, or index job outcomes |
-| Slow search / rerank | Ad-hoc `LOG_LEVEL=DEBUG`; offline `bench.py` | No per-tool latency histograms or dependency breakdown (Ollama vs Qdrant vs ColBERT) |
-| Qdrant / Ollama timeouts | Exception strings in logs | No error-rate counters by dependency; no trace linking MCP → upstream HTTP |
+| Slow search / rerank | Ad-hoc `LOG_LEVEL=DEBUG`; offline `bench.py` | No per-tool latency histograms or dependency breakdown (TEI vs Qdrant vs ColBERT) |
+| TEI / Qdrant timeouts | Exception strings in logs | No error-rate counters by dependency; no trace linking MCP → upstream HTTP |
 | Cron reindex failures | cron container stdout | No shared correlation id across cron → MCP tool calls |
 | Truncation quality drift | Planned in [ADR 0017](0017-model-tokenizer-tei-dense-truncation.md) Phase 2 | No standard metric namespace yet |
 

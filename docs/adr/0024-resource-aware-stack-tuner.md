@@ -10,7 +10,7 @@
 
 Operators must hand-tune **two coupled layers** to get fast indexing and search without OOM kills:
 
-1. **Compose cgroup caps** — `MCP_MEM_LIMIT`, `QDRANT_MEM_LIMIT`, `OLLAMA_MEM_LIMIT`, `COLBERT_MEM_LIMIT`, `NEO4J_MEM_LIMIT`, and matching `*_CPUS` vars (not Python `Settings`; see [DEPLOYMENT.md](../DEPLOYMENT.md)).
+1. **Compose cgroup caps** — `MCP_MEM_LIMIT`, `QDRANT_MEM_LIMIT`, `TEI_MEM_LIMIT`, `COLBERT_MEM_LIMIT`, `NEO4J_MEM_LIMIT`, and matching `*_CPUS` vars (not Python `Settings`; see [DEPLOYMENT.md](../DEPLOYMENT.md)).
 2. **Pipeline and storage knobs** — `BATCH_SIZE`, `FLUSH_EVERY`, `UPSERT_BATCH`, `OMP_NUM_THREADS`, `VECTORS_ON_DISK`, `QUANTIZATION`, `HNSW_EF`, `PREFETCH_MULTIPLIER`, ColBERT upsert limits, etc. (`config.py`).
 
 Today this is documented as **static presets** in `.env.example` (8 GB / 16 GB / 32 GB tiers) plus prose rules in `README.md` and `DEPLOYMENT.md` (“more RAM → raise `FLUSH_EVERY`…”). The stack topology varies by profile:
@@ -18,7 +18,7 @@ Today this is documented as **static presets** in `.env.example` (8 GB / 16 GB /
 | Profile signal | Extra services | RAM impact |
 |----------------|----------------|------------|
 | Default | MCP + Qdrant | Baseline |
-| `COMPOSE_PROFILES=bundled-ollama` | Ollama sidecar | +CPU RAM; dense weights on **GPU VRAM** when `ACCELERATOR=gpu` ([ADR 0022](0022-gpu-default-cpu-fallback.md)) |
+| `COMPOSE_PROFILES=bundled-tei` | TEI sidecar | +CPU RAM; dense weights on **GPU VRAM** when `ACCELERATOR=gpu` ([ADR 0022](0022-gpu-default-cpu-fallback.md)) |
 | `RERANK_ENABLED=true` + remote ColBERT | ColBERT worker | +sidecar cgroup; MCP still holds multivectors per flush ([ADR 0015](0015-colbert-http-sidecar.md)) |
 | `GRAPH_ENABLED=true` | Neo4j | +heap + page cache |
 
@@ -40,7 +40,7 @@ Given a **declared host budget** (max RAM and CPUs the operator allows the stack
 
 ### Why now
 
-- Multi-container GPU-default topology ([ADR 0022](0022-gpu-default-cpu-fallback.md)) increased the allocation search space (MCP vs Ollama vs ColBERT vs Qdrant).
+- Multi-container GPU-default topology ([ADR 0022](0022-gpu-default-cpu-fallback.md)) increased the allocation search space (MCP vs TEI vs ColBERT vs Qdrant).
 - Verified ColBERT presets (`UPSERT_BATCH=10`, `FLUSH_EVERY=96`, `MCP_MEM_LIMIT=3g`) prove that **hand tuning per topology** is fragile; a script should encode those constraints.
 - `bench.py` and `eval_retrieval.py` already provide comparable JSON outputs — the missing piece is orchestration, not new metrics libraries.
 
@@ -52,7 +52,7 @@ Given a **declared host budget** (max RAM and CPUs the operator allows the stack
 | Search / filtered-lookup latency p50/p95 | yes | Primary objective via `bench.py` |
 | Retrieval relevance (recall@10, MRR) | partial | **Quality floor** only — optional `eval_retrieval` gate; not the primary optimizer target |
 | ANN recall / HNSW exact kNN | no | Operational step per [ADR 0007](0007-ranx-retrieval-evaluation.md) |
-| GPU VRAM allocation | no | Document manual `OLLAMA_GPU_COUNT` / `COLBERT_DEVICE_IDS`; cgroup RAM ≠ VRAM |
+| GPU VRAM allocation | no | Document manual `TEI_GPU_COUNT` / `COLBERT_DEVICE_IDS`; cgroup RAM ≠ VRAM |
 | Business / Ragas outcomes | no | [ADR 0010](0010-defer-ragas-to-client.md) |
 
 ## Decision
@@ -72,7 +72,7 @@ The script is **opt-in**, **offline**, and **non-destructive** (no automatic `do
 - Host detection: total RAM, logical CPU count (Linux `/proc`, Windows `psutil` or WMI fallback).
 - Budget CLI: `--max-ram-gib`, `--max-cpus`, `--reserve-gib`.
 - **Feature flags:** `--gpu` / `--cpu`, `--colbert` / `--no-colbert`, `--neo4j` / `--no-neo4j` (see **Feature flags**); CLI overrides env for the tune session.
-- Profile-aware service set: base MCP+Qdrant; optional Ollama, ColBERT sidecar, Neo4j from **resolved feature flags** + `compose_files.py`.
+- Profile-aware service set: base MCP+Qdrant; optional TEI, ColBERT sidecar, Neo4j from **resolved feature flags** + `compose_files.py`.
 - Per-service RSS and CPU allocation with documented ratio tables and topology overrides.
 - Knob search over bounded `Settings` fields and compose-only vars listed in **Tuning dimensions** below.
 - Integration with `mcp_server/benchmarks/bench.py` (required) and `eval_retrieval.py` (optional quality floor).
@@ -103,7 +103,7 @@ The script is **opt-in**, **offline**, and **non-destructive** (no automatic `do
 | `--cpu` | off | Explicit CPU-only; mutually exclusive with `--gpu` |
 | `--colbert` | off | Enables ColBERT remote sidecar + rerank tuning path |
 | `--neo4j` | off | Enables Neo4j GraphRAG sidecar + graph allocation slice |
-| `ACCELERATOR` | Resolved by `--gpu` / `--cpu`, else env; default `gpu` | Affects Ollama/ColBERT RAM weights and compose file list |
+| `ACCELERATOR` | Resolved by `--gpu` / `--cpu`, else env; default `gpu` | Affects TEI/ColBERT RAM weights and compose file list |
 
 **Usable budget:**
 
@@ -122,14 +122,14 @@ Global flags on **all subcommands** (`analyze`, `allocate`, `tune`, `report`). T
 
 | Flag | Sets / merges | Allocator effect |
 |------|---------------|------------------|
-| `--gpu` | `ACCELERATOR=gpu`; `compose_files.py` merges `docker-compose.ollama.gpu.yml` and `docker-compose.colbert-worker.gpu.yml` when ColBERT active | GPU Ollama RAM row (lower MCP dense RAM); fail fast if NVIDIA runtime missing ([ADR 0022](0022-gpu-default-cpu-fallback.md)) |
+| `--gpu` | `ACCELERATOR=gpu`; `compose_files.py` merges `docker-compose.tei.gpu.yml` and `docker-compose.colbert-worker.gpu.yml` when ColBERT active | GPU TEI RAM row (lower MCP dense RAM); fail fast if NVIDIA runtime missing ([ADR 0022](0022-gpu-default-cpu-fallback.md)) |
 | `--cpu` | `ACCELERATOR=cpu`; no GPU compose overrides | CPU dense row; in-process ColBERT only if `--colbert` without remote (discouraged — warn and keep remote sidecar CPU image) |
 | `--colbert` | `RERANK_ENABLED=true`, `COLBERT_EMBED_BACKEND=remote`; merges `docker-compose.colbert-worker.yml` (+ `.gpu.yml` when `--gpu`) | +ColBERT RSS/CPU slice; tight `UPSERT_BATCH` / `FLUSH_EVERY` bounds; `bench.py --rerank` |
 | `--no-colbert` | `RERANK_ENABLED=false` | ColBERT service omitted even if `.env` has rerank on |
 | `--neo4j` | `GRAPH_ENABLED=true`; merges `docker-compose.neo4j.yml` | +Neo4j RSS/CPU slice; requires `NEO4J_PASSWORD` in env or `--neo4j-password` |
 | `--no-neo4j` | `GRAPH_ENABLED=false` | Neo4j omitted even if `.env` has graph on |
 
-**Bundled Ollama** is always assumed for `tune` / `allocate` (bench needs dense embed) — `COMPOSE_PROFILES=bundled-ollama` is injected unless `OLLAMA_URL` points at an external host (detected when URL host ≠ `ollama` service name). No `--ollama` flag in v1; external Ollama is opt-out via env only.
+**Bundled TEI** is always assumed for `tune` / `allocate` (bench needs dense embed) — `COMPOSE_PROFILES=bundled-tei` is injected unless `TEI_URL` points at an external host (detected when URL host ≠ `tei` service name). No `--tei` flag in v1; external TEI is opt-out via env only.
 
 **Examples:**
 
@@ -159,20 +159,20 @@ Emitted `.env.tuned` fragment includes both **compose caps** and **feature vars*
 |---------|-------------|
 | `mcp_server` | always |
 | `qdrant` | always |
-| `ollama` | bundled profile (default on) or external `OLLAMA_URL` excluded from compose caps |
+| `tei` | bundled profile (default on) or external `TEI_URL` excluded from compose caps |
 | `colbert_worker` | `--colbert` (or `RERANK_ENABLED=true` when flag unset) and remote backend |
 | `neo4j` | `--neo4j` (or `GRAPH_ENABLED=true` when flag unset) |
 
 **Phase B — RAM share** (percent of `usable_ram_gib`, before rounding to `g`/`m`):
 
-| Topology | MCP | Qdrant | Ollama | ColBERT | Neo4j |
-|----------|-----|--------|--------|---------|-------|
-| CPU dense (no bundled Ollama) | 55% | 35% | — | — | 10% if graph |
-| GPU Ollama, no rerank | 30% | 40% | 15% | — | 15% if graph |
-| GPU Ollama + ColBERT rerank | 25% | 30% | 15% | 20% | 10% if graph |
-| Graph only (external Ollama) | 45% | 35% | — | — | 20% |
+| Topology | MCP | Qdrant | TEI | ColBERT | Neo4j |
+|----------|-----|--------|-----|---------|-------|
+| CPU dense (no bundled TEI) | 55% | 35% | — | — | 10% if graph |
+| GPU TEI, no rerank | 30% | 40% | 15% | — | 15% if graph |
+| GPU TEI + ColBERT rerank | 25% | 30% | 15% | 20% | 10% if graph |
+| Graph only (external TEI) | 45% | 35% | — | — | 20% |
 
-- **Minimum floors:** MCP ≥ 2g, Qdrant ≥ 1.5g, Ollama ≥ 2g, ColBERT ≥ 2g, Neo4j ≥ 1g.
+- **Minimum floors:** MCP ≥ 2g, Qdrant ≥ 1.5g, TEI ≥ 2g, ColBERT ≥ 2g, Neo4j ≥ 1g.
 - **ColBERT rerank override:** when active, cap MCP at ≤ 35% regardless of table — multivector flush pressure dominates ([DEPLOYMENT.md](../DEPLOYMENT.md#colbert-rerank-qdrant-upsert-batching)).
 - Round to nearest 0.5g; if sum exceeds budget, shrink Qdrant then MCP proportionally (never below floors).
 
@@ -181,7 +181,7 @@ Emitted `.env.tuned` fragment includes both **compose caps** and **feature vars*
 | Service | Default slice | Rationale |
 |---------|---------------|-----------|
 | Qdrant | `min(4, max(2, usable_cpus // 8))` | Search + upsert; reserve headroom |
-| Ollama | `min(4, max(2, usable_cpus // 8))` | HTTP batching |
+| TEI | `min(4, max(2, usable_cpus // 8))` | HTTP batching |
 | ColBERT | `min(4, max(2, usable_cpus // 8))` | Sidecar inference |
 | Neo4j | `2` when graph | Bolt + import |
 | MCP | **remainder** | Sparse BM25 + pipeline (always largest) |
@@ -207,7 +207,7 @@ Ensure MCP ≥ 2 CPUs. On hosts with `usable_cpus ≤ 4`, use documented small-m
 
 **Tier 2 — pipeline / storage** (coordinate descent, one knob family per iteration):
 
-- Batching: `BATCH_SIZE`, `FLUSH_EVERY`, `UPSERT_BATCH`, `READAHEAD_BUFFER`, `OLLAMA_EMBED_BATCH_SIZE`, `COLBERT_EMBED_BATCH_SIZE`
+- Batching: `BATCH_SIZE`, `FLUSH_EVERY`, `UPSERT_BATCH`, `READAHEAD_BUFFER`, `TEI_EMBED_BATCH_SIZE`, `COLBERT_EMBED_BATCH_SIZE`
 - Threads: `OMP_NUM_THREADS`, `SPARSE_THREADS`
 - Memory pressure: `SEQUENTIAL_EMBED`, `MAX_DENSE_EMBED_TOKENS`
 - Qdrant storage: `VECTORS_ON_DISK`, `SPARSE_ON_DISK`, `QUANTIZATION`, `MEMMAP_THRESHOLD_KB`
@@ -285,7 +285,7 @@ flowchart TD
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **Tuner script + bench/eval integration (chosen)** | Reuses proven harnesses; encodes topology rules; reproducible artifacts | Long wall-clock; needs Docker + Ollama + Qdrant locally |
+| **Tuner script + bench/eval integration (chosen)** | Reuses proven harnesses; encodes topology rules; reproducible artifacts | Long wall-clock; needs Docker + TEI + Qdrant locally |
 | **Manual presets only (status quo)** | Zero maintenance | Error-prone; stale as profiles grow |
 | **Spreadsheet / doc calculator** | Easy to share | No closed loop; no bench validation |
 | **Optuna / ML autotuning service** | Strong search | New dependency; overkill for ~15 bounded knobs |
@@ -342,7 +342,7 @@ flowchart TD
 ### Dependencies
 
 - **Runtime:** none (script uses stdlib + existing repo modules).
-- **Tune execution:** Docker, Qdrant, Ollama per active profile; `uv run` from `mcp_server/` for benchmarks.
+- **Tune execution:** Docker, Qdrant, TEI per active profile; `uv run` from `mcp_server/` for benchmarks.
 - **Optional:** `ranx` benchmark extra for `--quality-floor on`.
 
 ### Rollout
@@ -377,7 +377,7 @@ flowchart TD
 
 1. On a 16 GB / 16 CPU reference host, `allocate --gpu --colbert` produces caps within ±10% of the verified ColBERT sidecar preset (`MCP_MEM_LIMIT=3g`, `COLBERT_MEM_LIMIT=3g`, `QDRANT_MEM_LIMIT` ≥ 2g) when `max_ram_gib=8` (half RAM).
 2. `allocate --gpu --colbert --neo4j` includes `NEO4J_MEM_LIMIT` / `NEO4J_CPUS` and sums ≤ `usable_ram_gib`.
-3. `tune --iterations 1` completes and writes `tune-report.json` with bench metrics when Qdrant + Ollama are reachable.
+3. `tune --iterations 1` completes and writes `tune-report.json` with bench metrics when Qdrant + TEI are reachable.
 4. No accepted candidate exceeds `usable_ram_gib` or violates ColBERT `UPSERT_BATCH` / `FLUSH_EVERY` bounds.
 5. `analyze` on Windows and Linux prints consistent `usable_ram_gib` / `usable_cpus` and resolved flags (document VM caveat in output).
 

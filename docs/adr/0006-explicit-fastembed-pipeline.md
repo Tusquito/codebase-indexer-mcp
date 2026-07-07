@@ -1,5 +1,7 @@
 # 0006. Explicit FastEmbed pipeline over qdrant-client convenience API
 
+> **Historical context:** Dense embedding path described here predates [ADR 0025](0025-huggingface-tei-dense-embedding.md). Production dense is **TEI HTTP** + in-process BM25 sparse today.
+
 - **Status:** Accepted
 - **Date:** 2026-07-02
 - **Deciders:** Maintainers

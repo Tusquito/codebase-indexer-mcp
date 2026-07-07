@@ -1,4 +1,4 @@
-> **Historical record.** This ADR described the phased introduction of pluggable backends. **Backend selection is superseded by [0011](0011-ollama-only-dense-embedding.md)** — dense is Ollama-only today. The facade/protocol abstraction from Phase 1 remains in the codebase.
+> **Historical record.** This ADR described the phased introduction of pluggable backends. **Dense embedding is TEI-only per [0025](0025-huggingface-tei-dense-embedding.md)** (supersedes [0011](0011-ollama-only-dense-embedding.md) and this ADR's backend-selection scope). The facade/protocol abstraction from Phase 1 remains in the codebase.
 
 # 0001. Introduce pluggable embedding backends
 

@@ -1,5 +1,7 @@
 # 0012. Keep MCP as retrieval-only RAG layer
 
+> **Historical context:** Embedding stack references (Ollama dense, ONNX dense) predate [ADR 0025](0025-huggingface-tei-dense-embedding.md). Production dense is **TEI HTTP** today.
+
 - **Status:** Accepted
 - **Date:** 2026-07-02
 - **Deciders:** Maintainers

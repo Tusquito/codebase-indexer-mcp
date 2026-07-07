@@ -1,5 +1,7 @@
 # 0017. Model-accurate tokenizer for TEI dense truncation
 
+> **Historical context:** The Context section below describes the **Ollama dense** path at decision time. Implementation targets **`TeiDenseBackend`** per [ADR 0025](0025-huggingface-tei-dense-embedding.md); read "Ollama" as "TEI dense HTTP" where applicable.
+
 - **Status:** Accepted (phase 1 — loader + TEI backend)
 - **Date:** 2026-07-03
 - **Deciders:** Maintainers

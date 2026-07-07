@@ -1,5 +1,7 @@
 # 0022. GPU-default acceleration; CPU only when explicit
 
+> **Compose supersession:** Ollama compose files and `bundled-ollama` profile described below were **replaced by TEI** per [ADR 0025](0025-huggingface-tei-dense-embedding.md). Use `docker-compose.tei.yml`, `docker-compose.tei.gpu.yml`, and profile `bundled-tei`. The `ACCELERATOR` policy in this ADR remains in effect.
+
 - **Status:** Accepted
 - **Date:** 2026-07-04
 - **Deciders:** Maintainers
@@ -96,8 +98,8 @@ No sparse sidecar, no MCP GPU deps for BM25. Docs must state explicitly: **hybri
 
 ```
 docker-compose.yml
-docker-compose.ollama.yml
-docker-compose.ollama.gpu.yml
+docker-compose.tei.yml
+docker-compose.tei.gpu.yml
 docker-compose.colbert-worker.yml      # when RERANK_ENABLED + remote ColBERT
 docker-compose.colbert-worker.gpu.yml
 ```
@@ -107,7 +109,7 @@ When `ACCELERATOR=cpu`, omit both `.gpu.yml` files.
 Standard invocation (document in README):
 
 ```bash
-docker compose $(python scripts/compose_files.py) --profile bundled-ollama up -d --build
+docker compose $(python scripts/compose_files.py) --profile bundled-tei up -d --build
 ```
 
 No hand-assembled file lists. No “optional GPU” wording.
