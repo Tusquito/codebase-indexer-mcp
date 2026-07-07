@@ -31,6 +31,7 @@ services:
       MKL_NUM_THREADS: ${OMP_NUM_THREADS}
       MALLOC_ARENA_MAX: ${MALLOC_ARENA_MAX:-2}
       MALLOC_TRIM_THRESHOLD_: ${MALLOC_TRIM_THRESHOLD_:-131072}
+      METRICS_ENABLED: ${METRICS_ENABLED:-false}
     deploy:
       resources:
         limits:

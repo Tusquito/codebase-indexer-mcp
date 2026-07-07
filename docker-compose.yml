@@ -62,6 +62,7 @@ services:
       MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:-}
       WORKSPACE_PATH: ${WORKSPACE_PATH:-/workspace}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      METRICS_ENABLED: ${METRICS_ENABLED:-false}
       # --- Chunking / scan ---
       MAX_CHUNK_LINES: ${MAX_CHUNK_LINES:-150}
       CHUNK_OVERLAP_LINES: ${CHUNK_OVERLAP_LINES:-20}
