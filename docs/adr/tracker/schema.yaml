@@ -1,0 +1,86 @@
+# ADR tracker YAML field contract (ADR 0019 — Phase 1).
+#
+# Documented, machine-readable schema for the render/validate script
+# (scripts/render_adr_tracker.py). This is the single source of truth for
+# required/optional fields and enum values. Mirrors ADR 0019 §"Event file
+# schema". Not a JSON Schema document — a lightweight contract the render
+# script loads to drive validation.
+#
+# Layout:
+#   docs/adr/tracker/
+#     schema.yaml                  # this file
+#     phases/{adr_id}-{phase_key}.yaml    # latest snapshot per delivery unit
+#     events/{adr_id}-{phase_key}-{date}-{event}.yaml  # append-only history
+
+version: 1
+
+enums:
+  # Status after an event / current phase status.
+  tracker_status:
+    - not_started
+    - candidate
+    - planned
+    - in_progress
+    - implemented
+    - verified
+    - merged
+    - deferred
+  # Pipeline step that produced an event file.
+  event:
+    - prioritization
+    - plan
+    - implementation
+    - verification
+    - merge
+    - defer
+  # git.status value on event files.
+  git_status:
+    - pending
+    - merged
+
+# Phase file: latest snapshot for one ADR phase (one phase = one PR).
+phase_file:
+  required:
+    - adr_id          # string, four-digit id, e.g. "0019"
+    - phase_key       # string, stable slug, e.g. "phase-1"
+    - title           # string, human label for the phase
+    - tracker_status  # enum tracker_status
+    - chosen_scope    # string, what was chosen to build
+    - last_updated    # string, ISO date YYYY-MM-DD
+  optional:
+    - pr_url          # string
+    - adr_status_note # string, e.g. "Accepted (phase 1)"
+
+# Event file: one pipeline event (append-only history).
+event_file:
+  required:
+    - adr_id          # string, four-digit id
+    - phase_key       # string, stable slug
+    - event           # enum event
+    - date            # string, ISO date YYYY-MM-DD
+    - tracker_status  # enum tracker_status
+    - choices         # string, implementation/runtime choices
+    - deviations      # string, "none" or narrative
+    - changelog       # object, see changelog below
+    - user_facing     # bool
+  optional:
+    - phase_title     # string, copied to phase file on first event
+    - code_evidence   # list[string], paths or grep hints
+    - test_debt       # list[string]
+    - verify          # string, test agent summary
+    - git             # object, see git below
+    - open_decisions  # list[string], appended to open-decisions queue on render
+
+# Nested object contracts.
+changelog:
+  required:
+    - update          # bool
+  optional:
+    - bullet          # string
+    - reason          # string
+
+git:
+  optional:
+    - pr_url          # string
+    - commit          # string
+    - status          # enum git_status

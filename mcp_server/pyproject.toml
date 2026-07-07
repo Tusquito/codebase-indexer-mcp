@@ -40,6 +40,7 @@ dev = [
     "ruff>=0.15.20",
     "mypy>=1.10",
     "testcontainers>=4.9.0",
+    "pyyaml>=6.0",
 ]
 benchmark = [
     "ranx>=0.3.16",
@@ -82,4 +83,5 @@ dev = [
     "pytest-asyncio>=0.23",
     "ruff>=0.15.20",
     "testcontainers>=4.9.0",
+    "pyyaml>=6.0",
 ]

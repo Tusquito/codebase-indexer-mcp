@@ -541,6 +541,7 @@ dev = [
     { name = "mypy" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
+    { name = "pyyaml" },
     { name = "ruff" },
     { name = "testcontainers" },
 ]
@@ -557,6 +558,7 @@ train = [
 dev = [
     { name = "pytest" },
     { name = "pytest-asyncio" },
+    { name = "pyyaml" },
     { name = "ruff" },
     { name = "testcontainers" },
 ]
@@ -581,6 +583,7 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.14.2" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.1.1" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23" },
+    { name = "pyyaml", marker = "extra == 'dev'", specifier = ">=6.0" },
     { name = "qdrant-client", extras = ["fastembed"], specifier = ">=1.18.0" },
     { name = "ranx", marker = "extra == 'benchmark'", specifier = ">=0.3.16" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.15.20" },
@@ -608,6 +611,7 @@ provides-extras = ["dev", "benchmark", "train"]
 dev = [
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-asyncio", specifier = ">=0.23" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "ruff", specifier = ">=0.15.20" },
     { name = "testcontainers", specifier = ">=4.9.0" },
 ]

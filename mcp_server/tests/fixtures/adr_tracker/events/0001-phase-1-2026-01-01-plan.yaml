@@ -1,0 +1,15 @@
+adr_id: "0001"
+phase_key: phase-1
+phase_title: "Phase 1 — alpha"
+event: plan
+date: 2026-01-01
+tracker_status: planned
+choices: "alpha plan choices"
+deviations: none
+open_decisions:
+  - "alpha: decision A"
+  - "alpha: decision B"
+changelog:
+  update: false
+  reason: tooling only
+user_facing: false
