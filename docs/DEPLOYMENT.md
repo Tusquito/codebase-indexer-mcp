@@ -11,21 +11,25 @@ Docker Compose runs Qdrant, the MCP server, and the cron reindex job. **Dense em
 | `docker-compose.tei.gpu.yml` | **Default stack** — NVIDIA GPU for bundled TEI when `ACCELERATOR=gpu` (merged by `scripts/compose_files.py`) |
 | `docker-compose.colbert-worker.yml` | Optional ColBERT HTTP sidecar when `RERANK_ENABLED=true` and `COLBERT_EMBED_BACKEND=remote` |
 | `docker-compose.colbert-worker.gpu.yml` | **Default stack** — NVIDIA GPU for ColBERT sidecar when remote sidecar + `ACCELERATOR=gpu` |
+| `docker-compose.neo4j.yml` | Optional Neo4j graph storage for GraphRAG ([ADR 0002](adr/0002-graphrag-neo4j-qdrant.md)) |
 
 ### Docker Compose env passthrough
 
-Compose reads your host `.env` at `docker compose up` time and injects variables into containers **explicitly** (there is no blanket `env_file: .env`). Every `Settings` field in `config.py` is wired through `docker-compose.yml` with `${VAR:-default}` so uncommented entries in `.env.example` take effect after `docker compose up -d` (or `docker compose restart mcp_server` for env-only changes).
+Compose reads your host `.env` at `docker compose up` time and injects variables into containers **explicitly** (there is no blanket `env_file: .env`). The base `docker-compose.yml` wires core `Settings` fields with `${VAR:-default}`; optional overlays add service-specific vars.
 
 | Service | Source | Notes |
 |---------|--------|-------|
-| `mcp_server` | `docker-compose.yml` | All application `Settings` env vars |
+| `mcp_server` | `docker-compose.yml` | Core application `Settings` env vars (embedding, search, ColBERT config, `METRICS_ENABLED`, etc.) |
 | `mcp_server` | `docker-compose.tei.yml` | Overrides `TEI_*` when bundled/external TEI profile is used |
+| `mcp_server` | `docker-compose.neo4j.yml` | GraphRAG vars: `GRAPH_ENABLED`, `NEO4J_*`, `GRAPH_WRITER_BATCH`, `GRAPH_MAX_HOPS`, `GRAPH_MAX_NODES` |
+| `mcp_server` | `docker-compose.colbert-worker.yml` | ColBERT remote vars when rerank sidecar is active |
+| `colbert_worker` | `docker-compose.colbert-worker.yml` | Sidecar env including `METRICS_ENABLED` |
 | `cron` | `docker-compose.yml` | `INDEX_TIMEOUT`, `MCP_HTTP_TIMEOUT`, `GIT_TIMEOUT`, `MCP_URL` |
-| `qdrant` / `tei` | compose only | Resource caps and TEI service env — not Python `Settings` |
+| `qdrant` / `tei` / `neo4j` | compose only | Resource caps and service env — not Python `Settings` |
 
 **Not in `.env`:** dense embedding is TEI-only via `TeiDenseBackend` ([ADR 0025](adr/0025-huggingface-tei-dense-embedding.md)). `FASTEMBED_CACHE_PATH` is set to the container cache volume path.
 
-**Compose-only variables** (not read by Python `Settings`): `WORKSPACE_ROOT`, `MCP_MEM_LIMIT`, `QDRANT_MEM_LIMIT`, `MCP_CPUS`, `QDRANT_CPUS`, `COMPOSE_PROFILES`, `ACCELERATOR`, `TEI_GPU`, `TEI_GPU_COUNT`, `TEI_PORT`, `TEI_MEM_LIMIT`, `TEI_CPUS`, `COLBERT_GPU`, `COLBERT_GPU_COUNT`, `COLBERT_MEM_LIMIT`, `COLBERT_CPUS`.
+**Compose-only variables** (not read by Python `Settings`): `WORKSPACE_ROOT`, `MCP_MEM_LIMIT`, `QDRANT_MEM_LIMIT`, `MCP_CPUS`, `QDRANT_CPUS`, `COMPOSE_PROFILES`, `ACCELERATOR`, `TEI_GPU`, `TEI_GPU_COUNT`, `TEI_PORT`, `TEI_MEM_LIMIT`, `TEI_CPUS`, `COLBERT_GPU`, `COLBERT_GPU_COUNT`, `COLBERT_MEM_LIMIT`, `COLBERT_CPUS`, `NEO4J_MEM_LIMIT`, `NEO4J_CPUS`.
 
 For local `uv run python -m codebase_indexer.main`, pydantic reads `.env` in `mcp_server/` directly — same variable names apply.
 
@@ -210,6 +214,38 @@ Requires reachable Qdrant, TEI, and ColBERT sidecar. Result JSON includes `colbe
 
 See [README.md](../README.md) for full env reference and tuning presets.
 
+## Optional GraphRAG (Neo4j overlay)
+
+Index-time code graph alongside Qdrant ([ADR 0002](adr/0002-graphrag-neo4j-qdrant.md), [ADR 0023](adr/0023-neo4j-primary-call-site-lookup.md)). **Disabled by default** — omit the overlay and leave `GRAPH_ENABLED=false` for the standard stack.
+
+When the Neo4j overlay is merged, `docker-compose.neo4j.yml` defaults `GRAPH_ENABLED` to `true` (intentional — the overlay implies graph mode). Set `GRAPH_ENABLED=false` in `.env` only if you need Neo4j running without graph indexing.
+
+`.env`:
+
+```env
+GRAPH_ENABLED=true
+NEO4J_PASSWORD=your-secure-password
+NEO4J_MEM_LIMIT=2g
+```
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.neo4j.yml up -d --build
+```
+
+**Full re-index required** when enabling graph on existing collections (`index_codebase(..., force=True)`). With `GRAPH_ENABLED=true`, indexing omits `callees` from Qdrant payloads and stamps `graph_call_sites: true` collection metadata; `find_cross_references` uses Neo4j for graph-ready collections.
+
+| Variable | Default (overlay) | Role |
+|----------|-------------------|------|
+| `GRAPH_ENABLED` | `true` when neo4j overlay merged | Enable index-time graph writer + Neo4j call-site routing |
+| `NEO4J_URI` | `bolt://neo4j:7687` | Bolt URI for MCP → Neo4j |
+| `NEO4J_USER` | `neo4j` | Database user |
+| `NEO4J_PASSWORD` | *(required)* | Set in `.env`; compose fails fast if missing |
+| `NEO4J_DATABASE` | `neo4j` | Target database |
+| `GRAPH_WRITER_BATCH` | `500` | Batch size for graph upserts during indexing |
+| `GRAPH_MAX_HOPS` / `GRAPH_MAX_NODES` | `2` / `200` | Reserved for future graph expansion MCP tools |
+
+See [ARCHITECTURE.md](ARCHITECTURE.md#graphrag-optional-phase-1-shipped) for ontology and Path D routing details.
+
 ## Retrieval quality (ANN recall)
 
 After a major re-index or when tuning HNSW parameters (`HNSW_EF`, `HNSW_M`, quantization), verify **approximate nearest neighbor recall** before trusting latency or golden-set metrics:
@@ -305,7 +341,7 @@ Set in `.env`:
 METRICS_ENABLED=true
 ```
 
-Restart `mcp_server` after env-only changes.
+Restart affected services after env-only changes (`docker compose restart mcp_server` and, when using the ColBERT sidecar, `colbert_worker`).
 
 ### ColBERT sidecar
 

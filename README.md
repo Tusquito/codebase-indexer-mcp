@@ -10,6 +10,7 @@ A fully self-hosted, Docker-based MCP server that indexes your codebase into a l
 - **Multi-Language** — Python, JavaScript, TypeScript, Go, Rust, Java, C, C++, C#
 - **Token Efficient** — Returns only relevant code chunks, not full files. Three dedicated low-cost orientation tools (`get_collection_summary`, `search_symbols`, `get_file_outline`) eliminate exploratory searches entirely.
 - **Vector Discovery** — `recommend_code` finds chunks similar to positive examples and dissimilar from negatives; `find_outlier_chunks` finds code semantically distant from a module context (Qdrant Recommendation API)
+- **Optional GraphRAG** — index-time Neo4j code graph alongside Qdrant when `GRAPH_ENABLED=true` and `docker-compose.neo4j.yml` overlay is used ([ADR 0002](docs/adr/0002-graphrag-neo4j-qdrant.md)); disabled by default
 - **MCP Compatible** — Works with Claude Desktop, Copilot CLI, Cursor, and more
 - **GPU-default acceleration** — Dense TEI and ColBERT sidecar run on NVIDIA GPU by default ([ADR 0022](docs/adr/0022-gpu-default-cpu-fallback.md)); set `ACCELERATOR=cpu` only for explicit CPU-only hosts
 
@@ -17,11 +18,12 @@ A fully self-hosted, Docker-based MCP server that indexes your codebase into a l
 
 | Document | Description |
 |----------|-------------|
+| [AGENTS.md](AGENTS.md) | Pointer to copilot-instructions, ADRs, tracker, and SKILL for AI agents |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Dev setup (Python 3.12, uv), CI lint/type-check/test workflow, conventional commits |
 | [CHANGELOG.md](CHANGELOG.md) | Release history (Keep a Changelog format) |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Per-component responsibilities, indexing pipeline, embedding layer, hybrid search |
 | [docs/adr/](docs/adr/) | Architecture Decision Records — see [0025](docs/adr/0025-huggingface-tei-dense-embedding.md) (TEI dense), [0021](docs/adr/0021-revert-jina-production-default-retire-qwen3.md) (Jina production default), [0016](docs/adr/0016-qwen3-embedding-default-dense-model.md) (Qwen3 experimental preset — historical), [0012](docs/adr/0012-retrieval-only-rag-split.md) (retrieval-only RAG), [0008](docs/adr/0008-optional-colbert-reranking.md) (ColBERT rerank), [0014](docs/adr/0014-vector-discovery-and-ops-automation.md) (recommendation search), [0015](docs/adr/0015-colbert-http-sidecar.md) (ColBERT sidecar) |
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | GPU-default TEI compose, explicit `ACCELERATOR=cpu` exception, memory/CPU tuning |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | GPU-default TEI compose, explicit `ACCELERATOR=cpu` exception, GraphRAG overlay, metrics, memory/CPU tuning |
 | [docs/SEARCH_BEHAVIOR.md](docs/SEARCH_BEHAVIOR.md) | `search_codebase` / `search_symbols` caps, `min_score` vs RRF, `recommend_code`, `find_outlier_chunks`, ColBERT rerank |
 
 ## System Architecture
@@ -422,7 +424,7 @@ Steps 1–3 use **zero embedding compute** (payload scroll only). Step 4 caps re
 
 Settings are environment-variable driven. **Required variables** (no Python defaults) must be set in `.env` — see the REQUIRED section in `.env.example`. Docker Compose fails fast if any are missing. Optional knobs keep defaults in `config.py` only.
 
-> **Docker note:** Compose passes every `Settings` env var from `.env` into `mcp_server` (see [DEPLOYMENT.md](docs/DEPLOYMENT.md#docker-compose-env-passthrough)). Run `docker compose restart mcp_server` after env-only edits. Local `uv run` reads `.env` in `mcp_server/` directly.
+> **Docker note:** Base `docker-compose.yml` passes core `Settings` env vars into `mcp_server`. Optional overlays add more: `docker-compose.tei.yml` (TEI), `docker-compose.colbert-worker.yml` (ColBERT + metrics on sidecar), `docker-compose.neo4j.yml` (GraphRAG). See [DEPLOYMENT.md](docs/DEPLOYMENT.md#docker-compose-env-passthrough). Run `docker compose restart mcp_server` after env-only edits. Local `uv run` reads `.env` in `mcp_server/` directly.
 
 ### Required (`.env` / Docker Compose)
 
@@ -434,14 +436,13 @@ Settings are environment-variable driven. **Required variables** (no Python defa
 | `MCP_CPUS` | CPU cap for the MCP server container |
 | `QDRANT_CPUS` | CPU cap for the Qdrant container |
 | `OMP_NUM_THREADS` | ONNX/BLAS threads (also sets `OPENBLAS`/`MKL`). Keep at/below physical cores. |
-| `DENSE_EMBED_MODEL` | Dense model metadata for dimension validation; default `jinaai/jina-embeddings-v2-base-code` — must match `DENSE_EMBED_MODEL` output size |
+| `DENSE_EMBED_MODEL` | TEI embedding model — HuggingFace repo id (default: `jinaai/jina-embeddings-v2-base-code`). Must match `DENSE_EMBED_VECTOR_SIZE`. |
 | `SPARSE_EMBED_MODEL` | fastembed sparse model; default `Qdrant/bm25` (lexical BM25) |
 | `DENSE_EMBED_VECTOR_SIZE` | Dense embedding dimensions; default `768` for Jina v2 base code (see [Jina](#jina-embedding-via-tei) and [BGE v1.5](#baai-bge-english-v15)) |
 | `SPARSE_THREADS` | ONNX threads for `SPARSE_EMBED_MODEL`; `2` for `Qdrant/bm25` (default) |
 | `ACCELERATOR` | Compose-only — `gpu` (default) merges GPU compose overrides; `cpu` is explicit exception only ([ADR 0022](docs/adr/0022-gpu-default-cpu-fallback.md)). |
 | `COMPOSE_PROFILES` | Compose profiles to activate. Set to `bundled-tei` with `scripts/compose_files.py` to run TEI inside the stack. |
 | `TEI_URL` | TEI base URL for dense embedding. Default: `http://tei:80` (bundled) or `http://host.docker.internal:8080` (host TEI). |
-| `DENSE_EMBED_MODEL` | TEI embedding model — HuggingFace repo id (default: `jinaai/jina-embeddings-v2-base-code`). Must match `DENSE_EMBED_VECTOR_SIZE`. |
 | `TEI_GPU` | `1` when `ACCELERATOR=gpu` (default); GPU override merged by `scripts/compose_files.py`. |
 | `TEI_GPU_COUNT` | GPUs reserved for bundled TEI; defaults to `1`. |
 
@@ -572,6 +573,33 @@ If you change port bindings to expose the server beyond localhost, set `MCP_AUTH
 | `RECOMMEND_MAX_EXAMPLES` | `10` | Cap on positive + negative examples (chunk IDs + text queries) per `recommend_code` request |
 | `OUTLIER_MAX_CONTEXT_SAMPLES` | `200` | Cap on context vectors sampled from collection scroll for `find_outlier_chunks` |
 | `OUTLIER_MAX_SIMILARITY` | `0.55` | Default `max_similarity` threshold — exclude chunks with higher cosine similarity to context centroid |
+
+### Optional observability (ADR 0018)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `METRICS_ENABLED` | `false` | Expose `GET /metrics` on MCP (port 8000) and ColBERT sidecar (port 8082). `/health` stays unauthenticated. See [DEPLOYMENT.md](docs/DEPLOYMENT.md#observability-prometheus-metrics). |
+
+### Optional GraphRAG (ADR 0002 / 0023)
+
+Requires `docker-compose.neo4j.yml` overlay. Full re-index when enabling on existing collections.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `GRAPH_ENABLED` | `false` | Index-time Neo4j graph writer; Neo4j-backed call-site lookup when `true` |
+| `NEO4J_URI` | `bolt://neo4j:7687` | Neo4j Bolt URI (set automatically in neo4j overlay) |
+| `NEO4J_USER` | `neo4j` | Neo4j username |
+| `NEO4J_PASSWORD` | *(required when overlay used)* | Neo4j password — compose fails fast if missing |
+| `NEO4J_DATABASE` | `neo4j` | Neo4j database name |
+| `GRAPH_WRITER_BATCH` | `500` | Graph upsert batch size during indexing |
+| `GRAPH_MAX_HOPS` | `2` | Reserved for future graph expansion tools |
+| `GRAPH_MAX_NODES` | `200` | Reserved for future graph expansion tools |
+
+```bash
+# In .env: GRAPH_ENABLED=true, NEO4J_PASSWORD=...
+docker compose -f docker-compose.yml -f docker-compose.neo4j.yml up -d --build
+index_codebase(path="my-project", force=True)  # backfill graph + graph_call_sites metadata
+```
 
 ### Optional ColBERT reranking (ADR 0008 / 0015)
 
