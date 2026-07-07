@@ -85,3 +85,76 @@ async def test_collection_has_graph_call_sites_false_when_missing():
     storage._client = client
 
     assert await storage.collection_has_graph_call_sites("demo") is False
+
+
+def test_build_point_includes_graph_node_ids():
+    storage = QdrantStorage(_settings())
+    point = storage._build_point(
+        _embedded_chunk(),
+        omit_callees=True,
+        graph_node_ids=["demo:a.py::x", "demo::callee::foo"],
+    )
+    assert point.payload["graph_node_ids"] == ["demo:a.py::x", "demo::callee::foo"]
+
+
+def test_build_point_omits_graph_node_ids_when_none():
+    storage = QdrantStorage(_settings())
+    point = storage._build_point(_embedded_chunk())
+    assert "graph_node_ids" not in point.payload
+
+
+@pytest.mark.asyncio
+async def test_upsert_chunks_attaches_per_chunk_graph_node_ids():
+    storage = QdrantStorage(_settings())
+    client = AsyncMock()
+    storage._client = client
+
+    ec = _embedded_chunk()
+    await storage.upsert_chunks(
+        "demo",
+        [ec],
+        omit_callees=True,
+        graph_node_ids_by_chunk={ec.chunk.chunk_id: ["demo:a.py::x"]},
+    )
+
+    client.upsert.assert_awaited_once()
+    points = client.upsert.await_args.kwargs["points"]
+    assert points[0].payload["graph_node_ids"] == ["demo:a.py::x"]
+
+
+@pytest.mark.asyncio
+async def test_set_collection_graph_enabled_updates_metadata():
+    storage = QdrantStorage(_settings())
+    client = AsyncMock()
+    storage._client = client
+
+    await storage.set_collection_graph_enabled("demo", True)
+
+    client.update_collection.assert_awaited_once()
+    call_kwargs = client.update_collection.await_args.kwargs
+    assert call_kwargs["collection_name"] == "demo"
+    assert call_kwargs["metadata"]["graph_enabled"] is True
+
+
+@pytest.mark.asyncio
+async def test_collection_has_graph_enabled_reads_metadata():
+    storage = QdrantStorage(_settings())
+    client = AsyncMock()
+    info = MagicMock()
+    info.config.metadata = {"graph_enabled": True}
+    client.get_collection = AsyncMock(return_value=info)
+    storage._client = client
+
+    assert await storage.collection_has_graph_enabled("demo") is True
+
+
+@pytest.mark.asyncio
+async def test_collection_has_graph_enabled_false_when_missing():
+    storage = QdrantStorage(_settings())
+    client = AsyncMock()
+    info = MagicMock()
+    info.config.metadata = {}
+    client.get_collection = AsyncMock(return_value=info)
+    storage._client = client
+
+    assert await storage.collection_has_graph_enabled("demo") is False
