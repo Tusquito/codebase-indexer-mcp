@@ -7,9 +7,41 @@ the target-collection assembly and the single-vs-multi search branch.
 
 from __future__ import annotations
 
+import structlog
+
 from codebase_indexer.indexer.embedder import Embedder, SparseVector
 from codebase_indexer.storage.qdrant import QdrantStorage, SearchResult
 from codebase_indexer.telemetry.metrics import record_search_results
+
+log = structlog.get_logger()
+
+# Collections already warned about missing graph linkage — warn only once each
+# so opt-in GRAPH_ENABLED users aren't spammed on every query.
+_warned_unlinked_collections: set[str] = set()
+
+
+async def warn_if_graph_linkage_missing(
+    storage: QdrantStorage, collections: list[str]
+) -> None:
+    """Warn once per collection that lacks graph_node_ids linkage.
+
+    Only fires when GRAPH_ENABLED=true; a linked collection is one whose Qdrant
+    metadata carries ``graph_enabled=true`` (stamped after a graph-enabled
+    index run). An unlinked collection means it was indexed before Phase 2 and
+    should be re-indexed to populate ``graph_node_ids``.
+    """
+    if not storage.settings.graph_enabled:
+        return
+    for coll in collections:
+        if coll in _warned_unlinked_collections:
+            continue
+        try:
+            linked = await storage.collection_has_graph_enabled(coll)
+        except Exception:
+            continue
+        if not linked:
+            _warned_unlinked_collections.add(coll)
+            log.warning("graph_linkage_missing", collection=coll)
 
 
 def resolve_collections(primary: str, collections: list[str] | None) -> list[str]:
@@ -69,6 +101,7 @@ async def run_search(
     dense_vector, sparse_vector, colbert_vector = await embedder.embed_query(
         query, rerank=rerank
     )
+    await warn_if_graph_linkage_missing(storage, target_collections)
     results = await dispatch_search(
         storage,
         dense_vector,
