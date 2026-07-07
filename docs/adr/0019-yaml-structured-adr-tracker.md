@@ -1,6 +1,6 @@
 # 0019. Adopt YAML structured events for ADR implementation tracking
 
-- **Status:** Proposed
+- **Status:** Accepted (phase 1)
 - **Date:** 2026-07-03
 - **Deciders:** Maintainers
 - **Related:** [`IMPLEMENTATION_TRACKER.md`](IMPLEMENTATION_TRACKER.md), [`.cursor/agents/adr-tracker.md`](../../.cursor/agents/adr-tracker.md), [ADR README](README.md)
