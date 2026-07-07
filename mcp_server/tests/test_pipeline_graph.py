@@ -29,7 +29,7 @@ def _settings(**overrides) -> Settings:
 
 
 @pytest.mark.asyncio
-async def test_flush_double_buffered_writes_graph_after_upsert():
+async def test_flush_double_buffered_builds_batch_before_upsert():
     settings = _settings()
     graph_storage = MagicMock()
     graph_storage.enabled = True
@@ -58,10 +58,32 @@ async def test_flush_double_buffered_writes_graph_after_upsert():
     ]
     result = PipelineResult()
 
-    with patch(
-        "codebase_indexer.indexer.pipeline.write_chunks_to_graph",
-        new_callable=AsyncMock,
-    ) as mock_write:
+    built_batch = object()
+    node_ids = {"id1": ["demo:a.py::hello"]}
+    call_order: list[str] = []
+
+    def _build(*args, **kwargs):
+        call_order.append("build")
+        return built_batch
+
+    def _map(batch):
+        assert batch is built_batch
+        return node_ids
+
+    async def _upsert(*args, **kwargs):
+        call_order.append("upsert")
+
+    async def _write(batch):
+        call_order.append("write")
+        assert batch is built_batch
+
+    storage.upsert_chunks.side_effect = _upsert
+    graph_storage.write_batch.side_effect = _write
+
+    with (
+        patch("codebase_indexer.indexer.pipeline.build_graph_batch", _build),
+        patch("codebase_indexer.indexer.pipeline.graph_node_ids_from_batch", _map),
+    ):
         task = await _flush_double_buffered(
             chunks,
             embedder,
@@ -77,11 +99,13 @@ async def test_flush_double_buffered_writes_graph_after_upsert():
         assert task is not None
         await task
 
-        storage.upsert_chunks.assert_awaited_once()
-        upsert_kwargs = storage.upsert_chunks.await_args.kwargs
-        assert upsert_kwargs.get("omit_callees") is True
-        mock_write.assert_awaited_once()
-        assert mock_write.await_args.kwargs["collection"] == "demo"
+    # Graph batch built before upsert; Neo4j write reuses the prebuilt batch.
+    assert call_order == ["build", "upsert", "write"]
+    storage.upsert_chunks.assert_awaited_once()
+    upsert_kwargs = storage.upsert_chunks.await_args.kwargs
+    assert upsert_kwargs.get("omit_callees") is True
+    assert upsert_kwargs.get("graph_node_ids_by_chunk") == node_ids
+    graph_storage.write_batch.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -155,6 +179,7 @@ async def test_run_pipeline_stamps_graph_call_sites_metadata():
     storage.set_indexing = AsyncMock()
     storage.list_collection_stats = AsyncMock(return_value=[])
     storage.set_collection_graph_call_sites = AsyncMock()
+    storage.set_collection_graph_enabled = AsyncMock()
 
     graph_storage = MagicMock()
     graph_storage.enabled = True
@@ -176,3 +201,4 @@ async def test_run_pipeline_stamps_graph_call_sites_metadata():
         )
 
     storage.set_collection_graph_call_sites.assert_awaited_once_with("demo", True)
+    storage.set_collection_graph_enabled.assert_awaited_once_with("demo", True)

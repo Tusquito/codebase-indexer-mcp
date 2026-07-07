@@ -27,7 +27,10 @@ from codebase_indexer.indexer.scanner import scan_files
 from codebase_indexer.indexer.chunker import chunk_file, Chunk
 from codebase_indexer.indexer.backends.factory import create_backends, create_colbert_backend
 from codebase_indexer.indexer.embedder import Embedder, EmbeddingError, trim_memory
-from codebase_indexer.indexer.graph_writer import write_chunks_to_graph
+from codebase_indexer.indexer.graph_writer import (
+    build_graph_batch,
+    graph_node_ids_from_batch,
+)
 from codebase_indexer.memory import check_memory_pressure, get_rss_mb
 from codebase_indexer.storage.qdrant import QdrantStorage
 from codebase_indexer.tools.cross_references import UrlExtractors
@@ -295,6 +298,11 @@ async def run_pipeline(
         except Exception as e:
             log.warning("graph_call_sites_metadata_error", collection=coll, error=str(e))
             result.errors.append(f"Graph call-sites metadata error: {e}")
+        try:
+            await storage.set_collection_graph_enabled(coll, True)
+        except Exception as e:
+            log.warning("graph_enabled_metadata_error", collection=coll, error=str(e))
+            result.errors.append(f"Graph enabled metadata error: {e}")
 
     # Release ONNX models and reclaim native memory.
     # On by default: frees ~300-500 MB immediately after indexing.
@@ -386,19 +394,37 @@ async def _flush_double_buffered(
         # can be freed first (it stays alive until upsert finishes).
         async def _do_upsert():
             ut0 = time.monotonic()
-            omit_callees = graph_storage is not None and graph_storage.enabled
-            await storage.upsert_chunks(collection, embedded, omit_callees=omit_callees)
-            log.info("upsert_complete", chunks=chunk_count, upsert_s=round(time.monotonic() - ut0, 2))
-            if graph_storage is not None and graph_storage.enabled:
+            graph_on = graph_storage is not None and graph_storage.enabled
+
+            # Build the graph batch once BEFORE upsert so the derived
+            # graph_node_ids linkage rides along in the Qdrant payload and the
+            # same batch is reused for the Neo4j write (no double extraction).
+            graph_batch = None
+            graph_node_ids_by_chunk: dict[str, list[str]] | None = None
+            if graph_on:
                 try:
-                    await write_chunks_to_graph(
-                        graph_storage,
+                    graph_batch = build_graph_batch(
                         collection=collection,
                         chunks=chunks,
                         url_extractors=url_extractors or UrlExtractors(),
                         workspace_path=settings.workspace_path,
                         collection_names=collection_names or [collection],
                     )
+                    graph_node_ids_by_chunk = graph_node_ids_from_batch(graph_batch)
+                except Exception as e:
+                    log.error("graph_batch_build_error", error=str(e))
+                    result.errors.append(f"Graph batch build error: {e}")
+
+            await storage.upsert_chunks(
+                collection,
+                embedded,
+                omit_callees=graph_on,
+                graph_node_ids_by_chunk=graph_node_ids_by_chunk,
+            )
+            log.info("upsert_complete", chunks=chunk_count, upsert_s=round(time.monotonic() - ut0, 2))
+            if graph_on and graph_batch is not None:
+                try:
+                    await graph_storage.write_batch(graph_batch)
                 except Exception as e:
                     log.error("graph_write_error", error=str(e))
                     result.errors.append(f"Graph write error: {e}")

@@ -129,9 +129,11 @@ class CollectionStats:
     rerank_enabled: bool = False
     colbert_embed_model: str = ""
     graph_call_sites: bool = False
+    graph_enabled: bool = False
 
 
 _GRAPH_CALL_SITES_METADATA_KEY = "graph_call_sites"
+_GRAPH_ENABLED_METADATA_KEY = "graph_enabled"
 
 
 class QdrantStorage:
@@ -447,7 +449,43 @@ class QdrantStorage:
         meta = self._collection_metadata(info)
         return self._metadata_flag_true(meta.get(_GRAPH_CALL_SITES_METADATA_KEY))
 
-    def _build_point(self, ec: EmbeddedChunk, *, omit_callees: bool = False) -> PointStruct:
+    async def set_collection_graph_enabled(
+        self, collection: str, enabled: bool = True
+    ) -> None:
+        """Stamp collection metadata when chunks carry graph_node_ids linkage."""
+        client = await self._get_client()
+        await client.update_collection(
+            collection_name=collection,
+            metadata={_GRAPH_ENABLED_METADATA_KEY: enabled},
+        )
+        log.info(
+            "collection_graph_enabled_set",
+            collection=collection,
+            enabled=enabled,
+        )
+
+    async def collection_has_graph_enabled(self, collection: str) -> bool:
+        """Return True when collection metadata marks chunks as graph-linked."""
+        client = await self._get_client()
+        try:
+            info = await client.get_collection(collection)
+        except Exception as e:
+            log.warning(
+                "collection_graph_enabled_read_error",
+                collection=collection,
+                error=str(e),
+            )
+            return False
+        meta = self._collection_metadata(info)
+        return self._metadata_flag_true(meta.get(_GRAPH_ENABLED_METADATA_KEY))
+
+    def _build_point(
+        self,
+        ec: EmbeddedChunk,
+        *,
+        omit_callees: bool = False,
+        graph_node_ids: list[str] | None = None,
+    ) -> PointStruct:
         """Build a Qdrant point, converting the numpy dense vector to a list."""
         dense = ec.dense_vector
         # Lazily convert numpy float32 array -> plain list only at send time,
@@ -479,6 +517,8 @@ class QdrantStorage:
         }
         if not omit_callees:
             payload["callees"] = ec.chunk.callees or []
+        if graph_node_ids is not None:
+            payload["graph_node_ids"] = graph_node_ids
         return PointStruct(
             id=str(uuid.uuid5(uuid.NAMESPACE_URL, ec.chunk.chunk_id)),
             vector=vectors,
@@ -491,6 +531,7 @@ class QdrantStorage:
         embedded_chunks: list[EmbeddedChunk],
         *,
         omit_callees: bool = False,
+        graph_node_ids_by_chunk: dict[str, list[str]] | None = None,
     ) -> None:
         """Batch upsert chunks with dense + sparse (+ optional ColBERT) vectors.
 
@@ -507,7 +548,15 @@ class QdrantStorage:
         upsert_batch = self.settings.upsert_batch
         for i in range(0, len(embedded_chunks), upsert_batch):
             batch = [
-                self._build_point(ec, omit_callees=omit_callees)
+                self._build_point(
+                    ec,
+                    omit_callees=omit_callees,
+                    graph_node_ids=(
+                        graph_node_ids_by_chunk.get(ec.chunk.chunk_id)
+                        if graph_node_ids_by_chunk is not None
+                        else None
+                    ),
+                )
                 for ec in embedded_chunks[i : i + upsert_batch]
             ]
             last_exc: Exception | None = None
@@ -945,6 +994,9 @@ class QdrantStorage:
                     ),
                     graph_call_sites=self._metadata_flag_true(
                         meta.get(_GRAPH_CALL_SITES_METADATA_KEY)
+                    ),
+                    graph_enabled=self._metadata_flag_true(
+                        meta.get(_GRAPH_ENABLED_METADATA_KEY)
                     ),
                 ))
             except Exception as e:

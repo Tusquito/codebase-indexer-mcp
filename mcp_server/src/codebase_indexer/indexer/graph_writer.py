@@ -313,6 +313,52 @@ def build_graph_batch(
     return batch
 
 
+def graph_node_ids_from_batch(batch: GraphBatch) -> dict[str, list[str]]:
+    """Map each chunk_id to its neighbor Neo4j node keys (ADR 0002 Phase 2).
+
+    Neighbor keys only — the chunk's own Chunk/File node keys are excluded.
+    Sources, deduplicated per chunk while preserving first-seen order:
+
+    - Symbol ``qualified_name`` from DEFINES and CALLS
+    - Import ``qualified_name`` (File-level IMPORTS, attributed to every chunk
+      in that file)
+    - Endpoint keys ``{collection}:{path}`` from DECLARES_ENDPOINT, HTTP_CALLS,
+      and CONFIGURES
+    """
+    collection = batch.collection
+    result: dict[str, list[str]] = {}
+    seen: dict[str, set[str]] = {}
+
+    def _add(chunk_id: str, key: str) -> None:
+        bucket = seen.setdefault(chunk_id, set())
+        if key in bucket:
+            return
+        bucket.add(key)
+        result.setdefault(chunk_id, []).append(key)
+
+    for row in batch.defines:
+        _add(row["chunk_id"], row["qualified_name"])
+    for row in batch.calls:
+        _add(row["chunk_id"], row["qualified_name"])
+
+    for row in batch.declares_endpoint:
+        _add(row["chunk_id"], f"{collection}:{row['path']}")
+    for row in batch.http_calls:
+        _add(row["chunk_id"], f"{collection}:{row['path']}")
+    for row in batch.configures:
+        _add(row["chunk_id"], f"{collection}:{row['path']}")
+
+    # Imports live on the File node; attribute them to every chunk in the file.
+    chunk_ids_by_file: dict[str, list[str]] = {}
+    for chunk in batch.chunks:
+        chunk_ids_by_file.setdefault(chunk["rel_path"], []).append(chunk["chunk_id"])
+    for row in batch.imports:
+        for chunk_id in chunk_ids_by_file.get(row["rel_path"], []):
+            _add(chunk_id, row["qualified_name"])
+
+    return result
+
+
 def _read_file_content(workspace_path: str, rel_path: str) -> str | None:
     """Re-read manifest/source from disk for full-file extractors."""
     path = Path(workspace_path) / rel_path.replace("\\", "/")

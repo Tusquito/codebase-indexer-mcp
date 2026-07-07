@@ -112,8 +112,8 @@ The `Embedder` facade in `indexer/embedder.py` orchestrates backends; factory wi
 `mcp_server/src/codebase_indexer/storage/qdrant.py` — `QdrantStorage` class.
 
 - **Collections**: one per project folder; hybrid dense + sparse vectors when `HYBRID_SEARCH=true`; optional `colbert` multivector when `RERANK_ENABLED=true`
-- **Payload**: `chunk_id`, `rel_path`, `content`, `symbol_name`, `symbol_type`, `language`, line range, `file_sha256`, `file_mtime`, `callees` (omitted when graph indexing is active — see GraphRAG below)
-- **Collection metadata**: `graph_call_sites: true` stamped on collections indexed with `GRAPH_ENABLED=true` ([ADR 0023](adr/0023-neo4j-primary-call-site-lookup.md) Phase 2); drives per-collection Path D routing in `find_cross_references`
+- **Payload**: `chunk_id`, `rel_path`, `content`, `symbol_name`, `symbol_type`, `language`, line range, `file_sha256`, `file_mtime`, `callees` (omitted when graph indexing is active — see GraphRAG below), `graph_node_ids` (neighbor Neo4j node keys, present only when `GRAPH_ENABLED=true` — see GraphRAG below)
+- **Collection metadata**: `graph_call_sites: true` stamped on collections indexed with `GRAPH_ENABLED=true` ([ADR 0023](adr/0023-neo4j-primary-call-site-lookup.md) Phase 2); drives per-collection Path D routing in `find_cross_references`. `graph_enabled: true` stamped on collections whose chunks carry `graph_node_ids` ([ADR 0002](adr/0002-graphrag-neo4j-qdrant.md) Phase 2)
 - **Indexes**: optional keyword payload indexes (`PAYLOAD_INDEXES`) on `rel_path`, `chunk_id`, `symbol_name`, `language`, `callees`
 - **Tuning**: `VECTORS_ON_DISK`, `SPARSE_ON_DISK`, `QUANTIZATION`, `MEMMAP_THRESHOLD_KB`
 - **Search**: hybrid RRF via `query_points` + `Fusion.RRF`, or dense-only when hybrid disabled; optional ColBERT MAX_SIM rerank over prefetch pool ([ADR 0008](adr/0008-optional-colbert-reranking.md))
@@ -167,13 +167,15 @@ The MCP server implements the **retrieval half** of Qdrant’s RAG tutorials (TE
 
 Vector discovery Phase 1–2 is shipped: `recommend_code` and `find_outlier_chunks` (Qdrant Recommendation API, dense-only) per [ADR 0014](adr/0014-vector-discovery-and-ops-automation.md). Track B (optional n8n compose) remains deferred, inspired by [Qdrant’s n8n tutorial](https://qdrant.tech/documentation/tutorials-build-essentials/qdrant-n8n/).
 
-## GraphRAG (optional, Phase 1 shipped)
+## GraphRAG (optional, Phase 2 shipped)
 
 Optional Neo4j-backed code graph linked to Qdrant chunk IDs for vector→graph retrieval. **Disabled by default** (`GRAPH_ENABLED=false`); no Neo4j driver init or index-time graph I/O unless enabled. See [ADR 0002](adr/0002-graphrag-neo4j-qdrant.md).
 
 **Phase 1 (shipped):** index-time graph writer — `storage/neo4j.py`, `indexer/graph_writer.py`, pipeline hooks mirroring Qdrant flush/delete cadence. Ontology: `Collection`, `File`, `Chunk`, `Symbol`, `Endpoint`, `Artifact` with relationships `IN_COLLECTION`, `IN_FILE`, `DEFINES`, `IMPORTS`, `CALLS`, `DECLARES_ENDPOINT`, `HTTP_CALLS`, `CONFIGURES`, `BUILD_DEPENDS`, `RESOLVES_TO`. Shared link: Qdrant payload `chunk_id` = Neo4j `Chunk.chunk_id`. ADR 0023 Phase 1 adds `call_token` on `CALLS` edges, symbol unification with `DEFINES`, and Neo4j-backed Path D call-site lookup in `find_cross_references` when `GRAPH_ENABLED=true`. Re-index after graph writer changes.
 
 **ADR 0023 Phase 2 (shipped):** when `GRAPH_ENABLED=true`, indexing omits `callees` from Qdrant payloads (Neo4j `CALLS` is authoritative) and stamps collection metadata `graph_call_sites: true`. Full re-index required when enabling graph on existing collections or toggling graph mode.
+
+**ADR 0002 Phase 2 (shipped):** when `GRAPH_ENABLED=true`, each upserted Qdrant chunk carries `graph_node_ids: list[str]` — the neighbor Neo4j node keys reachable from that chunk (Symbol `qualified_name` from `DEFINES`/`CALLS`, file-level import `qualified_name`, and `Endpoint` keys `{collection}:{path}` from `DECLARES_ENDPOINT`/`HTTP_CALLS`/`CONFIGURES`); the chunk's own `Chunk`/`File` keys are excluded. The graph batch is built once per flush **before** the Qdrant upsert and reused for the Neo4j write (no double extraction). Collections are stamped `graph_enabled: true`. Search logs `graph_linkage_missing` once per collection that lacks the linkage — re-index those collections to populate `graph_node_ids`.
 
 **Path D (call-site lookup):** When `member` is set, `find_cross_references` routes per collection: Neo4j `CALLS.call_token` Cypher for collections with `graph_call_sites` metadata; Qdrant keyword scroll on `callees` for Qdrant-only collections or when `GRAPH_ENABLED=false`. Mixed batches partition engines; graph-enabled deployments log a warning and fall back to Qdrant scroll for collections not yet re-indexed with graph ([ADR 0023](adr/0023-neo4j-primary-call-site-lookup.md)).
 
@@ -185,7 +187,7 @@ docker compose -f docker-compose.yml -f docker-compose.neo4j.yml up -d --build
 
 Set `GRAPH_ENABLED=true`, `NEO4J_PASSWORD`, and re-index collections when enabling graph on existing data.
 
-**Deferred:** Phase 2 Qdrant `graph_node_ids` payload linking; Phase 3 `expand_search_context` MCP tool; Phase 4 Neo4j-backed cross-project queries.
+**Deferred:** Phase 3 `expand_search_context` MCP tool; Phase 4 Neo4j-backed cross-project queries.
 
 Based on [Qdrant’s GraphRAG + Neo4j pattern](https://qdrant.tech/documentation/examples/graphrag-qdrant-neo4j/#build-a-graphrag-agent-with-neo4j-and-qdrant), adapted to deterministic AST/extractor ingestion (no LLM ontology).
 
