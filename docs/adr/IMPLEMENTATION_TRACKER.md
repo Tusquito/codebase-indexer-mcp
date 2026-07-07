@@ -31,6 +31,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | ADR | Title | ADR status | Phase | Tracker | Chosen scope | Last updated |
 |-----|-------|------------|-------|---------|--------------|--------------|
 | [0002](0002-graphrag-neo4j-qdrant.md) | Optional GraphRAG (Neo4j + Qdrant) | Accepted (phase 1 — Neo4j storage + index-time graph writer) | Phase 1 — Neo4j storage + index-time graph writer | `merged` | Shipped: `storage/neo4j.py` async driver wrapper (neo4j driver 6.2.0) with idempotent schema; `indexer/graph_writer.py` writing ADR ontology from index batches (reuses `UrlExtractors`, `extract_build_deps`/`match_deps_to_collections`, public `extract_imported_names`); `pipeline.py` hooks mirroring Qdrant flush/delete cadence; best-effort graph errors to `PipelineResult.errors`; `context.py` optional `Neo4jStorage`; config (`GRAPH_ENABLED=false` default, `NEO4J_*`, `GRAPH_WRITER_BATCH`, `GRAPH_SCHEMA_VERSION=1`); `docker-compose.neo4j.yml` override only; mock driver CI unit tests; `.env.example` + `ARCHITECTURE.md`; no MCP tools Phase 1; endpoint `method` inference best-effort; defer Phase 2 Qdrant `graph_node_ids`, Phase 3 `expand_search_context`, Phase 4 Neo4j cross-project queries; [PR #10](https://github.com/Tusquito/codebase-indexer-mcp/pull/10) | 2026-07-03 |
+| [0002](0002-graphrag-neo4j-qdrant.md) | Optional GraphRAG (Neo4j + Qdrant) | Accepted (phase 1 — Neo4j storage + index-time graph writer) | Phase 2 — Qdrant payload linking (`graph_node_ids`) | `merged` | Neighbor-keys-only `graph_node_ids` via `graph_node_ids_from_batch`; batch before upsert; boolean `graph_enabled` collection metadata only; `graph_node_ids` omitted for zero-neighbor chunks and `GRAPH_ENABLED=false`; structlog `graph_linkage_missing` once per unlinked collection; 34 Phase 2 unit tests + 420 full suite pass; integration + plan compliance pass; review rounds: 1; defer Phase 3 `expand_search_context`, Phase 4 cross-project Cypher; test debt: prometheus_client and neo4j driver needed in CI env; [PR #26](https://github.com/Tusquito/codebase-indexer-mcp/pull/26) | 2026-07-08 |
 | [0003](0003-hybrid-search-rrf-default.md) | Hybrid search RRF default | Accepted | all | `merged` | Shipped | 2026-07-02 |
 | [0004](0004-collection-per-project-isolation.md) | Collection-per-project isolation | Accepted | all | `merged` | Shipped | 2026-07-02 |
 | [0005](0005-mcp-retrieval-connector.md) | MCP retrieval connector | Accepted | all | `merged` | Shipped | 2026-07-02 |
@@ -76,7 +77,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 
 | ADR | Done | Remaining |
 |-----|------|-----------|
-| 0002 | Phase 1 — Neo4j storage + index-time graph writer ([PR #10](https://github.com/Tusquito/codebase-indexer-mcp/pull/10)) | Phases 2–4 (Qdrant `graph_node_ids`, `expand_search_context`, Neo4j cross-project queries) |
+| 0002 | Phase 1 — Neo4j storage + index-time graph writer ([PR #10](https://github.com/Tusquito/codebase-indexer-mcp/pull/10)); Phase 2 — Qdrant payload linking (`graph_node_ids`) ([PR #26](https://github.com/Tusquito/codebase-indexer-mcp/pull/26)) | Phases 3–4 (`expand_search_context`, Neo4j cross-project queries) |
 | 0014 | Track A Phase 1 — recommendation search tool ([PR #5](https://github.com/Tusquito/codebase-indexer-mcp/pull/5)); Track A Phase 2 — outlier helper ([PR #9](https://github.com/Tusquito/codebase-indexer-mcp/pull/9)) | Track B (n8n compose) deferred |
 | 0009 | Phase 1 — `SEARCH_BEHAVIOR.md` multi-hop section, golden `multi_hop` tags; Phase 2 — automated 2-hop client eval script ([PR #8](https://github.com/Tusquito/codebase-indexer-mcp/pull/8)) | Phase 3+ server mechanisms; optional graph-backed hops per [0002](0002-graphrag-neo4j-qdrant.md) |
 | 0015 | Phase 1 — HTTP sidecar + remote backend ([PR #2](https://github.com/Tusquito/codebase-indexer-mcp/pull/2)); Phase 2 — GPU worker + benchmark ([PR #3](https://github.com/Tusquito/codebase-indexer-mcp/pull/3)) | MCP slim image when remote-only (phase 3+) |
@@ -336,6 +337,62 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 ---
 
 ### ADR 0002 — GraphRAG (Neo4j + Qdrant)
+
+#### 2026-07-08 — merge
+- **Phase / PR:** Phase 2 — Qdrant payload linking (`graph_node_ids`) — [PR #26](https://github.com/Tusquito/codebase-indexer-mcp/pull/26)
+- **Tracker status:** `merged`
+- **Choices:** squash merge `e3348b0` on feature branch `adr/0002-phase-2-graph-node-ids`; ADR accept skipped (already Accepted phase 1; Accept after merge: no); release skipped; Phases 3–4 deferred
+- **Deviations:** none
+- **Code evidence:** merged via PR #26 (`adr/0002-phase-2-graph-node-ids`; squash `e3348b0`)
+- **Test debt:** carried from verification — prometheus_client and neo4j driver needed in CI env
+- **Verify:** carried from verification — 34 Phase 2 unit tests pass; full suite 420 passed; integration Verdict pass; plan compliance pass; review rounds: 1
+- **Git:** [PR #26](https://github.com/Tusquito/codebase-indexer-mcp/pull/26) merged (squash `e3348b0`)
+- **Changelog:** yes — `[Unreleased]` GraphRAG Phase 2 bullet committed on main
+
+#### 2026-07-08 — verification
+- **Phase / PR:** Phase 2 — Qdrant payload linking (`graph_node_ids`)
+- **Tracker status:** `verified`
+- **Choices:** Neighbor-keys-only; batch before upsert; graph_enabled metadata; graph_node_ids omitted for zero-neighbor chunks and GRAPH_ENABLED=false.
+- **Deviations:** none
+- **Code evidence:** `graph_writer.py`, `pipeline.py`, `qdrant.py`, `search_common.py`
+- **Test debt:** prometheus_client and neo4j driver needed in CI env
+- **Verify:** 34 Phase 2 unit tests pass; full suite 420 passed; integration Verdict pass; plan compliance pass; review rounds: 1
+- **Git:** pending
+- **Changelog:** yes
+
+#### 2026-07-08 — implementation
+- **Phase / PR:** Phase 2 — Qdrant payload linking (`graph_node_ids`)
+- **Tracker status:** `implemented`
+- **Choices:** boolean `graph_enabled` metadata only; `graph_node_ids` neighbor-keys-only; graph batch built once per flush before upsert; file-level imports attributed to every chunk in file; search logs `graph_linkage_missing` once per unlinked collection when `GRAPH_ENABLED=true`.
+- **Deviations:** `write_chunks_to_graph` retained for Neo4j integration test; pipeline uses `build_graph_batch` + `write_batch`.
+- **Code evidence:** `qdrant.py`, `graph_writer.py`, `pipeline.py`, `search_common.py`, `.env.example`, `docs/ARCHITECTURE.md`
+- **Test debt:** mypy gate not run; no live end-to-end graph-linkage assertion; TEI-dependent full index/search unverified.
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing yes; entry at `verified` step
+
+#### 2026-07-08 — plan
+- **Phase / PR:** Phase 2 — Qdrant payload linking (`graph_node_ids`)
+- **Tracker status:** `planned`
+- **Choices:** Neighbor-node-keys-only for `graph_node_ids` (exclude own Chunk/File keys); boolean `graph_enabled` metadata only (no integer `graph_schema_version`); no new env vars; `graph_node_ids` left unindexed in Qdrant; batch built once per flush then reused for upsert payload + Neo4j write; best-effort graph errors continue to append to `PipelineResult.errors`; one PR per phase. **Chosen scope:** Compute `GraphBatch` before `upsert_chunks` and derive per-chunk neighbor node keys; add `graph_node_ids: list[str]` to Qdrant point payload via `_build_point`/`upsert_chunks` when `GRAPH_ENABLED=true`; add `graph_node_ids_from_batch` in `graph_writer.py`; stamp collection metadata `graph_enabled` (boolean only, no integer version); emit structlog warning in `search_common` when graph enabled but collection unlinked; reuse single graph batch for Neo4j write; unit tests per ADR Validation Phase 2; Docker integration with `docker-compose.neo4j.yml`; sync `.env.example` + `ARCHITECTURE.md`; document forced re-index. Defer Phase 3 `expand_search_context`, Phase 4 cross-project Cypher, 0023 Phase 3, 0018 P2, HTTP_CALLS/IMPORTS ADR 0026.
+- **Assumptions:** Phase 2 = full ADR Phase 2 bullet set; Phase 1 and 0023 P1–P2 merged and stable; re-index acceptable (pre-release); Docker + Neo4j override integration mandatory.
+- **Deviations:** none
+- **Code evidence:** —
+- **Test debt:** unit tests per ADR Validation §Phase 2; Docker integration with `docker-compose.neo4j.yml`
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing yes at ship (additive Qdrant payload field + collection metadata + search warning under `GRAPH_ENABLED=true`; requires re-index to backfill; default `GRAPH_ENABLED=false` unchanged); invoker Changelog: no
+
+#### 2026-07-08 — prioritization
+- **Phase / PR:** Phase 2 — Qdrant payload linking (`graph_node_ids`)
+- **Tracker status:** `candidate`
+- **Choices:** Prioritize 0002 Phase 2 over 0002 Phase 3 (delivery-order prerequisite); over 0024 Phase 2; over 0023 Phase 3; over 0019 Phase 2; over 0018 Phase 2; single phase per pipeline rule; no ADR Accept required (0002 already Accepted phase 1). **Why now:** Embed/accelerator (0021/0022/0025) and tuner P1 (0024) arcs complete; graph writer (0002 P1) and Neo4j call-site routing (0023 P1–P2) merged; Phase 2 explicitly deferred in 0023 P2 plan and documented as not shipped in `.env.example` / `ARCHITECTURE.md`; `graph_node_ids` absent from code (`graph_writer.py`, `qdrant.py`); ADR 0002 delivery order requires P2 before P3 `expand_search_context`; pre-release re-index acceptable; default `GRAPH_ENABLED=false` unchanged. **Suggested scope:** one phase (= one PR). **Chosen scope:** Extend `graph_writer.py` + `pipeline.py` to emit per-chunk Neo4j node keys; add `graph_node_ids: list[str]` to Qdrant upsert payload when graph enabled; stamp collection metadata (`graph_enabled`, graph schema version); warn on search when graph enabled but collection lacks linkage; unit tests per ADR Validation §Phase 2; Docker integration with `docker-compose.neo4j.yml`; sync `.env.example` + `ARCHITECTURE.md`; document forced re-index; defer Phase 3 `expand_search_context`, Phase 4 cross-project Cypher, 0023 Phases 3–4.
+- **Deviations:** none
+- **Code evidence:** `graph_node_ids` absent from `graph_writer.py`, `qdrant.py`; Phase 2 deferred in 0023 P2 plan and `.env.example` / `ARCHITECTURE.md`
+- **Test debt:** —
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing unknown; invoker Changelog: no
 
 #### 2026-07-03 — merge
 - **Phase / PR:** Phase 1 — Neo4j storage + index-time graph writer — [PR #10](https://github.com/Tusquito/codebase-indexer-mcp/pull/10)
@@ -2030,3 +2087,19 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-08 | 0024 | Phase 1 open decisions (post-verification) | **None** — verified; test debt carried; ready for git | no |
 | 2026-07-08 | 0024 | Phase 1 merged? | **Merged** at 2026-07-08 merge — squash merge [PR #25](https://github.com/Tusquito/codebase-indexer-mcp/pull/25) (`e0c6100`); tracker `merged` | no |
 | 2026-07-08 | 0024 | Phase 1 open decisions (post-merge) | **None** — Phase 1 complete; Phases 2+ deferred; non-blocking test debt carried forward | no |
+| 2026-07-08 | 0002 | Prioritize 0002 P2 over 0002 P3, 0024 P2, 0023 P3, 0019 P2, 0018 P2? | **Prioritized** at 2026-07-08 prioritization — 0002 P2 `candidate`; single phase per pipeline rule; no ADR Accept required (0002 already Accepted phase 1) | no |
+| 2026-07-08 | 0023 | Defer Phase 3 until after 0002 Phase 3? | **Deferred by human** at 2026-07-08 prioritization — 0023 P3 defer until after 0002 P3 | no |
+| 2026-07-08 | 0018 | Phase 2 scope when picked up? | **Noted for future** at 2026-07-08 prioritization — traces-only when picked up | no |
+| 2026-07-08 | 0002 | HTTP_CALLS/IMPORTS edge types in Phase 2? | **Deferred by human** at 2026-07-08 prioritization — HTTP_CALLS/IMPORTS defer | no |
+| 2026-07-08 | 0002 | Phase 2 open decisions (post-prioritization) | **None** — all resolved by human at 2026-07-08 prioritization | no |
+| 2026-07-08 | 0002 | Collection metadata schema version integer for Phase 2? | **Resolved at plan** — boolean `graph_enabled` only; no integer `graph_schema_version` | no |
+| 2026-07-08 | 0002 | `graph_node_ids` payload scope — own chunk/file keys included? | **Resolved at plan** — neighbor-node-keys-only (exclude own Chunk/File keys) | no |
+| 2026-07-08 | 0002 | Phase 2 open decisions (post-plan) | **None** — all resolved by human at 2026-07-08 plan | no |
+| 2026-07-08 | 0002 | Graph writer API split for pipeline vs integration tests? | **Resolved at implementation** — `write_chunks_to_graph` retained for Neo4j integration test; pipeline uses `build_graph_batch` + `write_batch` | no |
+| 2026-07-08 | 0002 | File-level import attribution in graph batch? | **Resolved at implementation** — file-level imports attributed to every chunk in file | no |
+| 2026-07-08 | 0002 | Search warning for unlinked collections? | **Resolved at implementation** — structlog `graph_linkage_missing` once per unlinked collection when `GRAPH_ENABLED=true` | no |
+| 2026-07-08 | 0002 | Phase 2 open decisions (post-implementation) | **None** — implementation complete; test debt carried; awaiting verification | no |
+| 2026-07-08 | 0002 | Omit `graph_node_ids` for zero-neighbor chunks and when `GRAPH_ENABLED=false`? | **Resolved at verification** — payload field omitted for zero-neighbor chunks and when graph disabled | no |
+| 2026-07-08 | 0002 | Phase 2 open decisions (post-verification) | **None** — verification complete; test debt carried; awaiting merge | no |
+| 2026-07-08 | 0002 | Phase 2 merged? | **Merged** at 2026-07-08 merge — squash merge [PR #26](https://github.com/Tusquito/codebase-indexer-mcp/pull/26) (`e3348b0`); tracker `merged` | no |
+| 2026-07-08 | 0002 | Phase 2 open decisions (post-merge) | **None** — Phase 2 complete; Phases 3–4 deferred; non-blocking test debt carried forward | no |
