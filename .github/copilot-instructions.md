@@ -86,6 +86,7 @@ Each tool is a `register_*_tool(mcp, ctx)` function — register all of them in 
 | `find_cross_references` | `cross_references.py` | Discover symbol/endpoint links across collections. Reference types: `definition`, `import`, `usage`, `endpoint_definition`, `http_call`, `service_config`, `build_dependency`, `call_site`. Optional `member`/`receiver` for exact call-site lookup. When `RERANK_ENABLED=true`, semantic paths use ColBERT rerank |
 | `map_service_dependencies` | `service_map.py` | Build a full microservice dependency graph. Detects HTTP call chains **and** build-level dependencies (Maven, NuGet, npm, Gradle, Go, Cargo, Python). When `RERANK_ENABLED=true`, batched discovery uses ColBERT rerank |
 | `recommend_code` | `recommend.py` | **Vector discovery**: chunks similar to positive examples and dissimilar from negatives (Qdrant Recommendation API, dense-only). Gated by `RECOMMEND_ENABLED` (default on); capped by `RECOMMEND_MAX_EXAMPLES`. Single collection; see `docs/SEARCH_BEHAVIOR.md` |
+| `find_outlier_chunks` | `recommend.py` | **Vector discovery**: chunks semantically distant from a module context (`BEST_SCORE`, negative-only) + cosine-to-centroid filter. Gated by `RECOMMEND_ENABLED` (default on); see `docs/SEARCH_BEHAVIOR.md` |
 
 ### Token-efficient workflow
 
@@ -98,9 +99,12 @@ Always follow this order to minimize tokens consumed per task:
 4. search_codebase(..., max_content_chars=300) → narrow candidates  [truncated content]
 5. get_chunk(chunk_id)      → read only the 1-2 chunks you need     [full content]
 6. recommend_code(...)      → "like this, not that" discovery       [embed per text example]
+7. find_outlier_chunks(...) → semantically distant code in a module  [embed per text example]
 ```
 
 For **similar-to-X but not-in-tests** discovery, prefer `recommend_code` over a negated `search_codebase` query.
+
+For **dead code / refactor triage** (chunks unlike the rest of a module), prefer `find_outlier_chunks` with `path_glob` or `context_chunk_ids`.
 
 Never call `search_codebase` without `max_content_chars` when you only need symbol locations — use `search_symbols` instead.
 

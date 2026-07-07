@@ -75,6 +75,7 @@ cost.
 | `find_cross_references` | Zero embed (member-only); embed with query/symbol_name | Precise call sites via member/receiver + cross-project links; ColBERT rerank when `RERANK_ENABLED=true` |
 | `map_service_dependencies` | Multiple embeds | Full microservice call graph; ColBERT rerank when `RERANK_ENABLED=true` |
 | `recommend_code` | Embed per text example | "Like this, not that" discovery via Qdrant Recommendation API (dense-only) |
+| `find_outlier_chunks` | Embed per text example | Semantically distant chunks in a module (refactor / dead-code triage) |
 
 ## Common Patterns
 
@@ -126,6 +127,17 @@ recommend_code(
   max_content_chars=200,
 )
 -> get_chunk for the top 1-2 results
+```
+
+### "Find code unlike the rest of this module"
+```
+find_outlier_chunks(
+  collection="project",
+  path_glob="project/src/services/**/*.py",
+  limit=10,
+  max_content_chars=200,
+)
+-> get_chunk for outliers worth investigating
 ```
 
 ### Starting fresh -- project not yet indexed
