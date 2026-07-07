@@ -29,7 +29,7 @@ def trim_memory() -> None:
 
 @runtime_checkable
 class DenseEmbedBackend(Protocol):
-    """Dense vector encoder (Ollama HTTP)."""
+    """Dense vector encoder (TEI HTTP)."""
 
     vector_size: int
     backend_name: str
