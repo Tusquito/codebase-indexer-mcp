@@ -13,7 +13,7 @@ QUERIES = [
     "QdrantStorage search hybrid RRF",
     "docker compose deployment",
     "MCP server health check",
-    "embedding model Ollama",
+    "embedding model TEI",
     "sparse BM25 hybrid search",
     "index_codebase pipeline",
     "config Settings rerank",

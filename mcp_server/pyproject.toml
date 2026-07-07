@@ -1,13 +1,13 @@
 [project]
 name = "codebase-indexer"
 version = "0.1.0"
-description = "Self-hosted MCP server for semantic codebase search via Qdrant, Ollama dense embeddings, and BM25 sparse search"
+description = "Self-hosted MCP server for semantic codebase search via Qdrant, TEI dense embeddings, and BM25 sparse search"
 license = { text = "MIT" }
 requires-python = ">=3.12"
 dependencies = [
     "mcp[cli]>=1.28.1",
     "fastmcp>=3.4.2",
-    "qdrant-client[fastembed]>=1.18.0",  # fastembed sparse BM25 (dense via Ollama HTTP)
+    "qdrant-client[fastembed]>=1.18.0",  # fastembed sparse BM25 (dense via TEI HTTP)
     "httpx>=0.27.0",
     "pydantic>=2.7.0",
     "pydantic-settings>=2.14.2",

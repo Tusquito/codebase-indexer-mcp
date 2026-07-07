@@ -58,9 +58,9 @@ Find chunks **similar to positive examples** and **dissimilar from negative exam
 |-----------|---------|----------------|
 | `collection` | *(required)* | Single collection only — multi-collection deferred |
 | `positive_chunk_ids` | `None` | Resolved to point IDs; missing IDs fail fast with explicit error |
-| `positive_query` | `None` | Free-text embedded via Ollama dense path |
+| `positive_query` | `None` | Free-text embedded via TEI dense path |
 | `negative_chunk_ids` | `None` | Same resolution/validation as positives |
-| `negative_query` | `None` | Free-text embedded via Ollama dense path |
+| `negative_query` | `None` | Free-text embedded via TEI dense path |
 | `limit` | `5` | Silently capped at **20** |
 | `language` | `None` | Qdrant payload filter (indexed field) |
 | `path_glob` | `None` | Post-filter via `fnmatch` on `rel_path`; over-fetches `limit * 3` |

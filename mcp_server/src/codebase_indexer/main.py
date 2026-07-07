@@ -109,7 +109,7 @@ _INSTRUCTIONS = """
     edges (imports, HTTP, endpoints); use decomposition for prose/config hops.
     Token savers between hops: search_symbols, get_file_outline, get_chunk.
 
-    Search uses OLLAMA_EMBED_MODEL (dense via Ollama HTTP) + SPARSE_EMBED_MODEL (sparse BM25)
+    Search uses DENSE_EMBED_MODEL (dense via TEI HTTP) + SPARSE_EMBED_MODEL (sparse BM25)
     fused via RRF when HYBRID_SEARCH is enabled.
     """
 
@@ -180,7 +180,7 @@ def create_app(settings: Settings | None = None, preload_models: bool | None = N
             warn_pct=settings.memory_pressure_warn_pct,
             halt_pct=settings.memory_pressure_halt_pct,
         )
-        # Dense runs in Ollama; MCP peak RSS is typically a few hundred MB (see pipeline logs).
+        # Dense runs in TEI sidecar; MCP peak RSS is typically a few hundred MB (see pipeline logs).
         if limit_gb < 1.5:
             log.warning(
                 "low_memory_limit",
@@ -216,7 +216,7 @@ def create_app(settings: Settings | None = None, preload_models: bool | None = N
     if preload_models:
         log.info(
             "preloading_models",
-            dense_embed_backend="ollama",
+            dense_embed_backend="tei",
         )
         t0 = time.monotonic()
         try:

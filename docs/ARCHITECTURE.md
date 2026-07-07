@@ -12,7 +12,7 @@ graph TD
     end
 
     subgraph Docker["Docker Compose"]
-        MCP["codeindexer_mcp :8000\nFastMCP + Ollama dense + BM25 sparse"]
+        MCP["codeindexer_mcp :8000\nFastMCP + TEI dense + BM25 sparse"]
         QD[("codeindexer_qdrant :6333\nQdrant vector DB")]
         CRON["codeindexer_cron\ncron/reindex.py"]
     end
@@ -76,7 +76,7 @@ flowchart LR
 
 ### 3. Embedder (`indexer/embedder.py`)
 
-- **Dense**: Ollama HTTP (`OLLAMA_EMBED_MODEL`, `OLLAMA_URL`)
+- **Dense**: TEI HTTP (`DENSE_EMBED_MODEL`, `TEI_URL`)
 - **Sparse**: fastembed BM25 (`SPARSE_EMBED_MODEL`) on CPU
 - **ColBERT** (optional): multivector late-interaction when `RERANK_ENABLED=true` — **remote GPU sidecar by default** (`colbert_remote.py`, [ADR 0015](adr/0015-colbert-http-sidecar.md), [ADR 0022](adr/0022-gpu-default-cpu-fallback.md)); in-process ONNX (`colbert_onnx.py`) only under `ACCELERATOR=cpu` with explicit `COLBERT_EMBED_BACKEND=onnx`
 - Sparse model singleton; `release_models_after_index` and `model_idle_timeout` reclaim RAM
@@ -93,16 +93,16 @@ flowchart LR
 
 | Layer | Module | Notes |
 |-------|--------|-------|
-| Dense Ollama | `indexer/backends/ollama_dense.py` | HTTP `/api/embed`; MRL `dimensions` for Qwen3 when below native size; orchestrated by `Embedder` facade |
+| Dense TEI | `indexer/backends/tei_dense.py` | OpenAI `/v1/embeddings`; MRL `dimensions` for Qwen3 when below native size; orchestrated by `Embedder` facade |
 | Sparse BM25 | `indexer/backends/onnx_sparse.py` | In-process CPU; `SPARSE_THREADS` required in `.env` |
 | ColBERT (opt-in) | `indexer/backends/colbert_remote.py`, `colbert_onnx.py` | Multivector at index time when `RERANK_ENABLED=true`; remote GPU sidecar default; in-process ONNX for `ACCELERATOR=cpu` only |
-| Truncation | `indexer/truncation.py`, `indexer/tokenizer_loader.py` | Dense: model tokenizer from `DENSE_EMBED_MODEL` via `tokenizers` (Ollama path); sparse/ColBERT: FastEmbed cache tokenizer; caps via `MAX_DENSE_EMBED_TOKENS` / `MAX_SPARSE_EMBED_TOKENS` |
+| Truncation | `indexer/truncation.py`, `indexer/tokenizer_loader.py` | Dense: model tokenizer from `DENSE_EMBED_MODEL` via `tokenizers` (TEI path); sparse/ColBERT: FastEmbed cache tokenizer; caps via `MAX_DENSE_EMBED_TOKENS` / `MAX_SPARSE_EMBED_TOKENS` |
 
-Dense embedding is Ollama-only ([ADR 0011](adr/0011-ollama-only-dense-embedding.md), [ADR 0001](adr/0001-pluggable-embed-backends.md) superseded for backend selection). Default dense model is **Jina Embeddings v2 base code** at 768 dimensions ([ADR 0021](adr/0021-revert-jina-production-default-retire-qwen3.md)); Qwen3 remains an optional experimental preset ([ADR 0016](adr/0016-qwen3-embedding-default-dense-model.md)). **GPU-default compose** ([ADR 0022](adr/0022-gpu-default-cpu-fallback.md)): bundled Ollama and ColBERT sidecar use NVIDIA GPU by default via `scripts/compose_files.py`; sparse BM25 stays **CPU in-process** for all accelerator modes.
+Dense embedding is TEI-only ([ADR 0025](adr/0025-huggingface-tei-dense-embedding.md), supersedes [ADR 0011](adr/0011-ollama-only-dense-embedding.md)). Default dense model is **Jina Embeddings v2 base code** at 768 dimensions ([ADR 0021](adr/0021-revert-jina-production-default-retire-qwen3.md)); Qwen3 remains an optional experimental preset ([ADR 0016](adr/0016-qwen3-embedding-default-dense-model.md)). **GPU-default compose** ([ADR 0022](adr/0022-gpu-default-cpu-fallback.md)): bundled TEI and ColBERT sidecar use NVIDIA GPU by default via `scripts/compose_files.py`; sparse BM25 stays **CPU in-process** for all accelerator modes.
 
 | Backend | Module | When |
 |---------|--------|------|
-| Ollama | `indexer/backends/ollama_dense.py` | Always (dense); bundled service via `COMPOSE_PROFILES=bundled-ollama`; GPU override merged by default (`ACCELERATOR=gpu`) |
+| TEI | `indexer/backends/tei_dense.py` | Always (dense); bundled service via `COMPOSE_PROFILES=bundled-tei`; GPU override merged by default (`ACCELERATOR=gpu`) |
 | Sparse ONNX | `indexer/backends/onnx_sparse.py` | Always (BM25 hybrid search) |
 
 The `Embedder` facade in `indexer/embedder.py` orchestrates backends; factory wiring lives in `indexer/backends/factory.py`.
@@ -163,7 +163,7 @@ Client-side pipeline eval (Ragas faithfulness / context precision on the same go
 
 ## RAG and agent integration
 
-The MCP server implements the **retrieval half** of Qdrant’s RAG tutorials (Ollama dense + BM25 sparse → Qdrant → ranked context). Connected AI clients perform metaprompt assembly and LLM generation. External orchestrators (Cursor agents, CrewAI, etc.) call MCP tools instead of embedding CrewAI/CAMEL in the server. See [ADR 0012](adr/0012-retrieval-only-rag-split.md) and [ADR 0013](adr/0013-external-agent-knowledge-base.md).
+The MCP server implements the **retrieval half** of Qdrant’s RAG tutorials (TEI dense + BM25 sparse → Qdrant → ranked context). Connected AI clients perform metaprompt assembly and LLM generation. External orchestrators (Cursor agents, CrewAI, etc.) call MCP tools instead of embedding CrewAI/CAMEL in the server. See [ADR 0012](adr/0012-retrieval-only-rag-split.md) and [ADR 0013](adr/0013-external-agent-knowledge-base.md).
 
 Vector discovery Phase 1–2 is shipped: `recommend_code` and `find_outlier_chunks` (Qdrant Recommendation API, dense-only) per [ADR 0014](adr/0014-vector-discovery-and-ops-automation.md). Track B (optional n8n compose) remains deferred, inspired by [Qdrant’s n8n tutorial](https://qdrant.tech/documentation/tutorials-build-essentials/qdrant-n8n/).
 

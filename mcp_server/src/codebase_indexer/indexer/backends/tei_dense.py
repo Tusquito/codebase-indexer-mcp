@@ -1,4 +1,4 @@
-"""Dense embedding via Ollama HTTP API."""
+"""Dense embedding via HuggingFace TEI OpenAI-compatible HTTP API."""
 
 from __future__ import annotations
 
@@ -20,10 +20,10 @@ from codebase_indexer.telemetry.metrics import record_embed_request, record_trun
 _tlog = logging.getLogger(__name__)
 
 
-class OllamaDenseBackend:
-    """Dense encoder that delegates to Ollama /api/embed."""
+class TeiDenseBackend:
+    """Dense encoder that delegates to TEI POST /v1/embeddings."""
 
-    backend_name = "ollama"
+    backend_name = "tei"
 
     _shared_tokenizer: Any | None = None
     _tokenizer_load_attempted: bool = False
@@ -33,7 +33,7 @@ class OllamaDenseBackend:
         *,
         model_name: str,
         vector_size: int,
-        ollama_url: str = "http://host.docker.internal:11434",
+        tei_url: str = "http://tei:80",
         batch_size: int = 32,
         timeout: float = 120.0,
         max_retries: int = 3,
@@ -45,7 +45,7 @@ class OllamaDenseBackend:
         self.model_name = model_name
         self.vector_size = vector_size
         self._mrl_dimensions = mrl_dimensions
-        self.ollama_url = ollama_url.rstrip("/")
+        self.tei_url = tei_url.rstrip("/")
         self.batch_size = batch_size
         self.timeout = timeout
         self.max_retries = max_retries
@@ -67,53 +67,41 @@ class OllamaDenseBackend:
     def _get_async_client(self) -> httpx.AsyncClient:
         if self._async_client is None:
             self._async_client = httpx.AsyncClient(
-                base_url=self.ollama_url,
+                base_url=self.tei_url,
                 timeout=httpx.Timeout(self.timeout),
             )
         return self._async_client
 
     def preload(self) -> None:
         with httpx.Client(
-            base_url=self.ollama_url,
+            base_url=self.tei_url,
             timeout=httpx.Timeout(self.timeout),
         ) as client:
             try:
-                resp = client.get("/api/tags")
-                resp.raise_for_status()
-                tags = resp.json().get("models", [])
-                names = {m.get("name", "").split(":")[0] for m in tags}
-                model_base = self.model_name.split(":")[0]
-                if names and model_base not in names and self.model_name not in {
-                    m.get("name", "") for m in tags
-                }:
-                    _tlog.warning(
-                        "ollama_model_not_found model=%s available=%s",
-                        self.model_name,
-                        sorted(names),
-                    )
+                health_resp = client.get("/health")
+                health_resp.raise_for_status()
                 probe_resp = client.post(
-                    "/api/embed",
+                    "/v1/embeddings",
                     json=self._embed_payload(["."]),
                 )
                 probe_resp.raise_for_status()
                 data = probe_resp.json()
-                embeddings = data.get("embeddings") or [data.get("embedding")]
-                if not embeddings or len(embeddings[0]) != self.vector_size:
+                embedding = self._parse_embedding_response(data, expected_count=1)[0]
+                if len(embedding) != self.vector_size:
                     raise EmbeddingError(
-                        f"Ollama model {self.model_name!r} returned dimension "
-                        f"{len(embeddings[0]) if embeddings else 0}, "
-                        f"expected {self.vector_size}"
+                        f"TEI model {self.model_name!r} returned dimension "
+                        f"{len(embedding)}, expected {self.vector_size}"
                     )
                 self._ready = True
                 self._ensure_truncation()
                 _tlog.info(
-                    "ollama_embed_ready model=%s url=%s",
+                    "tei_embed_ready model=%s url=%s",
                     self.model_name,
-                    self.ollama_url,
+                    self.tei_url,
                 )
             except httpx.HTTPError as exc:
                 raise EmbeddingError(
-                    f"Ollama preload failed at {self.ollama_url}: {exc}"
+                    f"TEI preload failed at {self.tei_url}: {exc}"
                 ) from exc
 
     def release(self) -> None:
@@ -128,7 +116,7 @@ class OllamaDenseBackend:
         cls._shared_tokenizer = load_dense_tokenizer(model_id)
         if cls._shared_tokenizer is None:
             _tlog.warning(
-                "ollama_dense_truncation_disabled model=%s reason=tokenizer_unavailable",
+                "tei_dense_truncation_disabled model=%s reason=tokenizer_unavailable",
                 model_id,
             )
 
@@ -148,9 +136,9 @@ class OllamaDenseBackend:
                 truncated_count += 1
             truncated.append(new_text)
         if truncated_count:
-            record_truncated_chunks("ollama", truncated_count)
+            record_truncated_chunks("tei", truncated_count)
             _tlog.info(
-                "ollama_dense_chunks_truncated count=%d max_tokens=%d source=%s model=%s",
+                "tei_dense_chunks_truncated count=%d max_tokens=%d source=%s model=%s",
                 truncated_count,
                 self._max_tokens,
                 self._truncation_source,
@@ -169,16 +157,33 @@ class OllamaDenseBackend:
         for idx, vec in enumerate(results):
             if len(vec) != self.vector_size:
                 raise EmbeddingError(
-                    f"Ollama embedding {idx} dimension mismatch: "
+                    f"TEI embedding {idx} dimension mismatch: "
                     f"expected {self.vector_size}, got {len(vec)}"
                 )
         return results
 
     def _embed_payload(self, texts: list[str]) -> dict[str, Any]:
-        payload: dict[str, Any] = {"model": self.model_name, "input": texts}
+        payload: dict[str, Any] = {
+            "model": self.model_name,
+            "input": texts if len(texts) > 1 else texts[0],
+        }
         if self._mrl_dimensions is not None:
             payload["dimensions"] = self._mrl_dimensions
         return payload
+
+    def _parse_embedding_response(
+        self, data: dict[str, Any], *, expected_count: int
+    ) -> list[list[float]]:
+        items = data.get("data")
+        if not items:
+            raise EmbeddingError("TEI returned no embedding data")
+        items = sorted(items, key=lambda row: row.get("index", 0))
+        embeddings = [row["embedding"] for row in items]
+        if len(embeddings) != expected_count:
+            raise EmbeddingError(
+                f"TEI returned {len(embeddings)} embeddings for {expected_count} inputs"
+            )
+        return embeddings
 
     async def _embed_http(self, texts: list[str]) -> list[list[float]]:
         client = self._get_async_client()
@@ -187,33 +192,28 @@ class OllamaDenseBackend:
         for attempt in range(self.max_retries):
             try:
                 t0 = time.monotonic()
-                resp = await client.post("/api/embed", json=payload)
+                resp = await client.post("/v1/embeddings", json=payload)
                 if resp.status_code == 503 and attempt < self.max_retries - 1:
                     await asyncio.sleep(2**attempt)
                     continue
                 resp.raise_for_status()
                 data = resp.json()
-                embeddings = data.get("embeddings")
-                if embeddings is None and "embedding" in data:
-                    embeddings = [data["embedding"]]
-                if not embeddings or len(embeddings) != len(texts):
-                    raise EmbeddingError(
-                        f"Ollama returned {len(embeddings or [])} embeddings "
-                        f"for {len(texts)} inputs"
-                    )
+                embeddings = self._parse_embedding_response(
+                    data, expected_count=len(texts)
+                )
                 _tlog.info(
-                    "ollama_embed_done chunks=%d elapsed_s=%.2f",
+                    "tei_embed_done chunks=%d elapsed_s=%.2f",
                     len(texts),
                     time.monotonic() - t0,
                 )
-                record_embed_request("ollama", "success")
+                record_embed_request("tei", "success")
                 return embeddings
             except (httpx.HTTPError, EmbeddingError) as exc:
                 last_exc = exc
                 if attempt < self.max_retries - 1:
                     await asyncio.sleep(2**attempt)
                     continue
-                record_embed_request("ollama", "error")
-                raise EmbeddingError(f"Ollama embed failed: {exc}") from exc
-        record_embed_request("ollama", "error")
-        raise EmbeddingError(f"Ollama embed failed after retries: {last_exc}")
+                record_embed_request("tei", "error")
+                raise EmbeddingError(f"TEI embed failed: {exc}") from exc
+        record_embed_request("tei", "error")
+        raise EmbeddingError(f"TEI embed failed after retries: {last_exc}")

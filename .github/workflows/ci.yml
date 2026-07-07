@@ -95,7 +95,7 @@ jobs:
 
   eval-retrieval:
     # Non-blocking: validates golden-set label schema and runs eval when
-    # Qdrant + Ollama + indexed collection are available on the runner.
+    # Qdrant + TEI + indexed collection are available on the runner.
     runs-on: ubuntu-latest
     continue-on-error: true
     defaults:
@@ -129,7 +129,7 @@ jobs:
       - name: Validate golden-set labels (skip search when collection missing)
         run: uv run python -m benchmarks.eval_retrieval --validate-labels || true
 
-      - name: Run retrieval eval vs baseline (skip when Ollama/index unavailable)
+      - name: Run retrieval eval vs baseline (skip when TEI/index unavailable)
         run: >-
           uv run python -m benchmarks.eval_retrieval
           --compare benchmarks/fixtures/eval_baseline.json

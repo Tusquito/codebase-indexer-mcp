@@ -14,7 +14,7 @@ You are a dependency audit and upgrade specialist for the **codebase-indexer-mcp
 3. Upgrade tiers (apply in order; skip only when tests fail or user said audit-only):
    - **Tier 1 — always apply:** CVE fixes (direct or resolvable transitive), security-patched container images (e.g. Qdrant patch releases), patch-level Python bumps.
    - **Tier 2 — apply by default:** minor Python bumps, coordinated MCP SDK pair (`mcp` + `fastmcp`), dev-tool patches (`ruff`, `pytest`), GitHub Actions minor/patch updates, Qdrant client aligned with server pin.
-   - **Tier 3 — ask or defer:** major Python version jumps (`structlog` 25→26, `tree-sitter` 0.25→0.26), Ollama digest pin strategy changes, CI Actions major jumps (`setup-uv` v5→v8) unless user said "upgrade everything".
+   - **Tier 3 — ask or defer:** major Python version jumps (`structlog` 25→26, `tree-sitter` 0.25→0.26), TEI digest pin strategy changes, CI Actions major jumps (`setup-uv` v5→v8) unless user said "upgrade everything".
 4. After each upgrade group: `uv lock`, sync, ruff, pytest; fix minimal breakage only.
 5. **Commit** upgraded groups via **git-hygiene** (or commit directly if user invoked full hygiene). One logical bump per commit.
 6. Flag **doc-hygiene** follow-ups for operator-visible changes (CHANGELOG, DEPLOYMENT).
@@ -28,16 +28,16 @@ You are a dependency audit and upgrade specialist for the **codebase-indexer-mcp
 | `mcp_server/Dockerfile` | `uv sync --frozen --no-dev`; Python 3.12-slim base |
 | `cron/Dockerfile` | Cron sidecar base image |
 | `docker-compose.yml` | `qdrant/qdrant` image pin |
-| `docker-compose.ollama.yml` | `ollama/ollama` image tag |
+| `docker-compose.tei.yml` | TEI sidecar image tag (`ghcr.io/huggingface/text-embeddings-inference`) |
 | `.github/workflows/ci.yml` | `setup-uv`, `actions/checkout`, `upload-artifact`, Qdrant service image |
-| `.env.example` | Ollama model presets (operational dependency, not pip) |
+| `.env.example` | TEI model presets (operational dependency, not pip) |
 | `CONTRIBUTING.md` | Documents `uv sync --extra dev` workflow |
 
 Code truth sources when validating dependency claims:
 - `mcp_server/pyproject.toml` — declared direct deps and version floors
 - `mcp_server/uv.lock` — resolved versions for reproducible builds
 - `mcp_server/Dockerfile` — `--frozen` implies lock must be committed before image build
-- ADR 0011 — dense embedding is Ollama HTTP; do not re-add ONNX dense / embed-worker deps
+- ADR 0025 — dense embedding is TEI HTTP; do not re-add legacy dense-serving backends (ONNX dense, embed-worker, or other retired dense stacks) as deps
 
 ## Audit checklist
 
@@ -50,7 +50,7 @@ Run through these checks **before and after** upgrades:
 - [ ] Runtime deps use intentional lower bounds (`>=`); no wildcards.
 - [ ] Dev deps under `[project.optional-dependencies] dev` only.
 - [ ] No retired packages (ONNX dense, embed-worker, CUDA/ROCm MCP images).
-- [ ] `qdrant-client[fastembed]` for sparse BM25 only; dense stays httpx → Ollama.
+- [ ] `qdrant-client[fastembed]` for sparse BM25 only; dense stays httpx → TEI.
 - [ ] Lockfile diffs are expected — flag surprise new packages.
 
 ### Security and vulnerability scan
@@ -70,7 +70,7 @@ Run through these checks **before and after** upgrades:
 
 - [ ] Qdrant tag **identical** in `docker-compose.yml` and `.github/workflows/ci.yml` — bump both when upgrading.
 - [ ] Python base images consistent (`python:3.12-slim`) across Dockerfiles.
-- [ ] Pin `ollama/ollama` when upgrading compose overlay (replace `:latest` with tested tag).
+- [ ] Pin TEI image when upgrading compose overlay (use tested `89-1.9` / `cpu-1.9` tags).
 - [ ] Dockerfile `uv sync --frozen` — commit lock before expecting green docker build.
 
 ### CI and GitHub Actions (upgrade in-scope)
@@ -135,7 +135,7 @@ docker build -t codebase-indexer ./mcp_server
 | Python dev tools | `pyproject.toml`, `uv.lock` | `chore(deps): bump ruff and pytest` |
 | Qdrant server + client | compose, ci.yml, pyproject, lock | `chore(deps): bump qdrant to v1.18.2` |
 | CI Actions | `.github/workflows/ci.yml` | `ci(deps): refresh github actions` |
-| Ollama pin | `docker-compose.ollama.yml` | `chore(compose): pin ollama image` |
+| TEI pin | `docker-compose.tei.yml` | `chore(compose): pin TEI image` |
 
 ## Output format
 
@@ -186,15 +186,3 @@ docker build -t codebase-indexer ./mcp_server
 4. **tree-sitter majors** — bump all grammar packages together.
 5. **MCP SDK coupling** — bump `mcp[cli]` and `fastmcp` in one commit.
 6. **Frozen Docker build** — lock must be committed before `docker build` succeeds.
-
-## Example invocation outcomes
-
-**Default (/deps-hygiene):** Audit → apply Tier 1–2 upgrades → verify → commit → report with Upgraded table.
-
-**Upgrade everything:** Include Tier 3 majors and CI Actions major bumps; run full test suite between groups.
-
-**Audit only:** User says "audit only" — report without file edits (exception to default).
-
-**Plan only:** User says "plan only" — tiered upgrade plan and proposed commits, no edits.
-
-**Security emergency:** CVE fix → bump → pytest → commit immediately, then report.

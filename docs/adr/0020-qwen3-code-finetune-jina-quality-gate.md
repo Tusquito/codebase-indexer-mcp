@@ -3,7 +3,7 @@
 - **Status:** Accepted (phase 1 — Dataset + training pipeline)
 - **Date:** 2026-07-03
 - **Deciders:** Maintainers
-- **Related:** [0016](0016-qwen3-embedding-default-dense-model.md) — Qwen3 default and measured Jina regression; [0011](0011-ollama-only-dense-embedding.md) — Ollama-only dense inference; [0007](0007-ranx-retrieval-evaluation.md) — golden-set eval harness; [0017](0017-model-tokenizer-ollama-dense-truncation.md) — tokenizer-accurate truncation; [CoIR leaderboard](https://mteb-leaderboard.hf.space/benchmarks?q=code) — public code-retrieval benchmark
+- **Related:** [0016](0016-qwen3-embedding-default-dense-model.md) — Qwen3 default and measured Jina regression; [0011](0011-ollama-only-dense-embedding.md) — Ollama-only dense inference; [0007](0007-ranx-retrieval-evaluation.md) — golden-set eval harness; [0017](0017-model-tokenizer-tei-dense-truncation.md) — tokenizer-accurate truncation; [CoIR leaderboard](https://mteb-leaderboard.hf.space/benchmarks?q=code) — public code-retrieval benchmark
 - **Supersedes:** *(none — narrows ADR 0016 rollout policy when quality gate fails)*
 - **Superseded by:** [0021](0021-revert-jina-production-default-retire-qwen3.md) — Phases 2–4 cancelled; Jina restored as production default
 
@@ -69,7 +69,7 @@ Until the gate passes, **Qwen3 base remains the documented default** from ADR 00
 | Area | Change |
 |------|--------|
 | Training corpus | Positive pairs from `golden_queries.jsonl` (`query_text` → labeled `chunk_id` content); hard negatives from Qwen3 top-k misses; optional in-batch negatives |
-| Fine-tune method | LoRA (or QLoRA) on `Qwen/Qwen3-Embedding-4B`; contrastive / InfoNCE loss; max seq length aligned with indexer truncation ([ADR 0017](0017-model-tokenizer-ollama-dense-truncation.md)) |
+| Fine-tune method | LoRA (or QLoRA) on `Qwen/Qwen3-Embedding-4B`; contrastive / InfoNCE loss; max seq length aligned with indexer truncation ([ADR 0017](0017-model-tokenizer-tei-dense-truncation.md)) |
 | Offline tooling | `mcp_server/benchmarks/train/` (or `scripts/finetune/`) — dataset export, train script, eval-on-checkpoint; optional `[train]` extra in `pyproject.toml` |
 | Ollama packaging | Export merged weights → GGUF or Ollama `Modelfile` import; document `ollama create` / pull steps in `DEPLOYMENT.md` |
 | Registry | Add fine-tuned model entry in `KNOWN_EMBED_MODEL_*` with same native/MRL dims as base Qwen3-4B |

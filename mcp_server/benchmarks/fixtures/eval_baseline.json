@@ -5,56 +5,56 @@
     "hybrid_search": true,
     "top_k": 10,
     "dense_embed_model": "jinaai/jina-embeddings-v2-base-code",
-    "ollama_embed_model": "unclemusclez/jina-embeddings-v2-base-code",
+    "tei_url": "http://127.0.0.1:8080",
     "dense_embed_vector_size": 768,
     "sparse_embed_model": "Qdrant/bm25",
     "accelerator": "gpu",
-    "indexed_at": "2026-07-04",
+    "indexed_at": "2026-07-07",
     "golden_set_version": "v3-multi-hop",
-    "note": "Hybrid baseline with 26 queries (4 multi_hop). GPU re-index of codebase-indexer-mcp via bundled Ollama unclemusclez/jina-embeddings-v2-base-code @ 768. RERANK_ENABLED=false. Golden alias line fix: scanner.py:113 (scan_files). Live verify recall@10 0.263 vs frozen eval_baseline_jina.json 0.660 (−60%) — alias/corpus drift since 2026-07-02; see ADR 0021 Measured outcomes."
+    "note": "Hybrid baseline with 26 queries (4 multi_hop). GPU re-index of codebase-indexer-mcp via bundled TEI jinaai/jina-embeddings-v2-base-code @ 768 (ADR 0025 Phase 1 closeout), RTX 4060 Ti (compute cap 8.9), TEI image 89-1.9, entrypoint override to /usr/local/bin/text-embeddings-router in docker-compose.tei.gpu.yml (bypasses upstream cuda-entrypoint.sh CUDA UMD Version parse bug on NVIDIA driver 6xx, huggingface/text-embeddings-inference#870). RERANK_ENABLED=false. Clean harness run 2026-07-07: validate_labels 43/43 found (golden alias line numbers corrected); eval_retrieval executed in harness (threshold 0 self-compare pass). tei_health + tei_embed_smoke dim=768 + tei_gpu_visible pass; nvidia-smi shows /text-embeddings-router on GPU. bench.py full index 92.41 chunks/s (187 chunks, 2.023s)."
   },
   "metrics": {
-    "recall@10": 0.262821,
-    "mrr": 0.270513,
-    "ndcg@10": 0.194456
+    "recall@10": 0.358974,
+    "mrr": 0.35757,
+    "ndcg@10": 0.280735
   },
   "metrics_by_tag": {
     "conceptual": {
       "recall@10": 0.190476,
       "mrr": 0.261905,
-      "ndcg@10": 0.131462
+      "ndcg@10": 0.126533
     },
     "config": {
-      "recall@10": 0.066667,
-      "mrr": 0.04,
-      "ndcg@10": 0.041134
+      "recall@10": 0.366667,
+      "mrr": 0.335238,
+      "ndcg@10": 0.322316
     },
     "cross_file": {
-      "recall@10": 0.333333,
-      "mrr": 0.48,
-      "ndcg@10": 0.358318
+      "recall@10": 0.433333,
+      "mrr": 0.556667,
+      "ndcg@10": 0.438997
     },
     "multi_hop": {
       "recall@10": 0.333333,
-      "mrr": 0.433333,
-      "ndcg@10": 0.325432
+      "mrr": 0.431548,
+      "ndcg@10": 0.300916
     },
     "symbol": {
-      "recall@10": 0.388889,
-      "mrr": 0.288889,
-      "ndcg@10": 0.190385
+      "recall@10": 0.444444,
+      "mrr": 0.333774,
+      "ndcg@10": 0.289646
     }
   },
   "ab_dense_only": {
-    "recall@10": 0.224359,
-    "mrr": 0.229808,
-    "ndcg@10": 0.173314
+    "recall@10": 0.24359,
+    "mrr": 0.23109,
+    "ndcg@10": 0.174737
   },
   "multi_hop_2hop": {
-    "recall@10": 0.166667,
-    "mrr": 0.285714,
-    "ndcg@10": 0.177217,
-    "note": "Two-hop client RRF (eval_multihop.py) on 4 multi_hop queries; hop1+hop2 fused vs single-pass multi_hop recall@10 0.333333 in metrics_by_tag. Frozen Jina reference (2026-07-02) multi_hop_2hop recall@10 was 0.333333."
+    "recall@10": 0.25,
+    "mrr": 0.310714,
+    "ndcg@10": 0.215638,
+    "note": "Two-hop client RRF (eval_multihop.py) on 4 multi_hop queries; hop1+hop2 fused vs single-pass multi_hop recall@10 0.333333 in metrics_by_tag."
   },
   "n_queries": 26
 }

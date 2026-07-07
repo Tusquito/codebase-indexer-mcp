@@ -56,20 +56,20 @@ python scripts/run_compose_integration.py --json --quality-validation --quality-
 python scripts/run_compose_integration.py --json --performance-report   # + bench.py (report-only)
 ```
 
-This builds `mcp_server`, starts Qdrant + bundled Ollama + MCP via Compose, waits for health, runs `tests/test_storage_integration.py` against live Qdrant, and checks `http://127.0.0.1:8000/health`. When `--quality-validation` is set, it validates golden labels (auto-indexing via MCP if missing), runs `eval_retrieval` vs `fixtures/eval_baseline.json`, and optionally compares latency via `bench.py` with `--performance-report`. Uses generated `.env.compose.integration` (does not overwrite your `.env`).
+This builds `mcp_server`, starts Qdrant + bundled TEI + MCP via Compose, waits for health, runs `tests/test_storage_integration.py` against live Qdrant, and checks `http://127.0.0.1:8000/health`. When `--quality-validation` is set, it validates golden labels (auto-indexing via MCP if missing), runs `eval_retrieval` vs `fixtures/eval_baseline.json`, and optionally compares latency via `bench.py` with `--performance-report`. Uses generated `.env.compose.integration` (does not overwrite your `.env`).
 
 The ADR pipeline runs this via **`adr-integration-tester`** (step 3.5) before code review on **every phase**. Search/embed/rerank phases also require **`--quality-validation`** per the implementation plan.
 
 ### Integration smoke tests
 
-Optional scripts under `mcp_server/scripts/` exercise live Qdrant + Ollama (skipped when services are unreachable):
+Optional scripts under `mcp_server/scripts/` exercise live Qdrant + TEI (skipped when services are unreachable):
 
 ```bash
 cd mcp_server
 python scripts/smoke_recommend_code.py   # recommend_code end-to-end
 ```
 
-Requires an indexed collection (default `codebase-indexer-mcp`). Set `COLLECTION` to target another project. When running on the host against Docker, the script falls back to `localhost` for Ollama/Qdrant if `.env` uses in-compose hostnames.
+Requires an indexed collection (default `codebase-indexer-mcp`). Set `COLLECTION` to target another project. When running on the host against Docker, the script falls back to `localhost` for TEI/Qdrant if `.env` uses in-compose hostnames.
 
 ## Commit conventions
 

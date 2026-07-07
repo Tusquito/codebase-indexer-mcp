@@ -2,7 +2,7 @@
 # Requires NVIDIA driver + Container Toolkit. Merged automatically by compose_files.py.
 #
 # Canonical invocation (RERANK_ENABLED=true; remote sidecar is default):
-#   docker compose $(python scripts/compose_files.py) --profile bundled-ollama up -d --build
+#   docker compose $(python scripts/compose_files.py) --profile bundled-tei up -d --build
 #
 # Explicit CPU-only: ACCELERATOR=cpu omits this file; sidecar uses colbert_worker/Dockerfile.
 #

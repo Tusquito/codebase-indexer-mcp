@@ -1,4 +1,4 @@
-"""Ollama dense + sparse BM25 hybrid embedding facade."""
+"""TEI dense + sparse BM25 hybrid embedding facade."""
 
 from __future__ import annotations
 
@@ -49,7 +49,7 @@ class _EmbedderMeta(type):
 
 
 class Embedder(metaclass=_EmbedderMeta):
-    """Facade orchestrating Ollama dense and sparse BM25 backends."""
+    """Facade orchestrating TEI dense and sparse BM25 backends."""
 
     _last_embed_time: float = 0.0
     _idle_timer: asyncio.Task | None = None
@@ -271,7 +271,7 @@ class Embedder(metaclass=_EmbedderMeta):
             chunks=len(chunks),
             hybrid=self.hybrid,
             rerank=self.rerank,
-            dense_backend="ollama",
+            dense_backend="tei",
             total_elapsed_s=round(time.monotonic() - t_start, 2),
         )
 

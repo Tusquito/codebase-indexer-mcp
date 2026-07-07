@@ -124,16 +124,24 @@ def test_jina_code_model_dense_embed_vector_size_valid():
     assert s.dense_embed_model == "jinaai/jina-embeddings-v2-base-code"
 
 
-def test_dense_embed_backend_defaults_to_ollama():
-    assert Settings().dense_embed_backend == "ollama"
+def test_tei_url_defaults():
+    assert Settings().tei_url == "http://tei:80"
 
 
-def test_dense_embed_backend_rejects_non_ollama():
-    with pytest.raises(ValidationError):
-        Settings(dense_embed_backend="onnx")
+def test_tei_embed_batch_size_defaults():
+    assert Settings().tei_embed_batch_size == 32
 
 
-def test_bge_v15_official_specs_in_registry():
+def test_tei_timeout_defaults():
+    assert Settings().tei_timeout == 120
+
+
+def test_tei_embed_dimensions_mrl():
+    from codebase_indexer.config import tei_embed_dimensions
+
+    assert tei_embed_dimensions("Qwen/Qwen3-Embedding-4B", 1024) == 1024
+    assert tei_embed_dimensions("Qwen/Qwen3-Embedding-4B", 2560) is None
+    assert tei_embed_dimensions("nomic-ai/nomic-embed-text-v1.5", 768) is None
     from codebase_indexer.config import (
         BGE_EN_V1_5_SPECS,
         KNOWN_EMBED_MODEL_DIMENSIONS,
@@ -214,13 +222,6 @@ def test_qwen3_mrl_rejects_above_native():
             sparse_threads=2,
         )
 
-
-def test_ollama_embed_dimensions_mrl():
-    from codebase_indexer.config import ollama_embed_dimensions
-
-    assert ollama_embed_dimensions("Qwen/Qwen3-Embedding-4B", 1024) == 1024
-    assert ollama_embed_dimensions("Qwen/Qwen3-Embedding-4B", 2560) is None
-    assert ollama_embed_dimensions("nomic-ai/nomic-embed-text-v1.5", 768) is None
 
 
 def test_preload_models_defaults_true():

@@ -97,7 +97,7 @@ def register_service_map_tool(mcp: FastMCP, ctx: "AppContext") -> None:
             }
 
         # Phase 1: Discover endpoints, clients, and configs in all collections.
-        # Embed every discovery query in a single batched pass (one Ollama dense
+        # Embed every discovery query in a single batched pass (one TEI dense
         # call + one sparse embed run) instead of N sequential round-trips.
         queries = _DISCOVERY_QUERIES + settings.service_discovery_extra_query_list
         query_vectors = await embedder.embed_queries(queries, rerank=rerank)

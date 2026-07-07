@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Smoke test for recommend_code against live Qdrant + Ollama.
+"""Smoke test for recommend_code against live Qdrant + TEI.
 
 Run from mcp_server/ after stack is up:
 
     python scripts/smoke_recommend_code.py
 
 Optional env: COLLECTION (default codebase-indexer-mcp).
-Exits 0 on success, 1 on failure. Skips with message if Qdrant/Ollama unreachable.
+Exits 0 on success, 1 on failure. Skips with message if Qdrant/TEI unreachable.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from unittest.mock import MagicMock
 # Allow imports when invoked as `python scripts/smoke_recommend_code.py`
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from benchmarks._connectivity import ollama_reachable, qdrant_reachable  # noqa: E402
+from benchmarks._connectivity import qdrant_reachable, tei_reachable  # noqa: E402
 from benchmarks._settings import load_settings  # noqa: E402
 from codebase_indexer.context import AppContext  # noqa: E402
 from codebase_indexer.tools.recommend import register_recommend_tool  # noqa: E402
@@ -48,16 +48,16 @@ def _register_handler(ctx: AppContext):
 async def main() -> int:
     settings = load_settings(preload_models=False, rerank_enabled=False)
 
-    ollama_url = settings.ollama_url
-    if not ollama_reachable(ollama_url):
-        for alt in ("http://localhost:11434", "http://host.docker.internal:11434"):
-            if alt != ollama_url and ollama_reachable(alt):
+    tei_url = settings.tei_url
+    if not tei_reachable(tei_url):
+        for alt in ("http://localhost:8080", "http://host.docker.internal:8080"):
+            if alt != tei_url and tei_reachable(alt):
                 settings = load_settings(
                     preload_models=False,
                     rerank_enabled=False,
-                    ollama_url=alt,
+                    tei_url=alt,
                 )
-                ollama_url = alt
+                tei_url = alt
                 break
 
     if not qdrant_reachable(settings.qdrant_url):
@@ -67,7 +67,7 @@ async def main() -> int:
                 settings = load_settings(
                     preload_models=False,
                     rerank_enabled=False,
-                    ollama_url=ollama_url,
+                    tei_url=tei_url,
                     qdrant_url=alt,
                 )
                 break
@@ -75,8 +75,8 @@ async def main() -> int:
             print(f"SKIP: Qdrant not reachable at {settings.qdrant_url}")
             return 0
 
-    if not ollama_reachable(settings.ollama_url):
-        print(f"SKIP: Ollama not reachable at {settings.ollama_url}")
+    if not tei_reachable(settings.tei_url):
+        print(f"SKIP: TEI not reachable at {settings.tei_url}")
         return 0
 
     ctx = AppContext.create(settings)

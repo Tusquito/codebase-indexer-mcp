@@ -1,31 +1,31 @@
-"""Unit tests for Ollama dense embedding backend."""
+"""Unit tests for TEI dense embedding backend."""
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from codebase_indexer.indexer.backends.base import EmbeddingError
-from codebase_indexer.indexer.backends.ollama_dense import OllamaDenseBackend
+from codebase_indexer.indexer.backends.tei_dense import TeiDenseBackend
 
 
-def _backend(**kwargs) -> OllamaDenseBackend:
+def _backend(**kwargs) -> TeiDenseBackend:
     defaults = dict(
-        model_name="nomic-embed-text",
+        model_name="jinaai/jina-embeddings-v2-base-code",
         vector_size=3,
-        ollama_url="http://localhost:11434",
+        tei_url="http://localhost:8080",
         batch_size=2,
     )
     defaults.update(kwargs)
-    return OllamaDenseBackend(**defaults)
+    return TeiDenseBackend(**defaults)
 
 
 @pytest.fixture(autouse=True)
 def _reset_tokenizer_state():
-    OllamaDenseBackend._shared_tokenizer = None
-    OllamaDenseBackend._tokenizer_load_attempted = False
+    TeiDenseBackend._shared_tokenizer = None
+    TeiDenseBackend._tokenizer_load_attempted = False
     yield
-    OllamaDenseBackend._shared_tokenizer = None
-    OllamaDenseBackend._tokenizer_load_attempted = False
+    TeiDenseBackend._shared_tokenizer = None
+    TeiDenseBackend._tokenizer_load_attempted = False
 
 
 class _MockEncoding:
@@ -52,32 +52,37 @@ class _MockTokenizer:
         return " ".join(f"tok{i}" for i in ids)
 
 
-def test_preload_validates_dimension(monkeypatch):
+def _openai_response(embeddings: list[list[float]]) -> dict:
+    return {
+        "data": [
+            {"embedding": vec, "index": idx} for idx, vec in enumerate(embeddings)
+        ],
+        "model": "jinaai/jina-embeddings-v2-base-code",
+    }
+
+
+def test_preload_validates_dimension():
     backend = _backend(vector_size=768)
 
-    class FakeResponse:
-        def raise_for_status(self):
-            return None
-
-        def json(self):
-            return {"models": [{"name": "nomic-embed-text:latest"}]}
+    health_resp = MagicMock()
+    health_resp.raise_for_status = MagicMock()
 
     embed_resp = MagicMock()
     embed_resp.raise_for_status = MagicMock()
-    embed_resp.json.return_value = {"embeddings": [[0.1] * 768]}
+    embed_resp.json.return_value = _openai_response([[0.1] * 768])
 
     mock_client = MagicMock()
-    mock_client.get.return_value = FakeResponse()
+    mock_client.get.return_value = health_resp
     mock_client.post.return_value = embed_resp
     mock_client.__enter__ = MagicMock(return_value=mock_client)
     mock_client.__exit__ = MagicMock(return_value=False)
 
     with patch(
-        "codebase_indexer.indexer.backends.ollama_dense.load_dense_tokenizer",
+        "codebase_indexer.indexer.backends.tei_dense.load_dense_tokenizer",
         return_value=None,
     ):
         with patch(
-            "codebase_indexer.indexer.backends.ollama_dense.httpx.Client",
+            "codebase_indexer.indexer.backends.tei_dense.httpx.Client",
             return_value=mock_client,
         ):
             backend.preload()
@@ -85,32 +90,28 @@ def test_preload_validates_dimension(monkeypatch):
     assert backend.is_loaded()
 
 
-def test_preload_dimension_mismatch_raises(monkeypatch):
+def test_preload_dimension_mismatch_raises():
     backend = _backend(vector_size=768)
 
-    class FakeResponse:
-        def raise_for_status(self):
-            return None
-
-        def json(self):
-            return {"models": []}
+    health_resp = MagicMock()
+    health_resp.raise_for_status = MagicMock()
 
     embed_resp = MagicMock()
     embed_resp.raise_for_status = MagicMock()
-    embed_resp.json.return_value = {"embeddings": [[0.1] * 384]}
+    embed_resp.json.return_value = _openai_response([[0.1] * 384])
 
     mock_client = MagicMock()
-    mock_client.get.return_value = FakeResponse()
+    mock_client.get.return_value = health_resp
     mock_client.post.return_value = embed_resp
     mock_client.__enter__ = MagicMock(return_value=mock_client)
     mock_client.__exit__ = MagicMock(return_value=False)
 
     with patch(
-        "codebase_indexer.indexer.backends.ollama_dense.load_dense_tokenizer",
+        "codebase_indexer.indexer.backends.tei_dense.load_dense_tokenizer",
         return_value=None,
     ):
         with patch(
-            "codebase_indexer.indexer.backends.ollama_dense.httpx.Client",
+            "codebase_indexer.indexer.backends.tei_dense.httpx.Client",
             return_value=mock_client,
         ):
             with pytest.raises(EmbeddingError, match="dimension"):
@@ -126,18 +127,19 @@ async def test_embed_batch_truncates_when_max_tokens_set():
         dense_embed_model="jinaai/jina-embeddings-v2-base-code",
     )
     backend._ready = True
-    OllamaDenseBackend._shared_tokenizer = _MockTokenizer()
-    OllamaDenseBackend._tokenizer_load_attempted = True
+    TeiDenseBackend._shared_tokenizer = _MockTokenizer()
+    TeiDenseBackend._tokenizer_load_attempted = True
 
-    captured_inputs: list[list[str]] = []
+    captured_inputs: list = []
 
     async def fake_post(url, json=None):
         captured_inputs.append(json["input"])
         resp = MagicMock()
         resp.status_code = 200
         resp.raise_for_status = MagicMock()
+        count = len(json["input"]) if isinstance(json["input"], list) else 1
         resp.json = MagicMock(
-            return_value={"embeddings": [[1.0, 2.0] for _ in json["input"]]}
+            return_value=_openai_response([[1.0, 2.0] for _ in range(count)])
         )
         return resp
 
@@ -148,7 +150,10 @@ async def test_embed_batch_truncates_when_max_tokens_set():
     long_text = "alpha beta gamma delta epsilon zeta"
     await backend.embed_batch([long_text])
     assert captured_inputs
-    assert captured_inputs[0][0] == "alpha beta gamma"
+    sent = captured_inputs[0]
+    if isinstance(sent, list):
+        sent = sent[0]
+    assert sent == "alpha beta gamma"
 
 
 @pytest.mark.asyncio
@@ -160,18 +165,19 @@ async def test_embed_batch_passes_through_when_tokenizer_unavailable():
         dense_embed_model="jinaai/jina-embeddings-v2-base-code",
     )
     backend._ready = True
-    OllamaDenseBackend._shared_tokenizer = None
-    OllamaDenseBackend._tokenizer_load_attempted = True
+    TeiDenseBackend._shared_tokenizer = None
+    TeiDenseBackend._tokenizer_load_attempted = True
 
-    captured_inputs: list[list[str]] = []
+    captured_inputs: list = []
 
     async def fake_post(url, json=None):
         captured_inputs.append(json["input"])
         resp = MagicMock()
         resp.status_code = 200
         resp.raise_for_status = MagicMock()
+        count = len(json["input"]) if isinstance(json["input"], list) else 1
         resp.json = MagicMock(
-            return_value={"embeddings": [[1.0, 2.0] for _ in json["input"]]}
+            return_value=_openai_response([[1.0, 2.0] for _ in range(count)])
         )
         return resp
 
@@ -182,39 +188,40 @@ async def test_embed_batch_passes_through_when_tokenizer_unavailable():
     long_text = "alpha beta gamma delta epsilon zeta"
     await backend.embed_batch([long_text])
     assert captured_inputs
-    assert captured_inputs[0][0] == long_text
+    sent = captured_inputs[0]
+    if isinstance(sent, list):
+        sent = sent[0]
+    assert sent == long_text
 
 
 def test_preload_loads_dense_tokenizer():
-    backend = _backend(vector_size=768, dense_embed_model="nomic-ai/nomic-embed-text-v1.5")
+    backend = _backend(
+        vector_size=768, dense_embed_model="nomic-ai/nomic-embed-text-v1.5"
+    )
     mock_tok = _MockTokenizer()
 
-    class FakeResponse:
-        def raise_for_status(self):
-            return None
-
-        def json(self):
-            return {"models": [{"name": "nomic-embed-text:latest"}]}
+    health_resp = MagicMock()
+    health_resp.raise_for_status = MagicMock()
 
     embed_resp = MagicMock()
     embed_resp.raise_for_status = MagicMock()
-    embed_resp.json.return_value = {"embeddings": [[0.1] * 768]}
+    embed_resp.json.return_value = _openai_response([[0.1] * 768])
 
     mock_client = MagicMock()
-    mock_client.get.return_value = FakeResponse()
+    mock_client.get.return_value = health_resp
     mock_client.post.return_value = embed_resp
     mock_client.__enter__ = MagicMock(return_value=mock_client)
     mock_client.__exit__ = MagicMock(return_value=False)
 
-    with patch("codebase_indexer.indexer.backends.ollama_dense.httpx.Client", return_value=mock_client):
+    with patch("codebase_indexer.indexer.backends.tei_dense.httpx.Client", return_value=mock_client):
         with patch(
-            "codebase_indexer.indexer.backends.ollama_dense.load_dense_tokenizer",
+            "codebase_indexer.indexer.backends.tei_dense.load_dense_tokenizer",
             return_value=mock_tok,
         ) as load_mock:
             backend.preload()
 
     load_mock.assert_called_once_with("nomic-ai/nomic-embed-text-v1.5")
-    assert OllamaDenseBackend._shared_tokenizer is mock_tok
+    assert TeiDenseBackend._shared_tokenizer is mock_tok
 
 
 @pytest.mark.asyncio
@@ -223,8 +230,8 @@ async def test_embed_batch_batches_requests():
     backend._ready = True
 
     responses = [
-        {"embeddings": [[1.0, 2.0], [3.0, 4.0]]},
-        {"embeddings": [[5.0, 6.0]]},
+        _openai_response([[1.0, 2.0], [3.0, 4.0]]),
+        _openai_response([[5.0, 6.0]]),
     ]
     call_count = 0
 
@@ -257,7 +264,7 @@ async def test_embed_batch_retries_on_503():
     ok_resp = MagicMock()
     ok_resp.status_code = 200
     ok_resp.raise_for_status = MagicMock()
-    ok_resp.json.return_value = {"embeddings": [[1.0, 2.0]]}
+    ok_resp.json.return_value = _openai_response([[1.0, 2.0]])
 
     mock_client = MagicMock()
     mock_client.post = AsyncMock(side_effect=[fail_resp, ok_resp])
@@ -275,29 +282,25 @@ def test_preload_sends_dimensions_when_mrl():
         dense_embed_model="Qwen/Qwen3-Embedding-4B",
     )
 
-    class FakeResponse:
-        def raise_for_status(self):
-            return None
-
-        def json(self):
-            return {"models": [{"name": "qwen3-embedding:4b"}]}
+    health_resp = MagicMock()
+    health_resp.raise_for_status = MagicMock()
 
     embed_resp = MagicMock()
     embed_resp.raise_for_status = MagicMock()
-    embed_resp.json.return_value = {"embeddings": [[0.1] * 1024]}
+    embed_resp.json.return_value = _openai_response([[0.1] * 1024])
 
     mock_client = MagicMock()
-    mock_client.get.return_value = FakeResponse()
+    mock_client.get.return_value = health_resp
     mock_client.post.return_value = embed_resp
     mock_client.__enter__ = MagicMock(return_value=mock_client)
     mock_client.__exit__ = MagicMock(return_value=False)
 
     with patch(
-        "codebase_indexer.indexer.backends.ollama_dense.load_dense_tokenizer",
+        "codebase_indexer.indexer.backends.tei_dense.load_dense_tokenizer",
         return_value=None,
     ):
         with patch(
-            "codebase_indexer.indexer.backends.ollama_dense.httpx.Client",
+            "codebase_indexer.indexer.backends.tei_dense.httpx.Client",
             return_value=mock_client,
         ):
             backend.preload()
@@ -318,7 +321,7 @@ async def test_embed_http_sends_dimensions_when_mrl():
         resp = MagicMock()
         resp.status_code = 200
         resp.raise_for_status = MagicMock()
-        resp.json = MagicMock(return_value={"embeddings": [[0.1] * 1024]})
+        resp.json = MagicMock(return_value=_openai_response([[0.1] * 1024]))
         return resp
 
     mock_client = MagicMock()

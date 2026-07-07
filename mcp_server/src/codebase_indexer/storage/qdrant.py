@@ -251,9 +251,9 @@ class QdrantStorage:
                         log.debug(
                             "collection_backend_note",
                             name=collection,
-                            dense_embed_backend=self.settings.dense_embed_backend,
+                            dense_embed_backend="tei",
                             hint=(
-                                "Switching OLLAMA_EMBED_MODEL or dense model requires "
+                                "Switching DENSE_EMBED_MODEL or vector size requires "
                                 "force re-index; existing vectors may be incompatible."
                             ),
                         )
@@ -935,7 +935,7 @@ class QdrantStorage:
                     disk_size_mb=round(disk_bytes / 1024 / 1024, 2),
                     dense_embed_model=self.settings.dense_embed_model,
                     sparse_embed_model=self.settings.sparse_embed_model,
-                    dense_embed_backend=self.settings.dense_embed_backend,
+                    dense_embed_backend="tei",
                     hybrid=self.settings.hybrid_search,
                     rerank_enabled=self.settings.rerank_enabled,
                     colbert_embed_model=(

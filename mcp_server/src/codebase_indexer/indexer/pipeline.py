@@ -1,8 +1,8 @@
 # src/codebase_indexer/indexer/pipeline.py
-"""Orchestrates scan → chunk → embed (Ollama dense + sparse BM25) → upsert pipeline.
+"""Orchestrates scan → chunk → embed (TEI dense + sparse BM25) → upsert pipeline.
 
 Uses double-buffered flushing: while batch N is being upserted to Qdrant
-(I/O-bound), batch N+1 is being embedded (Ollama HTTP + sparse BM25 in thread
+(I/O-bound), batch N+1 is being embedded (TEI HTTP + sparse BM25 in thread
 workers). This overlaps the two phases for ~30-40% throughput improvement
 without extra CPU or RAM.
 
@@ -336,7 +336,7 @@ async def _flush_double_buffered(
 
     1. Wait for previous upsert (if any) — ensures at most 2 batches in RAM.
     2. Check memory pressure — abort early if above halt threshold.
-    3. Embed current batch (Ollama dense HTTP + sparse BM25 in thread executors).
+    3. Embed current batch (TEI dense HTTP + sparse BM25 in thread executors).
     4. Fire upsert as background task (I/O-bound) and return the task handle.
 
     Returns the new in-flight upsert task for the caller to track.

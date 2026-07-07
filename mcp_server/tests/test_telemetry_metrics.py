@@ -66,7 +66,7 @@ def test_record_helpers_emit_expected_series():
     init_metrics(True)
     record_search_results(5, rerank=True)
     record_index_job("done", 12.5, 100)
-    record_embed_request("ollama", "success")
+    record_embed_request("tei", "success")
     record_memory_pressure("warn")
     body, _ = render_metrics()
     text = body.decode()
@@ -77,7 +77,7 @@ def test_record_helpers_emit_expected_series():
     assert "codeindexer_index_duration_seconds" in text
     assert "codeindexer_index_chunks_total" in text
     assert "codeindexer_embed_requests_total" in text
-    assert 'backend="ollama"' in text
+    assert 'backend="tei"' in text
     assert "codeindexer_memory_pressure_events_total" in text
     assert 'severity="warn"' in text
 

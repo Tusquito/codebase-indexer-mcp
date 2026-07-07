@@ -1,6 +1,6 @@
-# 0017. Model-accurate tokenizer for Ollama dense truncation
+# 0017. Model-accurate tokenizer for TEI dense truncation
 
-- **Status:** Accepted (phase 1 — loader + Ollama backend)
+- **Status:** Accepted (phase 1 — loader + TEI backend)
 - **Date:** 2026-07-03
 - **Deciders:** Maintainers
 - **Related:** [0011](0011-ollama-only-dense-embedding.md) — Ollama-only dense path; [0016](0016-qwen3-embedding-default-dense-model.md) — Qwen3 32K context default; `indexer/truncation.py` — shared truncation helpers

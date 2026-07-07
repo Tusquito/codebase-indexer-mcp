@@ -10,7 +10,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from benchmarks._connectivity import ollama_reachable, qdrant_reachable  # noqa: E402
+from benchmarks._connectivity import qdrant_reachable, tei_reachable  # noqa: E402
 from benchmarks.eval_multihop import (  # noqa: E402
     filter_multihop_entries,
     render_table,
@@ -21,7 +21,7 @@ from codebase_indexer.storage.qdrant import SearchResult  # noqa: E402
 
 GOLDEN = Path(__file__).resolve().parents[1] / "benchmarks" / "fixtures" / "golden_queries.jsonl"
 QDRANT_URL = "http://localhost:6333"
-OLLAMA_URL = "http://localhost:11434"
+TEI_URL = "http://localhost:8080"
 
 
 def _result(chunk_id: str) -> SearchResult:
@@ -84,7 +84,7 @@ async def test_run_multihop_evaluation_mocked():
     ):
         result = await run_multihop_evaluation(
             qdrant_url=QDRANT_URL,
-            ollama_url=OLLAMA_URL,
+            tei_url=TEI_URL,
             golden_path=GOLDEN,
             hybrid_search=True,
             rerank_enabled=False,
@@ -117,7 +117,7 @@ def test_render_table_includes_both_metric_blocks():
 @pytest.mark.benchmark
 @pytest.mark.asyncio
 @pytest.mark.skipif(not qdrant_reachable(QDRANT_URL), reason="Qdrant not reachable")
-@pytest.mark.skipif(not ollama_reachable(OLLAMA_URL), reason="Ollama not reachable")
+@pytest.mark.skipif(not tei_reachable(TEI_URL), reason="TEI not reachable")
 async def test_eval_multihop_smoke_on_indexed_collection():
     from codebase_indexer.config import Settings
     from codebase_indexer.storage.qdrant import QdrantStorage
@@ -131,7 +131,7 @@ async def test_eval_multihop_smoke_on_indexed_collection():
 
     result = await run_multihop_evaluation(
         qdrant_url=QDRANT_URL,
-        ollama_url=OLLAMA_URL,
+        tei_url=TEI_URL,
         golden_path=GOLDEN,
         hybrid_search=True,
         rerank_enabled=False,

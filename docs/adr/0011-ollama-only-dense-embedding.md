@@ -1,10 +1,11 @@
 # 0011. Ollama-only dense embedding
 
-- **Status:** Accepted
+- **Status:** Superseded
 - **Date:** 2026-07-02
 - **Deciders:** Maintainers
 - **Supersedes:** [0001](0001-pluggable-embed-backends.md) — backend selection (`onnx` / `ollama` / `remote`) and Phase 3 embed-worker scope
 - **Related:** [0006](0006-explicit-fastembed-pipeline.md) — sparse BM25 pipeline unchanged
+- **Superseded by:** [0025](0025-huggingface-tei-dense-embedding.md) — Ollama dense embedding removed entirely; no legacy backend or migration window
 
 ## Context
 

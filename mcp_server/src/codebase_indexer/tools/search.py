@@ -32,7 +32,7 @@ def register_search_tool(mcp: FastMCP, ctx: "AppContext") -> None:
             "When HYBRID_SEARCH is disabled, only dense cosine search runs and "
             "min_score filters by similarity. See docs/SEARCH_BEHAVIOR.md. "
             "Hybrid semantic + keyword search across indexed code. "
-            "Combines dense vector similarity (OLLAMA_EMBED_MODEL via Ollama) and "
+            "Combines dense vector similarity (DENSE_EMBED_MODEL via TEI) and "
             "sparse matching (SPARSE_EMBED_MODEL) via RRF fusion. Returns code chunks "
             "only — no full files loaded. Token-efficient by design. "
             "'collection' should be set to the current project folder name "

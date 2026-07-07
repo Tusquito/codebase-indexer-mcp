@@ -103,13 +103,13 @@ def main() -> int:
     print(f"\nPhase 1 best: {best_env} score={best_score:.2f}")
 
     phase2_base = dict(best_env)
-    print("\n=== Phase 2: UPSERT_BATCH × OLLAMA_EMBED_BATCH_SIZE ===")
+    print("\n=== Phase 2: UPSERT_BATCH × TEI_EMBED_BATCH_SIZE ===")
     phase2_results: list[tuple[dict[str, str], dict, float]] = []
-    for upsert, ollama_batch in product([10, 15, 20, 25], [32, 48, 64]):
+    for upsert, tei_batch in product([10, 15, 20, 25], [32, 48, 64]):
         env = {
             **phase2_base,
             "UPSERT_BATCH": str(upsert),
-            "OLLAMA_EMBED_BATCH_SIZE": str(ollama_batch),
+            "TEI_EMBED_BATCH_SIZE": str(tei_batch),
         }
         print(f"Running {env}...", flush=True)
         result = run_bench(env)

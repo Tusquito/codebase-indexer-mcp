@@ -17,7 +17,7 @@ def test_bench_colbert_sidecar_skips_when_sidecar_unreachable(tmp_path):
         str(out),
     ]
     with patch("benchmarks.bench_colbert_sidecar.qdrant_reachable", return_value=True), patch(
-        "benchmarks.bench_colbert_sidecar.ollama_reachable", return_value=True
+        "benchmarks.bench_colbert_sidecar.tei_reachable", return_value=True
     ), patch("benchmarks.bench_colbert_sidecar.colbert_reachable", return_value=False), patch.object(
         sys, "argv", argv
     ):
@@ -66,7 +66,7 @@ def test_bench_colbert_sidecar_runs_with_remote_colbert(tmp_path):
         "1",
     ]
     with patch("benchmarks.bench_colbert_sidecar.qdrant_reachable", return_value=True), patch(
-        "benchmarks.bench_colbert_sidecar.ollama_reachable", return_value=True
+        "benchmarks.bench_colbert_sidecar.tei_reachable", return_value=True
     ), patch("benchmarks.bench_colbert_sidecar.colbert_reachable", return_value=True), patch(
         "benchmarks.bench_colbert_sidecar.colbert_health",
         return_value={"device": "cuda", "cuda_available": True},

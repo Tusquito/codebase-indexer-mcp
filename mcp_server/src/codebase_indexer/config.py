@@ -24,7 +24,7 @@ JINA_CODE_EMBED_V2_SPECS: dict[str, tuple[int, int]] = {
     "jinaai/jina-embeddings-v2-base-code": (768, 8192),
 }
 
-# Qwen3 Embedding — Matryoshka (MRL) models via Ollama (native_dim, max_tokens).
+# Qwen3 Embedding — Matryoshka (MRL) models via TEI (native_dim, max_tokens).
 # https://huggingface.co/Qwen/Qwen3-Embedding-4B
 QWEN3_EMBED_SPECS: dict[str, tuple[int, int]] = {
     "Qwen/Qwen3-Embedding-0.6B": (1024, 32768),
@@ -58,8 +58,8 @@ def qwen3_native_dimensions(model_id: str) -> int | None:
     return spec[0] if spec else None
 
 
-def ollama_embed_dimensions(dense_embed_model: str, vector_size: int) -> int | None:
-    """Return Ollama MRL ``dimensions`` when ``vector_size`` is below native."""
+def tei_embed_dimensions(dense_embed_model: str, vector_size: int) -> int | None:
+    """Return TEI/OpenAI MRL ``dimensions`` when ``vector_size`` is below native."""
     native = qwen3_native_dimensions(dense_embed_model)
     if native is None or vector_size >= native:
         return None
@@ -111,12 +111,10 @@ class Settings(BaseSettings):
     sparse_embed_model: str
     dense_embed_vector_size: int
     sparse_threads: int
-    # Dense vectors always come from Ollama HTTP (see docker-compose.ollama.yml).
-    dense_embed_backend: Literal["ollama"] = Field(default="ollama")
-    ollama_url: str = Field(default="http://host.docker.internal:11434")
-    ollama_embed_model: str = Field(default="")
-    ollama_embed_batch_size: int = Field(default=32)
-    ollama_timeout: int = Field(default=120)
+    # Dense vectors always come from TEI HTTP (see docker-compose.tei.yml).
+    tei_url: str = Field(default="http://tei:80")
+    tei_embed_batch_size: int = Field(default=32)
+    tei_timeout: int = Field(default=120)
     hybrid_search: bool = Field(default=True)
     max_chunk_lines: int = Field(default=150)
     chunk_overlap_lines: int = Field(default=20)
@@ -147,7 +145,7 @@ class Settings(BaseSettings):
         )
     )
 
-    # Release sparse ONNX model after indexing completes. Ollama dense has no
+    # Release sparse ONNX model after indexing completes. TEI dense has no
     # in-process model to release; sparse BM25 reloads from fastembed_cache.
     # Default on: indexing is infrequent, idle RAM costs more than reload latency.
     # Set to false only if you need sub-second first-search latency after indexing.
@@ -158,7 +156,7 @@ class Settings(BaseSettings):
     # 0 disables the idle timer (models stay until process restart or explicit release).
     model_idle_timeout: int = Field(default=300)
 
-    # Eagerly probe Ollama and load sparse BM25 during startup (default: true).
+    # Eagerly probe TEI and load sparse BM25 during startup (default: true).
     preload_models: bool = Field(default=True)
 
     # --- Pipeline tuning knobs (hardware-portable; all env-overridable) ---
@@ -169,7 +167,7 @@ class Settings(BaseSettings):
     upsert_batch: int = Field(default=500)
     # How many scanned files may be queued ahead of the consumer.
     readahead_buffer: int = Field(default=100)
-    # Max tokens sent to Ollama before /api/embed (model tokenizer from DENSE_EMBED_MODEL).
+    # Max tokens sent to TEI before /v1/embeddings (model tokenizer from DENSE_EMBED_MODEL).
     # 0 = auto-detect from DENSE_EMBED_MODEL registry (e.g. 8192 for Jina code).
     max_dense_embed_tokens: int = Field(default=0)
     # Max tokens fed to the sparse encoder. 0 = no limit (default for Qdrant/bm25).
@@ -285,14 +283,6 @@ class Settings(BaseSettings):
                 f"DENSE_EMBED_VECTOR_SIZE={self.dense_embed_vector_size} does not match "
                 f"DENSE_EMBED_MODEL={self.dense_embed_model!r} "
                 f"(expected {expected})."
-            )
-        return self
-
-    @model_validator(mode="after")
-    def validate_dense_embed_backend(self) -> Self:
-        if self.dense_embed_backend != "ollama":
-            raise ValueError(
-                f"DENSE_EMBED_BACKEND must be 'ollama', got {self.dense_embed_backend!r}"
             )
         return self
 

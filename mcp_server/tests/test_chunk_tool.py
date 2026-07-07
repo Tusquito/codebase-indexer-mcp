@@ -13,8 +13,8 @@ async def test_find_chunk_by_id_searches_all_collections_when_unspecified():
     storage = QdrantStorage(Settings(qdrant_url="http://localhost:6333"))
     storage.list_collection_stats = AsyncMock(
         return_value=[
-            CollectionStats("alpha", 1, 0.0, "model", "bm25", "ollama", True),
-            CollectionStats("beta", 2, 0.0, "model", "bm25", "ollama", True),
+            CollectionStats("alpha", 1, 0.0, "model", "bm25", "tei", True),
+            CollectionStats("beta", 2, 0.0, "model", "bm25", "tei", True),
         ]
     )
     storage.get_chunk_by_id = AsyncMock(side_effect=[None, {"chunk_id": "abc", "content": "x"}])

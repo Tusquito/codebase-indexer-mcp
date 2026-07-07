@@ -1,9 +1,9 @@
 # 0025. Adopt HuggingFace TEI sidecar for dense embedding
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-07-04
 - **Deciders:** Maintainers
-- **Related:** [0011](0011-ollama-only-dense-embedding.md), [0015](0015-colbert-http-sidecar.md), [0017](0017-model-tokenizer-ollama-dense-truncation.md), [0022](0022-gpu-default-cpu-fallback.md), [0021](0021-revert-jina-production-default-retire-qwen3.md), [0001](0001-pluggable-embed-backends.md), [Text Embeddings Inference](https://github.com/huggingface/text-embeddings-inference), [OpenAI Embeddings API](https://platform.openai.com/docs/api-reference/embeddings)
+- **Related:** [0011](0011-ollama-only-dense-embedding.md), [0015](0015-colbert-http-sidecar.md), [0017](0017-model-tokenizer-tei-dense-truncation.md), [0022](0022-gpu-default-cpu-fallback.md), [0021](0021-revert-jina-production-default-retire-qwen3.md), [0001](0001-pluggable-embed-backends.md), [Text Embeddings Inference](https://github.com/huggingface/text-embeddings-inference), [OpenAI Embeddings API](https://platform.openai.com/docs/api-reference/embeddings)
 - **Supersedes:** [0011](0011-ollama-only-dense-embedding.md) — Ollama dense embedding removed entirely; no legacy backend or migration window
 
 ## Context
@@ -17,7 +17,7 @@
 | Quantization parity | Community Ollama GGUF ports may not match upstream HF weights bit-for-bit |
 | Deferred OpenAI backend | [ADR 0011](0011-ollama-only-dense-embedding.md) and [0001](0001-pluggable-embed-backends.md) deferred an OpenAI-compatible dense path |
 
-The codebase already treats **`DENSE_EMBED_MODEL` as a HuggingFace repo id** (`config.py` dimension/token registries, [ADR 0017](0017-model-tokenizer-ollama-dense-truncation.md) tokenizer loader). Only the inference hop is Ollama-specific.
+The codebase already treats **`DENSE_EMBED_MODEL` as a HuggingFace repo id** (`config.py` dimension/token registries, [ADR 0017](0017-model-tokenizer-tei-dense-truncation.md) tokenizer loader). Only the inference hop is Ollama-specific.
 
 ### Why now
 
@@ -40,7 +40,7 @@ The codebase already treats **`DENSE_EMBED_MODEL` as a HuggingFace repo id** (`c
 1. **Load any TEI-supported HF embedding model** by `DENSE_EMBED_MODEL` repo id.
 2. **Industry-standard client API** — OpenAI-compatible `POST /v1/embeddings` between MCP and sidecar.
 3. **Single model identifier** — `DENSE_EMBED_MODEL` is the only dense model config (delete `OLLAMA_EMBED_MODEL`).
-4. **Model-accurate truncation** — reuse [ADR 0017](0017-model-tokenizer-ollama-dense-truncation.md) tokenizer loader keyed on `DENSE_EMBED_MODEL`.
+4. **Model-accurate truncation** — reuse [ADR 0017](0017-model-tokenizer-tei-dense-truncation.md) tokenizer loader keyed on `DENSE_EMBED_MODEL`.
 5. **Matryoshka (MRL)** — pass optional `dimensions` for Qwen3-style models when `DENSE_EMBED_VECTOR_SIZE` is below native.
 
 ### Evaluation stack
@@ -188,7 +188,7 @@ No TEI equivalent of `ollama ps PROCESSOR` — GPU proof is **nvidia-smi in cont
 - Batch requests with `TEI_EMBED_BATCH_SIZE`
 - Retries with exponential backoff on HTTP 503 / connection errors
 - `TEI_TIMEOUT` per request
-- Truncation client-side via [ADR 0017](0017-model-tokenizer-ollama-dense-truncation.md) before HTTP call
+- Truncation client-side via [ADR 0017](0017-model-tokenizer-tei-dense-truncation.md) before HTTP call
 
 **Security:** internal Compose network only; no bearer auth — same trust model as ColBERT sidecar ([ADR 0015](0015-colbert-http-sidecar.md)).
 
@@ -227,7 +227,7 @@ No TEI equivalent of `ollama ps PROCESSOR` — GPU proof is **nvidia-smi in cont
 | `TEI_URL` | MCP → TEI base URL (default `http://tei:80` bundled; external host URL when profile omitted) |
 | `TEI_EMBED_BATCH_SIZE` | HTTP batch size (default `32`) |
 | `TEI_TIMEOUT` | Per-request timeout seconds (default `120`) |
-| `MAX_DENSE_EMBED_TOKENS` | Client truncation cap ([ADR 0017](0017-model-tokenizer-ollama-dense-truncation.md)) |
+| `MAX_DENSE_EMBED_TOKENS` | Client truncation cap ([ADR 0017](0017-model-tokenizer-tei-dense-truncation.md)) |
 | `COMPOSE_PROFILES` | Set to `bundled-tei` for bundled sidecar (default in `.env.example`) |
 | `TEI_IMAGE` | Compose-only TEI Docker tag override (defaults per accelerator table above) |
 | `TEI_MEM_LIMIT`, `TEI_CPUS`, `TEI_PORT` | Compose cgroup caps and host port (compose-only) |
@@ -483,8 +483,13 @@ Every layer below must be updated or deleted in the same delivery. Historical AD
 
 ## Measured outcomes
 
-*(Fill after implementation baseline refresh.)*
+Captured 2026-07-07 on RTX 4060 Ti (compute cap 8.9), bundled TEI `89-1.9`, `jinaai/jina-embeddings-v2-base-code` @ 768, 26 golden queries (4 multi_hop). Independent integration verification (ADR 0025 Phase 1 closeout): full command output and verdict in the corresponding ADR integration report.
 
-| Variant | recall@10 | MRR | Index chunks/sec | Notes |
-|---------|-----------|-----|------------------|-------|
-| TEI + Jina (GPU) | — | — | — | New committed baseline |
+| Variant | recall@10 | MRR | ndcg@10 | Index chunks/sec | Notes |
+|---------|-----------|-----|---------|-------------------|-------|
+| TEI + Jina (GPU), hybrid | 0.3590 | 0.3576 | 0.2807 | 92.41 (187 chunks, 2.023s full index) | Committed baseline; clean harness 43/43 labels; +298.7% chunks/sec vs prior 23.18 baseline |
+| TEI + Jina (GPU), dense-only A/B | 0.2436 | 0.2311 | 0.1747 | — | `--no-hybrid` |
+| TEI + Jina (GPU), multi_hop single-pass | 0.3333 | 0.4315 | 0.3009 | — | `metrics_by_tag.multi_hop` |
+| TEI + Jina (GPU), multi_hop two-hop RRF | 0.2500 | 0.3107 | 0.2156 | — | `eval_multihop.py`, 4 queries |
+
+**GPU verification (driver 6xx):** the bundled TEI image (`ghcr.io/huggingface/text-embeddings-inference:89-1.9`) ships a `cuda-entrypoint.sh` that mis-parses `nvidia-smi`'s renamed `CUDA UMD Version:` header on NVIDIA driver 6xx series, causing silent CPU fallback (upstream bug [huggingface/text-embeddings-inference#870](https://github.com/huggingface/text-embeddings-inference/issues/870)). **Mitigation shipped:** `docker-compose.tei.gpu.yml` sets `entrypoint: ["/usr/local/bin/text-embeddings-router"]`, bypassing the broken wrapper. Verified on driver 610.x: TEI logs `Starting FlashJinaCodeBert model on Cuda(CudaDevice(DeviceId(1)))`, `tei_embed_smoke` returns dim=768, and `docker exec codeindexer_tei nvidia-smi` shows `/text-embeddings-router` as an active GPU process.
