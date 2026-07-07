@@ -31,7 +31,15 @@ services:
       # supported on x86_64 since ~2013 — unless the operator overrides it for a
       # known-good bare-metal AVX-512 host.
       MKL_ENABLE_INSTRUCTIONS: ${TEI_MKL_INSTRUCTIONS:-AVX2}
-    command: --model-id ${DENSE_EMBED_MODEL} --port 80
+    # max-batch-tokens also sizes TEI's own startup warmup pass
+    # (warmup_tokens = min(max_input_length, max_batch_tokens) pre-#884). The
+    # 16384 CLI default makes CPU warmup for long-context models (e.g. jina
+    # code, max_input_length=8192) run a near-quadratic-attention forward pass
+    # that can take minutes or fail outright on CPU (upstream #819/#758) —
+    # lower it for CPU deployments to keep cold start bounded. Keep this in
+    # sync with MAX_DENSE_EMBED_TOKENS so no single (already client-truncated)
+    # chunk exceeds the server-side batch cap.
+    command: --model-id ${DENSE_EMBED_MODEL} --port 80 --max-batch-tokens ${TEI_MAX_BATCH_TOKENS:-16384}
     deploy:
       resources:
         limits:
