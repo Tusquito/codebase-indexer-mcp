@@ -8,20 +8,20 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.compose_files import compose_file_args  # noqa: E402
+from scripts.compose_files import compose_file_args, tei_image_default  # noqa: E402
 
 
 def _paths(args: list[str]) -> list[Path]:
     return [Path(args[i + 1]) for i in range(0, len(args), 2) if args[i] == "-f"]
 
 
-def test_default_includes_gpu_ollama_override():
+def test_default_includes_gpu_tei_override():
     args = compose_file_args(repo_root=REPO_ROOT, env={})
     paths = _paths(args)
     assert paths == [
         REPO_ROOT / "docker-compose.yml",
-        REPO_ROOT / "docker-compose.ollama.yml",
-        REPO_ROOT / "docker-compose.ollama.gpu.yml",
+        REPO_ROOT / "docker-compose.tei.yml",
+        REPO_ROOT / "docker-compose.tei.gpu.yml",
     ]
 
 
@@ -30,9 +30,17 @@ def test_accelerator_cpu_omits_gpu_files():
     paths = _paths(args)
     assert paths == [
         REPO_ROOT / "docker-compose.yml",
-        REPO_ROOT / "docker-compose.ollama.yml",
+        REPO_ROOT / "docker-compose.tei.yml",
     ]
     assert not any(".gpu.yml" in str(p) for p in paths)
+
+
+def test_tei_image_default_gpu():
+    assert "89-1.9" in tei_image_default({})
+
+
+def test_tei_image_default_cpu():
+    assert tei_image_default({"ACCELERATOR": "cpu"}).endswith("cpu-1.9")
 
 
 def test_remote_colbert_sidecar_includes_worker_files():

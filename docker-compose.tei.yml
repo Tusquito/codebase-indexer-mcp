@@ -1,0 +1,51 @@
+# Optional: route dense embedding to HuggingFace TEI (sparse BM25 stays in-process CPU in MCP).
+#
+# Usage (bundled TEI — recommended; GPU override merged by default when ACCELERATOR=gpu):
+#   Set in .env: COMPOSE_PROFILES=bundled-tei, ACCELERATOR=gpu
+#   docker compose $(python scripts/compose_files.py) --profile bundled-tei up -d --build
+#
+# Explicit CPU-only (ACCELERATOR=cpu):
+#   docker compose $(ACCELERATOR=cpu python scripts/compose_files.py) --profile bundled-tei up -d --build
+#
+# External TEI on the host:
+#   Leave COMPOSE_PROFILES unset (or omit bundled-tei)
+#   TEI_URL=http://host.docker.internal:8080
+#   docker compose -f docker-compose.yml up -d --build
+
+services:
+  tei:
+    profiles: ["bundled-tei"]
+    image: ${TEI_IMAGE:-ghcr.io/huggingface/text-embeddings-inference:89-1.9}
+    container_name: codeindexer_tei
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${TEI_PORT:-8080}:80"
+    volumes:
+      - tei_data:/data
+    environment:
+      HF_TOKEN: ${HF_TOKEN:-}
+    command: --model-id ${DENSE_EMBED_MODEL} --port 80
+    deploy:
+      resources:
+        limits:
+          memory: ${TEI_MEM_LIMIT:-4g}
+          cpus: "${TEI_CPUS:-4}"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:80/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 24
+      start_period: 480s
+
+  mcp_server:
+    environment:
+      TEI_URL: ${TEI_URL:-http://tei:80}
+      TEI_EMBED_BATCH_SIZE: ${TEI_EMBED_BATCH_SIZE:-32}
+      TEI_TIMEOUT: ${TEI_TIMEOUT:-120}
+    depends_on:
+      tei:
+        condition: service_healthy
+        required: false
+
+volumes:
+  tei_data:

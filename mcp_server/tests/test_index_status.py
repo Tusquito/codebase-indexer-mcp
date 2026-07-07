@@ -80,7 +80,6 @@ class TestRunPipelineExternalResult:
         settings.max_chunk_lines = 150
         settings.chunk_overlap_lines = 10
         settings.release_models_after_index = False
-        settings.dense_embed_backend = "ollama"
 
         with (
             patch("codebase_indexer.indexer.pipeline.scan_files", fake_scan),

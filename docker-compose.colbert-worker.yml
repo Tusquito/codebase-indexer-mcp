@@ -2,13 +2,13 @@
 # and COLBERT_EMBED_BACKEND=remote (default when rerank on; ADR 0022 phase 2).
 # GPU sidecar: docker-compose.colbert-worker.gpu.yml merged when ACCELERATOR=gpu.
 #
-# Usage (Ollama GPU + ColBERT sidecar + rerank):
+# Usage (TEI GPU + ColBERT sidecar + rerank):
 #   Set in .env:
 #     RERANK_ENABLED=true
 #     MCP_MEM_LIMIT=4g
 #     COLBERT_MEM_LIMIT=4g
 #     SEQUENTIAL_EMBED=true
-#   docker compose $(python scripts/compose_files.py) --profile bundled-ollama up -d --build
+#   docker compose $(python scripts/compose_files.py) --profile bundled-tei up -d --build
 #
 # Explicit CPU-only (ACCELERATOR=cpu): set COLBERT_EMBED_BACKEND=onnx for in-process
 # ColBERT in MCP, or keep remote with CPU sidecar image (no .gpu.yml merge).
