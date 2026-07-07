@@ -55,6 +55,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0016](0016-qwen3-embedding-default-dense-model.md) | Adopt Qwen3-Embedding-4B as default Ollama dense model | Accepted (all phases complete) | Phase 1 — Config, Ollama MRL, docs, tests | `merged` | Qwen3 0.6B/4B/8B in `KNOWN_EMBED_MODEL_*` (max tokens 32768); MRL `dimensions` passthrough (32≤size≤native) in `OllamaDenseBackend` + `factory.py`; Qwen3 GPU defaults in `.env.example`; compose generator Qwen3 (`scripts/run_compose_integration.py`); `benchmarks/_settings.py`; unit tests; docs; defer Phase 2 eval baseline + `num_ctx`; generator-only compose env; [PR #12](https://github.com/Tusquito/codebase-indexer-mcp/pull/12) | 2026-07-03 |
 | [0016](0016-qwen3-embedding-default-dense-model.md) | Adopt Qwen3-Embedding-4B as default Ollama dense model | Accepted (all phases complete) | Phase 2 — Eval baseline refresh (final phase) | `merged` | Jina comparison baseline; recall@10 gate waived with per-tag analysis (−63.1% vs Jina); refreshed `eval_baseline.json` + `golden_queries.jsonl`; alias line remapping; operational compose/env eval overrides not committed; final ADR 0016 phase complete; defer CI validate-labels gate, compose WORKSPACE_ROOT eval preset, optional non-blocking recall benchmark job, compose host-env URL isolation, `num_ctx`; [PR #14](https://github.com/Tusquito/codebase-indexer-mcp/pull/14) | 2026-07-03 |
 | [0018](0018-telemetry-observability-otel-prometheus.md) | Adopt OpenTelemetry instrumentation with Prometheus metrics and optional OTLP export | Accepted (phase 1 — Application Prometheus metrics (MCP + ColBERT worker)) | Phase 1 — Application Prometheus metrics (MCP + ColBERT worker) | `merged` | Opt-in `METRICS_ENABLED=false` default; `prometheus_client` on dedicated `CollectorRegistry`; metrics-only `@observe_tool` on all MCP tool handlers; no collection/rel_path labels; application counters/histograms + truncation counter; index metrics via IndexJobTracker; `GET /metrics` on MCP and ColBERT worker HTTP layer; unit tests (`test_telemetry_metrics.py`); `DEPLOYMENT.md` scrape docs; defer `METRICS_PORT`, docker-compose scrape wiring, Phase 2 OTel traces, Phase 3 observability compose stack; [PR #13](https://github.com/Tusquito/codebase-indexer-mcp/pull/13) | 2026-07-03 |
+| [0019](0019-yaml-structured-adr-tracker.md) | Adopt YAML structured events for ADR implementation tracking | Proposed | Phase 1 — Schema, layout, render script | `verified` | YAML tracker under `docs/adr/tracker/` with `schema.yaml` contract driving validation; stdlib+PyYAML render script generating marker-delimited summary/active/phase-logs/open-decisions blocks with preamble preservation; non-blocking `--check \|\| true` CI step; live `IMPLEMENTATION_TRACKER.md` hand-maintained (migration deferred to Phase 2); Phase 3 agent cutover deferred; 9 render unit tests pass; 398 suite pass (8 storage-integration environmental); Docker integration pass; plan compliance pass; review rounds: 1 | 2026-07-07 |
 | [0020](0020-qwen3-code-finetune-jina-quality-gate.md) | Fine-tune Qwen3 for code retrieval with Jina quality gate | Accepted (phase 1 — Dataset + training pipeline) | Phase 1 — Dataset + training pipeline | `merged` | Shipped: `mcp_server/benchmarks/train/` (`export_golden_pairs.py`, `mine_hard_negatives.py`, `finetune_qwen3_code.py`, `_schema.py`, `_split.py`, `_positives.py`, `README.md`); optional `[train]` pyproject extra isolated from runtime/CI; default validation holdout = all four `multi_hop` golden queries; hard-negative mining via base Qwen3 hybrid `run_search` (rerank off); LoRA via PEFT + sentence-transformers (TripletLoss when all pairs have mined negatives, else MnRL in-batch); outputs under `benchmarks/train/outputs/` gitignored; unit tests (export/split/mining + `test_finetune_mrr.py`); `DEPLOYMENT.md` training stub. Deviations: `resolve_positive_passage` (singular); single-pass checkpoint save (baseline + final val MRR in `train_summary.json`) vs per-epoch best (documented at verification). Defer Ollama export/registry (P2), Jina quality gate + baseline update (P3), CI observation job (P4); no Docker/runtime/registry changes; [PR #15](https://github.com/Tusquito/codebase-indexer-mcp/pull/15) | 2026-07-03 |
 | [0021](0021-revert-jina-production-default-retire-qwen3.md) | Revert default dense embedder to Jina code; retire Qwen3 as production default | Accepted (phase 1 — Config + docs revert) | Phase 1 — Config + docs revert | `merged` | Jina production default @ 768 in env/bench/compose/docs; Qwen3 experimental preset (−63.1% recall@10); `OLLAMA_EMBED_MODEL` uncommented in `.env.example` REQUIRED; compose Jina pull manual-only; `config.py` Qwen3 registry/MRL retained; ADR index housekeeping in Phase 1 scope; defer Phase 2 (`eval_baseline.json`); CHANGELOG full update Phase 3; test debt: `smoke_recommend` dim mismatch until Phase 2 re-index; [PR #16](https://github.com/Tusquito/codebase-indexer-mcp/pull/16) | 2026-07-03 |
 | [0021](0021-revert-jina-production-default-retire-qwen3.md) | Revert default dense embedder to Jina code; retire Qwen3 as production default | Accepted (phase 1; phase 2 — Eval baseline refresh) | Phase 2 — Eval baseline refresh | `merged` | GPU Jina @768 live baseline committed (`eval_baseline.json`; `ACCELERATOR=gpu`, `RERANK_ENABLED=false`); pre-commit gate vs `eval_baseline_jina.json` failed (recall@10 0.263 vs 0.660 — golden alias drift, not embedder regression); post-commit Docker self-compare pass; frozen `eval_baseline_jina.json` preserved; scanner `.venv*` prune + golden alias fixes; `_settings.py` `ollama_embed_model` default; defer golden label realignment, pre-commit recall gate CI, optional `eval_multihop` CI gate; Phase 3 (CHANGELOG/ADR index housekeeping); [PR #18](https://github.com/Tusquito/codebase-indexer-mcp/pull/18) | 2026-07-04 |
@@ -908,6 +909,53 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 - **Verify:** —
 - **Git:** pending
 - **Changelog:** no — user-facing unknown
+
+### ADR 0019 — Adopt YAML structured events for ADR implementation tracking
+
+#### 2026-07-07 — verification
+- **Phase / PR:** Phase 1 — Schema, layout, render script
+- **Tracker status:** `verified`
+- **Choices:** YAML tracker under `docs/adr/tracker/` with `schema.yaml` contract driving validation; stdlib+PyYAML render script generating marker-delimited summary/active/phase-logs/open-decisions blocks with preamble preservation; non-blocking `--check || true` CI step in Phase 1; migration (Phase 2) and agent cutover (Phase 3) deferred.
+- **Deviations:** none
+- **Code evidence:** `scripts/render_adr_tracker.py`, `docs/adr/tracker/schema.yaml`, `docs/adr/tracker/phases/0019-phase-1.yaml`, `docs/adr/tracker/events/0019-phase-1-2026-07-07-plan.yaml`, `mcp_server/tests/test_render_adr_tracker.py`, `mcp_server/tests/fixtures/adr_tracker/**`, `.github/workflows/ci.yml`, `mcp_server/pyproject.toml`, `docs/adr/README.md`
+- **Test debt:** blocking render-diff CI check after Phase 2 migration; historical tracker migration to YAML (Phase 2); optional nested-contract (git/changelog) rejection tests
+- **Verify:** 9 render unit tests pass; render script validate/check/scaffold behavior confirmed; full suite 398 passed (8 storage-integration failures environmental, green in Docker integration report); Docker integration Verdict: pass; quality validation plan-approved skip; plan compliance pass across all in-scope paths; review rounds: 1
+- **Git:** pending
+- **Changelog:** no — user-facing no
+
+#### 2026-07-07 — implementation
+- **Phase / PR:** Phase 1 — Schema, layout, render script
+- **Tracker status:** `implemented`
+- **Choices:** YAML tracker under `docs/adr/tracker/` with schema-driven validation; `scripts/render_adr_tracker.py` builds four generated markdown blocks between HTML-comment markers, preserving manual preamble; scaffolds a fresh doc when the target has no markers (live-tracker migration deferred to Phase 2). `pyyaml>=6.0` promoted to a direct dev dep in both dev groups. CI validation added as non-blocking (`--check || true`).
+- **Deviations:** none
+- **Code evidence:** `scripts/render_adr_tracker.py`, `docs/adr/tracker/schema.yaml`, `docs/adr/tracker/phases/0019-phase-1.yaml`, `docs/adr/tracker/events/0019-phase-1-2026-07-07-plan.yaml`, `docs/adr/tracker/events/0008-phase-2b-2026-07-03-merge.yaml`, `mcp_server/tests/test_render_adr_tracker.py`, `mcp_server/tests/fixtures/adr_tracker/`, `mcp_server/pyproject.toml`, `mcp_server/uv.lock`, `.github/workflows/ci.yml`, `docs/adr/README.md`
+- **Test debt:** blocking render-diff CI check (after Phase 2); historical tracker migration to YAML (Phase 2)
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no
+
+#### 2026-07-07 — plan
+- **Phase / PR:** Phase 1 — Schema, layout, render script
+- **Tracker status:** `planned`
+- **Choices:** stdlib + PyYAML render script; generated sections wrapped in `<!-- BEGIN/END GENERATED:* -->` markers; prove on committed sample fixtures rather than migrating the real tracker; CI validation non-blocking in Phase 1; `pyyaml` added as explicit dev extra (already transitively locked). **Chosen scope:** Add `docs/adr/tracker/` (`schema.yaml` + `phases/` + `events/` with 1–2 sample files), `scripts/render_adr_tracker.py` (load/validate/render with `--check`), unit tests + fixtures in `mcp_server/tests/`, non-blocking CI validation step, README tracker-layout pointer, and `pyyaml` dev extra; live `IMPLEMENTATION_TRACKER.md` left hand-maintained (migration deferred to Phase 2).
+- **Assumptions:** Phase 1 = smallest slice; no live-tracker overwrite this phase; sample phases reuse ADR 0019 P1 + 0008 phase-2b example; Docker compose-integration gate is a pass-through no-op that must still run green.
+- **Deviations:** none
+- **Code evidence:** —
+- **Test debt:** —
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing no
+
+#### 2026-07-07 — prioritization
+- **Phase / PR:** Phase 1 — Schema, layout, render script
+- **Tracker status:** `candidate`
+- **Choices:** Prioritize ADR 0019 Phase 1 over near-tied alternative ADR 0024 Phase 1 (stack tuner analyze/allocate) via tie-breaker on lower scope/risk (0019 touches no cross-platform host-detection surface); recommended over ADR 0023 Phase 3 (retire Qdrant callees index) due to narrower impact (graph-enabled-only deployments) and higher data-migration risk. **Why now:** Tracker file measured at 254,446 chars / ~1,810 lines across 25 ADRs; exceeded 100k-char single-read tool limit during this analysis, directly confirming the ADR's predicted merge-conflict / fragile-edit-at-scale gap. Zero prior implementation (`docs/adr/tracker/**` and `scripts/render_adr_tracker.py` both absent) — clean start, no in-flight conflicts. **Suggested scope:** One phase (= one PR): `docs/adr/tracker/schema.yaml` + directory layout, `scripts/render_adr_tracker.py`, unit tests validating fixture YAML → expected summary/phase-log output, non-blocking CI validation. Explicitly excludes Phase 2 (historical migration) and Phase 3 (agent pipeline cutover). **Chosen scope:** Phase 1 only, as above (single PR). Requires formal Accept of Proposed ADR 0019 before dev.
+- **Deviations:** none
+- **Code evidence:** `docs/adr/tracker/**` absent; `scripts/render_adr_tracker.py` absent; `IMPLEMENTATION_TRACKER.md` at 254,446 chars / ~1,810 lines
+- **Test debt:** —
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing unknown (maintainer/agent tooling only — likely no, pending planning confirmation)
 
 ### ADR 0020 — Fine-tune Qwen3 for code retrieval with Jina quality gate
 

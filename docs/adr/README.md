@@ -26,6 +26,8 @@ Skip ADRs for routine bug fixes, refactors with no design change, or dependency 
 
 [`IMPLEMENTATION_TRACKER.md`](IMPLEMENTATION_TRACKER.md) tracks **phases, choices, and delivery status** without editing ADR decision text. The invoker applies **Tracker append** blocks from pipeline steps to update it. User-facing shipped changes go in [`CHANGELOG.md`](../../CHANGELOG.md).
 
+Per [ADR 0019](0019-yaml-structured-adr-tracker.md), structured tracker data is moving to versioned YAML under [`tracker/`](tracker/): `schema.yaml` (field contract), `tracker/phases/` (one snapshot per ADR phase), and `tracker/events/` (append-only pipeline events). `scripts/render_adr_tracker.py` validates those files and regenerates the marker-delimited sections of the markdown tracker (`python scripts/render_adr_tracker.py --check`). Phase 1 seeds the layout with sample files; migrating the live tracker content is Phase 2.
+
 ## ADR pipeline agents
 
 Step agents (`adr-prioritizer`, `adr-orchestrator`, `adr-finisher`, etc.) live in **[`.cursor/agents/`](../../.cursor/agents/)** at **project level only** — versioned with this repository. Do **not** copy them to `~/.cursor/agents/`; the orchestrator and Tasks resolve definitions from `.cursor/agents/<name>.md` in the workspace.
