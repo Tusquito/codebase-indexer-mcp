@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-07-03
 - **Deciders:** Maintainers
-- **Related:** [0016](0016-qwen3-embedding-default-dense-model.md) — Qwen3 default (superseded for production); [0020](0020-qwen3-code-finetune-jina-quality-gate.md) — fine-tune gate (failed path); [0007](0007-ranx-retrieval-evaluation.md) — golden-set eval; [0011](0011-ollama-only-dense-embedding.md) — Ollama-only dense; [0017](0017-model-tokenizer-ollama-dense-truncation.md) — tokenizer truncation (model-agnostic)
+- **Related:** [0016](0016-qwen3-embedding-default-dense-model.md) — Qwen3 default (superseded for production); [0020](0020-qwen3-code-finetune-jina-quality-gate.md) — fine-tune gate (failed path); [0007](0007-ranx-retrieval-evaluation.md) — golden-set eval; [0011](0011-ollama-only-dense-embedding.md) — Ollama-only dense; [0017](0017-model-tokenizer-tei-dense-truncation.md) — tokenizer truncation (model-agnostic)
 - **Supersedes:** [0016](0016-qwen3-embedding-default-dense-model.md) — **default model recommendation only** (Qwen3 remains an optional preset)
 
 ## Context
@@ -137,7 +137,7 @@ We will **revert the recommended production default** to **Jina Embeddings v2 ba
 ### Negative / trade-offs
 
 - **Breaking** for ADR 0016 adopters on Qwen3 @ 1024 — re-index required
-- Jina **8K context** vs Qwen3 40K — long-chunk truncation returns (mitigated by [ADR 0017](0017-model-tokenizer-ollama-dense-truncation.md) accurate truncation)
+- Jina **8K context** vs Qwen3 40K — long-chunk truncation returns (mitigated by [ADR 0017](0017-model-tokenizer-tei-dense-truncation.md) accurate truncation)
 - Community Ollama Jina port — not official Ollama library (already documented in [ADR 0011](0011-ollama-only-dense-embedding.md))
 - ADR 0016 narrative partially invalidated — document honestly in Measured outcomes
 

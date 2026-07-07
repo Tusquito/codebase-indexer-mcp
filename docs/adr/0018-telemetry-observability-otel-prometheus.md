@@ -3,7 +3,7 @@
 - **Status:** Accepted (phase 1 — Application Prometheus metrics (MCP + ColBERT worker))
 - **Date:** 2026-07-03
 - **Deciders:** Maintainers
-- **Related:** [FastMCP OpenTelemetry](https://gofastmcp.com/servers/telemetry), [Qdrant observability](https://qdrant.tech/documentation/observability/), [0014](0014-vector-discovery-and-ops-automation.md) (Track B n8n ops hooks), [0015](0015-colbert-http-sidecar.md) (multi-container topology), [0017](0017-model-tokenizer-ollama-dense-truncation.md) (Phase 2 truncation observability), [0004](0004-collection-per-project-isolation.md) (collection-per-project ↔ Qdrant per-collection metrics), [0007](0007-ranx-retrieval-evaluation.md) (offline retrieval quality — out of scope here)
+- **Related:** [FastMCP OpenTelemetry](https://gofastmcp.com/servers/telemetry), [Qdrant observability](https://qdrant.tech/documentation/observability/), [0014](0014-vector-discovery-and-ops-automation.md) (Track B n8n ops hooks), [0015](0015-colbert-http-sidecar.md) (multi-container topology), [0017](0017-model-tokenizer-tei-dense-truncation.md) (Phase 2 truncation observability), [0004](0004-collection-per-project-isolation.md) (collection-per-project ↔ Qdrant per-collection metrics), [0007](0007-ranx-retrieval-evaluation.md) (offline retrieval quality — out of scope here)
 - **Supersedes:** *(none)*
 
 ## Context
@@ -16,7 +16,7 @@ The codebase-indexer is a **self-hosted, Docker Compose–first** retrieval plat
 | Slow search / rerank | Ad-hoc `LOG_LEVEL=DEBUG`; offline `bench.py` | No per-tool latency histograms or dependency breakdown (Ollama vs Qdrant vs ColBERT) |
 | Qdrant / Ollama timeouts | Exception strings in logs | No error-rate counters by dependency; no trace linking MCP → upstream HTTP |
 | Cron reindex failures | cron container stdout | No shared correlation id across cron → MCP tool calls |
-| Truncation quality drift | Planned in [ADR 0017](0017-model-tokenizer-ollama-dense-truncation.md) Phase 2 | No standard metric namespace yet |
+| Truncation quality drift | Planned in [ADR 0017](0017-model-tokenizer-tei-dense-truncation.md) Phase 2 | No standard metric namespace yet |
 
 ### Current observability surface
 
@@ -120,7 +120,7 @@ flowchart TB
   | `codeindexer_index_chunks_total` | Counter | — | pipeline |
   | `codeindexer_embed_requests_total` | Counter | `backend`, `status` | Ollama / sparse / ColBERT backends |
   | `codeindexer_memory_pressure_events_total` | Counter | `severity` | `memory.py` warn/halt |
-  | `codeindexer_truncated_chunks_total` | Counter | `backend` | truncation path ([ADR 0017](0017-model-tokenizer-ollama-dense-truncation.md) Phase 2) |
+  | `codeindexer_truncated_chunks_total` | Counter | `backend` | truncation path ([ADR 0017](0017-model-tokenizer-tei-dense-truncation.md) Phase 2) |
 
 - **Process metrics** — Python `prometheus_client` GC/platform collectors where enabled
 - **Qdrant (no code change)** — document in `DEPLOYMENT.md`:
@@ -220,7 +220,7 @@ FastMCP **already instruments** all MCP tool calls when an OTel SDK is present. 
 - **End-to-end traces:** `tools/call search_codebase` → `search.embed` → httpx Ollama/Qdrant/ColBERT child spans
 - **Vendor-neutral** — `opentelemetry-instrument` or OTLP env vars; same paths for Jaeger, Tempo, Datadog, Grafana Cloud
 - Per-project **Qdrant latency/error SLOs** without high-cardinality labels on MCP metrics ([ADR 0004](0004-collection-per-project-isolation.md))
-- Fulfills [ADR 0017](0017-model-tokenizer-ollama-dense-truncation.md) Phase 2 truncation counter in a consistent namespace
+- Fulfills [ADR 0017](0017-model-tokenizer-tei-dense-truncation.md) Phase 2 truncation counter in a consistent namespace
 - Enables Grafana alerts / Alertmanager / n8n webhooks on SLO burn (index failure rate, search p95)
 
 ### Negative / trade-offs
@@ -240,7 +240,7 @@ FastMCP **already instruments** all MCP tool calls when an OTel SDK is present. 
 
 ### Downstream work
 
-- [0017](0017-model-tokenizer-ollama-dense-truncation.md) Phase 2 — implement `codeindexer_truncated_chunks_total` under this namespace
+- [0017](0017-model-tokenizer-tei-dense-truncation.md) Phase 2 — implement `codeindexer_truncated_chunks_total` under this namespace
 - [0014](0014-vector-discovery-and-ops-automation.md) Track B — n8n alert examples can reference Prometheus/Grafana instead of only `/health` polling
 
 ## Implementation notes

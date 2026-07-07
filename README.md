@@ -1,17 +1,17 @@
 # Local Codebase Indexer MCP Server
 
-A fully self-hosted, Docker-based MCP server that indexes your codebase into a local vector database using **Ollama dense embeddings** plus in-process BM25 sparse search, then exposes semantic search tools to AI agents — minimising token consumption.
+A fully self-hosted, Docker-based MCP server that indexes your codebase into a local vector database using **TEI dense embeddings** plus in-process BM25 sparse search, then exposes semantic search tools to AI agents — minimising token consumption.
 
 ## Features
 
 - **100% Local** — Zero external API calls; all processing stays on your machine
-- **Semantic Code Search** — Tree-sitter AST-based chunking with Ollama dense + in-process BM25 sparse hybrid search
+- **Semantic Code Search** — Tree-sitter AST-based chunking with TEI dense + in-process BM25 sparse hybrid search
 - **Incremental Indexing** — Only re-indexes changed files (SHA-256 hash comparison)
 - **Multi-Language** — Python, JavaScript, TypeScript, Go, Rust, Java, C, C++, C#
 - **Token Efficient** — Returns only relevant code chunks, not full files. Three dedicated low-cost orientation tools (`get_collection_summary`, `search_symbols`, `get_file_outline`) eliminate exploratory searches entirely.
 - **Vector Discovery** — `recommend_code` finds chunks similar to positive examples and dissimilar from negatives; `find_outlier_chunks` finds code semantically distant from a module context (Qdrant Recommendation API)
 - **MCP Compatible** — Works with Claude Desktop, Copilot CLI, Cursor, and more
-- **GPU-default acceleration** — Dense Ollama and ColBERT sidecar run on NVIDIA GPU by default ([ADR 0022](docs/adr/0022-gpu-default-cpu-fallback.md)); set `ACCELERATOR=cpu` only for explicit CPU-only hosts
+- **GPU-default acceleration** — Dense TEI and ColBERT sidecar run on NVIDIA GPU by default ([ADR 0022](docs/adr/0022-gpu-default-cpu-fallback.md)); set `ACCELERATOR=cpu` only for explicit CPU-only hosts
 
 ## Documentation
 
@@ -20,8 +20,8 @@ A fully self-hosted, Docker-based MCP server that indexes your codebase into a l
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Dev setup (Python 3.12, uv), CI lint/type-check/test workflow, conventional commits |
 | [CHANGELOG.md](CHANGELOG.md) | Release history (Keep a Changelog format) |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Per-component responsibilities, indexing pipeline, embedding layer, hybrid search |
-| [docs/adr/](docs/adr/) | Architecture Decision Records — see [0021](docs/adr/0021-revert-jina-production-default-retire-qwen3.md) (Jina production default), [0016](docs/adr/0016-qwen3-embedding-default-dense-model.md) (Qwen3 experimental preset — historical), [0012](docs/adr/0012-retrieval-only-rag-split.md) (retrieval-only RAG), [0011](docs/adr/0011-ollama-only-dense-embedding.md) (Ollama dense), [0008](docs/adr/0008-optional-colbert-reranking.md) (ColBERT rerank), [0014](docs/adr/0014-vector-discovery-and-ops-automation.md) (recommendation search), [0015](docs/adr/0015-colbert-http-sidecar.md) (ColBERT sidecar) |
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | GPU-default Ollama compose, explicit `ACCELERATOR=cpu` exception, memory/CPU tuning |
+| [docs/adr/](docs/adr/) | Architecture Decision Records — see [0025](docs/adr/0025-huggingface-tei-dense-embedding.md) (TEI dense), [0021](docs/adr/0021-revert-jina-production-default-retire-qwen3.md) (Jina production default), [0016](docs/adr/0016-qwen3-embedding-default-dense-model.md) (Qwen3 experimental preset — historical), [0012](docs/adr/0012-retrieval-only-rag-split.md) (retrieval-only RAG), [0008](docs/adr/0008-optional-colbert-reranking.md) (ColBERT rerank), [0014](docs/adr/0014-vector-discovery-and-ops-automation.md) (recommendation search), [0015](docs/adr/0015-colbert-http-sidecar.md) (ColBERT sidecar) |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | GPU-default TEI compose, explicit `ACCELERATOR=cpu` exception, memory/CPU tuning |
 | [docs/SEARCH_BEHAVIOR.md](docs/SEARCH_BEHAVIOR.md) | `search_codebase` / `search_symbols` caps, `min_score` vs RRF, `recommend_code`, `find_outlier_chunks`, ColBERT rerank |
 
 ## System Architecture
@@ -34,7 +34,7 @@ graph TD
     end
 
     subgraph Docker["Docker Compose"]
-        MCP["codeindexer_mcp  :8000\n────────────────────────\nFastMCP server\nOllama dense (HTTP)\nBM25 sparse in-process\nTree-sitter parser"]
+        MCP["codeindexer_mcp  :8000\n────────────────────────\nFastMCP server\nTEI dense (HTTP)\nBM25 sparse in-process\nTree-sitter parser"]
         QD[("codeindexer_qdrant  :6333\n────────────────────────\nQdrant Vector DB\npersistent  qdrant_data  volume")]
     end
 
@@ -54,9 +54,9 @@ cp .env.example .env
 # Every direct subdirectory becomes a separate indexed collection.
 # Example: WORKSPACE_ROOT=C:\Users\me\repos  (not a single project folder)
 
-# 2. Start services (NVIDIA GPU default; bundled Ollama profile)
-docker compose $(python scripts/compose_files.py) --profile bundled-ollama up -d --build
-docker exec codeindexer_ollama ollama pull unclemusclez/jina-embeddings-v2-base-code
+# 2. Start services (NVIDIA GPU default; bundled TEI profile)
+docker compose $(python scripts/compose_files.py) --profile bundled-tei up -d --build
+# TEI downloads the model weights to the tei_data volume on first start — no manual pull step
 
 # 3. Confirm all services are healthy
 docker compose ps
@@ -67,15 +67,15 @@ docker logs -f codeindexer_mcp
 # 5. Add MCP client config (see below)
 ```
 
-Requires NVIDIA driver + [Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) when `ACCELERATOR=gpu` (default). Verify GPU: `docker exec codeindexer_ollama ollama ps` — `PROCESSOR` should show `GPU`.
+Requires NVIDIA driver + [Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) when `ACCELERATOR=gpu` (default). Verify GPU: `docker exec codeindexer_tei nvidia-smi` lists the GPU and the running TEI process.
 
 ### Explicit CPU-only (`ACCELERATOR=cpu`)
 
 For CI, air-gapped CPU servers, or hosts without NVIDIA — not the production default. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ```bash
-# In .env: ACCELERATOR=cpu, OLLAMA_GPU=0
-docker compose $(ACCELERATOR=cpu python scripts/compose_files.py) --profile bundled-ollama up -d --build
+# In .env: ACCELERATOR=cpu, TEI_GPU=0
+docker compose $(ACCELERATOR=cpu python scripts/compose_files.py) --profile bundled-tei up -d --build
 ```
 
 ## MCP Client Configuration
@@ -267,7 +267,7 @@ flowchart LR
     subgraph S3["③ Embedder"]
         direction TB
         em3["Run concurrently\nin thread executors"]
-        em1["Dense  OLLAMA_EMBED_MODEL\nDENSE_EMBED_VECTOR_SIZE\nOllama HTTP"]
+        em1["Dense  DENSE_EMBED_MODEL\nDENSE_EMBED_VECTOR_SIZE\nTEI HTTP"]
         em2["Sparse  SPARSE_EMBED_MODEL\nfastembed in-process"]
         em3 --> em1 & em2
     end
@@ -350,7 +350,7 @@ flowchart LR
     Q["Query\n'find order processing logic'"]
 
     subgraph Embed["Query Embedding"]
-        DE["Dense vector\n768-dim Ollama"]
+        DE["Dense vector\n768-dim TEI"]
         SE["Sparse vector\nconfigurable model"]
     end
 
@@ -434,25 +434,25 @@ Settings are environment-variable driven. **Required variables** (no Python defa
 | `MCP_CPUS` | CPU cap for the MCP server container |
 | `QDRANT_CPUS` | CPU cap for the Qdrant container |
 | `OMP_NUM_THREADS` | ONNX/BLAS threads (also sets `OPENBLAS`/`MKL`). Keep at/below physical cores. |
-| `DENSE_EMBED_MODEL` | Dense model metadata for dimension validation; default `jinaai/jina-embeddings-v2-base-code` — must match `OLLAMA_EMBED_MODEL` output size |
+| `DENSE_EMBED_MODEL` | Dense model metadata for dimension validation; default `jinaai/jina-embeddings-v2-base-code` — must match `DENSE_EMBED_MODEL` output size |
 | `SPARSE_EMBED_MODEL` | fastembed sparse model; default `Qdrant/bm25` (lexical BM25) |
-| `DENSE_EMBED_VECTOR_SIZE` | Dense embedding dimensions; default `768` for Jina v2 base code (see [Jina](#jina-embedding-via-ollama) and [BGE v1.5](#baai-bge-english-v15)) |
+| `DENSE_EMBED_VECTOR_SIZE` | Dense embedding dimensions; default `768` for Jina v2 base code (see [Jina](#jina-embedding-via-tei) and [BGE v1.5](#baai-bge-english-v15)) |
 | `SPARSE_THREADS` | ONNX threads for `SPARSE_EMBED_MODEL`; `2` for `Qdrant/bm25` (default) |
 | `ACCELERATOR` | Compose-only — `gpu` (default) merges GPU compose overrides; `cpu` is explicit exception only ([ADR 0022](docs/adr/0022-gpu-default-cpu-fallback.md)). |
-| `COMPOSE_PROFILES` | Compose profiles to activate. Set to `bundled-ollama` with `scripts/compose_files.py` to run Ollama inside the stack. |
-| `OLLAMA_URL` | Ollama base URL for dense embedding. Default: `http://ollama:11434` (bundled) or `http://host.docker.internal:11434` (host Ollama). |
-| `OLLAMA_EMBED_MODEL` | Ollama embedding model tag (default: `unclemusclez/jina-embeddings-v2-base-code`). Must match `DENSE_EMBED_VECTOR_SIZE`. |
-| `OLLAMA_GPU` | `1` when `ACCELERATOR=gpu` (default); GPU override merged by `scripts/compose_files.py`. |
-| `OLLAMA_GPU_COUNT` | GPUs reserved for bundled Ollama; defaults to `1`. |
+| `COMPOSE_PROFILES` | Compose profiles to activate. Set to `bundled-tei` with `scripts/compose_files.py` to run TEI inside the stack. |
+| `TEI_URL` | TEI base URL for dense embedding. Default: `http://tei:80` (bundled) or `http://host.docker.internal:8080` (host TEI). |
+| `DENSE_EMBED_MODEL` | TEI embedding model — HuggingFace repo id (default: `jinaai/jina-embeddings-v2-base-code`). Must match `DENSE_EMBED_VECTOR_SIZE`. |
+| `TEI_GPU` | `1` when `ACCELERATOR=gpu` (default); GPU override merged by `scripts/compose_files.py`. |
+| `TEI_GPU_COUNT` | GPUs reserved for bundled TEI; defaults to `1`. |
 
-### Jina Embedding (via Ollama)
+### Jina Embedding (via TEI)
 
 Production default dense model ([ADR 0021](docs/adr/0021-revert-jina-production-default-retire-qwen3.md)). Code-specialized Jina v2 base at 768 dimensions — best measured recall on this repository's golden set.
 
-| Preset | `DENSE_EMBED_MODEL` | `OLLAMA_EMBED_MODEL` | `DENSE_EMBED_VECTOR_SIZE` | When |
-|--------|---------------------|----------------------|---------------------------|------|
-| **Default** | `jinaai/jina-embeddings-v2-base-code` | `unclemusclez/jina-embeddings-v2-base-code` | `768` | Production code search (GPU or CPU Ollama) |
-| CPU / minimal | `nomic-ai/nomic-embed-text-v1.5` | `nomic-embed-text` | `768` | No GPU; smallest download |
+| Preset | `DENSE_EMBED_MODEL` | `DENSE_EMBED_VECTOR_SIZE` | When |
+|--------|---------------------|---------------------------|------|
+| **Default** | `jinaai/jina-embeddings-v2-base-code` | `768` | Production code search (GPU or CPU TEI) |
+| CPU / minimal | `nomic-ai/nomic-embed-text-v1.5` | `768` | No GPU; smallest download |
 
 `MAX_DENSE_EMBED_TOKENS=0` auto-detects **8192** for Jina code models.
 
@@ -462,11 +462,11 @@ Optional dense model ([ADR 0016](docs/adr/0016-qwen3-embedding-default-dense-mod
 
 > **Warning:** −63.1% recall@10 vs Jina on this repo's golden set. CoIR leaderboard rank does not predict retrieval quality here. Use only if you accept the regression and will force re-index @ 1024 MRL.
 
-| Preset | `DENSE_EMBED_MODEL` | `OLLAMA_EMBED_MODEL` | `DENSE_EMBED_VECTOR_SIZE` | When |
-|--------|---------------------|----------------------|---------------------------|------|
-| CoIR / GPU | `Qwen/Qwen3-Embedding-4B` | `qwen3-embedding:4b` | `1024` | Experimental; GPU Ollama |
-| Max quality | `Qwen/Qwen3-Embedding-8B` | `qwen3-embedding:8b` | `1024` or `4096` | 16 GB+ VRAM |
-| Low VRAM | `Qwen/Qwen3-Embedding-0.6B` | `qwen3-embedding:0.6b` | `1024` | ~8 GB GPU |
+| Preset | `DENSE_EMBED_MODEL` | `DENSE_EMBED_VECTOR_SIZE` | When |
+|--------|---------------------|---------------------------|------|
+| CoIR / GPU | `Qwen/Qwen3-Embedding-4B` | `1024` | Experimental; GPU TEI |
+| Max quality | `Qwen/Qwen3-Embedding-8B` | `1024` or `4096` | 16 GB+ VRAM |
+| Low VRAM | `Qwen/Qwen3-Embedding-0.6B` | `1024` | ~8 GB GPU |
 
 Native dimensions: 0.6B → 1024, 4B → 2560, 8B → 4096. `MAX_DENSE_EMBED_TOKENS=0` auto-detects **32768** for Qwen3 models.
 
@@ -479,7 +479,7 @@ Official specs for the supported BGE dense models ([BAAI/bge-base-en-v1.5](https
 | `BAAI/bge-base-en-v1.5` | 768 | 512 |
 | `BAAI/bge-small-en-v1.5` | 384 | 512 |
 
-Set `DENSE_EMBED_MODEL`, `OLLAMA_EMBED_MODEL`, and matching `DENSE_EMBED_VECTOR_SIZE` in `.env`. `MAX_DENSE_EMBED_TOKENS` caps text sent to Ollama via model tokenizer ([ADR 0017](docs/adr/0017-model-tokenizer-ollama-dense-truncation.md)); `0` auto-detects from the model registry (e.g. 8192 for Jina, 32768 for Qwen3, 8192 for Nomic, 512 for BGE).
+Set `DENSE_EMBED_MODEL` and matching `DENSE_EMBED_VECTOR_SIZE` in `.env`. `MAX_DENSE_EMBED_TOKENS` caps text sent to TEI via model tokenizer ([ADR 0017](docs/adr/0017-model-tokenizer-tei-dense-truncation.md)); `0` auto-detects from the model registry (e.g. 8192 for Jina, 32768 for Qwen3, 8192 for Nomic, 512 for BGE).
 
 ### Workspace paths (`WORKSPACE_ROOT` vs `WORKSPACE_PATH`)
 
@@ -524,11 +524,11 @@ If you change port bindings to expose the server beyond localhost, set `MCP_AUTH
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `BATCH_SIZE` | `32` | Chunks embedded per pipeline batch (larger = faster, more RAM). Also used as Ollama HTTP sub-batch size via `OLLAMA_EMBED_BATCH_SIZE` default. |
+| `BATCH_SIZE` | `32` | Chunks embedded per pipeline batch (larger = faster, more RAM). Also used as TEI HTTP sub-batch size via `TEI_EMBED_BATCH_SIZE` default. |
 | `FLUSH_EVERY` | `1500` | Chunks per embed+upsert flush. Peak RAM ≈ 2× this. With ColBERT rerank, use **64–128** (see [DEPLOYMENT.md](docs/DEPLOYMENT.md#colbert-rerank-qdrant-upsert-batching)). |
 | `UPSERT_BATCH` | `500` | Points per Qdrant upsert sub-batch. With **`RERANK_ENABLED=true`**, use **10–25** — large ColBERT multivectors exceed HTTP body limits at the default. |
 | `READAHEAD_BUFFER` | `100` | Files queued ahead of the consumer during scan |
-| `MAX_DENSE_EMBED_TOKENS` | `0` (auto) | Caps text sent to Ollama (word-split approximation); auto from `DENSE_EMBED_MODEL` registry when `0` |
+| `MAX_DENSE_EMBED_TOKENS` | `0` (auto) | Caps text sent to TEI (word-split approximation); auto from `DENSE_EMBED_MODEL` registry when `0` |
 | `MAX_SPARSE_EMBED_TOKENS` | `0` (no limit) | Token cap for sparse input. `0` = no truncation with `Qdrant/bm25` (default). Set explicitly only for other sparse transformer models. |
 | `SEQUENTIAL_EMBED` | `false` | Run sparse then dense sequentially during indexing (~lower peak RAM, slower) |
 
@@ -551,7 +551,7 @@ If you change port bindings to expose the server beyond localhost, set `MCP_AUTH
 | `HNSW_EF_CONSTRUCT` | `128` | HNSW construction breadth (higher = better graph, slower index build) |
 | `PREFETCH_MULTIPLIER` | `5` | Hybrid prefetch limit = `top_k × multiplier` per dense/sparse channel |
 | `RRF_K` | `60` | RRF constant for multi-collection result re-fusion |
-| `PRELOAD_MODELS` | `true` | Eagerly probe Ollama and load sparse BM25 at startup. Set `false` when Ollama starts after MCP or on memory-constrained hosts. |
+| `PRELOAD_MODELS` | `true` | Eagerly probe TEI and load sparse BM25 at startup. Set `false` when TEI starts after MCP or on memory-constrained hosts. |
 | `RELEASE_MODELS_AFTER_INDEX` | `true` | Release sparse BM25 after indexing completes to reclaim ~300-500 MB. Models reload in ~1.5s from the cache volume on the next search query. Set to `false` only if you need sub-second first-search latency after indexing. |
 | `MODEL_IDLE_TIMEOUT` | `300` | Seconds of embed inactivity before sparse BM25 is automatically released. Covers the case where models were loaded for search but the server goes idle. `0` disables the idle timer. |
 
@@ -608,21 +608,17 @@ The same image scales by editing `.env` only — see the **TUNING PRESETS** sect
 - **More CPU** → raise `OMP_NUM_THREADS` and `BATCH_SIZE`, keeping a few cores reserved for Qdrant via `QDRANT_CPUS`.
 - **Smaller machine** → lower `MCP_MEM_LIMIT`, `FLUSH_EVERY`, `BATCH_SIZE`, and `OMP_NUM_THREADS`; keep on-disk storage and quantization enabled.
 
-### Ollama dense embedding
+### TEI dense embedding
 
-Dense vectors always come from **Ollama** (`OLLAMA_EMBED_MODEL`, default `unclemusclez/jina-embeddings-v2-base-code`). Sparse BM25 stays in-process in the MCP container. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for bundled vs external Ollama and GPU setup.
+Dense vectors always come from **TEI** (`DENSE_EMBED_MODEL`, default `jinaai/jina-embeddings-v2-base-code`). Sparse BM25 stays in-process in the MCP container. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for bundled vs external TEI and GPU setup.
 
-Pull the default model after first start:
-
-```bash
-docker exec codeindexer_ollama ollama pull unclemusclez/jina-embeddings-v2-base-code
-```
+TEI has no manual pull step — it downloads the `--model-id` weights to the `tei_data` volume automatically on first container start; subsequent restarts reuse the cached weights.
 
 For CPU-only hosts, set `ACCELERATOR=cpu` in `.env` (see [DEPLOYMENT.md](docs/DEPLOYMENT.md#explicit-cpu-only-acceleratorcpu)) — not the production default.
 
-GPU is the default when `ACCELERATOR=gpu`: use `docker compose $(python scripts/compose_files.py)`. Verify with `docker exec codeindexer_ollama ollama ps`.
+GPU is the default when `ACCELERATOR=gpu`: use `docker compose $(python scripts/compose_files.py)`. Verify with `docker exec codeindexer_tei nvidia-smi`.
 
-Full re-index required after changing `OLLAMA_EMBED_MODEL` or `DENSE_EMBED_VECTOR_SIZE`. See [ADR 0011](docs/adr/0011-ollama-only-dense-embedding.md).
+Full re-index required after changing `DENSE_EMBED_MODEL` or `DENSE_EMBED_VECTOR_SIZE`. See [ADR 0025](docs/adr/0025-huggingface-tei-dense-embedding.md).
 
 ### How indexing stays within budget
 
@@ -633,7 +629,7 @@ Full re-index required after changing `OLLAMA_EMBED_MODEL` or `DENSE_EMBED_VECTO
 - **Post-indexing memory reclamation**: after every indexing job, the pipeline releases all transient allocations (`gc.collect()` + `malloc_trim(0)`) and logs RSS before/after so you can verify the memory was freed.
 - **Model release after indexing** (`RELEASE_MODELS_AFTER_INDEX=true` default): sparse BM25 is dropped after each index job, returning native memory immediately.
 - **Idle-timeout model release** (`MODEL_IDLE_TIMEOUT=300` default): if the server has not run an embed in N seconds, sparse BM25 is automatically released.
-- **Startup preload** (`PRELOAD_MODELS=true` default): Ollama reachability and sparse BM25 are probed at boot; set `false` when Ollama starts later or to defer model RAM until first use.
+- **Startup preload** (`PRELOAD_MODELS=true` default): TEI reachability and sparse BM25 are probed at boot; set `false` when TEI starts later or to defer model RAM until first use.
 - **OOM-restart detection**: on startup, the server checks for a clean-shutdown marker. If absent, it logs a warning that the previous instance may have been OOM-killed.
 - Metadata dicts from incremental indexing are released after the scan phase to free memory before the heaviest embedding batches.
 - Qdrant HNSW indexing is deferred during bulk upload (`indexing_threshold` is set to 0, then restored) so index construction doesn't compete with embedding for CPU.
@@ -669,7 +665,7 @@ docker logs -f codeindexer_cron
 ## Architecture Summary
 
 - **Qdrant** — Vector database for storing and searching embeddings
-- **MCP Server** — FastMCP-based server exposing tools over HTTP/stdio; dense embedding via Ollama HTTP, sparse BM25 in-process
+- **MCP Server** — FastMCP-based server exposing tools over HTTP/stdio; dense embedding via TEI HTTP, sparse BM25 in-process
 - **Cron** — Scheduled git pull + incremental re-index for indexed collections
 
 All services run in Docker with persistent volumes. See [System Architecture](#system-architecture) and [How Indexing Works](#how-indexing-works) above for detailed diagrams.

@@ -1,14 +1,14 @@
 # Deployment
 
-Docker Compose runs Qdrant, the MCP server, and the cron reindex job. **Dense embedding always goes through Ollama**; sparse BM25 stays in-process in the MCP container. Configuration is env-var driven via `.env` (copy from `.env.example`).
+Docker Compose runs Qdrant, the MCP server, and the cron reindex job. **Dense embedding always goes through TEI** (HuggingFace Text Embeddings Inference); sparse BM25 stays in-process in the MCP container. Configuration is env-var driven via `.env` (copy from `.env.example`).
 
 ## Compose files
 
 | File | Purpose |
 |------|---------|
 | `docker-compose.yml` | Base stack: `codeindexer_qdrant`, `codeindexer_mcp`, `codeindexer_cron` |
-| `docker-compose.ollama.yml` | Optional bundled `ollama` service (`COMPOSE_PROFILES=bundled-ollama`) |
-| `docker-compose.ollama.gpu.yml` | **Default stack** — NVIDIA GPU for bundled Ollama when `ACCELERATOR=gpu` (merged by `scripts/compose_files.py`) |
+| `docker-compose.tei.yml` | Optional bundled `tei` service (`COMPOSE_PROFILES=bundled-tei`) |
+| `docker-compose.tei.gpu.yml` | **Default stack** — NVIDIA GPU for bundled TEI when `ACCELERATOR=gpu` (merged by `scripts/compose_files.py`) |
 | `docker-compose.colbert-worker.yml` | Optional ColBERT HTTP sidecar when `RERANK_ENABLED=true` and `COLBERT_EMBED_BACKEND=remote` |
 | `docker-compose.colbert-worker.gpu.yml` | **Default stack** — NVIDIA GPU for ColBERT sidecar when remote sidecar + `ACCELERATOR=gpu` |
 
@@ -19,19 +19,19 @@ Compose reads your host `.env` at `docker compose up` time and injects variables
 | Service | Source | Notes |
 |---------|--------|-------|
 | `mcp_server` | `docker-compose.yml` | All application `Settings` env vars |
-| `mcp_server` | `docker-compose.ollama.yml` | Overrides `OLLAMA_*` when bundled/external Ollama profile is used |
+| `mcp_server` | `docker-compose.tei.yml` | Overrides `TEI_*` when bundled/external TEI profile is used |
 | `cron` | `docker-compose.yml` | `INDEX_TIMEOUT`, `MCP_HTTP_TIMEOUT`, `GIT_TIMEOUT`, `MCP_URL` |
-| `qdrant` / `ollama` | compose only | Resource caps and Ollama service env — not Python `Settings` |
+| `qdrant` / `tei` | compose only | Resource caps and TEI service env — not Python `Settings` |
 
-**Not in `.env`:** `dense_embed_backend` is fixed to `ollama` in code ([ADR 0011](adr/0011-ollama-only-dense-embedding.md)). `FASTEMBED_CACHE_PATH` is set to the container cache volume path.
+**Not in `.env`:** dense embedding is TEI-only via `TeiDenseBackend` ([ADR 0025](adr/0025-huggingface-tei-dense-embedding.md)). `FASTEMBED_CACHE_PATH` is set to the container cache volume path.
 
-**Compose-only variables** (not read by Python `Settings`): `WORKSPACE_ROOT`, `MCP_MEM_LIMIT`, `QDRANT_MEM_LIMIT`, `MCP_CPUS`, `QDRANT_CPUS`, `COMPOSE_PROFILES`, `ACCELERATOR`, `OLLAMA_GPU`, `OLLAMA_GPU_COUNT`, `OLLAMA_PORT`, `OLLAMA_MEM_LIMIT`, `OLLAMA_CPUS`, `COLBERT_GPU`, `COLBERT_GPU_COUNT`, `COLBERT_MEM_LIMIT`, `COLBERT_CPUS`.
+**Compose-only variables** (not read by Python `Settings`): `WORKSPACE_ROOT`, `MCP_MEM_LIMIT`, `QDRANT_MEM_LIMIT`, `MCP_CPUS`, `QDRANT_CPUS`, `COMPOSE_PROFILES`, `ACCELERATOR`, `TEI_GPU`, `TEI_GPU_COUNT`, `TEI_PORT`, `TEI_MEM_LIMIT`, `TEI_CPUS`, `COLBERT_GPU`, `COLBERT_GPU_COUNT`, `COLBERT_MEM_LIMIT`, `COLBERT_CPUS`.
 
 For local `uv run python -m codebase_indexer.main`, pydantic reads `.env` in `mcp_server/` directly — same variable names apply.
 
 ## GPU-default compose ([ADR 0022](adr/0022-gpu-default-cpu-fallback.md))
 
-**Default:** `ACCELERATOR=gpu` (when unset). GPU compose overrides (`.ollama.gpu.yml`, and `.colbert-worker.gpu.yml` when rerank + remote sidecar) are merged automatically — do not hand-assemble `-f` lists.
+**Default:** `ACCELERATOR=gpu` (when unset). GPU compose overrides (`.tei.gpu.yml`, and `.colbert-worker.gpu.yml` when rerank + remote sidecar) are merged automatically — do not hand-assemble `-f` lists.
 
 Requires NVIDIA driver + [Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). Fails fast when GPU is required but NVIDIA runtime is unavailable.
 
@@ -39,22 +39,19 @@ Requires NVIDIA driver + [Container Toolkit](https://docs.nvidia.com/datacenter/
 
 ```env
 ACCELERATOR=gpu
-COMPOSE_PROFILES=bundled-ollama
-OLLAMA_URL=http://ollama:11434
-OLLAMA_GPU=1
-OLLAMA_EMBED_MODEL=unclemusclez/jina-embeddings-v2-base-code
+COMPOSE_PROFILES=bundled-tei
+TEI_URL=http://tei:80
 DENSE_EMBED_MODEL=jinaai/jina-embeddings-v2-base-code
 DENSE_EMBED_VECTOR_SIZE=768
 ```
 
 ```bash
-docker compose $(python scripts/compose_files.py) --profile bundled-ollama up -d --build
-docker exec codeindexer_ollama ollama pull unclemusclez/jina-embeddings-v2-base-code
+docker compose $(python scripts/compose_files.py) --profile bundled-tei up -d --build
 ```
 
-Verify GPU: `docker exec codeindexer_ollama ollama ps` — `PROCESSOR` should show `GPU` while the model is loaded.
+Verify GPU: `docker exec codeindexer_tei nvidia-smi` — CUDA must be visible in the TEI container.
 
-**Hybrid topology:** GPU dense (Ollama) + **CPU sparse BM25** in MCP — unchanged from [ADR 0011](adr/0011-ollama-only-dense-embedding.md). `ACCELERATOR=gpu` does not move sparse embedding to GPU.
+**Hybrid topology:** GPU dense (TEI) + **CPU sparse BM25** in MCP — unchanged hybrid search model. `ACCELERATOR=gpu` does not move sparse embedding to GPU.
 
 ### Explicit CPU-only (`ACCELERATOR=cpu`)
 
@@ -64,29 +61,26 @@ The **only** supported CPU path. Use for GitHub Actions, air-gapped CPU servers,
 
 ```env
 ACCELERATOR=cpu
-COMPOSE_PROFILES=bundled-ollama
-OLLAMA_URL=http://ollama:11434
-OLLAMA_GPU=0
-OLLAMA_EMBED_MODEL=unclemusclez/jina-embeddings-v2-base-code
+COMPOSE_PROFILES=bundled-tei
+TEI_URL=http://tei:80
+TEI_IMAGE=ghcr.io/huggingface/text-embeddings-inference:cpu-1.9
 DENSE_EMBED_MODEL=jinaai/jina-embeddings-v2-base-code
 DENSE_EMBED_VECTOR_SIZE=768
 ```
 
 ```bash
-docker compose $(ACCELERATOR=cpu python scripts/compose_files.py) --profile bundled-ollama up -d --build
-docker exec codeindexer_ollama ollama pull unclemusclez/jina-embeddings-v2-base-code
+docker compose $(ACCELERATOR=cpu python scripts/compose_files.py) --profile bundled-tei up -d --build
 docker compose restart mcp_server
 ```
 
-### External Ollama on the host
+### External TEI on the host
 
-Run Ollama natively or in your own container on `127.0.0.1:11434`. Leave `COMPOSE_PROFILES` unset.
+Run TEI natively or in your own container on `127.0.0.1:8080`. Leave `COMPOSE_PROFILES` unset.
 
 `.env`:
 
 ```env
-OLLAMA_URL=http://host.docker.internal:11434
-OLLAMA_EMBED_MODEL=unclemusclez/jina-embeddings-v2-base-code
+TEI_URL=http://host.docker.internal:8080
 DENSE_EMBED_MODEL=jinaai/jina-embeddings-v2-base-code
 DENSE_EMBED_VECTOR_SIZE=768
 ```
@@ -99,20 +93,21 @@ docker compose restart mcp_server
 | Variable | Default | Role |
 |----------|---------|------|
 | `ACCELERATOR` | `gpu` | Compose-only — `gpu` merges `.gpu.yml` overrides; `cpu` is explicit exception only |
-| `COMPOSE_PROFILES` | *(empty)* | Set to `bundled-ollama` to start the Compose-managed Ollama service |
-| `OLLAMA_URL` | `http://host.docker.internal:11434` (base compose); `http://ollama:11434` when `-f docker-compose.ollama.yml` is merged | MCP → Ollama base URL; set explicitly in `.env` for your setup |
-| `OLLAMA_GPU` | `1` when `ACCELERATOR=gpu` | Document flag — GPU override merged by `compose_files.py` when `ACCELERATOR=gpu` |
-| `OLLAMA_GPU_COUNT` | `1` | GPUs reserved for bundled Ollama when using `.ollama.gpu.yml` |
-| `OLLAMA_EMBED_MODEL` | *(from `.env`)* | Ollama model tag for dense embedding (must match `DENSE_EMBED_VECTOR_SIZE`) |
-| `OLLAMA_EMBED_BATCH_SIZE` | `32` | Texts per Ollama `/api/embed` request |
-| `OLLAMA_TIMEOUT` | `120` | HTTP timeout (seconds) for Ollama calls |
-| `OLLAMA_PORT` | `11434` | Host port when bundled Ollama publishes to loopback |
-| `OLLAMA_MEM_LIMIT` | `4g` | cgroup memory cap for bundled Ollama |
-| `OLLAMA_CPUS` | `4` | CPU limit for bundled Ollama |
+| `COMPOSE_PROFILES` | *(empty)* | Set to `bundled-tei` to start the Compose-managed TEI service |
+| `TEI_URL` | `http://host.docker.internal:8080` (base compose); `http://tei:80` when `-f docker-compose.tei.yml` is merged | MCP → TEI base URL; set explicitly in `.env` for your setup |
+| `TEI_GPU` | `1` when `ACCELERATOR=gpu` | Document flag — GPU override merged by `compose_files.py` when `ACCELERATOR=gpu` |
+| `TEI_GPU_COUNT` | `1` | GPUs reserved for bundled TEI when using `.tei.gpu.yml` |
+| `DENSE_EMBED_MODEL` | *(from `.env`)* | HF repo id — TEI `--model-id` and OpenAI `model` field (must match `DENSE_EMBED_VECTOR_SIZE`) |
+| `TEI_EMBED_BATCH_SIZE` | `32` | Texts per TEI `/v1/embeddings` request |
+| `TEI_TIMEOUT` | `120` | HTTP timeout (seconds) for TEI calls |
+| `TEI_PORT` | `8080` | Host port when bundled TEI publishes to loopback |
+| `TEI_MEM_LIMIT` | `4g` | cgroup memory cap for bundled TEI |
+| `TEI_CPUS` | `4` | CPU limit for bundled TEI |
+| `TEI_IMAGE` | `89-1.9` (GPU) / `cpu-1.9` (CPU) | Compose-only TEI Docker tag override |
 
-Verify MCP: `curl http://localhost:8000/health` and logs show `ollama_embed_ready`. If Ollama is down at startup, MCP still serves `/health` but logs `model_preload_failed_continuing` until Ollama is reachable (restart `mcp_server` after Ollama is ready).
+Verify MCP: `curl http://localhost:8000/health` and logs show `tei_embed_ready`. If TEI is down at startup, MCP still serves `/health` but logs `model_preload_failed_continuing` until TEI is reachable (restart `mcp_server` after TEI is ready).
 
-**Full re-index required** after changing `OLLAMA_EMBED_MODEL` or `DENSE_EMBED_VECTOR_SIZE`. See [ADR 0011](adr/0011-ollama-only-dense-embedding.md).
+**Full re-index required** after changing `DENSE_EMBED_MODEL` or `DENSE_EMBED_VECTOR_SIZE`. See [ADR 0025](adr/0025-huggingface-tei-dense-embedding.md).
 
 Sparse embedding (`SPARSE_EMBED_MODEL`, default BM25) always runs on **CPU** inside MCP.
 
@@ -125,13 +120,13 @@ Required resource caps (Docker Compose — not read by Python directly):
 | `MCP_MEM_LIMIT` / `MCP_CPUS` | MCP container cap |
 | `QDRANT_MEM_LIMIT` / `QDRANT_CPUS` | Qdrant container cap |
 | `OMP_NUM_THREADS` | ONNX/BLAS threads for sparse BM25 |
-| `OLLAMA_MEM_LIMIT` / `OLLAMA_CPUS` | Bundled Ollama service caps |
+| `TEI_MEM_LIMIT` / `TEI_CPUS` | Bundled TEI service caps |
 
 Pipeline knobs (see `.env.example` presets):
 
 | Goal | Knobs |
 |------|-------|
-| More CPU | Raise `OMP_NUM_THREADS`, `BATCH_SIZE`, `OLLAMA_CPUS`; reserve cores for Qdrant via `QDRANT_CPUS` |
+| More CPU | Raise `OMP_NUM_THREADS`, `BATCH_SIZE`, `TEI_CPUS`; reserve cores for Qdrant via `QDRANT_CPUS` |
 | Lower RAM | Lower `BATCH_SIZE`, `FLUSH_EVERY`, `MAX_DENSE_EMBED_TOKENS`; enable `SEQUENTIAL_EMBED` |
 | Faster search | Tune `HNSW_EF`, `PREFETCH_MULTIPLIER`; disable `VECTORS_ON_DISK` if RAM allows |
 
@@ -155,7 +150,7 @@ The MCP upsert path retries up to **5 times** with exponential backoff on transi
 
 **Remote ColBERT sidecar** ([ADR 0015](adr/0015-colbert-http-sidecar.md)): offloading inference does **not** shrink upsert payloads — MCP still holds dense + sparse + returned ColBERT multivectors per flush until Qdrant accepts them. Tune `UPSERT_BATCH` the same way.
 
-**Verified preset** (Ollama GPU + ColBERT sidecar + rerank, ~16 GB host): see `.env.example` sidecar block — `UPSERT_BATCH=10`, `FLUSH_EVERY=96`, `MCP_MEM_LIMIT=3g`, `COLBERT_MEM_LIMIT=3g`.
+**Verified preset** (TEI GPU + ColBERT sidecar + rerank, ~16 GB host): see `.env.example` sidecar block — `UPSERT_BATCH=10`, `FLUSH_EVERY=96`, `MCP_MEM_LIMIT=3g`, `COLBERT_MEM_LIMIT=3g`.
 
 See [SEARCH_BEHAVIOR.md](SEARCH_BEHAVIOR.md#optional-colbert-reranking-rerank_enabledtrue) for search-path details.
 
@@ -179,12 +174,12 @@ COLBERT_GPU_COUNT=1
 ```
 
 ```bash
-docker compose $(python scripts/compose_files.py) --profile bundled-ollama up -d --build
+docker compose $(python scripts/compose_files.py) --profile bundled-tei up -d --build
 ```
 
 Verify sidecar device: `curl http://localhost:8082/health` — expect `"device":"cuda"`, `"cuda_available":true`, and `"execution_providers"` containing `CUDAExecutionProvider`. The worker fails at startup if `COLBERT_USE_CUDA=1` but CUDA libraries or the ORT CUDA provider are unavailable, or if the model loads on CPU despite CUDA being requested.
 
-**Single-GPU VRAM:** On an 8 GB GPU, running Ollama dense and ColBERT on the same device may OOM. Prefer a second GPU (`OLLAMA_GPU_COUNT=1` on GPU 0, `COLBERT_DEVICE_IDS=1` on GPU 1) or set `ACCELERATOR=cpu` for CPU-only ColBERT sidecar. There is no automatic GPU scheduler.
+**Single-GPU VRAM:** On an 8 GB GPU, running TEI dense and ColBERT on the same device may OOM. Prefer a second GPU (`TEI_GPU_COUNT=1` on GPU 0, `COLBERT_DEVICE_IDS=1` on GPU 1) or set `ACCELERATOR=cpu` for CPU-only ColBERT sidecar. There is no automatic GPU scheduler.
 
 | Variable | Default | Role |
 |----------|---------|------|
@@ -211,7 +206,7 @@ uv run python -m benchmarks.bench_colbert_sidecar \
   --compare /tmp/cpu-sidecar.json /tmp/gpu-sidecar.json
 ```
 
-Requires reachable Qdrant, Ollama, and ColBERT sidecar. Result JSON includes `colbert_sidecar_device` and `colbert_sidecar_cuda_available` from sidecar `/health`.
+Requires reachable Qdrant, TEI, and ColBERT sidecar. Result JSON includes `colbert_sidecar_device` and `colbert_sidecar_cuda_available` from sidecar `/health`.
 
 See [README.md](../README.md) for full env reference and tuning presets.
 
@@ -233,7 +228,7 @@ uv run python -m benchmarks.suggest_labels "async def run_pipeline"
 
 Golden labels use `chunk_id` keys (`sha256("{rel_path}:{start_line}")`). Aliases in `golden_queries.jsonl` are repo-relative (`mcp_server/src/...`); the harness prepends the collection folder to match indexed `rel_path` values. Use **`suggest_labels`** to draft aliases from live search hits. Eval JSON includes **`metrics_by_tag`** for slice-level tuning. See [ADR 0007](adr/0007-ranx-retrieval-evaluation.md#initial-baseline-findings-2026-07-02) for baseline numbers and label pitfalls.
 
-When running the harness on the host (not inside Docker), set `OLLAMA_URL=http://localhost:11434` if `.env` points at `http://ollama:11434`.
+When running the harness on the host (not inside Docker), set `TEI_URL=http://localhost:8080` if `.env` points at `http://tei:80`.
 
 ## Pipeline output quality (client-side Ragas)
 
@@ -341,19 +336,19 @@ FastMCP already emits OpenTelemetry spans for MCP tool calls when an OTel SDK is
 
 ## Fine-tuned embedding model (maintainer / offline)
 
-Production dense inference remains **Ollama-only** ([ADR 0011](adr/0011-ollama-only-dense-embedding.md)). Optional supervised fine-tuning of Qwen3 for this repo’s golden set was **maintainer-run outside Docker** — not part of the default MCP image or CI ([ADR 0020](adr/0020-qwen3-code-finetune-jina-quality-gate.md)). The quality gate **failed** (base Qwen3 recall@10 well below Jina); Phases 2–4 of ADR 0020 are cancelled per [ADR 0021](adr/0021-revert-jina-production-default-retire-qwen3.md).
+Production dense inference remains **TEI-only** ([ADR 0025](adr/0025-huggingface-tei-dense-embedding.md)). Optional supervised fine-tuning of Qwen3 for this repo’s golden set was **maintainer-run outside Docker** — not part of the default MCP image or CI ([ADR 0020](adr/0020-qwen3-code-finetune-jina-quality-gate.md)). The quality gate **failed** (base Qwen3 recall@10 well below Jina); Phases 2–4 of ADR 0020 are cancelled per [ADR 0021](adr/0021-revert-jina-production-default-retire-qwen3.md).
 
 | Step | Where | Notes |
 |------|-------|-------|
 | Export golden pairs | `mcp_server/benchmarks/train/export_golden_pairs.py` | Requires indexed Qdrant collection |
 | Mine hard negatives | `mcp_server/benchmarks/train/mine_hard_negatives.py` | Uses **base** `qwen3-embedding:4b` hybrid search |
 | LoRA train | `mcp_server/benchmarks/train/finetune_qwen3_code.py` | `uv sync --extra train`; CUDA GPU recommended |
-| Ollama packaging | Cancelled (ADR 0020 Phase 2) | Gate failed — no promoted checkpoint |
+| TEI packaging | Cancelled (ADR 0020 Phase 2) | Gate failed — no promoted checkpoint |
 | Quality gate | **Failed** (ADR 0020 Phase 3) | Base Qwen3 did not beat `eval_baseline_jina.json` |
 
 Full workflow: [`mcp_server/benchmarks/train/README.md`](../mcp_server/benchmarks/train/README.md).
 
-**Production default is Jina** — keep `OLLAMA_EMBED_MODEL=unclemusclez/jina-embeddings-v2-base-code` in `.env` ([ADR 0021](adr/0021-revert-jina-production-default-retire-qwen3.md)).
+**Production default is Jina** — keep `DENSE_EMBED_MODEL=jinaai/jina-embeddings-v2-base-code` in `.env` ([ADR 0021](adr/0021-revert-jina-production-default-retire-qwen3.md)).
 
 ## Continuous integration ([ADR 0022](adr/0022-gpu-default-cpu-fallback.md) Phase 3)
 
@@ -367,11 +362,11 @@ GitHub Actions (`.github/workflows/ci.yml`) is the **sole supported CPU exceptio
 | `eval-retrieval` | `ubuntu-latest` | `cpu` | no |
 | `docker-image` | `ubuntu-latest` | `cpu` | no |
 | `colbert-gpu-image` | `ubuntu-latest` | `cpu` | no |
-| `gpu-smoke` | `[self-hosted, gpu]` | `gpu` | no — real GPU stack smoke; `ollama ps` GPU assertion when runner available |
+| `gpu-smoke` | `[self-hosted, gpu]` | `gpu` | no — real GPU stack smoke; `docker exec codeindexer_tei nvidia-smi` GPU assertion when runner available |
 
-**Blocking compose integration** runs the same harness as local pre-PR validation on the CPU stack (`ACCELERATOR=cpu`): deploy Qdrant + bundled Ollama + MCP, health checks, and `tests/test_storage_integration.py`. The GPU processor check is skipped in CPU mode.
+**Blocking compose integration** runs the same harness as local pre-PR validation on the CPU stack (`ACCELERATOR=cpu`): deploy Qdrant + bundled TEI + MCP, health checks, and `tests/test_storage_integration.py`. The GPU processor check is skipped in CPU mode.
 
-**Optional GPU smoke** on a self-hosted NVIDIA runner exercises the production path (`ACCELERATOR=gpu`): the harness pulls Jina, runs a probe embed, and asserts `docker exec codeindexer_ollama ollama ps` shows `GPU` in `PROCESSOR`. Failures do not block merges.
+**Optional GPU smoke** on a self-hosted NVIDIA runner exercises the production path (`ACCELERATOR=gpu`): the harness pulls Jina, runs a probe embed, and asserts `docker exec codeindexer_tei nvidia-smi` lists the GPU and the running TEI process. Failures do not block merges.
 
 Local maintainer validation before review:
 

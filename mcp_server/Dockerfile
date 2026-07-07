@@ -26,7 +26,7 @@ RUN uv sync --frozen --no-dev --no-editable --python /usr/local/bin/python3.12 \
 
 # ---------------------------------------------------------------------------
 # Runtime: slim image with only what the server needs to run.
-# Dense embedding runs in Ollama; MCP keeps fastembed for sparse BM25 only.
+# Dense embedding runs in TEI; MCP keeps fastembed for sparse BM25 only.
 # ---------------------------------------------------------------------------
 FROM python:3.12-slim AS runtime
 

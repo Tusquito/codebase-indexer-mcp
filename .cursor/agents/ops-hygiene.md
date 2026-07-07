@@ -19,9 +19,9 @@ You are an operations and configuration hygiene specialist for the **codebase-in
 | `.env.example` | Canonical operator env reference; REQUIRED block must match compose fail-fast vars |
 | `mcp_server/src/codebase_indexer/config.py` | Python `Settings` — source of truth for app env fields and defaults |
 | `docker-compose.yml` | Base stack: `qdrant`, `mcp_server`, `cron` |
-| `docker-compose.ollama.yml` | Optional bundled `ollama` service (`COMPOSE_PROFILES=bundled-ollama`) |
-| `docker-compose.ollama.gpu.yml` | NVIDIA GPU override for bundled Ollama |
-| `mcp_server/Dockerfile` | MCP server image (Ollama dense external; sparse BM25 in-process) |
+| `docker-compose.tei.yml` | Optional bundled `tei` service (`COMPOSE_PROFILES=bundled-tei`) |
+| `docker-compose.tei.gpu.yml` | NVIDIA GPU override for bundled TEI |
+| `mcp_server/Dockerfile` | MCP server image (TEI dense external; sparse BM25 in-process) |
 | `mcp_server/docker-entrypoint.sh` | Container entrypoint |
 | `cron/Dockerfile` | Scheduled reindex sidecar |
 | `cron/reindex.py`, `cron/crontab`, `cron/entrypoint.sh` | Cron job wiring |
@@ -32,7 +32,7 @@ You are an operations and configuration hygiene specialist for the **codebase-in
 Code truth sources when validating ops files:
 - `config.py` — every `Settings` field and its default
 - `docker-compose.yml` — explicit env passthrough (no blanket `env_file`)
-- ADR 0011 — Ollama-only dense embedding; retired ONNX dense / embed-worker paths
+- ADR 0025 — TEI-only dense embedding; retired legacy dense-serving backends (ONNX dense, embed-worker) and their compose/env paths
 
 ## Audit checklist
 
@@ -42,29 +42,28 @@ Run through these checks and report results:
 
 - [ ] Every non-`Field(default=...)` required `Settings` field has a matching `${VAR:?...}` or `${VAR:-default}` in `docker-compose.yml` `mcp_server.environment`.
 - [ ] Every `Settings` field wired in compose appears in `.env.example` (documented or in REQUIRED block).
-- [ ] Compose-only vars (`WORKSPACE_ROOT`, `MCP_MEM_LIMIT`, `QDRANT_MEM_LIMIT`, `MCP_CPUS`, `QDRANT_CPUS`, `COMPOSE_PROFILES`, `OLLAMA_GPU`, `OLLAMA_GPU_COUNT`, `OLLAMA_PORT`, `OLLAMA_MEM_LIMIT`, `OLLAMA_CPUS`) are documented in `.env.example` and not incorrectly listed as Python `Settings`.
+- [ ] Compose-only vars (`WORKSPACE_ROOT`, `MCP_MEM_LIMIT`, `QDRANT_MEM_LIMIT`, `MCP_CPUS`, `QDRANT_CPUS`, `COMPOSE_PROFILES`, `TEI_GPU`, `TEI_GPU_COUNT`, `TEI_PORT`, `TEI_MEM_LIMIT`, `TEI_CPUS`) are documented in `.env.example` and not incorrectly listed as Python `Settings`.
 - [ ] Env var names use consistent SCREAMING_SNAKE across config, compose, and `.env.example` (pydantic lowercases; compose uses uppercase).
 - [ ] Compose defaults in `${VAR:-default}` match `config.py` defaults where both exist.
 - [ ] `FASTEMBED_CACHE_PATH` is set in compose to the container path, not in `.env.example` as operator-configurable.
-- [ ] `dense_embed_backend` is fixed to `ollama` in code — not exposed as a compose override.
+- [ ] Dense embedding is TEI-only (ADR 0025) — no `DENSE_EMBED_BACKEND`, no legacy dense-backend env vars.
+- [ ] `depends_on` health conditions are correct: `mcp_server` → `qdrant`; `cron` → `mcp_server`; `mcp_server` → `tei` (optional, `required: false` in tei overlay).
+- [ ] Volume mounts: `WORKSPACE_ROOT` → `/workspace` (ro for mcp, rw for cron); named volumes for `qdrant_data`, `fastembed_cache`, `tei_data`.
 - [ ] Cron service env (`MCP_URL`, `INDEX_TIMEOUT`, `MCP_HTTP_TIMEOUT`, `GIT_TIMEOUT`, `MCP_AUTH_TOKEN`) matches what `cron/reindex.py` reads.
 
 ### Docker Compose structure
 
-- [ ] Only current compose files exist: `docker-compose.yml`, `docker-compose.ollama.yml`, `docker-compose.ollama.gpu.yml`.
-- [ ] No references to deleted compose files (`docker-compose.gpu.yml`, `docker-compose.amd.yml`, `docker-compose.amd.wsl2.yml`, `docker-compose.embed-worker.yml`).
-- [ ] Service names and container names are consistent (`codeindexer_qdrant`, `codeindexer_mcp`, `codeindexer_cron`, `codeindexer_ollama`).
-- [ ] `depends_on` health conditions are correct: `mcp_server` → `qdrant`; `cron` → `mcp_server`; `mcp_server` → `ollama` (optional, `required: false` in ollama overlay).
-- [ ] Port bindings stay on `127.0.0.1` for Qdrant, MCP, and Ollama unless explicitly overridden with security notes.
-- [ ] Volume mounts: `WORKSPACE_ROOT` → `/workspace` (ro for mcp, rw for cron); named volumes for `qdrant_data`, `fastembed_cache`, `ollama_data`.
-- [ ] Resource limits use env vars with fail-fast `:?` where operator must set values.
-- [ ] `profiles: ["bundled-ollama"]` on `ollama` service; GPU override merges cleanly without duplicating base service definitions unnecessarily.
+- [ ] Only current compose files exist: `docker-compose.yml`, `docker-compose.tei.yml`, `docker-compose.tei.gpu.yml` (+ optional colbert-worker overlays).
+- [ ] No references to deleted legacy compose files (legacy dense-backend compose files, `docker-compose.gpu.yml`, `docker-compose.embed-worker.yml`).
+- [ ] Service names and container names are consistent (`codeindexer_qdrant`, `codeindexer_mcp`, `codeindexer_cron`, `codeindexer_tei`).
+- [ ] Port bindings stay on `127.0.0.1` for Qdrant, MCP, and TEI unless explicitly overridden with security notes.
+- [ ] `profiles: ["bundled-tei"]` on `tei` service; GPU override merges cleanly without duplicating base service definitions unnecessarily.
 - [ ] Network name `codeindexer` is set on default network.
 
 ### Image and version pinning
 
 - [ ] Qdrant image pinned to same version in `docker-compose.yml` and `.github/workflows/ci.yml` (currently `qdrant/qdrant:v1.18.1`).
-- [ ] Ollama image tag is intentional (`ollama/ollama:latest` vs pinned — flag drift risk if unpinned).
+- [ ] TEI image tag is intentional (pinned `89-1.9` / `cpu-1.9` vs `:latest` — flag drift risk if unpinned).
 - [ ] Python base images consistent (`python:3.12-slim`) across MCP and cron Dockerfiles.
 - [ ] CI Python version matches `requires-python` in `pyproject.toml` (3.12).
 
@@ -88,9 +87,9 @@ Run through these checks and report results:
 
 ### Embedding / deployment model consistency
 
-- [ ] Dense embedding path is Ollama-only (ADR 0011): no `DENSE_EMBED_BACKEND=onnx|remote`, no `EMBED_DEVICE`, no embed-worker service.
-- [ ] `OLLAMA_URL` defaults differ correctly: base compose `http://ollama:11434`, external host `http://host.docker.internal:11434` documented in `.env.example`.
-- [ ] `OLLAMA_EMBED_MODEL` default in `docker-compose.ollama.yml` matches recommended models in `.env.example` presets.
+- [ ] Dense embedding path is TEI-only (ADR 0025): no `DENSE_EMBED_BACKEND`, no legacy dense-backend env vars, no embed-worker service.
+- [ ] `TEI_URL` defaults differ correctly: base compose `http://tei:80`, external host `http://host.docker.internal:8080` documented in `.env.example`.
+- [ ] `DENSE_EMBED_MODEL` default in `docker-compose.tei.yml` matches recommended models in `.env.example` presets.
 - [ ] `DENSE_EMBED_MODEL` + `DENSE_EMBED_VECTOR_SIZE` presets in `.env.example` match `KNOWN_EMBED_MODEL_DIMENSIONS` in `config.py`.
 - [ ] Sparse BM25 remains in-process; `HF_HUB_OFFLINE`, `OMP_NUM_THREADS`, thread caps wired correctly.
 
@@ -99,7 +98,7 @@ Run through these checks and report results:
 - [ ] Grep for retired paths: `embed_worker`, `onnx_dense`, `EMBED_DEVICE`, `DENSE_EMBED_BACKEND=onnx`, `docker-compose.gpu`, `docker-compose.amd`, `docker-compose.embed-worker`.
 - [ ] `scripts/check_amd_gpu.sh` — flag if it references deleted compose files; recommend update or removal.
 - [ ] Commented-out `proxy` stdio sidecar block in compose is intentional; verify `stdio_proxy.py` still exists if documented.
-- [ ] No duplicate or conflicting compose env blocks between base and ollama overlay (overlay should override, not contradict).
+- [ ] No duplicate or conflicting compose env blocks between base and tei overlay (overlay should override, not contradict).
 
 ### Security and ops safety
 
@@ -138,7 +137,7 @@ Run through these checks and report results:
 - ...
 
 ### Needs human decision
-- e.g. pin Ollama image vs keep :latest; remove legacy AMD script
+- e.g. pin TEI image vs keep :latest; remove legacy AMD script
 
 ### Doc drift (delegate to doc-hygiene)
 - ...
@@ -162,18 +161,6 @@ Watch for these recurring issues in this repo:
 2. **Env passthrough gaps** — new `Settings` fields added to `config.py` but not wired in `docker-compose.yml` or `.env.example`.
 3. **Default skew** — compose `${VAR:-default}` differs from `config.py` default after a refactor.
 4. **Qdrant version drift** — compose and CI services use different image tags.
-5. **Ollama URL confusion** — bundled (`http://ollama:11434`) vs external (`http://host.docker.internal:11434`) not aligned with `COMPOSE_PROFILES`.
+5. **TEI URL confusion** — bundled (`http://tei:80`) vs external (`http://host.docker.internal:8080`) not aligned with `COMPOSE_PROFILES`.
 6. **Embedding model dimensions** — `.env.example` presets set `DENSE_EMBED_VECTOR_SIZE` that does not match `KNOWN_EMBED_MODEL_DIMENSIONS`.
 7. **Retired AMD/CUDA paths** — `scripts/check_amd_gpu.sh` may still mention deleted WSL2 compose overrides.
-
-## Example invocation outcomes
-
-**Audit only:** Full checklist report with Settings ↔ compose ↔ .env.example matrix, no file edits.
-
-**Post config refactor:** Add new `Settings` field to compose passthrough and `.env.example` in the same change.
-
-**Compose cleanup:** Remove stale references to deleted override files; verify three-file compose layout.
-
-**CI sync:** Align Qdrant image tag and Python version across workflow and project metadata.
-
-**Env matrix:** Produce a table of every env var — Python field, compose service, default, required?, documented in .env.example.

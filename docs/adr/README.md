@@ -57,13 +57,13 @@ Invoke the full pipeline with **`adr-orchestrator`**; resume a phase with `Resum
 | [0008](0008-optional-colbert-reranking.md) | Optional ColBERT late-interaction reranking | Accepted | 2026-07-02 |
 | [0009](0009-multi-hop-retrieval-strategies.md) | Multi-hop code retrieval strategies | Accepted (phase 1; phase 2 merged) | 2026-07-02 |
 | [0010](0010-defer-ragas-to-client.md) | Defer Ragas pipeline evaluation to MCP clients | Accepted | 2026-07-02 |
-| [0011](0011-ollama-only-dense-embedding.md) | Ollama-only dense embedding | Accepted | 2026-07-02 |
+| [0011](0011-ollama-only-dense-embedding.md) | Ollama-only dense embedding | Superseded (→ [0025](0025-huggingface-tei-dense-embedding.md)) | 2026-07-02 |
 | [0012](0012-retrieval-only-rag-split.md) | Keep MCP as retrieval-only RAG layer | Accepted | 2026-07-02 |
 | [0013](0013-external-agent-knowledge-base.md) | Expose Qdrant retrieval via MCP for external agent orchestrators | Accepted | 2026-07-02 |
 | [0014](0014-vector-discovery-and-ops-automation.md) | Adopt Qdrant vector discovery APIs and optional n8n ops hooks | Accepted (phase 1; phase 2 — outlier / diversity helper) | 2026-07-02 |
 | [0015](0015-colbert-http-sidecar.md) | ColBERT HTTP sidecar | Accepted | 2026-07-03 |
 | [0016](0016-qwen3-embedding-default-dense-model.md) | Adopt Qwen3-Embedding-4B as default Ollama dense model | Superseded (default policy → [0021](0021-revert-jina-production-default-retire-qwen3.md)) | 2026-07-03 |
-| [0017](0017-model-tokenizer-ollama-dense-truncation.md) | Model-accurate tokenizer for Ollama dense truncation | Accepted (phase 1 — loader + Ollama backend) | 2026-07-03 |
+| [0017](0017-model-tokenizer-tei-dense-truncation.md) | Model-accurate tokenizer for TEI dense truncation | Accepted (phase 1 — loader + TEI backend) | 2026-07-03 |
 | [0018](0018-telemetry-observability-otel-prometheus.md) | Adopt OpenTelemetry instrumentation with Prometheus metrics and optional OTLP export | Accepted (phase 1 — Application Prometheus metrics (MCP + ColBERT worker)) | 2026-07-03 |
 | [0019](0019-yaml-structured-adr-tracker.md) | Adopt YAML structured events for ADR implementation tracking | Proposed | 2026-07-03 |
 | [0020](0020-qwen3-code-finetune-jina-quality-gate.md) | Fine-tune Qwen3 for code retrieval with Jina quality gate | Accepted (phase 1 only; phases 2–4 cancelled — gate failed) | 2026-07-03 |
@@ -71,7 +71,7 @@ Invoke the full pipeline with **`adr-orchestrator`**; resume a phase with `Resum
 | [0022](0022-gpu-default-cpu-fallback.md) | GPU-default acceleration; CPU only when explicit | Accepted | 2026-07-04 |
 | [0023](0023-neo4j-primary-call-site-lookup.md) | Move call-site lookup from Qdrant callees to Neo4j CALLS | Accepted (phase 1; phase 2 — Stop dual-write to Qdrant) | 2026-07-04 |
 | [0024](0024-resource-aware-stack-tuner.md) | Add resource-aware stack tuner for RSS allocation and performance tuning | Proposed | 2026-07-04 |
-| [0025](0025-huggingface-tei-dense-embedding.md) | Adopt HuggingFace TEI sidecar for dense embedding (hard replace of Ollama dense) | Proposed | 2026-07-04 |
+| [0025](0025-huggingface-tei-dense-embedding.md) | Adopt HuggingFace TEI sidecar for dense embedding (hard replace of Ollama dense) | Accepted | 2026-07-04 |
 
 ## Qdrant Build Prototypes & Improve Search map
 
