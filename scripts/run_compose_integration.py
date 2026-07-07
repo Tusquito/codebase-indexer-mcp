@@ -125,6 +125,15 @@ def compose_cmd(*args: str) -> list[str]:
     return [*COMPOSE_BASE, *compose_file_args(env=env), *args]
 
 
+def _capture_failure_logs() -> str:
+    """Best-effort container logs to diagnose a failed ``up --wait`` (e.g. unhealthy tei)."""
+    logs = _run(
+        compose_cmd("--profile", COMPOSE_PROFILE, "logs", "--no-color", "--tail", "200")
+    )
+    out = (logs.stdout or "") + (logs.stderr or "")
+    return out.strip()[-6000:]
+
+
 def deploy() -> tuple[bool, str]:
     build = _run(compose_cmd("build", "mcp_server"))
     if build.returncode != 0:
@@ -140,7 +149,11 @@ def deploy() -> tuple[bool, str]:
         )
     )
     if up.returncode != 0:
-        return False, up.stderr or up.stdout or "compose up failed"
+        detail = up.stderr or up.stdout or "compose up failed"
+        container_logs = _capture_failure_logs()
+        if container_logs:
+            detail = f"{detail}\n--- container logs (tail) ---\n{container_logs}"
+        return False, detail
     return True, "deployed"
 
 
