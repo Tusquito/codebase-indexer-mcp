@@ -19,7 +19,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from benchmarks._connectivity import ollama_reachable, qdrant_reachable  # noqa: E402
+from benchmarks._connectivity import tei_reachable, qdrant_reachable  # noqa: E402
 from benchmarks.eval_retrieval import _settings  # noqa: E402
 from codebase_indexer.indexer.backends.factory import create_backends  # noqa: E402
 from codebase_indexer.indexer.embedder import Embedder  # noqa: E402
@@ -40,11 +40,11 @@ async def suggest(
     collection: str,
     top_k: int,
     qdrant_url: str,
-    ollama_url: str,
+    tei_url: str,
 ) -> None:
     settings = _settings(
         qdrant_url=qdrant_url,
-        ollama_url=ollama_url,
+        tei_url=tei_url,
         hybrid_search=True,
         release_models_after_index=False,
     )
@@ -94,16 +94,16 @@ def main() -> int:
         default=os.environ.get("QDRANT_URL", "http://localhost:6333"),
     )
     parser.add_argument(
-        "--ollama-url",
-        default=os.environ.get("OLLAMA_URL", "http://localhost:11434"),
+        "--tei-url",
+        default=os.environ.get("TEI_URL", "http://localhost:8080"),
     )
     args = parser.parse_args()
 
     if not qdrant_reachable(args.qdrant_url):
         print(f"SKIP: Qdrant not reachable at {args.qdrant_url}", file=sys.stderr)
         return 0
-    if not ollama_reachable(args.ollama_url):
-        print(f"SKIP: Ollama not reachable at {args.ollama_url}", file=sys.stderr)
+    if not tei_reachable(args.tei_url):
+        print(f"SKIP: TEI not reachable at {args.tei_url}", file=sys.stderr)
         return 0
 
     asyncio.run(
@@ -112,7 +112,7 @@ def main() -> int:
             collection=args.collection,
             top_k=args.top_k,
             qdrant_url=args.qdrant_url,
-            ollama_url=args.ollama_url,
+            tei_url=args.tei_url,
         )
     )
     return 0

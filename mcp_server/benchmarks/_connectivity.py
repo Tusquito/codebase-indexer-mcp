@@ -15,9 +15,9 @@ def qdrant_reachable(url: str) -> bool:
     return False
 
 
-def ollama_reachable(url: str) -> bool:
+def tei_reachable(url: str) -> bool:
     try:
-        urllib.request.urlopen(url.rstrip("/") + "/api/tags", timeout=2)
+        urllib.request.urlopen(url.rstrip("/") + "/health", timeout=2)
         return True
     except Exception:
         return False

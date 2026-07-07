@@ -24,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from benchmarks._connectivity import (  # noqa: E402
     colbert_health,
     colbert_reachable,
-    ollama_reachable,
+    tei_reachable,
     qdrant_reachable,
 )
 from benchmarks.bench import compare, render_table, run_benchmark  # noqa: E402
@@ -88,12 +88,12 @@ def main() -> int:
             )
         return 0
 
-    ollama_url = os.environ.get("OLLAMA_URL", "http://localhost:11434")
-    if not ollama_reachable(ollama_url):
-        print(f"SKIP: Ollama not reachable at {ollama_url}", file=sys.stderr)
+    tei_url = os.environ.get("TEI_URL", "http://localhost:8080")
+    if not tei_reachable(tei_url):
+        print(f"SKIP: TEI not reachable at {tei_url}", file=sys.stderr)
         if args.output:
             Path(args.output).write_text(
-                json.dumps({"skipped": True, "reason": "ollama_unreachable"}),
+                json.dumps({"skipped": True, "reason": "tei_unreachable"}),
                 encoding="utf-8",
             )
         return 0

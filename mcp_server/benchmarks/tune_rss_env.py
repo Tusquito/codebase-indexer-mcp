@@ -21,7 +21,7 @@ OUT_DIR = Path("/tmp/tune_rss")
 # Throughput-optimized baseline from prior sweep (fixed during RSS tuning).
 THROUGHPUT_BASE = {
     "UPSERT_BATCH": "25",
-    "OLLAMA_EMBED_BATCH_SIZE": "64",
+    "TEI_EMBED_BATCH_SIZE": "64",
     "COLBERT_EMBED_BATCH_SIZE": "32",
     "BATCH_SIZE": "32",
 }

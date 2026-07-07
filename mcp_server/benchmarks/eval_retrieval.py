@@ -34,7 +34,7 @@ from codebase_indexer.indexer.embedder import Embedder  # noqa: E402
 from codebase_indexer.storage.qdrant import QdrantStorage, SearchResult  # noqa: E402
 from codebase_indexer.tools.search_common import run_search  # noqa: E402
 
-from benchmarks._connectivity import ollama_reachable, qdrant_reachable  # noqa: E402
+from benchmarks._connectivity import tei_reachable, qdrant_reachable  # noqa: E402
 from benchmarks._settings import load_settings  # noqa: E402
 
 DEFAULT_GOLDEN = Path(__file__).resolve().parent / "fixtures" / "golden_queries.jsonl"
@@ -198,7 +198,7 @@ async def validate_labels(
 async def run_evaluation(
     *,
     qdrant_url: str,
-    ollama_url: str | None,
+    tei_url: str | None,
     golden_path: Path,
     hybrid_search: bool,
     rerank_enabled: bool,
@@ -211,8 +211,8 @@ async def run_evaluation(
         "rerank_enabled": rerank_enabled,
         "release_models_after_index": False,
     }
-    if ollama_url:
-        overrides["ollama_url"] = ollama_url
+    if tei_url:
+        overrides["tei_url"] = tei_url
     settings = _settings(**overrides)
     entries = load_golden(golden_path)
     storage = QdrantStorage(settings)
@@ -376,8 +376,8 @@ def main() -> int:
         default=os.environ.get("QDRANT_URL", "http://localhost:6333"),
     )
     parser.add_argument(
-        "--ollama-url",
-        default=os.environ.get("OLLAMA_URL", "http://localhost:11434"),
+        "--tei-url",
+        default=os.environ.get("TEI_URL", "http://localhost:8080"),
     )
     parser.add_argument("--collection", help="Override collection for all queries.")
     parser.add_argument("--top-k", type=int, default=int(os.environ.get("EVAL_TOP_K", "10")))
@@ -424,14 +424,14 @@ def main() -> int:
             return 1
         return 0
 
-    if not ollama_reachable(args.ollama_url):
-        print(f"SKIP: Ollama not reachable at {args.ollama_url}", file=sys.stderr)
+    if not tei_reachable(args.tei_url):
+        print(f"SKIP: TEI not reachable at {args.tei_url}", file=sys.stderr)
         return 0
 
     result = asyncio.run(
         run_evaluation(
             qdrant_url=args.qdrant_url,
-            ollama_url=args.ollama_url,
+            tei_url=args.tei_url,
             golden_path=args.golden,
             hybrid_search=not args.no_hybrid,
             rerank_enabled=args.rerank,
