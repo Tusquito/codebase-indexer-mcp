@@ -216,8 +216,8 @@ Each step agent **declares its intended tier** via `model:` frontmatter in `.cur
 
 | Tier | Model | Why | Agents |
 |------|-------|-----|--------|
-| Mechanical | `composer-2.5-fast` | Templated, checklist-driven, tool-execution-heavy; low ambiguity | `adr-git-operator`, `adr-integration-tester`, `adr-finisher`, `adr-tracker` |
-| Coordination / analysis | `claude-sonnet-5-thinking-high` | Judgment and synthesis across artifacts; little or no code authoring | `adr-orchestrator`, `adr-prioritizer`, `adr-pr-review`, `adr-pr-babysit` |
+| Mechanical | `composer-2.5-fast` | Templated, checklist-driven, tool-execution-heavy; low ambiguity | `adr-prioritizer`, `adr-git-operator`, `adr-integration-tester`, `adr-finisher`, `adr-tracker` |
+| Coordination / analysis | `claude-sonnet-5-thinking-high` | Judgment and synthesis across artifacts; little or no code authoring | `adr-orchestrator`, `adr-pr-review`, `adr-pr-babysit` |
 | Code / deep review | `claude-opus-4-8-thinking-low` | Highest-stakes reasoning: writing or scrutinizing production code | `adr-planner`, `adr-developer`, `adr-code-reviewer`, `adr-bug-fixer` |
 
 Do not promote an agent to a higher tier to "be safe" — retry-on-failure (one retry per step) and the review/fix loop exist precisely so cheaper tiers can be used by default. Only the invoker may request a one-off override (e.g. `Model override: <agent>=<model>`); the orchestrator never infers one.
@@ -753,7 +753,7 @@ Use the **native subagent type matching the agent name** (e.g. `subagent_type: "
 
 | Agent | Model to pass |
 |-------|----------------|
-| `adr-prioritizer` | `claude-sonnet-5-thinking-high` |
+| `adr-prioritizer` | `composer-2.5-fast` |
 | `adr-planner` | `claude-opus-4-8-thinking-low` |
 | `adr-developer` | `claude-opus-4-8-thinking-low` |
 | `adr-integration-tester` | `composer-2.5-fast` |
