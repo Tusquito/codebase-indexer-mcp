@@ -63,8 +63,8 @@ Run through these checks and report results:
 - [ ] Flag missing or premature changelog entries; do not add ADR-pipeline bullets unless invoker requests.
 
 ### Cross-document consistency
-- [ ] Embedding backend story is consistent (Ollama dense, BM25 sparse, hybrid RRF) across README, copilot-instructions, ARCHITECTURE, and ADR 0011.
-- [ ] Docker compose instructions match actual compose file names (`docker-compose.yml`, `docker-compose.ollama.yml`, `docker-compose.ollama.gpu.yml`).
+- [ ] Embedding backend story is consistent (TEI HTTP dense, BM25 sparse, hybrid RRF) across README, copilot-instructions, ARCHITECTURE, and ADR 0025.
+- [ ] Docker compose instructions match actual compose file names (`docker-compose.yml`, `docker-compose.tei.yml`, `docker-compose.tei.gpu.yml`).
 - [ ] MCP tool names and behavior in docs match `mcp_server/src/codebase_indexer/tools/`.
 - [ ] Env vars documented in `.env.example` exist in `config.py`; undocumented config fields are flagged.
 - [ ] ADR claims about "Affected paths" match current module layout.
@@ -75,7 +75,7 @@ Run through these checks and report results:
 - [ ] `ARCHITECTURE.md` links to relevant ADRs where decisions are summarized.
 
 ### Stale and duplicate content
-- [ ] No orphaned docs describing removed features (e.g. deleted compose files, retired ONNX dense paths unless ADR says otherwise).
+- [ ] No orphaned docs describing removed features (e.g. deleted compose files, retired legacy dense-serving backends unless ADR says otherwise).
 - [ ] CHANGELOG mentions user-visible changes from recent work when appropriate.
 - [ ] Duplicate or near-duplicate ADRs on the same topic — recommend merge, supersede, or renumber.
 
@@ -130,10 +130,10 @@ Run through these checks and report results:
 Watch for these recurring issues in this repo:
 
 1. **Duplicate ADR numbers** — the index has had overlapping 0003/0004/0005 series; verify uniqueness.
-2. **Embedding backend churn** — docs may lag ADR 0011 (Ollama-only dense); always check against `config.py` and `embedder.py`.
-3. **Compose file renames** — old `docker-compose.gpu.yml` / `docker-compose.amd.yml` references may linger.
+2. **Embedding backend churn** — docs may lag ADR 0025 (TEI-only dense); always check against `config.py` and `embedder.py`.
+3. **Compose file renames** — old `docker-compose.gpu.yml` / `docker-compose.amd.yml` / other retired compose files references may linger.
 4. **copilot-instructions length** — high-traffic doc; keep env var lists aligned with `.env.example`.
-5. **Superseded ADR 0001** — later ADRs should reference 0011 where dense embedding is discussed.
+5. **Superseded ADR 0001 and 0011** — later ADRs should reference 0025 where dense embedding is discussed.
 
 ## Example invocations
 

@@ -35,7 +35,7 @@ Warn the user if they asked to commit secret-bearing files.
 Merge files into one commit when they:
 - Implement the same feature or fix end-to-end (code + tests + types)
 - Document the same change (README + ADR + DEPLOYMENT for one topic)
-- Touch the same subsystem (e.g. all Ollama compose files, all embed backend modules)
+- Touch the same subsystem (e.g. all TEI compose files, all embed backend modules)
 
 Split into separate commits when they:
 - Address unrelated features, bugs, or refactors
@@ -68,13 +68,13 @@ Prefer **small, coherent commits** over one large commit. When unsure, split.
 - Allowed types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`, `ci`, `build`
 
 Good:
-- `feat(embed): add ollama dense backend`
+- `feat(embed): add tei dense backend`
 - `docs(adr): add pluggable embed ADR`
 - `fix(qdrant): correct collection naming`
 
 Bad:
 - `feat: added stuff` (vague, not imperative)
-- `feat(embed): add Ollama dense embedding backend with factory pattern and tests` (too long)
+- `feat(embed): add TEI dense embedding backend with factory pattern and tests` (too long)
 - Subject + body (forbidden for this agent)
 
 ## Commit workflow (one group at a time)
