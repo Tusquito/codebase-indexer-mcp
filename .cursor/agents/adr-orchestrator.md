@@ -169,6 +169,28 @@ For **every** pipeline step:
 
 **Never** perform step work yourself (no coding, planning, reviewing, or git).
 
+## Waiting for long-running steps (mandatory)
+
+Steps that can run long — `adr-developer` on a non-trivial phase, `adr-integration-tester` (Docker Compose deploy), `adr-pr-babysit` (always cloud) — must **not** be manually polled. The `Task` tool already solves this: a backgrounded Task delivers an **automatic completion notification** the moment it finishes; the calling agent does not need to do anything to receive it except stop acting.
+
+**DELEGATE step, corrected:**
+
+```
+3a. Launch the step Task.
+3b. IF it returns immediately (finished within the default foreground window) → go straight to COLLECT.
+3c. IF it moves to background (long-running) → STOP acting this turn. Do not:
+     - call Await / AwaitShell in a poll loop
+     - read agent transcripts speculatively
+     - check "recently modified terminal files" or list terminals
+     - re-issue "waiting Nm" cycles
+    End the turn (or, only if there is genuinely independent prep work for a *later* step that does not depend on this one's output, do that instead — rare in this pipeline since steps are sequential).
+3d. The automatic completion notification resumes the orchestrator with the Task's result already attached — proceed straight to COLLECT/ACCEPT from there.
+```
+
+**Why this matters beyond wasted turns:** every manual poll cycle (`Read agent transcript`, `Ran Check recently modified terminal files`, short `Waiting Nm` re-checks) is itself a tool call that consumes tokens and adds nothing — the subagent's actual completion time doesn't change, so polling only adds orchestrator-side overhead on top of an unavoidable wait. Ending the turn costs zero tokens for the wait duration; the notification mechanism is the tool doing the "subscription" the way you'd expect, not something the orchestrator has to build itself.
+
+**Exception — do not background steps that finish quickly by default** (`adr-prioritizer`, `adr-planner`, `adr-code-reviewer` re-reviews, `adr-git-operator`, `adr-finisher`, `adr-tracker`): just call `Task` normally and let it block in the foreground. Forcing every step to `run_in_background: true` "to be safe" adds notification-handling overhead for steps that would have simply returned in time anyway.
+
 ## Pipeline map
 
 **Default:** steps 1 → 6 in order. **Resume:** start at `Start step` (see Input) after bootstrap.
@@ -277,8 +299,11 @@ Do not pass ADR id, phase, constraints, or focus — prioritizer discovers and d
 - [ ] Tracker append: `Tracker status: planned`, `Event: plan`, ADR id matches
 - [ ] `User-facing` set to yes or no (not missing)
 - [ ] Scope is one phase only — no multi-phase creep
+- [ ] Plan **Target** includes **Suggested implementation tier** (informational; presence checked, value not gated — missing is a warning, not an acceptance failure)
 
-**On accept → store:** full implementation plan, tracker append, user_facing flag. **Run human gate before step 3** — plan must have zero unresolved **Open questions** unless invoker waived.
+**On accept → store:** full implementation plan, tracker append, user_facing flag, suggested_developer_tier (from plan **Target**). **Run human gate before step 3** — plan must have zero unresolved **Open questions** unless invoker waived.
+
+**Step 3 delegation note:** pass `model: claude-opus-4-8-thinking-low` per the [Delegation](#delegation) lookup table regardless of `suggested_developer_tier` — the orchestrator never auto-applies the hint (see [Model policy](#model-policy-mandatory)). Surface `suggested_developer_tier` in the orchestration report's **Artifacts** section so the invoker can act on it via `Model override: adr-developer=<model>` on a re-run, if desired.
 
 ---
 
@@ -829,6 +854,7 @@ human_decisions_applied[], acceptance_log[] (summarized — see Context manageme
 
 ### Artifacts
 - Plan: yes / no
+- Suggested developer tier: `claude-opus-4-8-thinking-low` | `claude-sonnet-5-thinking-high` (informational — this run always used opus per Model policy; pass `Model override: adr-developer=<model>` on re-run to apply the hint)
 - Implementation report: yes / no
 - Final code verdict: clean / needs_fix / n/a
 - Review rounds: N

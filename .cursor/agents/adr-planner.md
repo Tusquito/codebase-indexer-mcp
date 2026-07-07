@@ -192,6 +192,7 @@ Set **user-facing: yes** in Tracker append when the phase changes runtime behavi
 - **Quality threshold:** 0 | N — percent regression gate vs `eval_baseline.json` (`0` = report-only)
 - **Quality rerank:** yes | no — pass `--rerank` to eval when ColBERT in scope
 - **Performance report:** yes | skip — report-only `bench.py` compare when perf in scope
+- **Suggested implementation tier:** `claude-opus-4-8-thinking-low` (default) | `claude-sonnet-5-thinking-high` — informational only; see [Implementation tier signal](#implementation-tier-signal-informational). The orchestrator never applies this automatically — the invoker decides via `Model override: adr-developer=<model>`.
 - **Constraints:** …
 - **Assumptions:** …
 
@@ -279,6 +280,16 @@ The **Tracker append** is a separate required output section (see Input/Output a
 - **Cite evidence** — real paths and symbols in every task row.
 - **No invented APIs** — read current integrations before planning new ones.
 
+## Implementation tier signal (informational)
+
+Set **Suggested implementation tier** in Target from the phase shape you matched below — this never changes what `adr-developer` actually runs at; it's a signal for the invoker to act on (or not) via `Model override: adr-developer=<model>`. Default to `claude-opus-4-8-thinking-low` whenever uncertain or when a phase mixes shapes (e.g. config change bundled with new pipeline logic in the same PR) — never downgrade the default on a guess.
+
+| Phase shape | Suggested tier | Why |
+|-------------|-----------------|-----|
+| **Docs-only / client-orchestration** (matches that playbook below — no server/runtime code) | `claude-sonnet-5-thinking-high` | No algorithmic or wiring correctness risk to protect against |
+| **Config-only** — env var / flag / default value change with zero new logic or wiring (does not fit any playbook below because nothing is being built) | `claude-sonnet-5-thinking-high` | Mechanical value change along an already-established sibling pattern |
+| **API / surface expansion**, **Query / algorithm / pipeline change**, **Storage / schema / persistence**, **Infrastructure / optional service** — anything introducing or modifying logic, wiring, or schema | `claude-opus-4-8-thinking-low` (default) | Correctness risk in new logic/wiring is comparable to what `adr-code-reviewer` has to catch — same tier as its peers |
+
 ## ADR-type playbooks (generic)
 
 Match playbook by ADR **shape**, not by number. Adapt every path to discovered repo layout.
@@ -314,3 +325,4 @@ Match playbook by ADR **shape**, not by number. Adapt every path to discovered r
 - Plan may be documentation, fixtures, or examples only
 - State explicitly "no server/runtime code" when ADR says so
 - **Docker integration: required** anyway — stack deploy still validates the running system
+- Set **Suggested implementation tier: `claude-sonnet-5-thinking-high`** — see [Implementation tier signal](#implementation-tier-signal-informational)
