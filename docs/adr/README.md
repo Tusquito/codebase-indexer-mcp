@@ -16,7 +16,7 @@ Skip ADRs for routine bug fixes, refactors with no design change, or dependency 
 ## How to add an ADR
 
 1. Copy [`template.md`](template.md) to a new file: `NNNN-short-kebab-title.md`
-2. Use the next available four-digit number (see index below — currently **0026**)
+2. Use the next available four-digit number (see index below — currently **0027**)
 3. Fill in all sections; leave **Status** as `Proposed` until reviewed
 4. Add a row to the index table below
 5. Link the ADR from related docs (e.g. [`ARCHITECTURE.md`](../ARCHITECTURE.md)) when relevant
@@ -74,6 +74,7 @@ Invoke the full pipeline with **`adr-orchestrator`**; resume a phase with `Resum
 | [0023](0023-neo4j-primary-call-site-lookup.md) | Move call-site lookup from Qdrant callees to Neo4j CALLS | Accepted (phase 1; phase 2 — Stop dual-write to Qdrant) | 2026-07-04 |
 | [0024](0024-resource-aware-stack-tuner.md) | Add resource-aware stack tuner for RSS allocation and performance tuning | Accepted | 2026-07-04 |
 | [0025](0025-huggingface-tei-dense-embedding.md) | Adopt HuggingFace TEI sidecar for dense embedding (hard replace of Ollama dense) | Accepted (all phases complete) | 2026-07-04 |
+| [0026](0026-full-stack-embedding-quality-benchmark.md) | Full-stack embedding model quality benchmark and selection framework | Proposed | 2026-07-08 |
 
 ## Qdrant Build Prototypes & Improve Search map
 
