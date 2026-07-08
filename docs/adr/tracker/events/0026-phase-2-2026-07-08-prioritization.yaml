@@ -1,0 +1,16 @@
+adr_id: '0026'
+phase_key: phase-2
+phase_title: Phase 2 — Golden-set expansion
+event: prioritization
+date: '2026-07-08'
+tracker_status: candidate
+choices: 'Prioritize 0026 Phase 2 over 0002 Phase 3 `expand_search_context` (0002 P2 merged today — prerequisite satisfied, but higher scope/risk new MCP tool); over 0023 Phase 3 callees index retirement; over 0024 Phase 2 tuner bench seed; over 0018 Phase 2 OTel traces; single phase per pipeline rule; no ADR Accept required (0026 already Accepted phase 1); pre-release: fixture-only, no production default change. **Why now:** ADR 0026 Phase 1 (harness reliability fix) merged 2026-07-08 ([PR #27](https://github.com/Tusquito/codebase-indexer-mcp/pull/27)); golden fixture still has 26 query rows in `mcp_server/benchmarks/fixtures/golden_queries.jsonl` while ADR success criterion #2 requires ≥75; Phase 1 fixed label drift (`label_anchor.py`, repeat-run ±1pp CI gate) but statistical power remains insufficient for embedding-model comparisons; Phases 3–5 (`model_candidates.yaml`, `bakeoff.py`, promotion decision) are explicitly blocked on Phase 2 per ADR phased delivery; no active tracker phases; pre-release policy allows fixture-only changes without production default impact. **Suggested scope:** one phase (= one PR). **Chosen scope:** Expand golden set 26 → ≥75 labeled queries via existing `mcp_server/benchmarks/suggest_labels.py` workflow; preserve tag taxonomy proportions (`symbol`, `conceptual`, `config`, `cross_file`, `multi_hop`); content-anchored `anchors` on all rows (Phase 1 format); `--validate-labels` zero unresolved; bump `golden_set_version` in eval baseline artifacts; Docker integration via `scripts/run_compose_integration.py`; golden-set quality validation required; defer Phase 3 (candidate registry + TEI spikes), Phase 4 (GPU bake-off), Phase 5 (promotion/reaffirmation decision).'
+deviations: none
+code_evidence:
+- golden fixture has 26 query rows in `mcp_server/benchmarks/fixtures/golden_queries.jsonl`; ADR success criterion #2 requires ≥75
+changelog:
+  update: false
+  reason: 'user-facing unknown; invoker Changelog: no'
+user_facing: false
+open_decisions:
+- 'RESOLVED — Target per-tag query counts: 26/7/19/19/15 (symbol/conceptual/config/cross_file/multi_hop); in-place `golden_queries.jsonl` expansion (no v3 cutover); sequential only (0026 P2 before 0002 P3)'

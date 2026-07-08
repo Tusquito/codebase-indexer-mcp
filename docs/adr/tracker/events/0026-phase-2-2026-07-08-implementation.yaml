@@ -1,0 +1,22 @@
+adr_id: '0026'
+phase_key: phase-2
+phase_title: Phase 2 — Golden-set expansion
+event: implementation
+date: '2026-07-08'
+tracker_status: implemented
+choices: >-
+  Expanded in-place to 78 rows (no v3 cutover); per-tag floors met with margin (symbol 27, conceptual 11, config 20, cross_file 20, multi_hop 16); ground-truth subset 20 (≥19 floor); every multi_hop row carries a secondary tag; baseline version bumped to v4-expanded-75q with metrics marked provisional (not fabricated).
+deviations: >-
+  Relaxed hardcoded == 4 counts in test_eval_multihop.py; extended test_golden_fixture_is_valid_jsonl to accept anchors; compose harness eval step fails without benchmark extra (ranx missing) — validate_labels gate passed 0 unresolved.
+code_evidence:
+  - mcp_server/benchmarks/fixtures/golden_queries.jsonl
+  - mcp_server/benchmarks/fixtures/eval_baseline.json
+  - mcp_server/tests/test_eval_retrieval.py
+  - mcp_server/tests/test_eval_multihop.py
+test_debt:
+  - Compose harness must invoke eval with --extra benchmark
+  - Phase 4 GPU bake-off to regenerate baseline metrics
+changelog:
+  update: false
+  reason: 'user-facing no; invoker Changelog: no'
+user_facing: false

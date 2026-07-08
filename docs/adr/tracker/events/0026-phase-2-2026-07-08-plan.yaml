@@ -1,0 +1,16 @@
+adr_id: '0026'
+phase_key: phase-2
+phase_title: Phase 2 — Golden-set expansion
+event: plan
+date: '2026-07-08'
+tracker_status: planned
+choices: >-
+  In-place expansion (no golden_queries_v3.jsonl cutover); per-tag targets symbol 26 / conceptual 7 / config 19 / cross_file 19 / multi_hop 15; sequential before 0002 Phase 3; eval_baseline_jina.json left frozen; quality validation report-only; performance report skipped; ground-truth subset floor 19; every multi_hop row must carry secondary tag. **Assumptions:** per-tag numbers are memberships summing to 86 across ≥75 distinct rows; eval_baseline.json metrics stay 26-query capture marked provisional via note + version bump; re-captured only in Phase 4.
+deviations: none
+changelog:
+  update: false
+  reason: 'user-facing no; invoker Changelog: no'
+user_facing: false
+open_decisions:
+  - 'RESOLVED — ground-truth subset floor 19'
+  - 'RESOLVED — every multi_hop row must carry secondary tag (no pure multi_hop rows)'

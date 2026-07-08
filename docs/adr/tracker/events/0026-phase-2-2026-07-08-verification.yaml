@@ -1,0 +1,27 @@
+adr_id: '0026'
+phase_key: phase-2
+phase_title: Phase 2 — Golden-set expansion
+event: verification
+date: '2026-07-08'
+tracker_status: verified
+choices: >-
+  In-place expansion to 78 rows; baseline golden_set_version v4-expanded-75q
+  provisional; multi_hop test floor >=15; valid_jsonl accepts anchors
+deviations: none
+code_evidence:
+  - mcp_server/benchmarks/fixtures/golden_queries.jsonl
+  - mcp_server/benchmarks/fixtures/eval_baseline.json
+  - mcp_server/tests/test_eval_retrieval.py
+  - mcp_server/tests/test_eval_multihop.py
+test_debt:
+  - Compose harness --extra benchmark
+  - Phase 4 baseline regeneration
+verify: >-
+  unit tests pass (14 passed / 4 ranx-skipped); per-tag floors, GT floor,
+  multi_hop invariants, and anchor coverage independently verified against
+  golden_queries.jsonl (78 rows); Docker integration report Verdict pass with
+  report-only quality validation; review rounds: 1
+changelog:
+  update: false
+  reason: 'user-facing no; invoker Changelog: no'
+user_facing: false

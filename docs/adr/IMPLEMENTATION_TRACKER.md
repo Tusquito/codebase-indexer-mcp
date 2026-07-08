@@ -74,6 +74,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0024 | Add resource-aware stack tuner for RSS allocation and performance tuning | Accepted (phase 1 — Analyze + allocate) | phase-1 | `merged` | Squash merge [PR #25](https://github.com/Tusquito/codebase-indexer-mcp/pull/25) (`e0c6100`); Pure `tune_alloc.py` split from `tune_stack.py` CLI; topology-priority RAM selection; deterministic knob tiers; tri-state flag precedence mirroring `compose_files.py`; stdlib RAM detection + `--max-ram-gib` fallback; TEI caps `TEI_MEM_LIMIT`/`TEI_CPUS`; ColBERT MCP ≤35% cap; compose-only env vars (`.env` write refused); ADR Accept + `docs/adr/README.md` index; 17 unit tests pass; CLI smoke pass; Docker integration pass; plan compliance pass; review rounds: 1; NVIDIA probe deferred Phase 2; defer `.env.example` preset sync (Phase 4); test debt: CLI-level tests for `tune_stack.py`, host-detection mocks, ADR success-criterion #1 ±10% preset assertion deferred; opt-in, no default behavior change | 2026-07-08 |
 | 0025 | Adopt HuggingFace TEI sidecar for dense embedding | Accepted (all phases complete) | phase-1 | `merged` | Squash merge [PR #23](https://github.com/Tusquito/codebase-indexer-mcp/pull/23) (`0f01cda`); `TeiDenseBackend` + OpenAI `/v1/embeddings`; TEI compose (`docker-compose.tei.yml` + `.tei.gpu.yml`, profile `bundled-tei`); Ollama dense deleted; Ollama→TEI doc/docstring sweep (16 files); upstream TEI CUDA-detection bug fixed via `docker-compose.tei.gpu.yml` entrypoint override; upstream TEI CPU-warmup bug fixed via `--max-batch-tokens` cap + client-side `MAX_DENSE_EMBED_TOKENS` pairing (CPU-only CI path); live GPU quality-validation (recall@10=0.3590, MRR=0.3576, ndcg@10=0.2807, 43/43 golden labels); ADR accepted all phases via docs commit `a756677`; final ADR 0025 phase complete; test debt: optional offline CI alias-drift guard, `benchmarks/train/**` (ADR 0020 follow-up) | 2026-07-07 |
 | 0026 | Full-stack embedding model quality benchmark and selection framework | Accepted (phase 1 — Harness reliability fix) | phase-1 | `merged` | Squash merge [PR #27](https://github.com/Tusquito/codebase-indexer-mcp/pull/27) (`0ca2f88`); Content-anchored labels with 5-step ladder (`{rel_path}::{symbol_name}` + `start_line` hint); drift counted not silently scored; `--validate-labels` drift re-resolution with counts; `label_drift` per eval run; CI repro via `--keep` + kept-stack pytest in blocking `compose-integration`; `label_anchor.py` + `eval_retrieval.py` + golden `anchors`; 11 unit tests pass (`test_label_anchor.py`); ruff clean; Docker integration + quality validation pass (55 labels, 12 drifted and re-resolved via content anchoring, 0 unresolved; threshold 0 pass); repeat-run repro in blocking compose-integration CI job gates `recall@10` within ±1pp per ADR success criterion #1 (rank-sensitive `mrr`/`ndcg@10` bounded, not exact — see `test_harness_reproducibility.py`); review rounds: 1; one PR; no runtime/config/production change; defer Phases 2–5 (≥75-query expansion is Phase 2); test debt: symbol drift live integration exercised (12 drift observed in CI run), Phase 4 collection override concern | 2026-07-08 |
+| 0026 | Phase 2 — Golden-set expansion | Accepted (phase 1 — Harness reliability fix) | phase-2 | `verified` | Expand `mcp_server/benchmarks/fixtures/golden_queries.jsonl` in place from 26 to ≥75 distinct content-anchored (Phase-1 format) queries via the existing `suggest_labels.py` workflow; meet resolved per-tag membership targets (symbol 26, conceptual 7, config 19, cross_file 19, multi_hop 15); preserve `multi_hop` `hop2_query_text`; every multi_hop row carries a secondary tag (no pure multi_hop); ground-truth subset floor 19; `--validate-labels` zero unresolved; bump `golden_set_version` in `eval_baseline.json` only; raise golden-fixture unit-test floors + add a per-tag distribution/anchor-coverage test; Docker integration via `scripts/run_compose_integration.py`; quality validation report-only (`--threshold 0`). Defer Phases 3–5. | 2026-07-08 |
 <!-- END GENERATED:summary -->
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
@@ -81,7 +82,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 ## Active and upcoming work
 
 <!-- BEGIN GENERATED:active -->
-_No active or upcoming phases._
+- **0026** Phase 2 — Golden-set expansion — `verified`
 <!-- END GENERATED:active -->
 
 ### Partial acceptance
@@ -1460,6 +1461,16 @@ _No active or upcoming phases._
 - **Verify:** unit tests pass (11 in `test_label_anchor.py`); ruff clean; Docker compose integration + quality validation pass (55 labels, 12 drifted, 0 unresolved; threshold 0 pass); repeat-run repro in blocking `compose-integration` CI job gates `recall@10` within ±1pp (rank-sensitive `mrr`/`ndcg@10` bounded, not exact); review rounds: 1
 - **Changelog:** no — user-facing no; invoker Changelog: no
 
+#### 2026-07-08 — verification
+- **Phase:** Phase 2 — Golden-set expansion
+- **Tracker status:** `verified`
+- **Choices:** In-place expansion to 78 rows; baseline golden_set_version v4-expanded-75q provisional; multi_hop test floor >=15; valid_jsonl accepts anchors
+- **Deviations:** none
+- **Code evidence:** `mcp_server/benchmarks/fixtures/golden_queries.jsonl`, `mcp_server/benchmarks/fixtures/eval_baseline.json`, `mcp_server/tests/test_eval_retrieval.py`, `mcp_server/tests/test_eval_multihop.py`
+- **Test debt:** Compose harness --extra benchmark; Phase 4 baseline regeneration
+- **Verify:** unit tests pass (14 passed / 4 ranx-skipped); per-tag floors, GT floor, multi_hop invariants, and anchor coverage independently verified against golden_queries.jsonl (78 rows); Docker integration report Verdict pass with report-only quality validation; review rounds: 1
+- **Changelog:** no — user-facing no; invoker Changelog: no
+
 #### 2026-07-08 — prioritization
 - **Phase:** Phase 1 — Harness reliability fix
 - **Tracker status:** `candidate`
@@ -1468,10 +1479,25 @@ _No active or upcoming phases._
 - **Code evidence:** `labels keyed on `rel_path:start_line` in `eval_retrieval.py`; frozen `eval_baseline_jina.json` recall@10 0.660 vs live 0.263 (0021 Phase 2)`
 - **Changelog:** no — user-facing no; invoker Changelog: no
 
+#### 2026-07-08 — prioritization
+- **Phase:** Phase 2 — Golden-set expansion
+- **Tracker status:** `candidate`
+- **Choices:** Prioritize 0026 Phase 2 over 0002 Phase 3 `expand_search_context` (0002 P2 merged today — prerequisite satisfied, but higher scope/risk new MCP tool); over 0023 Phase 3 callees index retirement; over 0024 Phase 2 tuner bench seed; over 0018 Phase 2 OTel traces; single phase per pipeline rule; no ADR Accept required (0026 already Accepted phase 1); pre-release: fixture-only, no production default change. **Why now:** ADR 0026 Phase 1 (harness reliability fix) merged 2026-07-08 ([PR #27](https://github.com/Tusquito/codebase-indexer-mcp/pull/27)); golden fixture still has 26 query rows in `mcp_server/benchmarks/fixtures/golden_queries.jsonl` while ADR success criterion #2 requires ≥75; Phase 1 fixed label drift (`label_anchor.py`, repeat-run ±1pp CI gate) but statistical power remains insufficient for embedding-model comparisons; Phases 3–5 (`model_candidates.yaml`, `bakeoff.py`, promotion decision) are explicitly blocked on Phase 2 per ADR phased delivery; no active tracker phases; pre-release policy allows fixture-only changes without production default impact. **Suggested scope:** one phase (= one PR). **Chosen scope:** Expand golden set 26 → ≥75 labeled queries via existing `mcp_server/benchmarks/suggest_labels.py` workflow; preserve tag taxonomy proportions (`symbol`, `conceptual`, `config`, `cross_file`, `multi_hop`); content-anchored `anchors` on all rows (Phase 1 format); `--validate-labels` zero unresolved; bump `golden_set_version` in eval baseline artifacts; Docker integration via `scripts/run_compose_integration.py`; golden-set quality validation required; defer Phase 3 (candidate registry + TEI spikes), Phase 4 (GPU bake-off), Phase 5 (promotion/reaffirmation decision).
+- **Deviations:** none
+- **Code evidence:** `golden fixture has 26 query rows in `mcp_server/benchmarks/fixtures/golden_queries.jsonl`; ADR success criterion`
+- **Changelog:** no — user-facing unknown; invoker Changelog: no
+
 #### 2026-07-08 — plan
 - **Phase:** Phase 1 — Harness reliability fix
 - **Tracker status:** `planned`
 - **Choices:** **Label anchor rule:** primary key `{rel_path}::{symbol_name}` resolved live via Qdrant's indexed `rel_path`+`symbol_name` payload fields; `start_line` retained only as nearest-line tie-break hint; ladder = legacy chunk_id hit → content re-resolution on drift → nearest-line tie-break → basename anchor for non-code files → report `unresolved` (never silently score stale). Existing `aliases` kept as cached hints. **Repeat-run test CI placement:** pure resolver unit tests in blocking `test` job; live repeat-run determinism assertion in blocking `compose-integration` job; non-blocking `eval-retrieval` metric job unchanged. Blocking gates resolution determinism, not recall threshold.
+- **Deviations:** none
+- **Changelog:** no — user-facing no; invoker Changelog: no
+
+#### 2026-07-08 — plan
+- **Phase:** Phase 2 — Golden-set expansion
+- **Tracker status:** `planned`
+- **Choices:** In-place expansion (no golden_queries_v3.jsonl cutover); per-tag targets symbol 26 / conceptual 7 / config 19 / cross_file 19 / multi_hop 15; sequential before 0002 Phase 3; eval_baseline_jina.json left frozen; quality validation report-only; performance report skipped; ground-truth subset floor 19; every multi_hop row must carry secondary tag. **Assumptions:** per-tag numbers are memberships summing to 86 across ≥75 distinct rows; eval_baseline.json metrics stay 26-query capture marked provisional via note + version bump; re-captured only in Phase 4.
 - **Deviations:** none
 - **Changelog:** no — user-facing no; invoker Changelog: no
 
@@ -1493,6 +1519,15 @@ _No active or upcoming phases._
 - **Deviations:** CI repro wired via `--keep` + kept-stack pytest; tracker row emitted here.
 - **Code evidence:** `mcp_server/benchmarks/label_anchor.py`, `mcp_server/benchmarks/eval_retrieval.py`, `mcp_server/benchmarks/fixtures/golden_queries.jsonl`, `mcp_server/tests/test_label_anchor.py`, `mcp_server/tests/test_harness_reproducibility.py`, `.github/workflows/ci.yml`
 - **Test debt:** `load_point_index` async coverage; drift-report integration test; CI repro non-skip verification; legacy-path regression test
+- **Changelog:** no — user-facing no; invoker Changelog: no
+
+#### 2026-07-08 — implementation
+- **Phase:** Phase 2 — Golden-set expansion
+- **Tracker status:** `implemented`
+- **Choices:** Expanded in-place to 78 rows (no v3 cutover); per-tag floors met with margin (symbol 27, conceptual 11, config 20, cross_file 20, multi_hop 16); ground-truth subset 20 (≥19 floor); every multi_hop row carries a secondary tag; baseline version bumped to v4-expanded-75q with metrics marked provisional (not fabricated).
+- **Deviations:** Relaxed hardcoded == 4 counts in test_eval_multihop.py; extended test_golden_fixture_is_valid_jsonl to accept anchors; compose harness eval step fails without benchmark extra (ranx missing) — validate_labels gate passed 0 unresolved.
+- **Code evidence:** `mcp_server/benchmarks/fixtures/golden_queries.jsonl`, `mcp_server/benchmarks/fixtures/eval_baseline.json`, `mcp_server/tests/test_eval_retrieval.py`, `mcp_server/tests/test_eval_multihop.py`
+- **Test debt:** Compose harness must invoke eval with --extra benchmark; Phase 4 GPU bake-off to regenerate baseline metrics
 - **Changelog:** no — user-facing no; invoker Changelog: no
 <!-- END GENERATED:phase-logs -->
 
@@ -1519,6 +1554,9 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 - 0016: Sequence 0002 P2 vs 0018 P2 after 0016 Phase 2? — Open — orchestrator decision
 - 0020: Maintainer GPU availability for first fine-tune run? — Open
 - 0020: Training max_seq_length default? — Open
+- RESOLVED — ground-truth subset floor 19
+- RESOLVED — every multi_hop row must carry secondary tag (no pure multi_hop rows)
+- RESOLVED — Target per-tag query counts: 26/7/19/19/15 (symbol/conceptual/config/cross_file/multi_hop); in-place `golden_queries.jsonl` expansion (no v3 cutover); sequential only (0026 P2 before 0002 P3)
 <!-- END GENERATED:open-decisions -->
 
 ---
