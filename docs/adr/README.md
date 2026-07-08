@@ -30,7 +30,7 @@ Per [ADR 0019](0019-yaml-structured-adr-tracker.md), structured tracker data liv
 
 **Do not hand-edit inside the generated markers.** To update the tracker, edit the YAML under `tracker/phases/` + `tracker/events/` and run `python scripts/render_adr_tracker.py`. CI runs `python scripts/render_adr_tracker.py --check` as a **blocking** step, so any drift between the YAML and the rendered markdown fails the build.
 
-Phase 2 (historical migration) is complete: all prior tracker content was migrated to `tracker/` via the one-time `scripts/migrate_tracker_to_yaml.py` helper (deletable/archivable now that the migration has landed), and the render check is blocking. Phase 3 (agent-pipeline cutover to emit YAML directly) remains.
+**Cutover complete (Phase 3).** The ADR agent pipeline now emits YAML directly: [`adr-tracker`](../../.cursor/agents/adr-tracker.md) writes an append-only `tracker/events/*.yaml`, upserts the `tracker/phases/*.yaml` snapshot, and runs the render script — there is no legacy markdown string-surgery path. Phase 2 (historical migration) is complete: all prior tracker content was migrated to `tracker/`, and the one-time `scripts/migrate_tracker_to_yaml.py` helper is archived under [`scripts/archive/`](../../scripts/archive/migrate_tracker_to_yaml.py).
 
 ## ADR pipeline agents
 
