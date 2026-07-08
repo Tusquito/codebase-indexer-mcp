@@ -1,7 +1,16 @@
-adr_id: 0019
+adr_id: "0019"
 phase_key: phase-3
-title: Adopt YAML structured events for ADR implementation tracking
-tracker_status: verified
-chosen_scope: 'One PR: rewrite `.cursor/agents/adr-tracker.md` to write YAML event + phase files and run `scripts/render_adr_tracker.py` (replacing markdown string surgery); update `adr-orchestrator.md` tracker/render contract and `adr-git-operator.md` cleanup commit paths (`docs/adr/tracker/**` + regenerated `IMPLEMENTATION_TRACKER.md`); deprecate/remove legacy markdown-append instructions; sync `.cursor/agents/README.md` and `docs/adr/README.md`; archive one-time `scripts/migrate_tracker_to_yaml.py` under `scripts/archive/`. No server/runtime code.'
-last_updated: '2026-07-08'
-adr_status_note: Accepted (phase 2)
+title: Phase 3 — Agent pipeline cutover
+tracker_status: merged
+chosen_scope: >-
+  One PR: rewrite `.cursor/agents/adr-tracker.md` to write YAML event + phase files and run
+  `scripts/render_adr_tracker.py` (replacing markdown string surgery); update
+  `adr-orchestrator.md` tracker/render contract and `adr-git-operator.md` cleanup commit paths
+  (`docs/adr/tracker/**` + regenerated `IMPLEMENTATION_TRACKER.md`); deprecate/remove legacy
+  markdown-append instructions; sync `.cursor/agents/README.md` and `docs/adr/README.md`;
+  archive one-time `scripts/migrate_tracker_to_yaml.py` under `scripts/archive/`. No
+  server/runtime code. Review rounds: 1; render `--check` zero drift; 9 render unit tests pass;
+  Docker integration pass; [PR #29](https://github.com/Tusquito/codebase-indexer-mcp/pull/29)
+last_updated: "2026-07-08"
+adr_status_note: Accepted (phase 3)
+pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/29

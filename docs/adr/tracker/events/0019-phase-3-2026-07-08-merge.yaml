@@ -1,0 +1,30 @@
+adr_id: "0019"
+phase_key: phase-3
+phase_title: Phase 3 — Agent pipeline cutover
+event: merge
+date: "2026-07-08"
+tracker_status: merged
+choices: >-
+  Squash merge PR #29; ADR accepted as Accepted (phase 3) — final phase completes ADR 0019;
+  release skipped; YAML tracker agent cutover complete.
+deviations: none
+code_evidence:
+  - 'merged via [PR #29](https://github.com/Tusquito/codebase-indexer-mcp/pull/29) (`adr/0019-phase-3-agent-cutover`; squash `678f9a7` of 6870415, a0d9ea9, 519b929)'
+test_debt:
+  - No automated coverage for agent-markdown contracts
+  - optional end-to-end adr-tracker YAML→render fixture test
+  - archived helper untested
+verify: >-
+  carried from verification — Review rounds: 1. 9 render unit tests pass;
+  `render_adr_tracker.py --validate-only` (41 phases / 146 events valid) and `--check`
+  (no drift) pass; archived `migrate_tracker_to_yaml.py --dry-run` runs correctly from
+  `scripts/archive/` with `parents[2]` root fix; Docker integration Verdict: pass
+  (quality validation skipped per plan); plan compliance pass across all in-scope tasks.
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/29
+  commit: 678f9a7
+  status: merged
+changelog:
+  update: false
+  reason: user-facing no; release skipped
+user_facing: false
