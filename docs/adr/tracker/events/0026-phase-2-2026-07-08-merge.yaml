@@ -1,0 +1,26 @@
+adr_id: '0026'
+phase_key: phase-2
+phase_title: Phase 2 — Golden-set expansion
+event: merge
+date: '2026-07-08'
+tracker_status: merged
+choices: squash merge `8be500b` on feature branch `adr/0026-phase-2-golden-set-expansion`; ADR Accept skipped; release skipped; Phases 3–5 deferred
+deviations: none
+code_evidence:
+- 'merged via [PR #30](https://github.com/Tusquito/codebase-indexer-mcp/pull/30) (`adr/0026-phase-2-golden-set-expansion`; squash `8be500b`)'
+test_debt:
+- carried from verification — Compose harness --extra benchmark
+- Phase 4 baseline regeneration
+verify: >-
+  carried from verification — unit tests pass (14 passed / 4 ranx-skipped); per-tag floors, GT floor,
+  multi_hop invariants, and anchor coverage independently verified against
+  golden_queries.jsonl (78 rows); Docker integration report Verdict pass with
+  report-only quality validation; review rounds: 1
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/30
+  commit: 8be500bd7e715a58158d8d2acda40013f288617c
+  status: merged
+changelog:
+  update: false
+  reason: 'user-facing no; invoker Changelog: no'
+user_facing: false
