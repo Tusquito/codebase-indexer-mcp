@@ -1,0 +1,15 @@
+adr_id: '0024'
+phase_key: phase-1
+phase_title: Phase 1 — Analyze + allocate
+event: plan
+date: '2026-07-07'
+tracker_status: planned
+choices: stdlib-only host detection (no new `psutil` dep) with `--max-ram-gib` fallback; caps emitted as compose-only env vars, never written to operator `.env`; accept-on-first-phase (ADR flipped to Accepted in this PR); `tune`/`report` registered but stubbed to Phase 2/3; TEI service for dense sidecar (`TEI_MEM_LIMIT`/`TEI_CPUS`, not Ollama); `analyze` may probe NVIDIA runtime via `nvidia_docker_available` (mocked in tests). **Chosen scope:** Pure allocation/knob-seed math (`scripts/tune_alloc.py`), `scripts/tune_stack.py` `analyze`+`allocate` subcommands with feature-flag/topology resolution mirroring `compose_files.py`, unit tests (`mcp_server/tests/test_tune_alloc.py`), and formal ADR Accept (status + `docs/adr/README.md` index). No bench/search loop, no `.env` writes. One PR. Defer `tune`/search loop (Phase 2+), `.env.example` preset sync (Phase 4).
+deviations: none
+test_debt:
+- '`mcp_server/tests/test_tune_alloc.py`'
+- '`nvidia_docker_available` mocked in tests'
+changelog:
+  update: false
+  reason: user-facing yes; entry at `verified` step
+user_facing: true

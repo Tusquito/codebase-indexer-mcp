@@ -1,0 +1,18 @@
+adr_id: '0022'
+phase_key: phase-1
+phase_title: Phase 1 — GPU-default compose + docs
+event: verification
+date: '2026-07-04'
+tracker_status: verified
+choices: Compose-only `ACCELERATOR=gpu` default; canonical `-f` via `scripts/compose_files.py`; fail-fast `require_gpu()`; sparse BM25 unchanged; CI/`ollama ps` deferred Phase 3; ColBERT remote GPU default deferred Phase 2
+deviations: none
+code_evidence:
+- '`scripts/accelerator.py`, `scripts/compose_files.py`, `scripts/run_compose_integration.py`, `.env.example`, `README.md`, `docs/DEPLOYMENT.md`, `docs/ARCHITECTURE.md`, docker-compose GPU overrides, `mcp_server/tests/test_accelerator.py`, `mcp_server/tests/test_compose_files.py`'
+test_debt:
+- '`ollama ps` GPU assertion'
+- CI `ACCELERATOR=cpu` — Phase 3
+verify: 12 unit tests pass; plan compliance pass; integration verdict pass
+changelog:
+  update: true
+  reason: user-facing; bullet added at `verified`
+user_facing: true

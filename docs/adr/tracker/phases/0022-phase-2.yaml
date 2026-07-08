@@ -1,0 +1,7 @@
+adr_id: '0022'
+phase_key: phase-2
+title: GPU-default acceleration; CPU only when explicit
+tracker_status: merged
+chosen_scope: 'Remote GPU sidecar default when `RERANK_ENABLED=true`; explicit onnx for `ACCELERATOR=cpu`; Phase 3 CI split deferred; 368 unit tests pass; integration pass; quality validation threshold 0 self-compare pass; plan compliance pass; review rounds: 1. [PR #19](https://github.com/Tusquito/codebase-indexer-mcp/pull/19)'
+last_updated: '2026-07-04'
+adr_status_note: Accepted (phase 1; phase 2 — Retire CPU ColBERT defaults)

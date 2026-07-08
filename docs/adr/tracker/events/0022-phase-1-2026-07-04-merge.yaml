@@ -1,0 +1,22 @@
+adr_id: '0022'
+phase_key: phase-1
+phase_title: Phase 1 — GPU-default compose + docs
+event: merge
+date: '2026-07-04'
+tracker_status: merged
+choices: 'merge on feature branch `adr/0022-phase-1-gpu-default-compose`; ADR accepted as `Accepted (phase 1 — GPU-default compose + docs)`; release skipped; Phase 2 (ColBERT remote GPU default + 0021 P2 baseline) and Phase 3 (CI `ACCELERATOR=cpu`, self-hosted GPU smoke, `ollama ps` GPU assertion) deferred; next cycle: 0021 P2 then 0022 P2 per plan'
+deviations: none
+code_evidence:
+- 'merged via [PR #17](https://github.com/Tusquito/codebase-indexer-mcp/pull/17) (`adr/0022-phase-1-gpu-default-compose`; `efdc14de6470cceb9abaf7bce2096ebb03331513`)'
+test_debt:
+- carried from verification — `ollama ps` GPU assertion
+- CI `ACCELERATOR=cpu` — Phase 3
+verify: 'carried from verification — 12 unit tests pass; plan compliance pass; integration verdict pass; review rounds: 1'
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/17
+  commit: efdc14de6470cceb9abaf7bce2096ebb03331513
+  status: merged
+changelog:
+  update: false
+  reason: release skipped; `[Unreleased]` bullet retained from verification step
+user_facing: false

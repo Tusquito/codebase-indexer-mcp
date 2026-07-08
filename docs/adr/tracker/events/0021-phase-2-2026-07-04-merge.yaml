@@ -1,0 +1,23 @@
+adr_id: '0021'
+phase_key: phase-2
+phase_title: Phase 2 — Eval baseline refresh
+event: merge
+date: '2026-07-04'
+tracker_status: merged
+choices: squash merge `a076004` on feature branch `adr/0021-phase-2-eval-baseline-refresh`; ADR accepted as `Accepted (phase 1; phase 2 — Eval baseline refresh)`; release skipped; Phase 3 ADR housekeeping + CHANGELOG full update deferred
+deviations: none
+code_evidence:
+- 'merged via [PR #18](https://github.com/Tusquito/codebase-indexer-mcp/pull/18) (`adr/0021-phase-2-eval-baseline-refresh`; squash `a076004`)'
+test_debt:
+- carried from verification — golden label realignment
+- pre-commit recall gate CI
+- optional `eval_multihop` CI gate
+verify: 'carried from verification — tests run + plan compliance pass; post-commit Docker self-compare pass; review rounds: 1'
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/18
+  commit: a076004
+  status: merged
+changelog:
+  update: false
+  reason: user-facing yes; entry deferred to Phase 3
+user_facing: true

@@ -1,0 +1,26 @@
+adr_id: 0008
+phase_key: phase-1
+phase_title: Phase 1 — optional ColBERT multivector reranking
+event: verification
+date: '2026-07-03'
+tracker_status: verified
+choices: '`COLBERT_EMBED_MODEL=colbert-ir/colbertv2.0` (128-d tokens); `HnswConfigDiff(m=0)` on colbert vector; cross-collection rerank per-collection then global RRF; CI uses synthetic multivectors; real model via `@pytest.mark.slow`; ColBERT index embed sequential after dense+sparse'
+deviations: none
+code_evidence:
+- config.py
+- colbert_onnx.py
+- embedder.py
+- qdrant.py
+- search_common.py
+- test_storage_integration.py
+- bench.py
+- eval_retrieval.py
+test_debt:
+- ranx eval tests skip without `--extra benchmark`
+- golden-set MRR delta manual via `eval_retrieval --rerank`
+- no unit test for colbert mismatch recreate
+- slow ColBERT smoke opt-in only
+verify: 'tests run + plan compliance pass (217 passed); review rounds: 1'
+changelog:
+  update: true
+user_facing: true

@@ -1,0 +1,7 @@
+adr_id: 0018
+phase_key: phase-1
+title: Adopt OpenTelemetry instrumentation with Prometheus metrics and optional OTLP export
+tracker_status: merged
+chosen_scope: 'Opt-in `METRICS_ENABLED=false` default; `prometheus_client` on dedicated `CollectorRegistry`; metrics-only `@observe_tool` on all MCP tool handlers; no collection/rel_path labels; application counters/histograms + truncation counter; index metrics via IndexJobTracker; `GET /metrics` on MCP and ColBERT worker HTTP layer; unit tests (`test_telemetry_metrics.py`); `DEPLOYMENT.md` scrape docs; defer `METRICS_PORT`, docker-compose scrape wiring, Phase 2 OTel traces, Phase 3 observability compose stack; [PR #13](https://github.com/Tusquito/codebase-indexer-mcp/pull/13)'
+last_updated: '2026-07-03'
+adr_status_note: Accepted (phase 1 — Application Prometheus metrics (MCP + ColBERT worker))

@@ -1,0 +1,7 @@
+adr_id: '0021'
+phase_key: phase-1
+title: Revert default dense embedder to Jina code; retire Qwen3 as production default
+tracker_status: merged
+chosen_scope: 'Jina production default @ 768 in env/bench/compose/docs; Qwen3 experimental preset (−63.1% recall@10); `DENSE_EMBED_MODEL` in `.env.example` REQUIRED; TEI downloads model on first start; `config.py` Qwen3 registry/MRL retained; ADR index housekeeping in Phase 1 scope; defer Phase 2 (`eval_baseline.json`); CHANGELOG full update Phase 3; test debt: `smoke_recommend` dim mismatch until Phase 2 re-index; [PR #16](https://github.com/Tusquito/codebase-indexer-mcp/pull/16)'
+last_updated: '2026-07-03'
+adr_status_note: Accepted (phase 1 — Config + docs revert)

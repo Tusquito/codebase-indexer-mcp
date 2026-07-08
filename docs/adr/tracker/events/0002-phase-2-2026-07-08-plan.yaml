@@ -1,0 +1,15 @@
+adr_id: '0002'
+phase_key: phase-2
+phase_title: Phase 2 — Qdrant payload linking (`graph_node_ids`)
+event: plan
+date: '2026-07-08'
+tracker_status: planned
+choices: 'Neighbor-node-keys-only for `graph_node_ids` (exclude own Chunk/File keys); boolean `graph_enabled` metadata only (no integer `graph_schema_version`); no new env vars; `graph_node_ids` left unindexed in Qdrant; batch built once per flush then reused for upsert payload + Neo4j write; best-effort graph errors continue to append to `PipelineResult.errors`; one PR per phase. **Chosen scope:** Compute `GraphBatch` before `upsert_chunks` and derive per-chunk neighbor node keys; add `graph_node_ids: list[str]` to Qdrant point payload via `_build_point`/`upsert_chunks` when `GRAPH_ENABLED=true`; add `graph_node_ids_from_batch` in `graph_writer.py`; stamp collection metadata `graph_enabled` (boolean only, no integer version); emit structlog warning in `search_common` when graph enabled but collection unlinked; reuse single graph batch for Neo4j write; unit tests per ADR Validation Phase 2; Docker integration with `docker-compose.neo4j.yml`; sync `.env.example` + `ARCHITECTURE.md`; document forced re-index. Defer Phase 3 `expand_search_context`, Phase 4 cross-project Cypher, 0023 Phase 3, 0018 P2, HTTP_CALLS/IMPORTS ADR 0026.'
+deviations: none
+test_debt:
+- unit tests per ADR Validation §Phase 2
+- Docker integration with `docker-compose.neo4j.yml`
+changelog:
+  update: false
+  reason: 'user-facing yes at ship (additive Qdrant payload field + collection metadata + search warning under `GRAPH_ENABLED=true`; requires re-index to backfill; default `GRAPH_ENABLED=false` unchanged); invoker Changelog: no'
+user_facing: true

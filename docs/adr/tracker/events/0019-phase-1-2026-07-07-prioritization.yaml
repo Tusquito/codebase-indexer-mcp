@@ -1,0 +1,14 @@
+adr_id: 0019
+phase_key: phase-1
+phase_title: Phase 1 — Schema, layout, render script
+event: prioritization
+date: '2026-07-07'
+tracker_status: candidate
+choices: 'Prioritize ADR 0019 Phase 1 over near-tied alternative ADR 0024 Phase 1 (stack tuner analyze/allocate) via tie-breaker on lower scope/risk (0019 touches no cross-platform host-detection surface); recommended over ADR 0023 Phase 3 (retire Qdrant callees index) due to narrower impact (graph-enabled-only deployments) and higher data-migration risk. **Why now:** Tracker file measured at 254,446 chars / ~1,810 lines across 25 ADRs; exceeded 100k-char single-read tool limit during this analysis, directly confirming the ADR''s predicted merge-conflict / fragile-edit-at-scale gap. Zero prior implementation (`docs/adr/tracker/**` and `scripts/render_adr_tracker.py` both absent) — clean start, no in-flight conflicts. **Suggested scope:** One phase (= one PR): `docs/adr/tracker/schema.yaml` + directory layout, `scripts/render_adr_tracker.py`, unit tests validating fixture YAML → expected summary/phase-log output, non-blocking CI validation. Explicitly excludes Phase 2 (historical migration) and Phase 3 (agent pipeline cutover). **Chosen scope:** Phase 1 only, as above (single PR). Requires formal Accept of Proposed ADR 0019 before dev.'
+deviations: none
+code_evidence:
+- '`docs/adr/tracker/**` absent; `scripts/render_adr_tracker.py` absent; `IMPLEMENTATION_TRACKER.md` at 254,446 chars / ~1,810 lines'
+changelog:
+  update: false
+  reason: user-facing unknown (maintainer/agent tooling only — likely no, pending planning confirmation)
+user_facing: false

@@ -1,0 +1,14 @@
+adr_id: '0022'
+phase_key: phase-3
+phase_title: Phase 3 — CI split
+event: prioritization
+date: '2026-07-04'
+tracker_status: candidate
+choices: 'Prioritize 0022 Phase 3; human decisions resolved 2026-07-04: GPU smoke included in PR; GHA compose integration job added; 0021 P3 bundled in finisher docs commit. **Why now:** ADR 0022 Phases 1 and 2 merged ([PR #17](https://github.com/Tusquito/codebase-indexer-mcp/pull/17), [PR #19](https://github.com/Tusquito/codebase-indexer-mcp/pull/19)); both explicitly deferred `.github/workflows/ci.yml` changes. Code grep confirms zero `ACCELERATOR` in `ci.yml` while ADR 0022 mandates `ACCELERATOR=cpu` on every ubuntu-latest job as the sole CPU exception. Completing Phase 3 closes the GPU-default accelerator arc. **Chosen scope:** Add `ACCELERATOR: cpu` to every job `env` in `.github/workflows/ci.yml`; add GHA compose-integration job with `ACCELERATOR=cpu`; include optional non-blocking self-hosted GPU smoke job in same PR; finisher bundles ADR 0021 Phase 3 housekeeping (README index + CHANGELOG). Maintainer GPU host runs `scripts/run_compose_integration.py` before code review per project-phase. **Suggested scope:** one phase (= one PR).'
+deviations: none
+code_evidence:
+- '`.github/workflows/ci.yml` — zero `ACCELERATOR` matches (grep 2026-07-04)'
+changelog:
+  update: false
+  reason: user-facing unknown
+user_facing: false

@@ -1,0 +1,27 @@
+adr_id: '0016'
+phase_key: phase-2
+phase_title: Phase 2 — Eval baseline refresh (final phase)
+event: verification
+date: '2026-07-03'
+tracker_status: verified
+choices: Jina comparison baseline; recall@10 gate waived with per-tag analysis; alias line remapping; operational compose/env eval overrides not committed
+deviations: none
+code_evidence:
+- mcp_server/benchmarks/fixtures/eval_baseline.json
+- mcp_server/benchmarks/fixtures/golden_queries.jsonl
+- docs/adr/0016-qwen3-embedding-default-dense-model.md
+- docs/adr/README.md
+test_debt:
+- CI validate-labels gate
+- compose WORKSPACE_ROOT eval preset
+- optional non-blocking recall benchmark job
+- compose host-env URL isolation
+verify: '341 unit tests pass; eval harness tests pass; integration report pass; eval_baseline.json and ADR Measured outcomes consistent; documented recall@10 regression (−63.1% vs Jina) satisfies plan waiver; review rounds: 1'
+changelog:
+  update: true
+user_facing: true
+open_decisions:
+- '0016: Whether 0002 Phase 2 supersedes if GraphRAG adoption is active — Open — orchestrator decision'
+- '0016: Optional Nomic snapshot for ADR narrative — Open — plan or verification decision'
+- '0016: Maintainer-only GPU eval run vs optional slow CI gate? — Open — plan decision'
+- '0016: Sequence 0002 P2 vs 0018 P2 after 0016 Phase 2? — Open — orchestrator decision'

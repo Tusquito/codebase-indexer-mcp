@@ -1,0 +1,25 @@
+adr_id: '0016'
+phase_key: phase-2
+phase_title: Phase 2 — Eval baseline refresh (final phase)
+event: merge
+date: '2026-07-03'
+tracker_status: merged
+choices: merge on feature branch `adr/0016-phase-2-eval-baseline`; ADR accepted as **Accepted (all phases complete)**; release skipped; final ADR 0016 phase complete
+deviations: none
+code_evidence:
+- 'merged via [PR #14](https://github.com/Tusquito/codebase-indexer-mcp/pull/14) (`adr/0016-phase-2-eval-baseline`; `ead683bebe7735941484be73b646427543af0ea1`)'
+test_debt:
+- carried from verification — CI validate-labels gate
+- compose WORKSPACE_ROOT eval preset
+- optional non-blocking recall benchmark job
+- compose host-env URL isolation
+- '`num_ctx` deferred (Phase 1)'
+verify: 'carried from verification — 341 unit tests pass; eval harness tests pass; integration report pass; documented recall@10 regression (−63.1% vs Jina) satisfies plan waiver; review rounds: 1'
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/14
+  commit: ead683bebe7735941484be73b646427543af0ea1
+  status: merged
+changelog:
+  update: false
+  reason: release skipped; `[Unreleased]` bullet retained from verification step
+user_facing: false

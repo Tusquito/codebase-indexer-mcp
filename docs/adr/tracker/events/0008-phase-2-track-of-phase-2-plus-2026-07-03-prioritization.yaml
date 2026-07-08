@@ -1,0 +1,15 @@
+adr_id: 0008
+phase_key: phase-2-track-of-phase-2-plus
+phase_title: Phase 2 — cross_reference / service_map rerank wiring (first track of Phase 2+)
+event: prioritization
+date: '2026-07-03'
+tracker_status: candidate
+choices: Prioritize 0008 Phase 2 track 1 over 0015 Phase 3 slim image, Proposed 0002 GraphRAG Phase 1, Proposed 0014 recommendation tool, and undefined 0009 Phase 2+ server fusion; single phase per pipeline rule; no new infrastructure; measurable via existing `eval_retrieval.py --rerank` and golden set. **Chosen scope:** Route semantic search paths in `cross_references.py` and `service_map.py` through the same ColBERT-aware search dispatch as `search_common.run_search` (pass `colbert_vector`; align hybrid+rerank score behavior); add integration/unit tests; defer adaptive rerank and per-tool `rerank=false` overrides. **Why now:** ADR 0008 Phase 1 and ADR 0015 Phases 1–2 are merged; ColBERT rerank works for `search_codebase`/`search_symbols` but `find_cross_references` and `map_service_dependencies` discard `colbert_vector`, leaving explicit Phase 1 test debt and inconsistent quality when `RERANK_ENABLED=true`. **Suggested scope:** one phase (= one PR).
+deviations: none
+test_debt:
+- carried from Phase 1 — wire ColBERT into cross_reference/service_map search when rerank enabled
+- golden-set MRR with `--rerank`
+changelog:
+  update: true
+  reason: user-facing yes; entry at `verified` step
+user_facing: true

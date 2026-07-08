@@ -1,0 +1,24 @@
+adr_id: '0021'
+phase_key: phase-1
+phase_title: Phase 1 — Config + docs revert
+event: implementation
+date: '2026-07-03'
+tracker_status: implemented
+choices: Reverted production defaults to Jina v2 base code @ 768 (`jinaai/jina-embeddings-v2-base-code` / `unclemusclez/jina-embeddings-v2-base-code`); demoted Qwen3 to experimental/CoIR preset with −63.1% recall@10 warning; left `config.py` Qwen3 registry/MRL untouched; deferred `eval_baseline.json` to Phase 2
+deviations: none
+code_evidence:
+- .env.example
+- mcp_server/benchmarks/_settings.py
+- mcp_server/tests/conftest.py
+- mcp_server/tests/test_config.py
+- scripts/run_compose_integration.py
+- README.md
+- docs/ARCHITECTURE.md
+- docs/DEPLOYMENT.md
+test_debt:
+- Full `uv run pytest` blocked locally by broken `tokenizers` in `.venv` (8 pre-existing failures)
+- compose integration live Jina Ollama pull not run in this session
+- '`eval_baseline.json` unchanged (Phase 2)'
+changelog:
+  update: false
+user_facing: false

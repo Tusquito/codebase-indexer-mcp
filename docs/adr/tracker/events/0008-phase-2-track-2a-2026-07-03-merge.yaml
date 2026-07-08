@@ -1,0 +1,23 @@
+adr_id: 0008
+phase_key: phase-2-track-2a
+phase_title: Phase 2 — track 2a (adaptive rerank skip)
+event: merge
+date: '2026-07-03'
+tracker_status: merged
+choices: squash merge `1411060` on feature branch `adr/0008-phase-2-track-2a-adaptive-rerank-skip`; ADR accept updated to `Accepted (phase 1; phase 2 tracks 1, 2a merged)`; release skipped; track 2b per-tool override deferred
+deviations: none
+code_evidence:
+- 'merged via PR #6 (`adr/0008-phase-2-track-2a-adaptive-rerank-skip`)'
+test_debt:
+- carried from verification — optional dedicated test for single-probe-hit ColBERT path
+- live Qdrant adaptive integration test
+- golden-set gap threshold sweep
+verify: carried from verification — 53 targeted tests passed; 265-suite passed; ruff 1× F401 suggestion (unused import)
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/6
+  commit: '1411060'
+  status: merged
+changelog:
+  update: false
+  reason: release skipped; `[Unreleased]` bullet retained from verification step
+user_facing: false

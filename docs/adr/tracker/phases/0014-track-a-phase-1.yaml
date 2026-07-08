@@ -1,0 +1,7 @@
+adr_id: '0014'
+phase_key: track-a-phase-1
+title: Vector discovery + n8n ops
+tracker_status: merged
+chosen_scope: 'Tool `recommend_code`; `QdrantStorage.recommend`; config (`RECOMMEND_ENABLED`, `RECOMMEND_MAX_EXAMPLES`); RecommendStrategy AVERAGE_VECTOR; dense-only; path_glob fnmatch + limit×3; missing chunk IDs fail fast; single-collection; defer outlier helper (Track A P2), n8n compose (Track B), sparse fusion, multi-collection; [PR #5](https://github.com/Tusquito/codebase-indexer-mcp/pull/5)'
+last_updated: '2026-07-03'
+adr_status_note: Accepted (phase 1 — recommendation search tool)

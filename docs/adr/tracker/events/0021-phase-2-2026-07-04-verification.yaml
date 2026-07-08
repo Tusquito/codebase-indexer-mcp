@@ -1,0 +1,26 @@
+adr_id: '0021'
+phase_key: phase-2
+phase_title: Phase 2 — Eval baseline refresh
+event: verification
+date: '2026-07-04'
+tracker_status: verified
+choices: GPU Jina @768 live baseline committed; pre-commit gate vs `eval_baseline_jina.json` failed (0.263 vs 0.660 — alias drift); post-commit Docker self-compare pass; `eval_baseline_jina.json` preserved; scanner `.venv*` prune; golden alias fixes; `_settings.py` `ollama_embed_model` default
+deviations: Pre-commit recall gate vs frozen reference failed — golden alias line drift on HEAD, not embedder regression (carried from implementation)
+code_evidence:
+- mcp_server/benchmarks/fixtures/eval_baseline.json
+- mcp_server/benchmarks/fixtures/eval_baseline_jina.json
+- mcp_server/benchmarks/fixtures/golden_queries.jsonl
+- mcp_server/benchmarks/_settings.py
+- mcp_server/src/codebase_indexer/indexer/scanner.py
+- mcp_server/tests/test_scanner_detection.py
+- .codeindexignore
+- docs/adr/0021-revert-jina-production-default-retire-qwen3.md
+test_debt:
+- Golden label realignment
+- pre-commit recall gate CI
+- optional `eval_multihop` CI gate
+verify: 'tests run + plan compliance pass; post-commit Docker self-compare pass; review rounds: 1'
+changelog:
+  update: true
+  reason: user-facing
+user_facing: true

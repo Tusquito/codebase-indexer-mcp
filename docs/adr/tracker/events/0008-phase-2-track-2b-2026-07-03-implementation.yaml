@@ -1,0 +1,30 @@
+adr_id: 0008
+phase_key: phase-2-track-2b
+phase_title: Phase 2 — track 2b (per-tool `rerank=false` override)
+event: implementation
+date: '2026-07-03'
+tracker_status: implemented
+choices: Override at embed + tool layer (not new storage flag); `use_rerank = self.rerank and rerank is not False`; `rerank=false` only effective when global `RERANK_ENABLED=true`; `rerank=None` preserves current behavior; `rerank=true` does not enable ColBERT without global flag or bypass adaptive skip; import-phrased xref search inherits tool-level `rerank`; exact symbol / call_site paths unaffected
+deviations: none
+code_evidence:
+- mcp_server/src/codebase_indexer/indexer/embedder.py
+- mcp_server/src/codebase_indexer/tools/search_common.py
+- mcp_server/src/codebase_indexer/tools/search.py
+- mcp_server/src/codebase_indexer/tools/symbols.py
+- mcp_server/src/codebase_indexer/tools/cross_references.py
+- mcp_server/src/codebase_indexer/tools/service_map.py
+- mcp_server/src/codebase_indexer/main.py
+- mcp_server/tests/test_search_common.py
+- mcp_server/tests/test_search_tools.py
+- mcp_server/tests/test_cross_references.py
+- mcp_server/tests/test_service_map.py
+- docs/SEARCH_BEHAVIOR.md
+- .env.example
+test_debt:
+- direct Embedder rerank unit tests
+- adaptive + per-tool override integration
+- golden-set `rerank=false` quality sweep
+- live Qdrant adaptive integration (carried from track 2a)
+changelog:
+  update: false
+user_facing: false

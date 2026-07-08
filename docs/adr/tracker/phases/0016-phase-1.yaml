@@ -1,0 +1,7 @@
+adr_id: '0016'
+phase_key: phase-1
+title: Adopt Qwen3-Embedding-4B as default dense model *(historical — superseded for production default by 0021/0025)*
+tracker_status: merged
+chosen_scope: 'Qwen3 0.6B/4B/8B in `KNOWN_EMBED_MODEL_*` (max tokens 32768); MRL `dimensions` passthrough (32≤size≤native) in dense backend + `factory.py`; Qwen3 GPU defaults in `.env.example`; compose generator Qwen3 (`scripts/run_compose_integration.py`); `benchmarks/_settings.py`; unit tests; docs; defer Phase 2 eval baseline + `num_ctx`; generator-only compose env; [PR #12](https://github.com/Tusquito/codebase-indexer-mcp/pull/12)'
+last_updated: '2026-07-03'
+adr_status_note: Accepted (all phases complete)

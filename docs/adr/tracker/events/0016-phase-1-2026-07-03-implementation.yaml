@@ -1,0 +1,29 @@
+adr_id: '0016'
+phase_key: phase-1
+phase_title: Phase 1 — Config, Ollama MRL, docs, tests
+event: implementation
+date: '2026-07-03'
+tracker_status: implemented
+choices: Max tokens 32768; MRL 32≤size≤native; Qwen3 GPU defaults; compose generator Qwen3; ADR Accepted pre-merge
+deviations: '`num_ctx` deferred; generator-only compose env'
+code_evidence:
+- mcp_server/src/codebase_indexer/config.py
+- mcp_server/src/codebase_indexer/indexer/backends/ollama_dense.py
+- mcp_server/src/codebase_indexer/indexer/backends/factory.py
+- .env.example
+- scripts/run_compose_integration.py
+- mcp_server/benchmarks/_settings.py
+- mcp_server/tests/test_config.py
+- mcp_server/tests/test_ollama_dense_backend.py
+- mcp_server/tests/conftest.py
+- docs/ARCHITECTURE.md
+- docs/DEPLOYMENT.md
+- README.md
+- docs/adr/0016-qwen3-embedding-default-dense-model.md
+- docs/adr/README.md
+test_debt:
+- Compose integration not smoke-run
+- Phase 2 eval baseline deferred
+changelog:
+  update: false
+user_facing: false

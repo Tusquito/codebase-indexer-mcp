@@ -1,0 +1,29 @@
+adr_id: '0021'
+phase_key: phase-1
+phase_title: Phase 1 — Config + docs revert
+event: verification
+date: '2026-07-03'
+tracker_status: verified
+choices: Jina production default @ 768 in env/bench/compose/docs; Qwen3 demoted to experimental preset with −63.1% recall@10 citation; `OLLAMA_EMBED_MODEL` uncommented in `.env.example` REQUIRED; compose Jina pull documented manual-only (no deploy auto-pull); Qwen3 registry/MRL in `config.py` retained; ADR index housekeeping included in Phase 1 PR scope; `eval_baseline.json` refresh deferred Phase 2; CHANGELOG full update deferred Phase 3
+deviations: ADR index housekeeping included in Phase 1 (plan deferred to Phase 3); CHANGELOG bullet added at `verified` (plan deferred full update to Phase 3)
+code_evidence:
+- .env.example
+- mcp_server/benchmarks/_settings.py
+- scripts/run_compose_integration.py
+- README.md
+- docs/ARCHITECTURE.md
+- docs/DEPLOYMENT.md
+- mcp_server/tests/conftest.py
+- mcp_server/tests/test_config.py
+- docs/adr/0021-revert-jina-production-default-retire-qwen3.md
+- docs/adr/README.md
+- docs/adr/0016-qwen3-embedding-default-dense-model.md
+- docs/adr/0020-qwen3-code-finetune-jina-quality-gate.md
+test_debt:
+- Optional `smoke_recommend_code` fails until golden collection re-indexed @ 768 (Phase 2)
+- '`eval_baseline.json` still Qwen3 @ 1024 until Phase 2 refresh'
+verify: Full `uv run pytest` (346 passed); targeted embed/config tests (24 passed); plan compliance pass on all Phase 1 paths; Docker integration report verdict `pass`
+changelog:
+  update: true
+  reason: user-facing; bullet added at `verified`; full CHANGELOG housekeeping deferred Phase 3
+user_facing: true

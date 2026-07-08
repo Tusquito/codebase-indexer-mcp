@@ -1,0 +1,12 @@
+adr_id: '0016'
+phase_key: phase-1
+phase_title: Phase 1 — Config, Ollama MRL, docs, tests
+event: plan
+date: '2026-07-03'
+tracker_status: planned
+choices: 'Single PR Phase 1; ADR Accept pre-merge; compose integration generator updated to Qwen3 (`scripts/run_compose_integration.py`). **Chosen scope:** Qwen3 0.6B/4B/8B in `KNOWN_EMBED_MODEL_DIMENSIONS` + `KNOWN_EMBED_MODEL_MAX_TOKENS` with MRL-aware validation; `dimensions` passthrough in `OllamaDenseBackend` preload + `_embed_http`; update `.env.example`, `scripts/run_compose_integration.py`, `benchmarks/_settings.py`; unit tests; docs; defer Phase 2 eval baseline. **Assumptions:** 0017 P1 merged ([PR #11](https://github.com/Tusquito/codebase-indexer-mcp/pull/11)); no new deps'
+deviations: none
+changelog:
+  update: false
+  reason: user-facing yes; status `planned` (not verified)
+user_facing: true

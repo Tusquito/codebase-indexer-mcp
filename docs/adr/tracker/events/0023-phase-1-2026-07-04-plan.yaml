@@ -1,0 +1,15 @@
+adr_id: '0023'
+phase_key: phase-1
+phase_title: Phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing
+event: plan
+date: '2026-07-04'
+tracker_status: planned
+choices: 'Accept ADR 0023 (Proposed → Accepted partial Phase 1) as **first PR task** before code changes; symbol unification: exact `Symbol.name` → qualified import fallback → stub on ambiguity; Phase 1 only — exclude ADR 0002 Phase 3 `expand_search_context` and 0023 Phases 2–4; re-index messaging in PR body + `.env.example` only; no CHANGELOG at this phase'
+deviations: none
+test_debt:
+- parity tests (Qdrant vs Neo4j on Java/Spring fixtures) + graph-disabled regression
+- '`test_cross_references.py` Java inherited-field fixtures as parity oracle'
+changelog:
+  update: false
+  reason: 'user-facing no; invoker Changelog: no'
+user_facing: false

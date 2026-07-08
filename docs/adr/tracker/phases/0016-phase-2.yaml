@@ -1,0 +1,7 @@
+adr_id: '0016'
+phase_key: phase-2
+title: Adopt Qwen3-Embedding-4B as default Ollama dense model
+tracker_status: merged
+chosen_scope: 'Jina comparison baseline; recall@10 gate waived with per-tag analysis (−63.1% vs Jina); refreshed `eval_baseline.json` + `golden_queries.jsonl`; alias line remapping; operational compose/env eval overrides not committed; final ADR 0016 phase complete; defer CI validate-labels gate, compose WORKSPACE_ROOT eval preset, optional non-blocking recall benchmark job, compose host-env URL isolation, `num_ctx`; [PR #14](https://github.com/Tusquito/codebase-indexer-mcp/pull/14)'
+last_updated: '2026-07-03'
+adr_status_note: Accepted (all phases complete)

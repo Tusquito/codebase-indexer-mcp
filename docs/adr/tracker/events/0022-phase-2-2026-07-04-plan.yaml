@@ -1,0 +1,17 @@
+adr_id: '0022'
+phase_key: phase-2
+phase_title: Phase 2 — Retire CPU ColBERT defaults
+event: plan
+date: '2026-07-04'
+tracker_status: planned
+choices: onnx default unchanged when `RERANK_ENABLED=false`; remote+GPU sidecar default when rerank on; self-compare quality gate (`--threshold 0`); CHANGELOG at verification; single PR; no `ci.yml` changes. **Chosen scope:** When `RERANK_ENABLED=true`, default `COLBERT_EMBED_BACKEND=remote` in Settings (via `model_fields_set` validator) and `compose_files.py`; GPU sidecar compose merged automatically on `ACCELERATOR=gpu`; in-process ONNX retained only for explicit `COLBERT_EMBED_BACKEND=onnx` (`ACCELERATOR=cpu`). When `RERANK_ENABLED=false`, onnx default unchanged. Update `.env.example`, `README.md`, `docs/DEPLOYMENT.md`, `docs/ARCHITECTURE.md`, `docs/SEARCH_BEHAVIOR.md`, compose headers, ADR 0015 cross-link; unit tests; partial ADR accept in PR. Defer Phase 3 (CI `ACCELERATOR=cpu`, self-hosted GPU smoke); defer golden label realignment; defer ADR 0019 Accept; defer CHANGELOG to verification.
+deviations: none
+test_debt:
+- unit tests for factory defaults and compose resolution
+- integration via `run_compose_integration.py` with rerank-on remote sidecar on GPU host (default smoke keeps `RERANK_ENABLED=false`)
+- golden label realignment deferred
+verify: unit tests + integration harness; self-compare quality gate (`--threshold 0`)
+changelog:
+  update: false
+  reason: user-facing yes; draft at verification
+user_facing: true

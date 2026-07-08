@@ -1,0 +1,17 @@
+adr_id: '0025'
+phase_key: phase-1
+phase_title: Phase 1 — TEI hard replace (final phase) — closeout
+event: prioritization
+date: '2026-07-07'
+tracker_status: candidate
+choices: 'Prioritize 0025 Phase 1 closeout over 0002 Phase 2, 0018 Phase 2, 0023 Phase 3, 0019, 0024; single phase/closeout per pipeline rule; pre-release policy makes the doc-correctness fix zero-risk and mandatory Docker/quality gates make this the only candidate with an open compliance gap today. **Why now:** Tracker marks this phase `implemented`, but verification against actual repo state shows it fails the ADR''s own Success Criterion #2 (`rg -i ollama` still hits `README.md` with functionally wrong claims, `mcp_server/src/` docstrings, `.github/`, `docs/DEPLOYMENT.md`, `pyproject.toml`, `Dockerfile`) and both mandatory pre-release gates (Docker integration run, quality-validation golden baseline refresh) are still pending per the phase-log note and the frozen `eval_baseline.json`. Core code (backend, compose, config, factory, tests, CHANGELOG entry, ADR 0017 rename) is genuinely done and Ollama-free — this is a low-risk closeout, not new architecture, and it unblocks ADR 0024 (whose body still cites `OLLAMA_MEM_LIMIT`). **Suggested scope:** one phase (= one PR) — this is closeout of the existing Phase 1/final phase, not a new phase. **Chosen scope:** (1) Correct `README.md` dense-embedding claims (lines ~353, 454, 613) and remaining stale "Ollama" docstrings/comments in `embedder.py`, `pipeline.py`, `service_map.py`, `.github/workflows/ci.yml`, `.github/copilot-instructions.md`, `docs/DEPLOYMENT.md`, `mcp_server/pyproject.toml`, `mcp_server/Dockerfile`; (2) run `scripts/run_compose_integration.py --quality-validation --performance-report` on a GPU host; (3) refresh `mcp_server/benchmarks/fixtures/eval_baseline.json` with live TEI+Jina GPU metrics and fill ADR 0025 Measured outcomes table; (4) update tracker phase-log status to `verified`/`merged` with real evidence. **User-facing:** yes — `README.md` currently gives operators incorrect information about where dense vectors come from; fixing it is a documentation-correctness change, not a behavior change.'
+deviations: none
+test_debt:
+- live TEI integration (Docker)
+- GPU golden baseline refresh (`eval_baseline.json` + ADR 0025 Measured outcomes table)
+- doc/docstring Ollama-reference sweep (README, `embedder.py`, `pipeline.py`, `service_map.py`, CI workflow, copilot-instructions, `DEPLOYMENT.md`, `pyproject.toml`, `Dockerfile`)
+verify: '`rg -i ollama` clean per ADR Success Criterion #2; `scripts/run_compose_integration.py --quality-validation --performance-report` pass on GPU host'
+changelog:
+  update: false
+  reason: 'user-facing yes; invoker Changelog: no (breaking-change entry for ADR 0025 already present in `CHANGELOG.md` `[Unreleased]`)'
+user_facing: true

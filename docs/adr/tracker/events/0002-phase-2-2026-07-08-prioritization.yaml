@@ -1,0 +1,14 @@
+adr_id: '0002'
+phase_key: phase-2
+phase_title: Phase 2 — Qdrant payload linking (`graph_node_ids`)
+event: prioritization
+date: '2026-07-08'
+tracker_status: candidate
+choices: 'Prioritize 0002 Phase 2 over 0002 Phase 3 (delivery-order prerequisite); over 0024 Phase 2; over 0023 Phase 3; over 0019 Phase 2; over 0018 Phase 2; single phase per pipeline rule; no ADR Accept required (0002 already Accepted phase 1). **Why now:** Embed/accelerator (0021/0022/0025) and tuner P1 (0024) arcs complete; graph writer (0002 P1) and Neo4j call-site routing (0023 P1–P2) merged; Phase 2 explicitly deferred in 0023 P2 plan and documented as not shipped in `.env.example` / `ARCHITECTURE.md`; `graph_node_ids` absent from code (`graph_writer.py`, `qdrant.py`); ADR 0002 delivery order requires P2 before P3 `expand_search_context`; pre-release re-index acceptable; default `GRAPH_ENABLED=false` unchanged. **Suggested scope:** one phase (= one PR). **Chosen scope:** Extend `graph_writer.py` + `pipeline.py` to emit per-chunk Neo4j node keys; add `graph_node_ids: list[str]` to Qdrant upsert payload when graph enabled; stamp collection metadata (`graph_enabled`, graph schema version); warn on search when graph enabled but collection lacks linkage; unit tests per ADR Validation §Phase 2; Docker integration with `docker-compose.neo4j.yml`; sync `.env.example` + `ARCHITECTURE.md`; document forced re-index; defer Phase 3 `expand_search_context`, Phase 4 cross-project Cypher, 0023 Phases 3–4.'
+deviations: none
+code_evidence:
+- '`graph_node_ids` absent from `graph_writer.py`, `qdrant.py`; Phase 2 deferred in 0023 P2 plan and `.env.example` / `ARCHITECTURE.md`'
+changelog:
+  update: false
+  reason: 'user-facing unknown; invoker Changelog: no'
+user_facing: false

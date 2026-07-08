@@ -1,0 +1,33 @@
+adr_id: '0022'
+phase_key: phase-2
+phase_title: Phase 2 — Retire CPU ColBERT defaults
+event: verification
+date: '2026-07-04'
+tracker_status: verified
+choices: Remote GPU sidecar default when `RERANK_ENABLED=true`; explicit onnx for `ACCELERATOR=cpu`; Phase 3 CI split deferred
+deviations: none
+code_evidence:
+- config.py
+- compose_files.py
+- docker-compose.yml
+- docker-compose.colbert-worker.yml
+- docker-compose.colbert-worker.gpu.yml
+- .env.example
+- README.md
+- docs/DEPLOYMENT.md
+- docs/ARCHITECTURE.md
+- docs/SEARCH_BEHAVIOR.md
+- docs/adr/0015-colbert-http-sidecar.md
+- docs/adr/0022-gpu-default-cpu-fallback.md
+- test_config.py
+- test_compose_files.py
+- test_factory.py
+test_debt:
+- Phase 3 CI `ACCELERATOR=cpu`
+- optional `bench_colbert_sidecar.py`
+- golden label realignment deferred
+verify: 368 unit tests pass; integration pass; quality validation threshold 0 self-compare pass; plan compliance pass
+changelog:
+  update: true
+  reason: user-facing; bullet added at `verified`
+user_facing: true

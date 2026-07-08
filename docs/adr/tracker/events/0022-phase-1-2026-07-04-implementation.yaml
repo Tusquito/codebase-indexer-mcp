@@ -1,0 +1,16 @@
+adr_id: '0022'
+phase_key: phase-1
+phase_title: Phase 1 — GPU-default compose + docs
+event: implementation
+date: '2026-07-04'
+tracker_status: implemented
+choices: Accepted ADR 0022 partial Phase 1 in same PR; `ACCELERATOR=gpu` default via compose-only env; canonical `-f` list in `scripts/compose_files.py`; fail-fast `require_gpu()` in integration harness; sparse BM25 unchanged (CPU in MCP); no `ci.yml` changes (Phase 3)
+deviations: none
+code_evidence:
+- '`scripts/accelerator.py`, `scripts/compose_files.py`, `scripts/run_compose_integration.py`, `.env.example`, `README.md`, `docs/DEPLOYMENT.md`, `docs/ARCHITECTURE.md`, docker-compose files, `.github/copilot-instructions.md`, `mcp_server/tests/test_compose_files.py`, `mcp_server/tests/test_accelerator.py`, `docs/adr/0022-gpu-default-cpu-fallback.md`, `docs/adr/README.md`'
+test_debt:
+- '`ollama ps` GPU assertion and CI `ACCELERATOR=cpu` deferred to Phase 3'
+changelog:
+  update: false
+  reason: 'user-facing yes; status `implemented` (not verified); invoker Changelog: no'
+user_facing: true

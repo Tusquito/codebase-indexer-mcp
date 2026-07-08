@@ -1,0 +1,12 @@
+adr_id: 0008
+phase_key: phase-2-track-2a
+phase_title: Phase 2 — track 2a (adaptive rerank skip)
+event: prioritization
+date: '2026-07-03'
+tracker_status: candidate
+choices: Prioritize 0008 Phase 2 track 2a over 0009 Phase 2 automated 2-hop eval script (closest alternative, −1.5 weighted score but benchmark-only), 0014 Track A P2 outlier helper, Proposed 0002 GraphRAG Phase 1, 0015 Phase 3 slim image, and 0014 Track B n8n; single phase per pipeline rule; adaptive skip before per-tool override; no ADR Accept required (0008 already Accepted). **Chosen scope:** Configurable adaptive ColBERT skip when hybrid prefetch top-1 vs top-2 RRF score gap exceeds threshold; implement in `QdrantStorage.search` rerank path; unit tests; `bench.py`/`eval_retrieval.py` skip-rate and P95 reporting; `SEARCH_BEHAVIOR.md` + `.env.example` docs; defer per-tool MCP `rerank=false` parameter override to track 2b. **Why now:** ColBERT arc merged (0008 P1, 0015 P1–P2, 0008 P2 track 1, 0014 P1); rerank wired on all search tools but ADR 0008 deferred adaptive skip and per-tool overrides; no adaptive code in repo; ARCHITECTURE.md lists this as remaining Improve Search work; prerequisites (0003, 0007, 0011, 0015) satisfied; measurable via `eval_retrieval --rerank` and `bench.py`; no new mandatory infra; default deploy unchanged. **Suggested scope:** one phase (= one PR).
+deviations: none
+changelog:
+  update: false
+  reason: user-facing unknown
+user_facing: false

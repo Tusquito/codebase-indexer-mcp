@@ -1,0 +1,7 @@
+adr_id: '0014'
+phase_key: track-a-phase-2
+title: Vector discovery + n8n ops
+tracker_status: merged
+chosen_scope: 'Tool `find_outlier_chunks`; `QdrantStorage.find_outlier_chunks`; `RecommendStrategy.BEST_SCORE` negative-only; cosine-to-centroid + `OUTLIER_MAX_SIMILARITY` (0.55); gate via `RECOMMEND_ENABLED` (no `OUTLIER_ENABLED`); `OUTLIER_MAX_CONTEXT_SAMPLES` (200); scroll supplement only when `path_glob` or no explicit `context_chunk_ids`; bounded `limit` (cap 20); dense-only single-collection; defer sparse fusion, multi-collection, Track B n8n, Discovery API context pairs; [PR #9](https://github.com/Tusquito/codebase-indexer-mcp/pull/9)'
+last_updated: '2026-07-03'
+adr_status_note: Accepted (phase 1; phase 2 — outlier / diversity helper)

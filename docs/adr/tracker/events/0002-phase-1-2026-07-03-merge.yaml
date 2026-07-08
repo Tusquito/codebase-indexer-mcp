@@ -1,0 +1,24 @@
+adr_id: '0002'
+phase_key: phase-1
+phase_title: Phase 1 — Neo4j storage + index-time graph writer
+event: merge
+date: '2026-07-03'
+tracker_status: merged
+choices: squash merge `c511c6f` on feature branch `adr/0002-phase-1-neo4j-graph-writer`; ADR accepted as `Accepted (phase 1 — Neo4j storage + index-time graph writer)` (docs commit `a48dd97`); release skipped; Phases 2–4 deferred
+deviations: none
+code_evidence:
+- 'merged via PR #10 (`adr/0002-phase-1-neo4j-graph-writer`; squash `c511c6f`)'
+test_debt:
+- carried from verification — live Neo4j incremental delete integration
+- compose override smoke
+- graph-failure-during-index scenario
+- pipeline-level delete hook assertion
+verify: 'carried from verification — 17 graph unit tests pass + plan compliance pass; Docker integration pass per integration report; review rounds: 1'
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/10
+  commit: c511c6f
+  status: merged
+changelog:
+  update: false
+  reason: release skipped; `[Unreleased]` bullet retained from verification step
+user_facing: false

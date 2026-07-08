@@ -1,0 +1,12 @@
+adr_id: '0023'
+phase_key: phase-2
+phase_title: Phase 2 — Stop dual-write to Qdrant
+event: prioritization
+date: '2026-07-04'
+tracker_status: candidate
+choices: 'Prioritize 0023 Phase 2 over 0002 Phase 2 (tie-breaker: lower scope/risk); single phase per pipeline rule. **Why now:** Phase 1 merged 2026-07-04 ([PR #21](https://github.com/Tusquito/codebase-indexer-mcp/pull/21)); `call_token`, `Neo4jStorage.find_callers`, and Path D Neo4j routing exist; Qdrant still dual-writes `callees`; ADR and tracker explicitly defer payload retirement to Phase 2; prerequisites satisfied. **Chosen scope:** Omit `callees` from Qdrant upsert when `GRAPH_ENABLED=true` for graph-indexed collections; add/reuse collection metadata flag (`graph_call_sites` or `graph_enabled`); per-collection engine routing in `find_cross_references` Path D for mixed batches; unit/integration tests; Testcontainers Neo4j parity fixture; document forced re-index; `[Unreleased]` CHANGELOG bullet; Docker integration required. **Suggested scope:** one phase (= one PR). **Human gate resolved 2026-07-04:** (1) per-collection engine selection for mixed batches; (2) Testcontainers Neo4j fixture in Phase 2; (3) CHANGELOG bullet in Phase 2.'
+deviations: none
+changelog:
+  update: false
+  reason: 'user-facing unknown; invoker Changelog: no'
+user_facing: false

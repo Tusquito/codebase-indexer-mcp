@@ -1,0 +1,21 @@
+adr_id: '0022'
+phase_key: phase-3
+phase_title: Phase 3 — CI split
+event: merge
+date: '2026-07-04'
+tracker_status: merged
+choices: 'squash merge PR #20 on feature branch `adr/0022-phase-3-ci-split`; ADR accepted as **Accepted (all phases complete)**; ADR 0021 promoted **Accepted (all phases complete)** in bundled finisher docs commit `53f68e0`; release skipped; six ubuntu-latest jobs `ACCELERATOR=cpu`; blocking compose-integration; non-blocking gpu-smoke; `check_ollama_gpu_processor()` in harness'
+deviations: none
+code_evidence:
+- 'merged via [PR #20](https://github.com/Tusquito/codebase-indexer-mcp/pull/20) (`adr/0022-phase-3-ci-split`; squash `37a3364`; bundled docs accept `53f68e0`)'
+test_debt:
+- gpu-smoke first run when self-hosted runner available
+verify: 'carried from verification — 375 unit tests pass; integration pass GPU+CPU; plan compliance pass; review rounds: 1'
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/20
+  commit: 53f68e0
+  status: merged
+changelog:
+  update: false
+  reason: 'user-facing yes; invoker Changelog: no; `[Unreleased]` bullets only'
+user_facing: true

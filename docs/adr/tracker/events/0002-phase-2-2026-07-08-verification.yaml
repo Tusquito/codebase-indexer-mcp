@@ -1,0 +1,21 @@
+adr_id: '0002'
+phase_key: phase-2
+phase_title: Phase 2 — Qdrant payload linking (`graph_node_ids`)
+event: verification
+date: '2026-07-08'
+tracker_status: verified
+choices: Neighbor-keys-only; batch before upsert; graph_enabled metadata; graph_node_ids omitted for zero-neighbor chunks and GRAPH_ENABLED=false.
+deviations: none
+code_evidence:
+- graph_writer.py
+- pipeline.py
+- qdrant.py
+- search_common.py
+test_debt:
+- prometheus_client and neo4j driver needed in CI env
+verify: '34 Phase 2 unit tests pass; full suite 420 passed; integration Verdict pass; plan compliance pass; review rounds: 1'
+changelog:
+  update: true
+user_facing: true
+open_decisions:
+- '0002: Whether to run 0009 CI gate or 0008 test-debt PR in parallel with Accept/plan — Open — orchestrator decision'

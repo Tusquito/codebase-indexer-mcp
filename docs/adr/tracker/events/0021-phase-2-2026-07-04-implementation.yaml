@@ -1,0 +1,24 @@
+adr_id: '0021'
+phase_key: phase-2
+phase_title: Phase 2 — Eval baseline refresh
+event: implementation
+date: '2026-07-04'
+tracker_status: implemented
+choices: GPU host (`ACCELERATOR=gpu`); single PR with live baseline committed; `RERANK_ENABLED=false`; pre-commit gate vs `eval_baseline_jina.json` threshold 3; post-commit quality compare threshold 0; preserve `eval_baseline_jina.json`; scanner `.venv*` prune + golden `scanner.py:113` alias fix; `_settings.py` `ollama_embed_model` default added
+deviations: Pre-commit gate vs `eval_baseline_jina.json` failed (recall@10 0.263 vs 0.660) — golden alias line drift on HEAD, not embedder regression; committed live metrics with ADR documentation; golden label realignment deferred
+code_evidence:
+- mcp_server/benchmarks/fixtures/eval_baseline.json
+- docs/adr/0021-revert-jina-production-default-retire-qwen3.md
+- mcp_server/benchmarks/_settings.py
+- mcp_server/benchmarks/fixtures/golden_queries.jsonl
+- mcp_server/src/codebase_indexer/indexer/scanner.py
+- mcp_server/tests/test_scanner_detection.py
+- .codeindexignore
+test_debt:
+- Golden label realignment on HEAD to recover ≥0.660 vs frozen reference
+- pre-commit recall gate CI
+- optional `eval_multihop` CI gate
+changelog:
+  update: false
+  reason: user-facing yes; entry deferred to `verified` step (Phase 3 CHANGELOG housekeeping also deferred)
+user_facing: true

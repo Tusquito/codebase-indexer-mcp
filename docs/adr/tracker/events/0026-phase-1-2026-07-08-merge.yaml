@@ -1,0 +1,22 @@
+adr_id: '0026'
+phase_key: phase-1
+phase_title: Phase 1 — Harness reliability fix
+event: merge
+date: '2026-07-08'
+tracker_status: merged
+choices: squash merge `0ca2f88` on feature branch `adr/0026-phase-1-harness-reliability`; ADR Accept applied — Accepted (phase 1 — Harness reliability fix); release skipped; Phases 2–5 deferred
+deviations: none
+code_evidence:
+- 'merged via [PR #27](https://github.com/Tusquito/codebase-indexer-mcp/pull/27) (`adr/0026-phase-1-harness-reliability`; squash `0ca2f88`)'
+test_debt:
+- carried from verification — symbol drift live integration exercised (12 drift observed in CI run)
+- Phase 4 collection override concern
+verify: 'carried from verification — 11 unit tests pass (`test_label_anchor.py`); ruff clean; Docker integration + quality validation pass (55 labels, 12 drifted, 0 unresolved; threshold 0 pass); repeat-run repro in blocking `compose-integration` CI job gates `recall@10` within ±1pp; review rounds: 1'
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/27
+  commit: 0ca2f88
+  status: merged
+changelog:
+  update: false
+  reason: 'user-facing no; invoker Changelog: no'
+user_facing: false

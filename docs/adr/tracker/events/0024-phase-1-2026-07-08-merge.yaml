@@ -1,0 +1,23 @@
+adr_id: '0024'
+phase_key: phase-1
+phase_title: Phase 1 — Analyze + allocate
+event: merge
+date: '2026-07-08'
+tracker_status: merged
+choices: squash merge `e0c6100` on feature branch `adr/0024-phase-1-analyze-allocate`; ADR Accept skipped — new status Accepted (applied in PR); release skipped; Phases 2+ deferred
+deviations: none
+code_evidence:
+- 'merged via [PR #25](https://github.com/Tusquito/codebase-indexer-mcp/pull/25) (`adr/0024-phase-1-analyze-allocate`; squash `e0c6100`)'
+test_debt:
+- carried from verification — CLI-level tests for `tune_stack.py`
+- host-detection mocks
+- 'ADR success-criterion #1 ±10% preset assertion deferred'
+verify: 'carried from verification — 17 unit tests pass; CLI smoke pass; Docker integration report `pass`; plan compliance all pass; review rounds: 1'
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/25
+  commit: e0c6100
+  status: merged
+changelog:
+  update: false
+  reason: user-facing yes; release skipped
+user_facing: true

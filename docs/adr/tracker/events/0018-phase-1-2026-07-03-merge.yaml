@@ -1,0 +1,24 @@
+adr_id: 0018
+phase_key: phase-1
+phase_title: Phase 1 — Application Prometheus metrics (MCP + ColBERT worker)
+event: merge
+date: '2026-07-03'
+tracker_status: merged
+choices: merge on feature branch `adr/0018-phase-1-prometheus-metrics`; ADR accepted as `Accepted (phase 1 — Application Prometheus metrics (MCP + ColBERT worker))`; release skipped; Phase 2 OTel traces, Phase 3 observability compose stack deferred
+deviations: none
+code_evidence:
+- 'merged via [PR #13](https://github.com/Tusquito/codebase-indexer-mcp/pull/13) (`adr/0018-phase-1-prometheus-metrics`; `516b5feee19a81214b47dfaf135fa46391021a9b`)'
+test_debt:
+- carried from verification — Bearer-auth /metrics test
+- truncated_chunks helper test
+- in-process ColBERT embed metrics
+- memory pressure edge-trigger
+verify: 'carried from verification — 329 tests pass; plan compliance pass; review rounds: 1'
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/13
+  commit: 516b5feee19a81214b47dfaf135fa46391021a9b
+  status: merged
+changelog:
+  update: false
+  reason: already in `[Unreleased]` from verified step
+user_facing: false

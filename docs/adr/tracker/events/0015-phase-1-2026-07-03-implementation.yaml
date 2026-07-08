@@ -1,0 +1,32 @@
+adr_id: '0015'
+phase_key: phase-1
+phase_title: Phase 1 — HTTP sidecar + remote backend + compose override + tests + operator docs
+event: implementation
+date: '2026-07-03'
+tracker_status: implemented
+choices: Mirror `OllamaDenseBackend` HTTP patterns; sidecar port 8082 internal-only; phase 1 no bearer auth; default `COLBERT_EMBED_BACKEND=onnx` unchanged; FastAPI lifespan for sidecar preload; shared `fastembed_cache` volume in compose override
+deviations: Sidecar uses FastAPI lifespan instead of deprecated `on_event` startup for model preload
+code_evidence:
+- config.py
+- colbert_remote.py
+- factory.py
+- embedder.py
+- colbert_worker/
+- colbert_worker/Dockerfile
+- docker-compose.colbert-worker.yml
+- docker-compose.yml
+- .env.example
+- SEARCH_BEHAVIOR.md
+- test_colbert_remote_backend.py
+- test_colbert_worker.py
+- test_factory.py
+- test_config.py
+test_debt:
+- Optional slow onnx vs remote parity
+- compose E2E sidecar smoke
+- operational MCP memory regression
+- sidecar-unreachable preload error path
+changelog:
+  update: false
+  reason: user-facing yes; entry at `verified` step
+user_facing: true

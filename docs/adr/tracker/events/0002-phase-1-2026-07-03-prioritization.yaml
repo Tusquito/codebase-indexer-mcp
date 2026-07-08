@@ -1,0 +1,14 @@
+adr_id: '0002'
+phase_key: phase-1
+phase_title: Phase 1 — Neo4j storage + index-time graph writer
+event: prioritization
+date: '2026-07-03'
+tracker_status: candidate
+choices: Prioritize 0002 Phase 1 over 0009 eval_multihop CI gate (closest alternative, −1.0 weighted score, benchmark-only; tie within ~10% but lower unlock); over 0008 test-debt closure PR (QA-only, no capability); over 0015 Phase 3 slim image and 0014 Track B n8n (ops-only, deferred twice); single phase per pipeline rule; begin GraphRAG foundation after Improve Search + vector discovery arcs complete. **Chosen scope:** `storage/neo4j.py` async driver wrapper; `indexer/graph_writer.py` reusing chunk/xref/build extractors; `pipeline.py` post-flush invocation; config (`GRAPH_ENABLED`, `NEO4J_*`, `GRAPH_WRITER_BATCH`); optional `docker-compose.neo4j.yml`; idempotent Neo4j constraints/indexes; unit tests per ADR Validation §Phase 1; `.env.example` + `ARCHITECTURE.md` sync; defer Phase 2 payload linking, Phase 3 `expand_search_context`, Phase 4 Neo4j cross-project queries. **Requires formal Accept of Proposed ADR 0002 before implementation.** **Why now:** ColBERT arc (0008 all phases, 0015 P1–P2), vector discovery Track A (0014 P1–P2), and multi-hop client eval (0009 Phase 2) are merged; ADR 0002 is the sole Proposed ADR and the largest remaining capability gap for structural multi-hop queries; ADR 0009 and 0013 explicitly defer graph-backed retrieval to 0002; no `GRAPH_ENABLED`/Neo4j code exists (`config.py` grep empty, no `storage/neo4j.py`); Phase 1 is opt-in (`GRAPH_ENABLED=false` default) with defined Testcontainers/bolt-mock validation; unlocks Phases 2–4 and 0009 server-side graph expansion path. **Suggested scope:** one phase (= one PR).
+deviations: none
+code_evidence:
+- no `GRAPH_ENABLED`/Neo4j code exists (`config.py` grep empty, no `storage/neo4j.py`)
+changelog:
+  update: false
+  reason: user-facing unknown
+user_facing: false

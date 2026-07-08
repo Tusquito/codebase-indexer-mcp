@@ -1,0 +1,15 @@
+adr_id: 0009
+phase_key: phase-2
+phase_title: Phase 2 — automated 2-hop client eval script
+event: plan
+date: '2026-07-03'
+tracker_status: planned
+choices: Separate `eval_multihop.py` (not extending `eval_retrieval.py` CLI); deterministic curated sub-questions in `golden_queries.jsonl` (no LLM in eval script); RRF fusion in `benchmarks/multihop_rrf.py` keyed by `chunk_id` with `rrf_k=60` from `Settings`; single PR; no CI gate change; GraphRAG / server-side hop fusion explicitly deferred to ADR 0002+ later phases. **Chosen scope:** Benchmark-only deliverable — `eval_multihop.py` + `multihop_rrf.fuse_hop_rrf`; curated `hop2_query_text` on four `multi_hop` golden entries; client-side RRF fusion of hop 1 (`query_text`) + hop 2 (`hop2_query_text`) via existing `run_search`; side-by-side ranx metrics vs single-pass on `multi_hop` slice; unit tests + opt-in benchmark smoke; `SEARCH_BEHAVIOR.md` + `ARCHITECTURE.md` command docs; optional `eval_baseline.json` `multi_hop_2hop` snapshot after live verify. No MCP server, compose, or runtime changes.
+deviations: none
+test_debt:
+- unit tests + opt-in benchmark smoke
+- live verify against indexed `codebase-indexer-mcp` collection for optional baseline JSON snapshot
+changelog:
+  update: false
+  reason: user-facing no
+user_facing: false

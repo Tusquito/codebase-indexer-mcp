@@ -1,0 +1,25 @@
+adr_id: '0023'
+phase_key: phase-2
+phase_title: Phase 2 — Stop dual-write to Qdrant
+event: implementation
+date: '2026-07-04'
+tracker_status: implemented
+choices: Reused Qdrant collection metadata key `graph_call_sites`; per-collection Path D engine partition; Qdrant fallback + warning; retained `callees` keyword index until Phase 3; no `GRAPH_SCHEMA_VERSION` env
+deviations: none
+code_evidence:
+- mcp_server/src/codebase_indexer/storage/qdrant.py
+- mcp_server/src/codebase_indexer/indexer/pipeline.py
+- mcp_server/src/codebase_indexer/tools/cross_references.py
+- mcp_server/tests/test_qdrant_graph_call_sites.py
+- mcp_server/tests/test_cross_references.py
+- mcp_server/tests/test_pipeline_graph.py
+- mcp_server/tests/test_neo4j_call_site_integration.py
+- docs/ARCHITECTURE.md
+- .env.example
+- CHANGELOG.md
+test_debt:
+- Testcontainers integration test marked `slow` — optional CI job with Docker
+changelog:
+  update: false
+  reason: 'user-facing yes; status `implemented` (not verified); invoker Changelog: yes; bullet already in `[Unreleased]` from implementation'
+user_facing: true

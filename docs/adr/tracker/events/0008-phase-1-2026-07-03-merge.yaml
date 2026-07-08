@@ -1,0 +1,23 @@
+adr_id: 0008
+phase_key: phase-1
+phase_title: Phase 1 — optional ColBERT multivector reranking
+event: merge
+date: '2026-07-03'
+tracker_status: merged
+choices: squash merge `891fb97` (10 commits on feature branch `adr/0008-phase-1-colbert-rerank`); ADR accepted as `Accepted (phase 1 — optional ColBERT multivector reranking)`; release skipped; phase 2+ deferred (adaptive rerank, per-tool overrides, cross_reference/service_map wiring)
+deviations: none
+code_evidence:
+- 'merged via PR #1 (`adr/0008-phase-1-colbert-rerank`)'
+test_debt:
+- carried from verification — ranx eval manual
+- colbert mismatch recreate
+- slow ColBERT opt-in only
+verify: PR review round 2 approve; CI green; mergeable
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/1
+  commit: 891fb97
+  status: merged
+changelog:
+  update: false
+  reason: release skipped; `[Unreleased]` bullet retained from verification step
+user_facing: false

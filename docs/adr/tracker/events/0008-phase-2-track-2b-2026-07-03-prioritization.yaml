@@ -1,0 +1,14 @@
+adr_id: 0008
+phase_key: phase-2-track-2b
+phase_title: Phase 2 — track 2b (per-tool `rerank=false` override)
+event: prioritization
+date: '2026-07-03'
+tracker_status: candidate
+choices: 'Prioritize 0008 Phase 2 track 2b over 0014 Track A P2 outlier helper and Proposed 0002 GraphRAG Phase 1 (tie on weighted score; lower scope/risk tie-breaker); over 0009 Phase 2 automated 2-hop eval script (closest alternative, −0.5 weighted score, benchmark-only); over 0015 Phase 3 slim image and 0014 Track B n8n (deferred twice / ops-only); single phase per pipeline rule; no ADR Accept required (0008 already Accepted); complete ColBERT Improve Search arc before greenfield GraphRAG or discovery P2. **Chosen scope:** Optional `rerank: bool | None = None` on `search_codebase`, `search_symbols`, and semantic search paths in `find_cross_references` / `map_service_dependencies`; thread through `run_search` / `dispatch_search` / `QdrantStorage.search` to skip ColBERT query embed and MAX_SIM when `rerank=false`; unit tests per tool; `SEARCH_BEHAVIOR.md` + `.env.example` documentation; defer golden-set adaptive gap sweep and live Qdrant adaptive integration test debt from track 2a. **Why now:** ColBERT arc merged through Phase 1, Phase 2 tracks 1 and 2a, and ADR 0015 Phases 1–2; track 2b is the sole remaining ADR 0008 Phase 2 item explicitly deferred after track 2a ([PR #6](https://github.com/Tusquito/codebase-indexer-mcp/pull/6)); MCP search tools lack per-call rerank control while global `RERANK_ENABLED=true` always embeds ColBERT and runs MAX_SIM; prerequisites (0003, 0007, 0011, 0015) satisfied; measurable via `eval_retrieval --rerank` and unit tests; no new mandatory infra; default deploy unchanged when `RERANK_ENABLED=false`. **Suggested scope:** one phase (= one PR).'
+deviations: none
+test_debt:
+- defer golden-set adaptive gap sweep and live Qdrant adaptive integration test debt from track 2a
+changelog:
+  update: false
+  reason: user-facing unknown
+user_facing: false

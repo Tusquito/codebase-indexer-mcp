@@ -1,0 +1,33 @@
+adr_id: '0002'
+phase_key: phase-1
+phase_title: Phase 1 — Neo4j storage + index-time graph writer
+event: implementation
+date: '2026-07-03'
+tracker_status: implemented
+choices: mock driver CI; best-effort graph errors to `PipelineResult.errors`; BUILD_DEPENDS via on-disk re-read; Neo4j compose override only; no MCP tools Phase 1; public `extract_imported_names` in chunker
+deviations: neo4j driver resolved to 6.2.0 (5.x planned); endpoint `method` inference best-effort only
+code_evidence:
+- mcp_server/pyproject.toml
+- mcp_server/src/codebase_indexer/config.py
+- mcp_server/src/codebase_indexer/storage/neo4j.py
+- mcp_server/src/codebase_indexer/indexer/graph_writer.py
+- mcp_server/src/codebase_indexer/indexer/chunker.py
+- mcp_server/src/codebase_indexer/indexer/pipeline.py
+- mcp_server/src/codebase_indexer/context.py
+- mcp_server/src/codebase_indexer/tools/index.py
+- mcp_server/src/codebase_indexer/main.py
+- docker-compose.neo4j.yml
+- .env.example
+- docs/ARCHITECTURE.md
+- mcp_server/tests/test_config.py
+- mcp_server/tests/test_neo4j_storage.py
+- mcp_server/tests/test_graph_writer.py
+- mcp_server/tests/test_pipeline_graph.py
+test_debt:
+- live Neo4j incremental delete integration
+- compose override smoke
+- graph-failure-during-index scenario
+changelog:
+  update: false
+  reason: user-facing yes; entry at `verified` step
+user_facing: true

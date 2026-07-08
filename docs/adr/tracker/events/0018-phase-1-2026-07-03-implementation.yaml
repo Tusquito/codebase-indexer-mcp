@@ -1,0 +1,17 @@
+adr_id: 0018
+phase_key: phase-1
+phase_title: Phase 1 — Application Prometheus metrics (MCP + ColBERT worker)
+event: implementation
+date: '2026-07-03'
+tracker_status: implemented
+choices: Opt-in `METRICS_ENABLED=false` default; `prometheus_client` on dedicated registry; metrics-only `@observe_tool`; no collection/rel_path labels; `METRICS_PORT` and docker-compose deferred
+deviations: Dedicated `CollectorRegistry`; pytest-asyncio re-added to dev deps; colbert_onnx metrics at worker HTTP layer only
+code_evidence:
+- '`telemetry/metrics.py`, `main.py`, `colbert_worker/app.py`, `tools/*.py`, `search_common.py`, backends, `memory.py`, `DEPLOYMENT.md`, `test_telemetry_metrics.py`'
+test_debt:
+- Bearer-auth /metrics integration
+- compose scrape smoke
+- Phase 2 OTel span tests
+changelog:
+  update: false
+user_facing: false

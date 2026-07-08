@@ -1,0 +1,14 @@
+adr_id: '0024'
+phase_key: phase-1
+phase_title: Phase 1 — Analyze + allocate
+event: prioritization
+date: '2026-07-07'
+tracker_status: candidate
+choices: N/A (prioritization only — no implementation choices made). **Why now:** Not started (no `scripts/tune_stack.py`/`tune_alloc.py` in repo); all cited prerequisites (ADR 0007 `bench.py`, ADR 0015 ColBERT sidecar, ADR 0018 metrics, ADR 0022 GPU compose) are `Accepted`/merged; Phase 1 is deterministic allocation math with no search loop — zero regression risk to retrieval/index code paths; addresses a real, broad operator pain point (manual `.env.example` tier guessing causing silent Docker OOM restarts). **Suggested scope:** one phase (= one PR). **Chosen scope:** `scripts/tune_alloc.py` (pure allocation + knob-seed math, importable, unit-tested), `scripts/tune_stack.py` `analyze`/`allocate` subcommands only (no `tune`/search loop — Phase 2+), `mcp_server/tests/test_tune_alloc.py`. Accept ADR 0024 as part of this phase's kickoff.
+deviations: none
+code_evidence:
+- '`scripts/tune_stack.py` absent; `scripts/tune_alloc.py` absent'
+changelog:
+  update: false
+  reason: user-facing yes (new maintainer/operator-facing CLI script); no default-behavior or compose changes required until Phase 4 preset sync
+user_facing: true

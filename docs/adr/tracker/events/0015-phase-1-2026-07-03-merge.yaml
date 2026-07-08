@@ -1,0 +1,22 @@
+adr_id: '0015'
+phase_key: phase-1
+phase_title: Phase 1 — HTTP sidecar + remote backend + compose override + tests + operator docs
+event: merge
+date: '2026-07-03'
+tracker_status: merged
+choices: squash merge `e16dc59` on feature branch `adr/0015-phase-1-colbert-sidecar`; ADR accept skipped (already Accepted); release skipped; phase 2+ deferred (GPU worker; MCP slim when remote-only)
+deviations: none
+code_evidence:
+- 'merged via PR #2 (`adr/0015-phase-1-colbert-sidecar`)'
+test_debt:
+- carried from verification — optional slow onnx vs remote parity
+- operational memory-halt manual validation
+verify: 'carried from verification — pytest 229 passed, 3 skipped; 45 targeted ColBERT tests passed; review rounds: 1'
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/2
+  commit: e16dc59
+  status: merged
+changelog:
+  update: false
+  reason: already added at verified step
+user_facing: false

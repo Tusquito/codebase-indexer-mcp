@@ -1,0 +1,19 @@
+adr_id: 0018
+phase_key: phase-1
+phase_title: Phase 1 — Application Prometheus metrics (MCP + ColBERT worker)
+event: verification
+date: '2026-07-03'
+tracker_status: verified
+choices: Dedicated CollectorRegistry; ColBERT ONNX at worker HTTP layer; index metrics via IndexJobTracker; Docker skip per plan
+deviations: none
+code_evidence:
+- carried from implementation — `telemetry/metrics.py`, `main.py`, `colbert_worker/app.py`, `tools/*.py`, `search_common.py`, backends, `memory.py`, `DEPLOYMENT.md`, `test_telemetry_metrics.py`
+test_debt:
+- Bearer-auth /metrics test
+- truncated_chunks helper test
+- in-process ColBERT embed metrics
+- memory pressure edge-trigger
+verify: 'tests run + plan compliance pass (329 passed); review rounds: 1'
+changelog:
+  update: true
+user_facing: true

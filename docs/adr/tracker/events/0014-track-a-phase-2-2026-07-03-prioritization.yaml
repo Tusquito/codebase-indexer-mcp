@@ -1,0 +1,12 @@
+adr_id: '0014'
+phase_key: track-a-phase-2
+phase_title: Track A — Phase 2 (outlier / diversity helper)
+event: prioritization
+date: '2026-07-03'
+tracker_status: candidate
+choices: Prioritize 0014 Track A P2 over Proposed 0002 GraphRAG Phase 1 (higher raw unlock but Accept gate + optional Neo4j greenfield — decision rules 2 & 5); over 0008 test-debt closure PR (closest QA alternative, same weighted tier ~20 but no user-facing capability); over 0009 eval_multihop CI gate (benchmark-only); over 0015 Phase 3 slim image (ops/build, deferred twice); over 0014 Track B n8n (ops-only, new optional service); single phase per pipeline rule; no ADR Accept required (0014 already Accepted phase 1); finish vector discovery Track A before GraphRAG or n8n. **Chosen scope:** Add outlier/diversity MCP discovery tool per ADR 0014 §Phase 2 — `find_outlier_chunks` (or `recommend_code` extension with `strategy=diverse` / score inversion, lock at plan); `QdrantStorage` helper; bounded `limit` + required explicit `collection`; dense-only single-collection; config gate if needed; unit + integration tests per ADR Validation §Phase 2; `main.py` registration + `SEARCH_BEHAVIOR.md`; defer sparse fusion, multi-collection, Track B n8n compose. **Why now:** ColBERT arc (0008 all phases), sidecar (0015 P1–P2), multi-hop eval (0009 P2), and recommendation search (0014 P1) are merged; ADR 0014 explicitly deferred Track A Phase 2 after P1; `recommend_code` and `QdrantStorage.recommend` exist in code but no outlier/diversity tool (`find_outlier_chunks` absent from source); prerequisites satisfied; user-facing discovery on existing embedder/Qdrant stack; no new mandatory infra; default deploy unchanged; completes Track A before ops-only n8n (Track B) or greenfield GraphRAG (0002, still Proposed). **Suggested scope:** one phase (= one PR).
+deviations: none
+changelog:
+  update: false
+  reason: user-facing unknown (likely yes)
+user_facing: false

@@ -1,0 +1,26 @@
+adr_id: 0019
+phase_key: phase-1
+phase_title: Phase 1 — Schema, layout, render script
+event: implementation
+date: '2026-07-07'
+tracker_status: implemented
+choices: YAML tracker under `docs/adr/tracker/` with schema-driven validation; `scripts/render_adr_tracker.py` builds four generated markdown blocks between HTML-comment markers, preserving manual preamble; scaffolds a fresh doc when the target has no markers (live-tracker migration deferred to Phase 2). `pyyaml>=6.0` promoted to a direct dev dep in both dev groups. CI validation added as non-blocking (`--check || true`).
+deviations: none
+code_evidence:
+- scripts/render_adr_tracker.py
+- docs/adr/tracker/schema.yaml
+- docs/adr/tracker/phases/0019-phase-1.yaml
+- docs/adr/tracker/events/0019-phase-1-2026-07-07-plan.yaml
+- docs/adr/tracker/events/0008-phase-2b-2026-07-03-merge.yaml
+- mcp_server/tests/test_render_adr_tracker.py
+- mcp_server/tests/fixtures/adr_tracker/
+- mcp_server/pyproject.toml
+- mcp_server/uv.lock
+- .github/workflows/ci.yml
+- docs/adr/README.md
+test_debt:
+- blocking render-diff CI check (after Phase 2)
+- historical tracker migration to YAML (Phase 2)
+changelog:
+  update: false
+user_facing: false

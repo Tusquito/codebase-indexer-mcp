@@ -1,0 +1,23 @@
+adr_id: '0022'
+phase_key: phase-3
+phase_title: Phase 3 — CI split
+event: verification
+date: '2026-07-04'
+tracker_status: verified
+choices: Six ubuntu-latest jobs `ACCELERATOR=cpu`; blocking compose-integration; non-blocking gpu-smoke; `check_ollama_gpu_processor()` gates GPU verdict; quality validation skipped; finisher bundles 0021 P3
+deviations: none
+code_evidence:
+- .github/workflows/ci.yml
+- scripts/run_compose_integration.py
+- mcp_server/tests/test_run_compose_integration_gpu.py
+- docs/DEPLOYMENT.md
+- docs/adr/0022-gpu-default-cpu-fallback.md
+test_debt:
+- First green GHA compose-integration
+- gpu-smoke self-hosted runner
+- 0021 P3 finisher
+verify: 375 unit tests pass; integration pass GPU+CPU; plan compliance pass
+changelog:
+  update: false
+  reason: 'user-facing yes; invoker Changelog: no'
+user_facing: true

@@ -1,0 +1,18 @@
+adr_id: '0025'
+phase_key: phase-1
+phase_title: Phase 1 — TEI hard replace (final phase)
+event: implementation
+date: '2026-07-04'
+tracker_status: implemented
+choices: Accept in first commit; single PR; threshold 0; ADR 0017 rename bundled; hard replace
+deviations: eval_baseline.json metrics not re-captured on TEI GPU (params/note only); compose integration pending step 3.5
+code_evidence:
+- tei_dense.py, factory.py, config.py, docker-compose.tei.yml, docker-compose.tei.gpu.yml, compose_files.py, run_compose_integration.py, test_tei_dense_backend.py, docs/adr/0025-huggingface-tei-dense-embedding.md
+test_debt:
+- Live TEI integration
+- GPU golden baseline refresh
+- full compose harness
+changelog:
+  update: false
+  reason: 'user-facing yes; invoker Changelog: no'
+user_facing: true

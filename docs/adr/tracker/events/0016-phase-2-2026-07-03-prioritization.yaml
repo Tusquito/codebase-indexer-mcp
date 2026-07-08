@@ -1,0 +1,14 @@
+adr_id: '0016'
+phase_key: phase-2
+phase_title: Phase 2 — Eval baseline refresh
+event: prioritization
+date: '2026-07-03'
+tracker_status: candidate
+choices: 'Prioritize 0016 Phase 2 over 0002 Phase 2 GraphRAG payload linking (closest capability alternative, 27.0 weighted score — tie within ~10%; tie-breaker: lower scope/risk for benchmark-only refresh); over 0018 Phase 2 OTel traces (26.0, ops value but lower measurability in default CI); over 0017 Phase 2 standalone (truncation counter already in 0018 P1); over 0014 Track B n8n and 0015 Phase 3+ slim image (ops-only, deferred twice); over 0008 test-debt (QA-only); single phase per pipeline rule; close embedding ADR arc before GraphRAG P2 or telemetry P2. **Chosen scope:** Re-index golden fixture collection (`codebase-indexer-mcp`) with Qwen3-4B @ 1024 via Ollama GPU; run `python -m benchmarks.eval_retrieval` and `python -m benchmarks.eval_multihop`; update `mcp_server/benchmarks/fixtures/eval_baseline.json` (params: `dense_embed_model`, `dense_embed_vector_size`, `indexed_at`, embed-model note; refresh overall metrics, `metrics_by_tag`, `multi_hop_2hop` snapshot); record Nomic/Jina vs Qwen3 deltas in tracker Phase log; apply ADR 0016 success criterion (recall@10 ≥ prior or documented regression); defer optional `num_ctx` passthrough (0016 P1 deviation), ADR 0011 body edit (0017 P2 remainder), and compose scrape/`METRICS_PORT` (0018 P1 deferrals). **Why now:** ADR 0016 Phase 1 merged ([PR #12](https://github.com/Tusquito/codebase-indexer-mcp/pull/12)); prerequisite ADR 0017 Phase 1 merged ([PR #11](https://github.com/Tusquito/codebase-indexer-mcp/pull/11)); ADR 0018 Phase 1 merged ([PR #13](https://github.com/Tusquito/codebase-indexer-mcp/pull/13)) — prior cycle explicitly deferred 0016 P2 for 0018 P1. Embedding defaults now Qwen3 in `.env.example` and `benchmarks/_settings.py`, but `fixtures/eval_baseline.json` still records `jinaai/jina-embeddings-v2-base-code` (2026-07-02) — regression compare is misleading until refresh. ADR 0016 §Phased delivery item 2 and §Measured outcomes remain unfilled. Highest weighted score (30.5); benchmark-only PR with existing `eval_retrieval.py` / `eval_multihop.py` harness (ADR 0007, 0009); no new mandatory infra; default deploy unchanged. **Suggested scope:** one phase (= one PR).'
+deviations: none
+code_evidence:
+- '`.env.example`, `mcp_server/benchmarks/_settings.py` Qwen3 defaults; `mcp_server/benchmarks/fixtures/eval_baseline.json` still `jinaai/jina-embeddings-v2-base-code` (2026-07-02)'
+changelog:
+  update: false
+  reason: user-facing unknown
+user_facing: false

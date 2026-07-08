@@ -1,0 +1,26 @@
+adr_id: 0008
+phase_key: phase-2-track-2a
+phase_title: Phase 2 — track 2a (adaptive rerank skip)
+event: implementation
+date: '2026-07-03'
+tracker_status: implemented
+choices: Shipped `RERANK_ADAPTIVE_ENABLED=true` and `RERANK_ADAPTIVE_GAP=0.02`; adaptive logic in `QdrantStorage._search_single` via hybrid RRF probe before ColBERT; probe limit `max(top_k, 2)`; fewer than 2 probe hits always runs ColBERT; `AdaptiveRerankStats` counters on storage for bench/eval skip-rate; ColBERT query embed in `Embedder.embed_query` unchanged; track 2b per-tool override deferred; default deploy unchanged (`RERANK_ENABLED=false`)
+deviations: none
+code_evidence:
+- mcp_server/src/codebase_indexer/config.py
+- mcp_server/src/codebase_indexer/storage/qdrant.py
+- mcp_server/tests/test_config.py
+- mcp_server/tests/test_qdrant_search.py
+- mcp_server/benchmarks/bench.py
+- mcp_server/benchmarks/eval_retrieval.py
+- mcp_server/tests/test_benchmarks.py
+- docs/SEARCH_BEHAVIOR.md
+- .env.example
+test_debt:
+- golden-set gap sweep via `eval_retrieval --rerank`
+- optional live Qdrant integration test for adaptive skip
+- multi-collection adaptive + global RRF unit test
+- track 2b per-tool `rerank=false` deferred
+changelog:
+  update: false
+user_facing: false

@@ -1,0 +1,7 @@
+adr_id: '0022'
+phase_key: phase-1
+title: GPU-default acceleration; CPU only when explicit
+tracker_status: merged
+chosen_scope: 'Compose-only `ACCELERATOR=gpu` default; canonical `-f` via `scripts/compose_files.py`; fail-fast `require_gpu()` in integration harness; sparse BM25 unchanged (CPU in MCP); docs/compose updates; 12 unit tests pass; no `.github/workflows/ci.yml` changes. Defer Phase 2 (ColBERT remote GPU default + 0021 P2 baseline), Phase 3 (CI `ACCELERATOR=cpu`, self-hosted GPU smoke, `ollama ps` GPU assertion). [PR #17](https://github.com/Tusquito/codebase-indexer-mcp/pull/17)'
+last_updated: '2026-07-04'
+adr_status_note: Accepted (phase 1 — GPU-default compose + docs)

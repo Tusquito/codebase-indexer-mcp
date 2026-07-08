@@ -1,0 +1,24 @@
+adr_id: '0015'
+phase_key: phase-2
+phase_title: Phase 2 — GPU ColBERT worker image + index throughput benchmark vs CPU sidecar
+event: implementation
+date: '2026-07-03'
+tracker_status: implemented
+choices: '`onnxruntime-gpu==1.26.0` pinned to match CPU lock; `python:3.12-slim` base with NVIDIA compose reservations mirroring Ollama GPU pattern; optional `COLBERT_DEVICE_IDS` env wired to `ColbertOnnxBackend.device_ids`; `/health` reports configured `device` + runtime `cuda_available`; fail-fast preload when CUDA requested but unavailable; dedicated `bench_colbert_sidecar.py` over full `run_benchmark` with remote ColBERT; single-GPU 8GB OOM documented (no auto-scheduler)'
+deviations: none
+code_evidence:
+- colbert_worker/Dockerfile.gpu
+- docker-compose.colbert-worker.gpu.yml
+- mcp_server/src/codebase_indexer/colbert_worker/app.py
+- mcp_server/src/codebase_indexer/colbert_worker/settings.py
+- mcp_server/src/codebase_indexer/indexer/backends/colbert_onnx.py
+- mcp_server/benchmarks/bench_colbert_sidecar.py
+- docs/DEPLOYMENT.md
+- .github/workflows/ci.yml
+test_debt:
+- Docker GPU image runtime smoke
+- live GPU embed integration
+- bench compare path unit test
+changelog:
+  update: false
+user_facing: false

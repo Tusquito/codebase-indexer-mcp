@@ -1,0 +1,7 @@
+adr_id: 0008
+phase_key: phase-2-track-1
+title: Optional ColBERT reranking
+tracker_status: merged
+chosen_scope: 'Shared `dispatch_search()` in `search_common.py`; xref semantic/import via `run_search()`; service_map batched discovery via `dispatch_search()` with pre-embedded colbert vectors; tool-specific `min_score` retained (0.3 / 0.25); unit tests + `SEARCH_BEHAVIOR.md`; default deploy unchanged (`RERANK_ENABLED=false`); adaptive rerank and per-tool overrides deferred to track 2; [PR #4](https://github.com/Tusquito/codebase-indexer-mcp/pull/4)'
+last_updated: '2026-07-03'
+adr_status_note: Accepted

@@ -1,0 +1,14 @@
+adr_id: '0020'
+phase_key: phase-1
+phase_title: Phase 1 — Dataset + training pipeline
+event: plan
+date: '2026-07-03'
+tracker_status: planned
+choices: Single PR for Phase 1; reuse `eval_retrieval.load_golden` / `resolve_labels` and `run_search` path for mining; hard negatives from base Qwen3 only; default holdout stratified 4 queries with `multi_hop` CLI alternative; training outputs gitignored; no CI GPU/train job; DEPLOYMENT stub only (full Ollama steps in P2); sentence-transformers + PEFT recommended for InfoNCE loop. **Chosen scope:** Add `mcp_server/benchmarks/train/` with `export_golden_pairs.py`, `mine_hard_negatives.py`, `finetune_qwen3_code.py`, shared schema/split/positive helpers, optional `[train]` pyproject extra, unit tests for export/split/mining, `DEPLOYMENT.md` training stub, gitignore for generated artifacts. Validation holdout + best-checkpoint-by-val-MRR. Defer Ollama export/registry (P2), Jina quality gate + baseline update (P3), CI observation job (P4).
+deviations: none
+test_debt:
+- unit tests for export/split/mining
+changelog:
+  update: false
+  reason: user-facing no
+user_facing: false

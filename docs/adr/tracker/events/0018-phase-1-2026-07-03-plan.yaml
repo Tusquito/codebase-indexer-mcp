@@ -1,0 +1,14 @@
+adr_id: 0018
+phase_key: phase-1
+phase_title: Phase 1 — Application Prometheus metrics (MCP + ColBERT worker)
+event: plan
+date: '2026-07-03'
+tracker_status: planned
+choices: 'Single PR per phase; metrics-only `@observe_tool` decorator on all MCP tool handlers (not custom OTel spans); `prometheus_client>=0.21` in main dependencies with `METRICS_ENABLED=false` runtime gate; truncation counter wired; Qdrant scrape documented only in `DEPLOYMENT.md`; Docker compose unchanged in Phase 1; defer Phase 2 OTel traces, Phase 3 observability compose stack. **Chosen scope:** Accept ADR 0018 then implement Phase 1 only: `telemetry/metrics.py` with `METRICS_ENABLED=false` default; thin metrics-only decorator; application counters/histograms; `GET /metrics` on MCP and ColBERT worker; unit tests; `DEPLOYMENT.md` scrape docs. **Assumptions:** ADR Accept at finisher after merge; default CI metrics-disabled.'
+deviations: none
+code_evidence:
+- zero application `/metrics` endpoint or Prometheus instrumentation in codebase today
+changelog:
+  update: false
+  reason: user-facing yes; status `planned` (changelog at verified)
+user_facing: true

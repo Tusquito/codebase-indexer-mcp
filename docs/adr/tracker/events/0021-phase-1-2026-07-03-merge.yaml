@@ -1,0 +1,22 @@
+adr_id: '0021'
+phase_key: phase-1
+phase_title: Phase 1 — Config + docs revert
+event: merge
+date: '2026-07-03'
+tracker_status: merged
+choices: squash merge `f50fa98` on feature branch `adr/0021-phase-1-revert-jina-default`; ADR accepted as `Accepted (phase 1 — Config + docs revert)` (docs accept `a4a61a6`); release skipped; Phase 2 eval baseline refresh and Phase 3 ADR housekeeping deferred
+deviations: none
+code_evidence:
+- 'merged via [PR #16](https://github.com/Tusquito/codebase-indexer-mcp/pull/16) (`adr/0021-phase-1-revert-jina-default`; squash `f50fa98`; docs accept `a4a61a6`)'
+test_debt:
+- carried from verification — `smoke_recommend` dim mismatch until Phase 2 re-index
+- '`eval_baseline.json` still Qwen3 until Phase 2'
+verify: carried from verification — 346 pytest; Docker integration pass; 1 review round
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/16
+  commit: f50fa98
+  status: merged
+changelog:
+  update: false
+  reason: Unreleased bullet only; no version cut
+user_facing: false

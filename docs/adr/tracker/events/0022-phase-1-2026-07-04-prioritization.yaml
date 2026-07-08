@@ -1,0 +1,14 @@
+adr_id: '0022'
+phase_key: phase-1
+phase_title: Phase 1 — GPU-default compose + docs
+event: prioritization
+date: '2026-07-04'
+tracker_status: candidate
+choices: 'Prioritize 0022 P1 over 0021 P2 (Accepted, eval baseline still Qwen3 — sequenced after GPU compose default per ADR 0022); over 0002 P2 GraphRAG payload linking (large re-index, embed stable but topology wrong); over 0018 P2 OTel traces (ops increment, lower immediate deploy impact); over 0019 P1 YAML tracker (meta-tooling, score ~20.5); over cancelled 0020 P2–4; single phase per pipeline rule; pre-release: breaking GPU default acceptable, no CPU parallel default preservation. **Chosen scope:** Phase 1 only — `ACCELERATOR=gpu` default; `scripts/compose_files.py` + `scripts/accelerator.py`; merge GPU compose overrides by default; update `.env.example`, `README.md`, `docs/DEPLOYMENT.md`; wire `scripts/run_compose_integration.py`; unit tests (`test_compose_files.py`, `require_gpu()`); CI jobs set explicit `ACCELERATOR=cpu`. Defer Phase 2 (ColBERT remote GPU default + 0021 P2 baseline) and Phase 3 (self-hosted GPU CI smoke). Requires formal Accept of Proposed ADR 0022 and README index row before dev. **Why now:** GPU infra from ADR 0015 P2 and Jina defaults from ADR 0021 P1 are merged, but deploy/eval/integration still CPU-opt-in (`OLLAMA_GPU`, no `ACCELERATOR`, CPU-only `run_compose_integration.py` compose list). ADR 0022 P1 establishes production topology and fail-fast before 0021 P2 GPU baseline capture. Pre-release policy accepts breaking GPU defaults. **Suggested scope:** one phase (= one PR).'
+deviations: none
+test_debt:
+- unit tests (`test_compose_files.py`, `require_gpu()`)
+changelog:
+  update: false
+  reason: user-facing unknown
+user_facing: false

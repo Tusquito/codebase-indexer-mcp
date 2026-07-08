@@ -1,0 +1,27 @@
+adr_id: 0019
+phase_key: phase-1
+phase_title: Phase 1 — Schema, layout, render script
+event: verification
+date: '2026-07-07'
+tracker_status: verified
+choices: YAML tracker under `docs/adr/tracker/` with `schema.yaml` contract driving validation; stdlib+PyYAML render script generating marker-delimited summary/active/phase-logs/open-decisions blocks with preamble preservation; non-blocking `--check || true` CI step in Phase 1; migration (Phase 2) and agent cutover (Phase 3) deferred.
+deviations: none
+code_evidence:
+- scripts/render_adr_tracker.py
+- docs/adr/tracker/schema.yaml
+- docs/adr/tracker/phases/0019-phase-1.yaml
+- docs/adr/tracker/events/0019-phase-1-2026-07-07-plan.yaml
+- mcp_server/tests/test_render_adr_tracker.py
+- mcp_server/tests/fixtures/adr_tracker/**
+- .github/workflows/ci.yml
+- mcp_server/pyproject.toml
+- docs/adr/README.md
+test_debt:
+- blocking render-diff CI check after Phase 2 migration
+- historical tracker migration to YAML (Phase 2)
+- optional nested-contract (git/changelog) rejection tests
+verify: '9 render unit tests pass; render script validate/check/scaffold behavior confirmed; full suite 398 passed (8 storage-integration failures environmental, green in Docker integration report); Docker integration Verdict: pass; quality validation plan-approved skip; plan compliance pass across all in-scope paths; review rounds: 1'
+changelog:
+  update: false
+  reason: user-facing no
+user_facing: false

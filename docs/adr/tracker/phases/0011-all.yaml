@@ -1,0 +1,7 @@
+adr_id: '0011'
+phase_key: all
+title: Ollama-only dense embedding
+tracker_status: merged
+chosen_scope: See CHANGELOG [Unreleased]; superseded 2026-07-04 by ADR 0025 (TEI hard replace)
+last_updated: '2026-07-02'
+adr_status_note: Superseded (→ 0025)

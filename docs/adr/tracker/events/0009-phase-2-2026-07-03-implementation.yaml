@@ -1,0 +1,25 @@
+adr_id: 0009
+phase_key: phase-2
+phase_title: Phase 2 — automated 2-hop client eval script
+event: implementation
+date: '2026-07-03'
+tracker_status: implemented
+choices: Separate `eval_multihop.py` CLI; curated `hop2_query_text` inline in `golden_queries.jsonl`; RRF fusion in `benchmarks/multihop_rrf.fuse_hop_rrf`; `--rerank` passthrough included; `multi_hop_2hop` baseline block added after live verify
+deviations: Live baseline snapshot used local nomic embed model (not baseline jina model); ADR Accept/index update deferred to merge gate
+code_evidence:
+- mcp_server/benchmarks/eval_multihop.py
+- mcp_server/benchmarks/multihop_rrf.py
+- mcp_server/benchmarks/eval_retrieval.py
+- mcp_server/benchmarks/fixtures/golden_queries.jsonl
+- mcp_server/benchmarks/fixtures/eval_baseline.json
+- mcp_server/tests/test_multihop_rrf.py
+- mcp_server/tests/test_eval_multihop.py
+- docs/SEARCH_BEHAVIOR.md
+- docs/ARCHITECTURE.md
+test_debt:
+- No CI gate for eval_multihop
+- baseline snapshot not aligned to jina embed model
+- no unit test for compare_vs_baseline()
+changelog:
+  update: false
+user_facing: false

@@ -1,0 +1,14 @@
+adr_id: '0026'
+phase_key: phase-1
+phase_title: Phase 1 — Harness reliability fix
+event: prioritization
+date: '2026-07-08'
+tracker_status: candidate
+choices: Recommend Phase 1 only (not Phases 2–5); Accept ADR 0026 before implementation (human confirmed yes); Docker integration required per project-phase policy; no GPU required for Phase 1; priority 0026 Phase 1 over ADR 0002 Phase 3 (human confirmed). **Why now:** Only Proposed ADR; golden-set harness has demonstrated ±60pp recall@10 non-reproducibility on unchanged Jina model (0021 frozen 0.660 vs live 0.263); labels still keyed on `rel_path:start_line` in `eval_retrieval.py`; 0021 test debt defers golden label realignment; prerequisites (0007, 0025, 0022, 0002 Phase 2) satisfied; Phase 1 is benchmark-only with zero production impact. **Suggested scope:** one phase (= one PR). **Chosen scope:** Phase 1 — content-anchored label resolution; `--validate-labels` drift re-resolution with drift counts; repeat-run regression test (`test_harness_reproducibility.py`); wire into `eval_retrieval.py` via `label_anchor.py`.
+deviations: none
+code_evidence:
+- labels keyed on `rel_path:start_line` in `eval_retrieval.py`; frozen `eval_baseline_jina.json` recall@10 0.660 vs live 0.263 (0021 Phase 2)
+changelog:
+  update: false
+  reason: 'user-facing no; invoker Changelog: no'
+user_facing: false

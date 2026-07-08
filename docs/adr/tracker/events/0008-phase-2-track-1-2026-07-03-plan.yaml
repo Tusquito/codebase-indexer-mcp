@@ -1,0 +1,15 @@
+adr_id: 0008
+phase_key: phase-2-track-1
+phase_title: Phase 2 — track 1 (cross_reference / service_map rerank wiring)
+event: plan
+date: '2026-07-03'
+tracker_status: planned
+choices: Shared `dispatch_search` helper (not duplicate colbert pass-through in each tool); keep tool-specific internal `min_score` (0.3 / 0.25) — ignored on hybrid/rerank via existing `qdrant.py` logic; no new config/infra; single PR; no ADR accept/index update
+deviations: none
+test_debt:
+- unit tests in `test_search_common.py`, `test_cross_references.py`, `test_service_map.py`
+- '`SEARCH_BEHAVIOR.md` xref/service_map rerank note'
+changelog:
+  update: false
+  reason: user-facing yes; entry at `verified` step
+user_facing: true

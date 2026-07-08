@@ -1,0 +1,18 @@
+adr_id: '0021'
+phase_key: phase-2
+phase_title: Phase 2 — Eval baseline refresh
+event: prioritization
+date: '2026-07-04'
+tracker_status: candidate
+choices: 'Prioritize 0021 P2 over 0002 P2 GraphRAG payload linking (24.5 — embed/baseline debt first); over 0022 P2 (22.0 — blocked until 0021 P2 baseline); over 0018 P2 OTel traces (23.0 — ops increment); over 0017 P2 truncation observability (23.0 — small slice); over Proposed 0019 P1 YAML tracker (17.0 — meta-tooling, needs Accept); over 0022 P3 CI split (depends on P2); single phase per pipeline rule; pre-release: full re-index acceptable, no dual baseline preservation. **Chosen scope:** Re-index golden fixture collection with Jina (`unclemusclez/jina-embeddings-v2-base-code`) @ 768 on GPU stack (`ACCELERATOR=gpu`); run `eval_retrieval --validate-labels` and live verify; commit refreshed `mcp_server/benchmarks/fixtures/eval_baseline.json` with Jina params and `accelerator: gpu` metadata; refresh `multi_hop_2hop` snapshot in baseline if applicable; update ADR 0021 **Measured outcomes** table; defer Phase 3 (ADR index/CHANGELOG housekeeping) and all 0022 P2 factory/ColBERT default changes. **Why now:** ADR 0021 Phase 1 merged (Jina @ 768 production defaults) but `eval_baseline.json` still records Qwen3 @ 1024 (recall@10 0.244); CI `--compare` and integration quality validation misaligned with defaults; ADR 0022 Phase 1 merged (GPU-default compose) enables GPU baseline capture; tracker sequences 0021 P2 before 0022 P2; frozen `eval_baseline_jina.json` (0.660 recall@10) is reference target.'
+deviations: none
+test_debt:
+- Golden collection re-index @ 768 required
+- '`eval_retrieval --validate-labels` + live verify'
+- refresh `multi_hop_2hop` snapshot if applicable
+- resolves Phase 1 `smoke_recommend` dim mismatch
+verify: '`eval_retrieval --validate-labels`; live verify against frozen `eval_baseline_jina.json` reference (0.660 recall@10)'
+changelog:
+  update: false
+  reason: user-facing unknown
+user_facing: false

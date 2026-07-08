@@ -1,0 +1,23 @@
+adr_id: '0002'
+phase_key: phase-2
+phase_title: Phase 2 — Qdrant payload linking (`graph_node_ids`)
+event: implementation
+date: '2026-07-08'
+tracker_status: implemented
+choices: boolean `graph_enabled` metadata only; `graph_node_ids` neighbor-keys-only; graph batch built once per flush before upsert; file-level imports attributed to every chunk in file; search logs `graph_linkage_missing` once per unlinked collection when `GRAPH_ENABLED=true`.
+deviations: '`write_chunks_to_graph` retained for Neo4j integration test; pipeline uses `build_graph_batch` + `write_batch`.'
+code_evidence:
+- qdrant.py
+- graph_writer.py
+- pipeline.py
+- search_common.py
+- .env.example
+- docs/ARCHITECTURE.md
+test_debt:
+- mypy gate not run
+- no live end-to-end graph-linkage assertion
+- TEI-dependent full index/search unverified.
+changelog:
+  update: false
+  reason: user-facing yes; entry at `verified` step
+user_facing: true

@@ -1,0 +1,12 @@
+adr_id: '0016'
+phase_key: phase-2
+phase_title: Phase 2 — Eval baseline refresh
+event: plan
+date: '2026-07-03'
+tracker_status: planned
+choices: 'One PR for entire Phase 2; compare against committed Jina baseline (`dense_embed_model: jinaai/jina-embeddings-v2-base-code`, recall@10 0.660256); success gate = recall@10 ≥ prior or documented regression with per-tag mitigation; `RERANK_ENABLED=false` for baseline parity; use existing `scripts/reindex_graphrag.py` / MCP `index_codebase(force=True)` pattern; host eval with `OLLAMA_URL=http://127.0.0.1:11434`; defer `num_ctx`, ADR 0011 body edit, CI recall gate, Nomic re-capture unless explicitly added at verify. **Chosen scope:** Re-index golden fixture collection (`codebase-indexer-mcp`) with Qwen3-Embedding-4B @ 1024 via bundled Ollama (GPU recommended); run `eval_retrieval` (hybrid + `--no-hybrid` for `ab_dense_only`) and `eval_multihop` (two-hop RRF); commit updated `mcp_server/benchmarks/fixtures/eval_baseline.json` with refreshed `params`, overall metrics, `metrics_by_tag`, and `multi_hop_2hop`; fill ADR 0016 **Measured outcomes** (Jina 2026-07-02 → Qwen3 delta); conditional golden label fixes only if `--validate-labels` fails; single PR, no runtime code changes. **Assumptions:** Phase 1 merged ([PR #12](https://github.com/Tusquito/codebase-indexer-mcp/pull/12)); ADR 0017 P1 tokenizer merged; `benchmarks/_settings.py` already Qwen3; golden set unchanged (`golden_set_version: v3-multi-hop`, 26 queries); Docker integration required for live verify; this phase completes ADR 0016 (final phase).'
+deviations: none
+changelog:
+  update: false
+  reason: user-facing no
+user_facing: false

@@ -1,0 +1,22 @@
+adr_id: '0016'
+phase_key: phase-2
+phase_title: Phase 2 — Eval baseline refresh
+event: implementation
+date: '2026-07-03'
+tracker_status: implemented
+choices: Comparison baseline Jina → Qwen3 only; recall@10 gate waived with documented per-tag regression; GPU Ollama via docker-compose.ollama.gpu.yml; RERANK_ENABLED=false; golden re-index at parent WORKSPACE_ROOT; alias line remapping for Phase 1 chunk drift; multi_hop_2hop refreshed with Qwen3 metrics
+deviations: Operational compose/env overrides during eval (WORKSPACE_ROOT parent mount, in-container service URLs, OLLAMA_TIMEOUT=600) not committed; significant golden-set recall regression (−63.1% recall@10 vs Jina) documented in ADR measured outcomes
+code_evidence:
+- mcp_server/benchmarks/fixtures/eval_baseline.json
+- mcp_server/benchmarks/fixtures/golden_queries.jsonl
+- docs/adr/0016-qwen3-embedding-default-dense-model.md
+- docs/adr/README.md
+test_debt:
+- CI validate-labels gate
+- compose WORKSPACE_ROOT eval preset
+- optional non-blocking recall benchmark job
+- compose host-env URL isolation
+changelog:
+  update: false
+  reason: 'user-facing yes; status `implemented` (not verified); invoker Changelog: no'
+user_facing: true

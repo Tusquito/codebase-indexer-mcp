@@ -1,0 +1,24 @@
+adr_id: 0008
+phase_key: phase-2-track-1
+phase_title: Phase 2 — track 1 (xref/service_map rerank wiring)
+event: verification
+date: '2026-07-03'
+tracker_status: verified
+choices: Shared `dispatch_search` helper in `search_common.py`; xref semantic/import via `run_search()`; service_map batched discovery via `dispatch_search()` with pre-embedded colbert vectors; tool-specific `min_score` retained (0.3 / 0.25); default deploy unchanged (`RERANK_ENABLED=false`); adaptive rerank and per-tool overrides deferred to track 2
+deviations: none
+code_evidence:
+- mcp_server/src/codebase_indexer/tools/search_common.py
+- cross_references.py
+- service_map.py
+- mcp_server/tests/test_search_common.py
+- test_cross_references.py
+- test_service_map.py
+- docs/SEARCH_BEHAVIOR.md
+test_debt:
+- import-phrased xref colbert wiring test
+- single-collection xref semantics regression test
+- optional slow integration rerank smoke for xref/service_map
+verify: 'tests run + plan compliance pass — 17 targeted tests passed; 235-suite tests passed (242 with fastapi env); ruff clean; review rounds: 1'
+changelog:
+  update: true
+user_facing: true

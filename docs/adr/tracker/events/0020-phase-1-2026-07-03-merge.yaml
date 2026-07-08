@@ -1,0 +1,24 @@
+adr_id: '0020'
+phase_key: phase-1
+phase_title: Phase 1 — Dataset + training pipeline
+event: merge
+date: '2026-07-03'
+tracker_status: merged
+choices: squash merge `02b8794` on feature branch `adr/0020-phase-1-qwen3-code-finetune` (6 commits); ADR accepted as **Accepted (phase 1 — Dataset + training pipeline)**; release skipped; Phases 2–4 deferred (Ollama export/registry P2, Jina quality gate P3, CI observation P4)
+deviations: none
+code_evidence:
+- 'merged via [PR #15](https://github.com/Tusquito/codebase-indexer-mcp/pull/15) (`adr/0020-phase-1-qwen3-code-finetune`; squash `02b8794`)'
+test_debt:
+- carried from verification — GPU smoke for `train_lora`
+- live Qdrant/Ollama integration for export + mine
+- per-epoch best-checkpoint selection
+- '`[train]` extra co-install verification on maintainer GPU host'
+verify: 'carried from verification — 17 scoped unit tests pass; plan compliance pass (documented checkpoint deviation); review rounds: 1'
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/15
+  commit: 02b8794
+  status: merged
+changelog:
+  update: false
+  reason: user-facing no; release skipped
+user_facing: false
