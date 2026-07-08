@@ -1,0 +1,24 @@
+adr_id: 0019
+phase_key: phase-2
+phase_title: Phase 2 — Historical migration
+event: verification
+date: '2026-07-08'
+tracker_status: verified
+choices: One-time `scripts/migrate_tracker_to_yaml.py` migration; YAML source of truth with generated markdown; kebab-case `phase_key`; plain `adr_id`; open-decisions collapsed to bullets; blocking `--check` gate.
+deviations: none
+code_evidence:
+- scripts/migrate_tracker_to_yaml.py
+- scripts/render_adr_tracker.py
+- docs/adr/tracker/phases/*.yaml
+- docs/adr/tracker/events/*.yaml
+- docs/adr/IMPLEMENTATION_TRACKER.md
+- .github/workflows/ci.yml
+- docs/adr/README.md
+test_debt:
+- Optional migrate-helper regression test skipped (helper is one-time/deletable per ADR)
+- event-count text in tracker (141) is one behind on-disk (142) — cosmetic
+verify: 'render `--check` zero drift; `--validate-only` 40 phase + 142 event files valid; 9 render unit tests pass; ruff clean; CI render-diff step confirmed blocking (no `|| true`); Docker integration report pass (quality validation skipped per plan); manual preamble + partial-acceptance/superseded postamble preserved outside markers; review rounds: 1'
+changelog:
+  update: false
+  reason: user-facing no
+user_facing: false

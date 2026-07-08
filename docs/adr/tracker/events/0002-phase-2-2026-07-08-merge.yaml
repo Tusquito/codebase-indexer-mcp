@@ -1,0 +1,21 @@
+adr_id: '0002'
+phase_key: phase-2
+phase_title: Phase 2 — Qdrant payload linking (`graph_node_ids`)
+event: merge
+date: '2026-07-08'
+tracker_status: merged
+choices: 'squash merge `e3348b0` on feature branch `adr/0002-phase-2-graph-node-ids`; ADR accept skipped (already Accepted phase 1; Accept after merge: no); release skipped; Phases 3–4 deferred'
+deviations: none
+code_evidence:
+- 'merged via PR #26 (`adr/0002-phase-2-graph-node-ids`; squash `e3348b0`)'
+test_debt:
+- carried from verification — prometheus_client and neo4j driver needed in CI env
+verify: 'carried from verification — 34 Phase 2 unit tests pass; full suite 420 passed; integration Verdict pass; plan compliance pass; review rounds: 1'
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/26
+  commit: e3348b0
+  status: merged
+changelog:
+  update: true
+  reason: '`[Unreleased]` GraphRAG Phase 2 bullet committed on main'
+user_facing: true

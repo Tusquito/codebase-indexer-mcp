@@ -1,0 +1,17 @@
+adr_id: '0025'
+phase_key: phase-1
+phase_title: Phase 1 — TEI hard replace (final phase) — closeout
+event: plan
+date: '2026-07-07'
+tracker_status: planned
+choices: Doc/docstring sweep scope expanded beyond the prioritizer's seed list after direct repo verification (added `CONTRIBUTING.md`, `docs/SEARCH_BEHAVIOR.md`, `test_adaptive_live.py`, `deps-hygiene.md`, `ops-hygiene.md`, and two non-literal README command-block bugs at L618/L623); quality validation threshold `0` (self-compare, fresh baseline); performance report report-only; no schema/version env var added for the baseline data refresh
+deviations: none
+test_debt:
+- live TEI integration (Docker)
+- GPU golden baseline refresh (`eval_baseline.json` + ADR 0025 Measured outcomes table)
+- doc/docstring Ollama-reference sweep (expanded scope, see Chosen scope)
+verify: '`rg -i ollama` clean (excluding `benchmarks/train/**` and historical ADR/README-index references) per ADR Success Criterion #2; `scripts/run_compose_integration.py --json --quality-validation --performance-report` pass on GPU host'
+changelog:
+  update: false
+  reason: 'breaking-change entry for ADR 0025 hard replace already present in `CHANGELOG.md` `[Unreleased]`; this closeout is doc-correctness + gate compliance, not a new behavior change; user-facing: yes — `README.md`/`docs/DEPLOYMENT.md`/`CONTRIBUTING.md` currently give operators factually wrong or broken information about where dense vectors come from and how to run the TEI sidecar'
+user_facing: false

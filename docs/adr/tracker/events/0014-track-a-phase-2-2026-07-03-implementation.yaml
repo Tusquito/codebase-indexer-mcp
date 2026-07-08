@@ -1,0 +1,32 @@
+adr_id: '0014'
+phase_key: track-a-phase-2
+phase_title: Track A — Phase 2 (outlier / diversity helper)
+event: implementation
+date: '2026-07-03'
+tracker_status: implemented
+choices: Separate tool `find_outlier_chunks` (not extending `recommend_code`); score = cosine similarity to context centroid (ascending = most distant); reuse `RECOMMEND_ENABLED` gate (no `OUTLIER_ENABLED`); config `OUTLIER_MAX_CONTEXT_SAMPLES` (200) + `OUTLIER_MAX_SIMILARITY` (0.55); Qdrant `RecommendStrategy.BEST_SCORE` negative-only; scroll supplement only when `path_glob` set or no explicit `context_chunk_ids`
+deviations: Scroll supplement restricted when only `context_chunk_ids` provided — prevents outlier candidates being absorbed into context centroid during whole-collection scroll fill
+code_evidence:
+- mcp_server/src/codebase_indexer/config.py
+- mcp_server/src/codebase_indexer/storage/qdrant.py
+- mcp_server/src/codebase_indexer/tools/outliers.py
+- mcp_server/src/codebase_indexer/main.py
+- docker-compose.yml
+- .env.example
+- docs/SEARCH_BEHAVIOR.md
+- docs/ARCHITECTURE.md
+- README.md
+- mcp_server/tests/test_outliers.py
+- mcp_server/tests/test_outlier_tool.py
+- mcp_server/tests/test_config.py
+- mcp_server/tests/test_main.py
+- mcp_server/tests/test_storage_integration.py
+test_debt:
+- '`main.py` positive registration gate'
+- live HTTP/Ollama e2e for `find_outlier_chunks`
+- combined `path_glob`+`context_chunk_ids` integration
+- golden-set outlier quality eval
+- multi-collection/sparse fusion deferred
+changelog:
+  update: false
+user_facing: false

@@ -1,0 +1,25 @@
+adr_id: '0015'
+phase_key: phase-1
+phase_title: Phase 1 — HTTP sidecar + remote backend
+event: verification
+date: '2026-07-03'
+tracker_status: verified
+choices: Opt-in `COLBERT_EMBED_BACKEND=remote` with `colbert_worker` sidecar; default remains in-process ONNX; sidecar uses FastAPI lifespan preload
+deviations: none
+code_evidence:
+- colbert_worker/
+- colbert_worker/Dockerfile
+- colbert_remote.py
+- factory.py
+- config.py
+- embedder.py
+- docker-compose.colbert-worker.yml
+- .env.example
+- SEARCH_BEHAVIOR.md
+test_debt:
+- Optional slow onnx vs remote parity
+- operational memory-halt manual validation
+verify: 'tests run + plan compliance pass — pytest 229 passed, 3 skipped; 45 targeted ColBERT tests passed; review rounds: 1'
+changelog:
+  update: true
+user_facing: true

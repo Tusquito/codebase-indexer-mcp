@@ -1,0 +1,7 @@
+adr_id: 0019
+phase_key: phase-2
+title: Adopt YAML structured events for ADR implementation tracking
+tracker_status: verified
+chosen_scope: 'One-time `scripts/migrate_tracker_to_yaml.py` migration; YAML source of truth with generated markdown; kebab-case `phase_key`; plain `adr_id`; open-decisions collapsed to bullets; blocking `--check` gate; render `--check` zero drift; 40 phase + 142 event YAML valid; 9 render unit tests pass; ruff clean; CI render-diff blocking; Docker integration pass; review rounds: 1; Phase 3 agent cutover deferred'
+last_updated: '2026-07-08'
+adr_status_note: Accepted (phase 1)

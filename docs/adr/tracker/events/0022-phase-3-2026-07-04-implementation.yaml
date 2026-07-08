@@ -1,0 +1,22 @@
+adr_id: '0022'
+phase_key: phase-3
+phase_title: Phase 3 — CI split
+event: implementation
+date: '2026-07-04'
+tracker_status: implemented
+choices: All five ubuntu-latest jobs `ACCELERATOR=cpu`; blocking compose-integration job; non-blocking gpu-smoke; `check_ollama_gpu_processor()` in harness; quality validation skipped
+deviations: none
+code_evidence:
+- .github/workflows/ci.yml
+- scripts/run_compose_integration.py
+- mcp_server/tests/test_run_compose_integration_gpu.py
+- docs/DEPLOYMENT.md
+- docs/adr/0022-gpu-default-cpu-fallback.md
+test_debt:
+- first green compose-integration GHA run
+- gpu-smoke runner verification
+- maintainer GPU harness
+changelog:
+  update: false
+  reason: 'user-facing yes; status `implemented` (not verified); invoker Changelog: no'
+user_facing: true

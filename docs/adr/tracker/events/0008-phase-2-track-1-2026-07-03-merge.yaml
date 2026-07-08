@@ -1,0 +1,23 @@
+adr_id: 0008
+phase_key: phase-2-track-1
+phase_title: Phase 2 — track 1 (xref/service_map rerank wiring)
+event: merge
+date: '2026-07-03'
+tracker_status: merged
+choices: squash merge `fcf2e18` on feature branch `adr/0008-phase-2-xref-service-map-rerank`; ADR accept skipped (unchanged — Accepted phase 1); release skipped; Phase 2 track 2 deferred (adaptive rerank vs per-tool override)
+deviations: none
+code_evidence:
+- 'merged via PR #4 (`adr/0008-phase-2-xref-service-map-rerank`)'
+test_debt:
+- carried from verification — import-phrased xref colbert wiring test
+- single-collection xref semantics regression test
+- optional slow integration rerank smoke for xref/service_map
+verify: 'carried from verification — 17 targeted tests passed; 235-suite tests passed (242 with fastapi env); ruff clean; review rounds: 1'
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/4
+  commit: fcf2e18
+  status: merged
+changelog:
+  update: false
+  reason: release skipped; `[Unreleased]` bullet retained from verification step
+user_facing: false

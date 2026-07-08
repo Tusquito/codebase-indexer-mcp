@@ -1,0 +1,14 @@
+adr_id: '0016'
+phase_key: phase-1
+phase_title: Phase 1 — Config, Ollama MRL, docs, tests
+event: prioritization
+date: '2026-07-03'
+tracker_status: candidate
+choices: 'Prioritize 0016 Phase 1 over 0002 Phase 2 GraphRAG payload linking (closest alternative, 32.5 weighted score — tie within ~10%; tie-breaker: default retrieval-path impact + embedding-track sequencing); over Proposed 0018 Phase 1 (ops observability, lower default-path impact); over 0017 Phase 2 (small slice; better combined with 0018 P1); over 0014 Track B n8n and 0015 Phase 3+ slim image (ops-only, deferred); over 0008 test-debt (QA-only); single phase per pipeline rule. **Chosen scope:** Qwen3 0.6B/4B/8B entries in `KNOWN_EMBED_MODEL_DIMENSIONS` and `KNOWN_EMBED_MODEL_MAX_TOKENS`; MRL `dimensions` passthrough in `ollama_dense.py` / `factory.py` when `DENSE_EMBED_VECTOR_SIZE` < native; update `.env.example`, `.env.compose.integration`, `benchmarks/_settings.py`; unit tests (`test_config.py`, `test_ollama_dense_backend.py` mock `dimensions` payload); docs (`ARCHITECTURE.md`, `DEPLOYMENT.md`, `README.md` embedding table — Qwen3 primary, Nomic CPU preset); defer Phase 2 `eval_baseline.json` refresh and operator re-index; **requires formal Accept of Proposed ADR 0016 before dev**. **Why now:** ADR 0017 Phase 1 merged ([PR #11](https://github.com/Tusquito/codebase-indexer-mcp/pull/11)); prior 2026-07-03 prioritization deprioritized 0016 vs 0017 P1 and recommended sequential PR after 0017 P1 merge — prerequisite now satisfied. Code still defaults to Nomic (`DENSE_EMBED_MODEL=nomic-ai/nomic-embed-text-v1.5` in `.env.example`; no Qwen3 in `KNOWN_EMBED_MODEL_*`; `OllamaDenseBackend._embed_http` lacks MRL `dimensions`). Model-accurate truncation (0017 P1) enables trustworthy 32K caps for Qwen3. Golden-set eval harness exists for Phase 2; Phase 1 mergeable without baseline refresh. **Suggested scope:** one phase (= one PR).'
+deviations: none
+code_evidence:
+- '`.env.example` `DENSE_EMBED_MODEL=nomic-ai/nomic-embed-text-v1.5`; no Qwen3 in `KNOWN_EMBED_MODEL_*`; `OllamaDenseBackend._embed_http` lacks MRL `dimensions`'
+changelog:
+  update: false
+  reason: user-facing unknown
+user_facing: false

@@ -1,0 +1,7 @@
+adr_id: '0024'
+phase_key: phase-1
+title: Add resource-aware stack tuner for RSS allocation and performance tuning
+tracker_status: merged
+chosen_scope: 'Squash merge [PR #25](https://github.com/Tusquito/codebase-indexer-mcp/pull/25) (`e0c6100`); Pure `tune_alloc.py` split from `tune_stack.py` CLI; topology-priority RAM selection; deterministic knob tiers; tri-state flag precedence mirroring `compose_files.py`; stdlib RAM detection + `--max-ram-gib` fallback; TEI caps `TEI_MEM_LIMIT`/`TEI_CPUS`; ColBERT MCP ≤35% cap; compose-only env vars (`.env` write refused); ADR Accept + `docs/adr/README.md` index; 17 unit tests pass; CLI smoke pass; Docker integration pass; plan compliance pass; review rounds: 1; NVIDIA probe deferred Phase 2; defer `.env.example` preset sync (Phase 4); test debt: CLI-level tests for `tune_stack.py`, host-detection mocks, ADR success-criterion #1 ±10% preset assertion deferred; opt-in, no default behavior change'
+last_updated: '2026-07-08'
+adr_status_note: Accepted (phase 1 — Analyze + allocate)

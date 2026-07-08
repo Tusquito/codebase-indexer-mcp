@@ -1,0 +1,7 @@
+adr_id: 0009
+phase_key: phase-2
+title: Multi-hop retrieval
+tracker_status: merged
+chosen_scope: '`eval_multihop.py` + `multihop_rrf.fuse_hop_rrf`; curated `hop2_query_text` inline in `golden_queries.jsonl`; client-side RRF fusion hop 1 + hop 2 via `run_search`; `--rerank` passthrough; side-by-side ranx vs single-pass on `multi_hop` slice; `eval_baseline.json` `multi_hop_2hop` snapshot (live verify, nomic embed); unit tests; `SEARCH_BEHAVIOR.md` + `ARCHITECTURE.md`; no MCP/compose/runtime changes; defer server-side hop fusion and GraphRAG to ADR 0002+; [PR #8](https://github.com/Tusquito/codebase-indexer-mcp/pull/8)'
+last_updated: '2026-07-03'
+adr_status_note: Accepted (phase 1; phase 2 merged)

@@ -1,0 +1,30 @@
+adr_id: '0015'
+phase_key: phase-2
+phase_title: Phase 2 — GPU ColBERT worker image + index throughput benchmark vs CPU sidecar
+event: verification
+date: '2026-07-03'
+tracker_status: verified
+choices: GPU acceleration in sidecar image only (MCP stays CPU fastembed/onnxruntime); reuse `ColbertOnnxBackend` with `use_cuda`/`device_ids`; compose-only `COLBERT_GPU` doc flag; dedicated `bench_colbert_sidecar.py`; fail-fast CUDA startup; single-GPU 8GB OOM documented without auto-scheduler
+deviations: none
+code_evidence:
+- colbert_worker/Dockerfile.gpu
+- docker-compose.colbert-worker.gpu.yml
+- mcp_server/src/codebase_indexer/colbert_worker/app.py
+- mcp_server/src/codebase_indexer/colbert_worker/settings.py
+- mcp_server/src/codebase_indexer/colbert_worker/cuda.py
+- mcp_server/src/codebase_indexer/indexer/backends/colbert_onnx.py
+- mcp_server/benchmarks/bench_colbert_sidecar.py
+- mcp_server/benchmarks/bench.py
+- docs/DEPLOYMENT.md
+- .env.example
+- .github/workflows/ci.yml
+- mcp_server/pyproject.toml
+test_debt:
+- Docker GPU image runtime smoke
+- live GPU embed integration beyond provider probe
+- '`bench_colbert_sidecar --compare` unit test'
+- host-side sidecar reachability docs
+verify: 'tests run + plan compliance pass — pytest 236 passed, 3 skipped, 5 deselected; all in-scope plan requirements pass; review rounds: 1'
+changelog:
+  update: true
+user_facing: true

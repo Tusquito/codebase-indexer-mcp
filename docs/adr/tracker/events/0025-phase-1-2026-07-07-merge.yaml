@@ -1,0 +1,21 @@
+adr_id: '0025'
+phase_key: phase-1
+phase_title: Phase 1 — TEI hard replace (final phase) — closeout
+event: merge
+date: '2026-07-07'
+tracker_status: merged
+choices: 'ADR 0025 status updated to **Accepted (all phases complete)** on main via docs commit `a756677` (`docs/adr/0025-huggingface-tei-dense-embedding.md`, `docs/adr/README.md`). Root-caused and fixed genuine upstream `huggingface/text-embeddings-inference` CPU-warmup bug (large default `--max-batch-tokens` vs model `max_input_length` causing crash-loop on CPU-only CI path) via `--max-batch-tokens` cap + client-side `MAX_DENSE_EMBED_TOKENS` pairing, confined to CPU-only integration harness path (GPU-default production path unaffected, already verified with real GPU: recall@10=0.3590, MRR=0.3576, ndcg@10=0.2807, 43/43 golden labels).'
+deviations: none
+code_evidence:
+- 'squash merge `0f01cda` — `feat(embed): add TEI dense backend`; `build(compose): swap Ollama for TEI sidecar`; `refactor(bench): point tooling at TEI embed`; `docs(adr): TEI sweep and phase 1 closeout`; `test(eval): refresh golden labels and baseline`; `fix(ci): capture container logs on deploy fail`; `docs(agents): drop Ollama refs from hygiene docs`; `fix(ci): raise CPU TEI memory for cold warmup`; `fix(compose): cap TEI MKL ISA to fix CPU crash`; `fix(compose): cap TEI CPU warmup batch tokens`; docs accept commit `a756677`'
+test_debt:
+- none blocking — optional offline CI alias-drift guard and `README.md:437` doc nit carried as non-blocking future debt from verification
+- '`benchmarks/train/**` Ollama references remain deferred to ADR 0020 follow-up'
+verify: merged to main; all phases complete
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/23
+  status: pending
+changelog:
+  update: false
+  reason: existing ADR 0025 breaking-change bullet in `CHANGELOG.md` `[Unreleased]` already covers this
+user_facing: false

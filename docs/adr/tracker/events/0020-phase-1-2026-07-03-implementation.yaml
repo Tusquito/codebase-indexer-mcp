@@ -1,0 +1,33 @@
+adr_id: '0020'
+phase_key: phase-1
+phase_title: Phase 1 — Dataset + training pipeline
+event: implementation
+date: '2026-07-03'
+tracker_status: implemented
+choices: Optional `[train]` extra isolated from runtime/CI; default validation holdout = all four `multi_hop` golden queries; hard-negative mining uses base Qwen3 hybrid `run_search` (rerank off); LoRA via PEFT + sentence-transformers (TripletLoss when all pairs have mined negatives, else MnRL in-batch); outputs under `benchmarks/train/outputs/` gitignored; no Docker/runtime/registry changes
+deviations: '`resolve_positive_passage` (singular) vs plan''s `resolve_positive_passages`; supplementary `test_finetune_mrr.py`; single-pass checkpoint save (baseline + final val MRR in `train_summary.json`) vs per-epoch best selection'
+code_evidence:
+- mcp_server/benchmarks/train/__init__.py
+- mcp_server/benchmarks/train/_schema.py
+- mcp_server/benchmarks/train/_split.py
+- mcp_server/benchmarks/train/_positives.py
+- mcp_server/benchmarks/train/export_golden_pairs.py
+- mcp_server/benchmarks/train/mine_hard_negatives.py
+- mcp_server/benchmarks/train/finetune_qwen3_code.py
+- mcp_server/benchmarks/train/README.md
+- mcp_server/pyproject.toml
+- mcp_server/tests/test_train_schema.py
+- mcp_server/tests/test_train_split.py
+- mcp_server/tests/test_export_golden_pairs.py
+- mcp_server/tests/test_mine_hard_negatives.py
+- docs/DEPLOYMENT.md
+- .gitignore
+test_debt:
+- GPU smoke for `train_lora`
+- live Qdrant/Ollama integration for export + mine
+- per-epoch best-checkpoint selection
+- '`[train]` extra install verification on maintainer GPU host'
+changelog:
+  update: false
+  reason: user-facing no
+user_facing: false

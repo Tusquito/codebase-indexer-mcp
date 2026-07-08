@@ -1,0 +1,7 @@
+adr_id: '0015'
+phase_key: phase-1
+title: ColBERT HTTP sidecar
+tracker_status: merged
+chosen_scope: 'Opt-in `COLBERT_EMBED_BACKEND=remote` + `colbert_worker` sidecar; default in-process ONNX unchanged; FastAPI lifespan preload; `ColbertRemoteBackend` httpx client; `docker-compose.colbert-worker.yml` with shared `fastembed_cache`; `.env.example` + `SEARCH_BEHAVIOR.md`; [PR #2](https://github.com/Tusquito/codebase-indexer-mcp/pull/2)'
+last_updated: '2026-07-03'
+adr_status_note: Accepted

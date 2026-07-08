@@ -1,0 +1,28 @@
+adr_id: '0023'
+phase_key: phase-1
+phase_title: Phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing
+event: verification
+date: '2026-07-04'
+tracker_status: verified
+choices: '`call_token` on CALLS; symbol unification Rules 1–3; Path D routes Neo4j when `GRAPH_ENABLED` else Qdrant; Qdrant `callees` dual-write retained; `GRAPH_SCHEMA_VERSION=2`; defer Phases 2–4 and live Neo4j test debt'
+deviations: none
+code_evidence:
+- graph_writer.py
+- neo4j.py
+- cross_references.py
+- config.py
+- test_graph_writer.py
+- test_neo4j_storage.py
+- test_cross_references.py
+- test_config.py
+- docs/ARCHITECTURE.md
+- .env.example
+test_debt:
+- live Neo4j parity fixture
+- unified-symbol Cypher traversal
+- mixed-collection per-engine routing (Phase 2)
+verify: 383 unit tests pass; integration pass; quality validation threshold 0 pass; plan compliance pass
+changelog:
+  update: false
+  reason: 'user-facing no; invoker Changelog: no'
+user_facing: false

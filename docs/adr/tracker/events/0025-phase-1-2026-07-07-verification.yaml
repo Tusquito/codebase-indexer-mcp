@@ -1,0 +1,17 @@
+adr_id: '0025'
+phase_key: phase-1
+phase_title: Phase 1 — TEI hard replace (final phase) — closeout
+event: verification
+date: '2026-07-07'
+tracker_status: verified
+choices: Ollama→TEI doc/docstring sweep completed across 16 files total (14 original + `.cursor/agents/adr-integration-tester.md` + golden_queries.jsonl addendum); model references normalized to canonical HF repo ids from `config.py` registry / `.env.example` default (`jinaai/jina-embeddings-v2-base-code`); GPU verification standardized on `docker exec codeindexer_tei nvidia-smi`; root-caused and fixed a genuine upstream `text-embeddings-inference` CUDA-detection bug (driver 6xx header rename) via `entrypoint` override in `docker-compose.tei.gpu.yml`, unblocking real GPU quality-validation; `benchmarks/train/**`, historical ADR bodies, and `docs/adr/README.md` index left out of scope per plan (deferred to ADR 0020 follow-up for train pipeline).
+deviations: none
+code_evidence:
+- '`README.md`, `docs/DEPLOYMENT.md`, `docs/SEARCH_BEHAVIOR.md`, `CONTRIBUTING.md`, `.github/copilot-instructions.md`, `.github/workflows/ci.yml`, `mcp_server/pyproject.toml`, `mcp_server/Dockerfile`, `mcp_server/src/codebase_indexer/indexer/embedder.py`, `mcp_server/src/codebase_indexer/indexer/pipeline.py`, `mcp_server/src/codebase_indexer/tools/service_map.py`, `mcp_server/scripts/test_adaptive_live.py`, `.cursor/agents/deps-hygiene.md`, `.cursor/agents/ops-hygiene.md`, `.cursor/agents/adr-integration-tester.md`, `.env.example`, `docker-compose.tei.gpu.yml` (GPU entrypoint fix), `mcp_server/benchmarks/fixtures/golden_queries.jsonl` (alias fix), `mcp_server/benchmarks/fixtures/eval_baseline.json` (live GPU metrics refresh), `docs/adr/0025-huggingface-tei-dense-embedding.md` (Measured outcomes filled).'
+test_debt:
+- 'none blocking. Minor non-blocking doc nit (`README.md:437` self-referential wording) may be tidied opportunistically. Suggested future test debt: optional offline CI unit test to catch golden-set alias drift before it reaches the compose harness.'
+verify: 'unit tests pass (393 passed, 8 skipped); Docker integration pass with required quality validation (recall@10=0.3590, MRR=0.3576, ndcg@10=0.2807, threshold 0 self-compare pass; real GPU confirmed via `Cuda(CudaDevice(DeviceId(1)))`); plan compliance pass; all 6 round-1 review issues (Ollama community-port model tags shown as TEI values, garbled duplicate doc tables, wrong model id in DEPLOYMENT.md, `ollama ps PROCESSOR` residue, garbled line in adr-integration-tester.md, duplicate .env.example comments) resolved in round 2; review rounds: 2'
+changelog:
+  update: false
+  reason: existing ADR 0025 breaking-change bullet in `CHANGELOG.md` `[Unreleased]` already covers this
+user_facing: false

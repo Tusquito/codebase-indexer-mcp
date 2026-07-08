@@ -1,27 +1,12 @@
-adr_id: "0019"
+adr_id: 0019
 phase_key: phase-1
-phase_title: "Phase 1 — Schema, layout, render script"
+phase_title: Phase 1 — Schema, layout, render script
 event: plan
-date: 2026-07-07
+date: '2026-07-07'
 tracker_status: planned
-choices: >
-  YAML tracker under docs/adr/tracker/ with schema.yaml contract, one phase file
-  per delivery unit, append-only event files. stdlib+PyYAML render script builds
-  generated markdown blocks (summary, active/upcoming, phase logs, open-decisions)
-  between HTML-comment markers, preserving preamble. Non-blocking CI validation
-  in Phase 1; render-diff becomes blocking after Phase 2 migration.
+choices: stdlib + PyYAML render script; generated sections wrapped in `<!-- BEGIN/END GENERATED:* -->` markers; prove on committed sample fixtures rather than migrating the real tracker; CI validation non-blocking in Phase 1; `pyyaml` added as explicit dev extra (already transitively locked). **Chosen scope:** Add `docs/adr/tracker/` (`schema.yaml` + `phases/` + `events/` with 1–2 sample files), `scripts/render_adr_tracker.py` (load/validate/render with `--check`), unit tests + fixtures in `mcp_server/tests/`, non-blocking CI validation step, README tracker-layout pointer, and `pyyaml` dev extra; live `IMPLEMENTATION_TRACKER.md` left hand-maintained (migration deferred to Phase 2).
 deviations: none
-code_evidence:
-  - scripts/render_adr_tracker.py
-  - docs/adr/tracker/schema.yaml
-  - mcp_server/tests/test_render_adr_tracker.py
-test_debt:
-  - blocking render-diff CI check (after Phase 2 migration)
-  - historical tracker migration to YAML (Phase 2)
-open_decisions:
-  - "0019: keep live IMPLEMENTATION_TRACKER.md hand-maintained through Phase 1 (migration deferred to Phase 2)"
-  - "0019: Phase 1 CI render check is non-blocking; render-diff becomes blocking after Phase 2"
 changelog:
   update: false
-  reason: maintainer/agent tooling only; not user-facing
+  reason: user-facing no
 user_facing: false

@@ -1,0 +1,12 @@
+adr_id: '0026'
+phase_key: phase-1
+phase_title: Phase 1 — Harness reliability fix
+event: plan
+date: '2026-07-08'
+tracker_status: planned
+choices: '**Label anchor rule:** primary key `{rel_path}::{symbol_name}` resolved live via Qdrant''s indexed `rel_path`+`symbol_name` payload fields; `start_line` retained only as nearest-line tie-break hint; ladder = legacy chunk_id hit → content re-resolution on drift → nearest-line tie-break → basename anchor for non-code files → report `unresolved` (never silently score stale). Existing `aliases` kept as cached hints. **Repeat-run test CI placement:** pure resolver unit tests in blocking `test` job; live repeat-run determinism assertion in blocking `compose-integration` job; non-blocking `eval-retrieval` metric job unchanged. Blocking gates resolution determinism, not recall threshold.'
+deviations: none
+changelog:
+  update: false
+  reason: 'user-facing no; invoker Changelog: no'
+user_facing: false

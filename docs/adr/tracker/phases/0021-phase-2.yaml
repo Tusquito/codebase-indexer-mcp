@@ -1,0 +1,7 @@
+adr_id: '0021'
+phase_key: phase-2
+title: Revert default dense embedder to Jina code; retire Qwen3 as production default
+tracker_status: merged
+chosen_scope: 'GPU Jina @768 live baseline committed (`eval_baseline.json`; `ACCELERATOR=gpu`, `RERANK_ENABLED=false`); pre-commit gate vs `eval_baseline_jina.json` failed (recall@10 0.263 vs 0.660 — golden alias drift, not embedder regression); post-commit Docker self-compare pass; frozen `eval_baseline_jina.json` preserved; scanner `.venv*` prune + golden alias fixes; `_settings.py` `ollama_embed_model` default; defer golden label realignment, pre-commit recall gate CI, optional `eval_multihop` CI gate; Phase 3 (CHANGELOG/ADR index housekeeping); [PR #18](https://github.com/Tusquito/codebase-indexer-mcp/pull/18)'
+last_updated: '2026-07-04'
+adr_status_note: Accepted (phase 1; phase 2 — Eval baseline refresh)

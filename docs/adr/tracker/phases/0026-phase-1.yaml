@@ -1,0 +1,7 @@
+adr_id: '0026'
+phase_key: phase-1
+title: Full-stack embedding model quality benchmark and selection framework
+tracker_status: merged
+chosen_scope: 'Squash merge [PR #27](https://github.com/Tusquito/codebase-indexer-mcp/pull/27) (`0ca2f88`); Content-anchored labels with 5-step ladder (`{rel_path}::{symbol_name}` + `start_line` hint); drift counted not silently scored; `--validate-labels` drift re-resolution with counts; `label_drift` per eval run; CI repro via `--keep` + kept-stack pytest in blocking `compose-integration`; `label_anchor.py` + `eval_retrieval.py` + golden `anchors`; 11 unit tests pass (`test_label_anchor.py`); ruff clean; Docker integration + quality validation pass (55 labels, 12 drifted and re-resolved via content anchoring, 0 unresolved; threshold 0 pass); repeat-run repro in blocking compose-integration CI job gates `recall@10` within ±1pp per ADR success criterion #1 (rank-sensitive `mrr`/`ndcg@10` bounded, not exact — see `test_harness_reproducibility.py`); review rounds: 1; one PR; no runtime/config/production change; defer Phases 2–5 (≥75-query expansion is Phase 2); test debt: symbol drift live integration exercised (12 drift observed in CI run), Phase 4 collection override concern'
+last_updated: '2026-07-08'
+adr_status_note: Accepted (phase 1 — Harness reliability fix)

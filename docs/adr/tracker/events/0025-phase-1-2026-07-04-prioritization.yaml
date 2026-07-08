@@ -1,0 +1,17 @@
+adr_id: '0025'
+phase_key: phase-1
+phase_title: Phase 1 — TEI hard replace
+event: prioritization
+date: '2026-07-04'
+tracker_status: candidate
+choices: Prioritize 0025 Phase 1 over 0002 Phase 2, 0023 Phase 3, 0019, 0024, 0018; single phase per pipeline rule; pre-release hard replace acceptable. **Chosen scope:** Add `TeiDenseBackend`; TEI compose files with profile `bundled-tei`; update `compose_files.py` and `run_compose_integration.py`; delete Ollama dense backend/compose and all `OLLAMA_*` config; refresh golden-set baseline on TEI+Jina (GPU); complete ADR Ollama removal inventory. Requires formal Accept of Proposed ADR 0025 before dev (first PR task). **Why now:** Embed/accelerator arc complete (0021, 0022, 0023 P1–P2 merged 2026-07-04); code still uses `OllamaDenseBackend` exclusively; ADR 0025 closes HF catalog gap with hard replace following ADR 0015 sidecar pattern and ADR 0022 GPU-default topology; prerequisites satisfied; measurable via tests + `eval_retrieval` baseline refresh + integration harness TEI checks; unlocks ADR 0024 TEI allocation rows; pre-release breaking change acceptable. **Suggested scope:** one phase (= one PR).
+deviations: none
+test_debt:
+- golden-set baseline refresh on TEI+Jina (GPU)
+- integration harness TEI checks
+- '`eval_retrieval` baseline self-compare threshold 0'
+verify: unit tests; `eval_retrieval` baseline refresh; integration harness TEI checks
+changelog:
+  update: false
+  reason: user-facing unknown
+user_facing: false

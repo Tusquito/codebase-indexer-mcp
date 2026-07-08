@@ -1,0 +1,14 @@
+adr_id: '0017'
+phase_key: phase-1
+phase_title: Phase 1 — loader + Ollama backend
+event: prioritization
+date: '2026-07-03'
+tracker_status: candidate
+choices: 'Prioritize 0017 Phase 1 over Proposed 0016 Phase 1 (closest alternative, −1.2 weighted score but higher scope/risk and breaking defaults); over 0002 Phase 2 GraphRAG payload linking (capability arc next but optional Neo4j + index payload work); over 0008 test-debt closure PR (QA-only, no capability); over 0009 eval_multihop CI gate (benchmark-only); over 0015 Phase 3 slim image and 0014 Track B n8n (ops-only, deferred twice); single phase per pipeline rule; embedding correctness before Qwen3 default switch; tie-breaker vs 0016: lower scope/risk. **Chosen scope:** Add `load_dense_tokenizer(model_id)` helper with HF Hub download + cache dir resolution; lazy-load shared `tokenizers.Tokenizer` in `OllamaDenseBackend` at preload; replace `truncate_bm25_text` in `_truncate_batch` with `truncate_for_embedding`; graceful fallback when tokenizer load fails (log warning; document behavior at plan); unit tests with mock `Tokenizer` in `test_ollama_dense_backend.py` and loader/fallback cases in `test_truncation.py`; optional `.env.example` `HF_HOME` note; update `docs/ARCHITECTURE.md` dense truncation behavior; defer Phase 2 observability (truncation metrics / token_count logs) and ADR 0011 body edit to finisher/plan; **requires formal Accept of Proposed ADR 0017 before dev**. **Why now:** Major arcs merged (0008 complete, 0015 P1–P2, 0014 Track A P1–P2, 0002 P1, 0009 P2); two new Proposed ADRs (0016/0017) form an embedding-quality track; code still uses BM25 word-split truncation in `OllamaDenseBackend._truncate_batch` (`truncate_bm25_text`) while `truncate_for_embedding`/`truncate_with_tokenizer` exist unused on the Ollama path; ADR 0016 Qwen3 default at 32K+ makes approximation errors material; 0017 Phase 1 is non-breaking (no re-index), satisfies ADR 0011 prerequisites, measurable via unit tests, no new mandatory infra; unlocks safe 0016 Phase 1 rollout next cycle. **Suggested scope:** one phase (= one PR).'
+deviations: none
+code_evidence:
+- '`OllamaDenseBackend._truncate_batch` uses `truncate_bm25_text`; `truncate_for_embedding`/`truncate_with_tokenizer` exist unused on Ollama path'
+changelog:
+  update: false
+  reason: user-facing unknown
+user_facing: false

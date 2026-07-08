@@ -1,0 +1,24 @@
+adr_id: '0026'
+phase_key: phase-1
+phase_title: Phase 1 — Harness reliability fix
+event: implementation
+date: '2026-07-08'
+tracker_status: implemented
+choices: Content-anchored label resolution keyed on `{rel_path}::{symbol_name}` with `start_line` as cached hint; fixed resolution ladder (legacy chunk_id → content → nearest-line → basename → unresolved); `--validate-labels` re-resolves drift and reports counts instead of hard-failing; `label_drift` surfaced per eval run; reproducibility enforced via live repeat-run test in blocking `compose-integration` job.
+deviations: CI repro wired via `--keep` + kept-stack pytest; tracker row emitted here.
+code_evidence:
+- mcp_server/benchmarks/label_anchor.py
+- mcp_server/benchmarks/eval_retrieval.py
+- mcp_server/benchmarks/fixtures/golden_queries.jsonl
+- mcp_server/tests/test_label_anchor.py
+- mcp_server/tests/test_harness_reproducibility.py
+- .github/workflows/ci.yml
+test_debt:
+- '`load_point_index` async coverage'
+- drift-report integration test
+- CI repro non-skip verification
+- legacy-path regression test
+changelog:
+  update: false
+  reason: 'user-facing no; invoker Changelog: no'
+user_facing: false

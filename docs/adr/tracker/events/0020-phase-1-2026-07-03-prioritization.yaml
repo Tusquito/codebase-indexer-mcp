@@ -1,0 +1,12 @@
+adr_id: '0020'
+phase_key: phase-1
+phase_title: Phase 1 — Dataset + training pipeline
+event: prioritization
+date: '2026-07-03'
+tracker_status: candidate
+choices: Prioritize 0020 Phase 1 over 0002 Phase 2 payload linking (ADR 0020 embed-quality-first); over 0018 Phase 2 OTel traces (tie ~25.5, lower immediate product impact); over 0017 Phase 2 truncation logging (small ops increment, can parallel); over 0019 Phase 1 YAML tracker (meta-tooling, score ~21); single phase per pipeline rule; no default deployment change until Phase 3 gate passes. **Chosen scope:** Export golden query–passage pairs; hard-negative mining from Qwen3 base top-k misses; LoRA train script with validation holdout; optional `[train]` pyproject extra; unit tests for dataset export; `DEPLOYMENT.md` training stub. Defer Ollama export (P2), quality gate (P3), CI observation (P4). Requires formal Accept of Proposed ADR 0020 before dev. **Why now:** ADR 0016 closed with documented −63.1% recall@10 vs Jina; `eval_baseline_jina.json` exists; golden set + eval harness ready; ADR 0020 defers GraphRAG/telemetry until repo-grounded embed quality; no training tooling in repo yet. **Suggested scope:** one phase (= one PR).
+deviations: none
+changelog:
+  update: false
+  reason: user-facing unknown
+user_facing: false

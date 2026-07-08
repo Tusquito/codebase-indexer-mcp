@@ -1,0 +1,30 @@
+adr_id: '0020'
+phase_key: phase-1
+phase_title: Phase 1 — Dataset + training pipeline
+event: verification
+date: '2026-07-03'
+tracker_status: verified
+choices: '`[train]` extra isolated; default holdout = four `multi_hop` queries; mining via base Qwen3 hybrid `run_search` (rerank off); single-pass checkpoint + `train_summary.json`; no Docker/runtime/registry changes'
+deviations: single-pass checkpoint save vs per-epoch best selection (documented checkpoint deviation)
+code_evidence:
+- mcp_server/benchmarks/train/
+- mcp_server/pyproject.toml
+- mcp_server/tests/test_train_schema.py
+- mcp_server/tests/test_train_split.py
+- mcp_server/tests/test_export_golden_pairs.py
+- mcp_server/tests/test_mine_hard_negatives.py
+- mcp_server/tests/test_finetune_mrr.py
+- docs/DEPLOYMENT.md
+- .gitignore
+test_debt:
+- GPU smoke for `train_lora`
+- live Qdrant/Ollama integration for export + mine
+- per-epoch best-checkpoint selection
+- '`[train]` extra co-install verification on maintainer GPU host'
+verify: '17 scoped unit tests pass; plan compliance pass (documented checkpoint deviation); review rounds: 1'
+changelog:
+  update: false
+user_facing: false
+open_decisions:
+- '0020: Maintainer GPU availability for first fine-tune run? — Open'
+- '0020: Training max_seq_length default? — Open'

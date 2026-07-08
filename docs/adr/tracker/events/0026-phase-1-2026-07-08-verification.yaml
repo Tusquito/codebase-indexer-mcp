@@ -1,0 +1,23 @@
+adr_id: '0026'
+phase_key: phase-1
+phase_title: Phase 1 — Harness reliability fix
+event: verification
+date: '2026-07-08'
+tracker_status: verified
+choices: Content-anchored labels with 5-step ladder; drift counted not silently scored; CI repro via `--keep` + kept-stack pytest
+deviations: none
+code_evidence:
+- mcp_server/benchmarks/label_anchor.py
+- mcp_server/benchmarks/eval_retrieval.py
+- mcp_server/benchmarks/fixtures/golden_queries.jsonl
+- mcp_server/tests/test_label_anchor.py
+- mcp_server/tests/test_harness_reproducibility.py
+- .github/workflows/ci.yml
+test_debt:
+- Symbol drift live integration exercised (12 drift observed in CI run, re-resolved via content anchoring, 0 unresolved)
+- Phase 4 collection override concern
+verify: 'unit tests pass (11 in `test_label_anchor.py`); ruff clean; Docker compose integration + quality validation pass (55 labels, 12 drifted, 0 unresolved; threshold 0 pass); repeat-run repro in blocking `compose-integration` CI job gates `recall@10` within ±1pp (rank-sensitive `mrr`/`ndcg@10` bounded, not exact); review rounds: 1'
+changelog:
+  update: false
+  reason: 'user-facing no; invoker Changelog: no'
+user_facing: false

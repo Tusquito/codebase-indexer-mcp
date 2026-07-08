@@ -1,0 +1,17 @@
+adr_id: '0022'
+phase_key: phase-2
+phase_title: Phase 2 — Retire CPU ColBERT defaults
+event: prioritization
+date: '2026-07-04'
+tracker_status: candidate
+choices: 'Prioritize 0022 Phase 2 over 0002 Phase 2 GraphRAG payload linking; over 0021 Phase 3 housekeeping; over Proposed 0019 Phase 1 YAML tracker; single phase per pipeline rule. **Why now:** ADR 0022 Phase 1 merged ([PR #17](https://github.com/Tusquito/codebase-indexer-mcp/pull/17)); prerequisite ADR 0021 Phase 2 (GPU Jina baseline) merged 2026-07-04 ([PR #18](https://github.com/Tusquito/codebase-indexer-mcp/pull/18)). GPU-default compose exists but ColBERT still defaults to in-process CPU ONNX. **Chosen scope:** When `RERANK_ENABLED=true` on `ACCELERATOR=gpu` stack, default `COLBERT_EMBED_BACKEND=remote` and GPU sidecar compose; update `factory.py` / Settings defaults and validation; ensure `compose_files.py` includes GPU ColBERT worker files in rerank-on mode; update `.env.example`, `DEPLOYMENT.md`, `ARCHITECTURE.md`, ADR 0015 cross-links; unit tests for factory defaults and compose resolution; integration via `run_compose_integration.py` with rerank-on remote sidecar on GPU host. Defer Phase 3 (explicit `ACCELERATOR=cpu` in CI, self-hosted GPU smoke). **Suggested scope:** one phase (= one PR).'
+deviations: none
+test_debt:
+- unit tests for factory defaults and compose resolution
+- integration via `run_compose_integration.py` with rerank-on remote sidecar on GPU host
+- golden-set realignment deferred
+verify: unit tests + integration harness rerank-on remote sidecar on GPU host
+changelog:
+  update: false
+  reason: user-facing yes; draft at verification
+user_facing: true

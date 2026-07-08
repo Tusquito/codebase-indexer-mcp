@@ -1,0 +1,16 @@
+adr_id: '0025'
+phase_key: phase-1
+phase_title: Phase 1 — TEI hard replace (final phase), closeout addendum
+event: implementation
+date: '2026-07-07'
+tracker_status: implemented
+choices: 'Corrected 6 stale golden-set `rel_path:start_line` aliases in `mcp_server/benchmarks/fixtures/golden_queries.jsonl` (spanning 8 query lines: q_embedder_class, q_create_backends, q_sparse_bm25, q_fuse_rrf, q_qdrant_storage_search, q_prefetch_multiplier, q_mh_search_stack, q_payload_indexes, q_cross_references) by re-chunking affected files (`factory.py`, `qdrant.py`, `config.py`, `cross_references.py`) with the production chunker to obtain current chunk-start lines; assigned semantically correct symbols per each query''s ground_truth. Left non-stale aliases and all query text/tags/grades unchanged. This unblocks the mandatory `validate_labels` gate in `scripts/run_compose_integration.py --quality-validation` for the ADR 0025 closeout PR.'
+deviations: none
+code_evidence:
+- mcp_server/benchmarks/fixtures/golden_queries.jsonl
+test_debt:
+- Live `--validate-labels` + `eval_retrieval` against fresh index to be confirmed by integration-tester re-run
+- optional offline CI alias-drift guard suggested as future test debt.
+changelog:
+  update: false
+user_facing: false

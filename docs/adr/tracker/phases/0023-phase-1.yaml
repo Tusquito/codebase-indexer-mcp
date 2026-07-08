@@ -1,0 +1,7 @@
+adr_id: '0023'
+phase_key: phase-1
+title: Move call-site lookup from Qdrant callees to Neo4j CALLS
+tracker_status: merged
+chosen_scope: '`call_token` on CALLS; symbol unification Rules 1–3; `Neo4jStorage.find_callers`; Path D routes Neo4j when `GRAPH_ENABLED` else Qdrant; Qdrant `callees` dual-write retained; re-index on graph writer changes (removed `GRAPH_SCHEMA_VERSION` pre-1.0); defer Phases 2–4; 383 unit tests pass; integration pass; quality validation threshold 0 pass; plan compliance pass; review rounds: 1; test debt: live Neo4j parity fixture, unified-symbol Cypher traversal, mixed-collection per-engine routing (Phase 2). [PR #21](https://github.com/Tusquito/codebase-indexer-mcp/pull/21)'
+last_updated: '2026-07-04'
+adr_status_note: Accepted (phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing)

@@ -1,0 +1,30 @@
+adr_id: '0025'
+phase_key: phase-1
+phase_title: Phase 1 — TEI hard replace (final phase) — closeout doc sweep
+event: implementation
+date: '2026-07-07'
+tracker_status: implemented
+choices: Applied the full literal "Ollama" → "TEI" text-correction sweep across README, DEPLOYMENT, SEARCH_BEHAVIOR, CONTRIBUTING, copilot-instructions, ci.yml comments, pyproject.toml, Dockerfile, embedder.py/pipeline.py/service_map.py docstrings+comments, test_adaptive_live.py sample query, and rephrased deps-hygiene.md/ops-hygiene.md agent instructions to drop literal "Ollama" while preserving anti-regression intent. Also corrected two leftover garbled command-block fragments in README.md (bogus "TEI loads model at startup ..." pull-step line, and duplicated "nvidia-smi in codeindexer_tei" garble) from a prior partial find/replace.
+deviations: none (fixed duplicate occurrences of the same two garbled README patterns beyond the single instance each named in the plan, for consistency)
+code_evidence:
+- README.md
+- docs/DEPLOYMENT.md
+- docs/SEARCH_BEHAVIOR.md
+- CONTRIBUTING.md
+- .github/copilot-instructions.md
+- .github/workflows/ci.yml
+- mcp_server/pyproject.toml
+- mcp_server/Dockerfile
+- mcp_server/src/codebase_indexer/indexer/embedder.py
+- mcp_server/src/codebase_indexer/indexer/pipeline.py
+- mcp_server/src/codebase_indexer/tools/service_map.py
+- mcp_server/scripts/test_adaptive_live.py
+- .cursor/agents/deps-hygiene.md
+- .cursor/agents/ops-hygiene.md
+test_debt:
+- none for this increment — docs/comments only, no behavior-affecting code paths touched
+- phase-level test debt (live TEI integration run, GPU golden baseline refresh) remains outstanding
+changelog:
+  update: false
+  reason: existing ADR 0025 breaking-change bullet in `CHANGELOG.md` `[Unreleased]` already covers this; no new bullet needed for doc corrections
+user_facing: false

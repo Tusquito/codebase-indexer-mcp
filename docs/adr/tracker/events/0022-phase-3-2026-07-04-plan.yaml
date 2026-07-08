@@ -1,0 +1,16 @@
+adr_id: '0022'
+phase_key: phase-3
+phase_title: Phase 3 — CI split
+event: plan
+date: '2026-07-04'
+tracker_status: planned
+choices: 'Human decisions incorporated 2026-07-04 — GPU smoke in PR; GHA compose-integration job; 0021 P3 bundled in finisher docs commit. Single PR for Phase 3. Quality validation skipped (CI-only phase). **Chosen scope:** Add `ACCELERATOR: cpu` to every existing `ubuntu-latest` job in `.github/workflows/ci.yml`; add blocking GHA `compose-integration` job running `scripts/run_compose_integration.py` with `ACCELERATOR=cpu`; add optional non-blocking self-hosted `gpu-smoke` job with `ACCELERATOR=gpu`; extend integration harness with `ollama ps` GPU processor assertion when `ACCELERATOR=gpu`; update `docs/DEPLOYMENT.md` CI section; ADR 0022 partial status → Phase 3 track. Finisher bundles ADR 0021 Phase 3 housekeeping in separate docs commit.'
+deviations: none
+test_debt:
+- blocking GHA compose-integration job
+- optional non-blocking self-hosted GPU smoke
+- '`ollama ps` GPU processor assertion when `ACCELERATOR=gpu`'
+changelog:
+  update: false
+  reason: 'user-facing yes; status `planned` (not verified); invoker Changelog: no'
+user_facing: true

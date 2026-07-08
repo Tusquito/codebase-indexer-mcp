@@ -1,0 +1,16 @@
+adr_id: '0021'
+phase_key: phase-1
+phase_title: Phase 1 — Config + docs revert
+event: prioritization
+date: '2026-07-03'
+tracker_status: candidate
+choices: Prioritize 0021 Phase 1 over 0018 Phase 2 OTel traces (ops increment, lower retrieval impact); over 0002 Phase 2 GraphRAG payload linking (0021 explicitly defers until embed default stable); over 0017 Phase 2 truncation observability (small, can parallel after 0021 P1); over 0019 Phase 1 YAML tracker (meta-tooling, score ~19); over cancelled 0020 Phases 2–4; single phase per pipeline rule; fixture-beats-leaderboard principle (ADR 0007). **Chosen scope:** Phase 1 only — revert production defaults in `.env.example`, `.env.compose.integration`, `mcp_server/benchmarks/_settings.py`, `scripts/run_compose_integration.py`, and primary docs to Jina @ 768; demote Qwen3 to experimental preset block with regression citation; retain Qwen3 in `KNOWN_EMBED_MODEL_*` and MRL passthrough. Defer Phase 2 (golden re-index + `eval_baseline.json`) and Phase 3 (ADR index/tracker/CHANGELOG housekeeping) to subsequent cycles. Requires formal Accept of Proposed ADR 0021 before dev. **Why now:** ADR 0016 + 0020 embedding track closed through fine-tune gate failure; golden-set evidence (−63.1% recall@10 vs Jina) and `eval_baseline_jina.json` exist; code and docs still default to Qwen3 (`.env.example`, `_settings.py`, README, ARCHITECTURE, DEPLOYMENT, `eval_baseline.json`); ADR 0021 unblocks embedding-stable GraphRAG and telemetry phases; no new mandatory infra; validation path via existing `test_config.py` Jina registry tests and future Phase 2 `eval_retrieval`. **Suggested scope:** one phase (= one PR).
+deviations: none
+test_debt:
+- validation via existing `test_config.py` Jina registry tests
+- future Phase 2 `eval_retrieval`
+verify: existing `test_config.py` Jina registry tests; future Phase 2 `eval_retrieval`
+changelog:
+  update: false
+  reason: user-facing unknown
+user_facing: false

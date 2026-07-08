@@ -1,0 +1,7 @@
+adr_id: '0020'
+phase_key: phase-1
+title: Fine-tune Qwen3 for code retrieval with Jina quality gate
+tracker_status: merged
+chosen_scope: 'Shipped: `mcp_server/benchmarks/train/` (`export_golden_pairs.py`, `mine_hard_negatives.py`, `finetune_qwen3_code.py`, `_schema.py`, `_split.py`, `_positives.py`, `README.md`); optional `[train]` pyproject extra isolated from runtime/CI; default validation holdout = all four `multi_hop` golden queries; hard-negative mining via base Qwen3 hybrid `run_search` (rerank off); LoRA via PEFT + sentence-transformers (TripletLoss when all pairs have mined negatives, else MnRL in-batch); outputs under `benchmarks/train/outputs/` gitignored; unit tests (export/split/mining + `test_finetune_mrr.py`); `DEPLOYMENT.md` training stub. Deviations: `resolve_positive_passage` (singular); single-pass checkpoint save (baseline + final val MRR in `train_summary.json`) vs per-epoch best (documented at verification). Defer Ollama export/registry (P2), Jina quality gate + baseline update (P3), CI observation job (P4); no Docker/runtime/registry changes; [PR #15](https://github.com/Tusquito/codebase-indexer-mcp/pull/15)'
+last_updated: '2026-07-03'
+adr_status_note: Accepted (phase 1 — Dataset + training pipeline)

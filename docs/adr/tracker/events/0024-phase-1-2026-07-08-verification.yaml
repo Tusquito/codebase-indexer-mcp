@@ -1,0 +1,23 @@
+adr_id: '0024'
+phase_key: phase-1
+phase_title: Phase 1 — Analyze + allocate
+event: verification
+date: '2026-07-08'
+tracker_status: verified
+choices: Pure `tune_alloc.py` split from `tune_stack.py` CLI; topology-priority RAM selection; deterministic knob tiers; tri-state flag precedence mirroring `compose_files.py`; stdlib RAM detection; NVIDIA probe deferred Phase 2
+deviations: none
+code_evidence:
+- scripts/tune_alloc.py
+- scripts/tune_stack.py
+- mcp_server/tests/test_tune_alloc.py
+- docs/adr/0024-resource-aware-stack-tuner.md
+- docs/adr/README.md
+test_debt:
+- CLI-level tests for `tune_stack.py`
+- host-detection mocks
+- 'ADR success-criterion #1 ±10% preset assertion deferred'
+verify: '17 unit tests pass (`mcp_server/tests/test_tune_alloc.py`); CLI smoke pass; Docker integration report `pass`; plan compliance all pass; no lint errors; review rounds: 1'
+changelog:
+  update: false
+  reason: user-facing yes; entry deferred per invoker
+user_facing: true

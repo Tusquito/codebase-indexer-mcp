@@ -1,0 +1,15 @@
+adr_id: '0002'
+phase_key: phase-1
+phase_title: Phase 1 — Neo4j storage + index-time graph writer
+event: plan
+date: '2026-07-03'
+tracker_status: planned
+choices: Single PR for entire Phase 1; default CI uses bolt/session mocks (not Testcontainers); graph write errors append to `PipelineResult.errors` while Qdrant upsert succeeds; manifest `BUILD_DEPENDS` via on-disk re-read for full file content; promote `_extract_imported_names` to public API; Neo4j only in compose override (not base `docker-compose.yml`); no new MCP tools in Phase 1. **Chosen scope:** `storage/neo4j.py` async driver wrapper with idempotent schema (`Chunk.chunk_id`, `File(collection,rel_path)`, `Symbol.qualified_name`, `Endpoint`, `Collection` constraints); `indexer/graph_writer.py` writing ADR ontology from index batches reusing `UrlExtractors`, `extract_build_deps`/`match_deps_to_collections`, and public `extract_imported_names` from chunker; `pipeline.py` hooks mirroring Qdrant flush/delete cadence; `context.py` optional `Neo4jStorage`; config (`GRAPH_ENABLED=false` default, `NEO4J_*`, `GRAPH_WRITER_BATCH`, `GRAPH_SCHEMA_VERSION=1`); optional `docker-compose.neo4j.yml`; unit tests (mock driver CI + optional slow live Neo4j); `.env.example` + `ARCHITECTURE.md`; defer Phase 2 Qdrant `graph_node_ids`, Phase 3 `expand_search_context`, Phase 4 Neo4j cross-project queries. **Requires formal Accept of Proposed ADR 0002 before implementation.**
+deviations: none
+test_debt:
+- unit tests (mock driver CI + optional slow live Neo4j)
+- Testcontainers vs mock-only CI open (recommend mock default)
+changelog:
+  update: false
+  reason: user-facing yes; entry at `verified` step
+user_facing: true

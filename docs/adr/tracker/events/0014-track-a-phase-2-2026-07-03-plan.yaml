@@ -1,0 +1,15 @@
+adr_id: '0014'
+phase_key: track-a-phase-2
+phase_title: Track A — Phase 2 (outlier / diversity helper)
+event: plan
+date: '2026-07-03'
+tracker_status: planned
+choices: Lock tool name **`find_outlier_chunks`** (separate tool, do not extend `recommend_code`); lock score semantics to **cosine similarity to context centroid** (ascending sort = most distant first; `max_similarity` excludes above-threshold chunks); lock config to **reuse `RECOMMEND_ENABLED`** + add **`OUTLIER_MAX_CONTEXT_SAMPLES`** and **`OUTLIER_MAX_SIMILARITY`**; context from `context_chunk_ids` and/or scroll sample with optional `path_glob`; Qdrant retrieval via **`BEST_SCORE` negative-only** recommend (not `AVERAGE_VECTOR`); one PR for entire phase. **Chosen scope:** Add separate MCP tool `find_outlier_chunks` + `QdrantStorage.find_outlier_chunks` using Qdrant `RecommendStrategy.BEST_SCORE` negative-only recommend on sampled context vectors, cosine-to-centroid threshold filtering (`max_similarity` / `OUTLIER_MAX_SIMILARITY`), bounded `limit` (cap 20) + explicit required `collection`, dense-only single-collection; gate via existing `RECOMMEND_ENABLED` (no `OUTLIER_ENABLED`); new config `OUTLIER_MAX_CONTEXT_SAMPLES` (default 200); unit + integration tests per ADR Validation §Phase 2; `main.py` registration + `SEARCH_BEHAVIOR.md` + `ARCHITECTURE.md`/`README.md` sync; defer sparse fusion, multi-collection, Track B n8n compose, Discovery API context pairs
+deviations: none
+test_debt:
+- unit + integration tests per ADR Validation §Phase 2
+- optional smoke script and compose harness step deferred
+changelog:
+  update: false
+  reason: user-facing yes; entry at `verified` step
+user_facing: true

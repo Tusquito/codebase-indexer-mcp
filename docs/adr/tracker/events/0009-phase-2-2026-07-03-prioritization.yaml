@@ -1,0 +1,12 @@
+adr_id: 0009
+phase_key: phase-2
+phase_title: Phase 2 — automated 2-hop client eval script
+event: prioritization
+date: '2026-07-03'
+tracker_status: candidate
+choices: 'Prioritize 0009 Phase 2 eval script over 0002 Phase 1 GraphRAG (tie on weighted score ~28 vs 27; lower scope/risk tie-breaker), 0014 Track A P2 outlier helper, 0008 test-debt closure, 0015 Phase 3 slim image, and 0014 Track B n8n; single phase per pipeline rule; no ADR Accept required; complete ADR 0009 validation before greenfield Neo4j or discovery P2. **Chosen scope:** Add deterministic 2-hop client eval script under `mcp_server/benchmarks/` (standalone `eval_multi_hop.py` or `eval_retrieval --multi-hop`): hop 1 `run_search` on original query; hop 2 sub-query derived deterministically from hop-1 results or golden fixture metadata; client-side RRF fuse on `chunk_id` (rrf_k=60); report `metrics_by_tag` for `multi_hop` slice; `--compare` against single-pass and `eval_baseline.json`; unit tests with mocked search; update `SEARCH_BEHAVIOR.md` Evaluation section; no server code or new services; defer server-side hop fusion and LLM-driven sub-questions in CI. **Why now:** ColBERT arc (0008 all phases, 0015 P1–P2) and vector discovery P1 (0014 `recommend_code`) are merged; ADR 0009 Phase 1 docs and four `multi_hop` golden queries shipped but Validation still requires automated 2-hop client script vs single-pass on `multi_hop` tag slice; `eval_retrieval.py` is single-pass only; no 2-hop benchmark module in repo; prerequisites (0007 harness, golden fixtures, SEARCH_BEHAVIOR guidance) satisfied; measurable without new infra; default deploy unchanged. **Suggested scope:** one phase (= one PR).'
+deviations: none
+changelog:
+  update: false
+  reason: user-facing unknown
+user_facing: false

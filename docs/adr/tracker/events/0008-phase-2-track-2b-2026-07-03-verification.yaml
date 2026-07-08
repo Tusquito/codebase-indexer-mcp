@@ -1,0 +1,33 @@
+adr_id: 0008
+phase_key: phase-2-track-2b
+phase_title: Phase 2 — track 2b (per-tool `rerank=false` override)
+event: verification
+date: '2026-07-03'
+tracker_status: verified
+choices: Override at embed + tool layer (`use_rerank = self.rerank and rerank is not False`); `colbert_vector=None` skips storage rerank/adaptive paths; `rerank=None` default; xref import-phrased search inherits tool-level `rerank`; exact symbol / call_site unaffected; `recommend_code` excluded; final ADR 0008 phase
+deviations: none
+code_evidence:
+- mcp_server/src/codebase_indexer/indexer/embedder.py
+- mcp_server/src/codebase_indexer/tools/search_common.py
+- mcp_server/src/codebase_indexer/tools/search.py
+- mcp_server/src/codebase_indexer/tools/symbols.py
+- mcp_server/src/codebase_indexer/tools/cross_references.py
+- mcp_server/src/codebase_indexer/tools/service_map.py
+- mcp_server/src/codebase_indexer/main.py
+- docs/SEARCH_BEHAVIOR.md
+- .env.example
+test_debt:
+- direct Embedder rerank unit tests
+- adaptive + per-tool override integration
+- golden-set `rerank=false` quality sweep
+- live Qdrant adaptive integration (carried from track 2a)
+verify: '23 targeted + 264 unit tests pass; plan compliance pass; integration skipped per plan; review rounds: 1'
+changelog:
+  update: true
+user_facing: true
+open_decisions:
+- '0008: Live Qdrant integration test vs unit mocks only for adaptive skip — Open — test debt at verification'
+- '0008: Multi-collection adaptive skip + global RRF unit test — Open — deferred to verification'
+- '0008: Dedicated unit test for single-probe-hit ColBERT path (< 2 probe hits) — Open — test debt at verification'
+- '0008: Golden-set gap threshold sweep for RERANK_ADAPTIVE_GAP tuning — Open — test debt at verification (eval_retrieval --rerank)'
+- '0008: Whether to run 0008 test-debt closure PR in parallel with 0009 Phase 2 — Open — orchestrator decision'

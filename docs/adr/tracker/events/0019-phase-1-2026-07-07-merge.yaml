@@ -1,0 +1,23 @@
+adr_id: 0019
+phase_key: phase-1
+phase_title: Phase 1 — Schema, layout, render script
+event: merge
+date: '2026-07-07'
+tracker_status: merged
+choices: 'squash merge `b4f75dd` on feature branch `adr/0019-phase-1-yaml-tracker` (deleted post-merge; from `ef56c23` feat(adr): add yaml tracker schema; `88f2774` feat(adr): add tracker render script; `7f53ea8` test(adr): add render tracker tests; `2b5f296` chore(adr): wire tracker ci and docs); ADR accepted as **Accepted (phase 1)** via docs commit `de36ae0`; release skipped; Phase 2 (historical migration) and Phase 3 (agent cutover) deferred'
+deviations: none
+code_evidence:
+- 'merged via [PR #24](https://github.com/Tusquito/codebase-indexer-mcp/pull/24) (`adr/0019-phase-1-yaml-tracker`; squash `b4f75dd`); docs accept `de36ae0`'
+test_debt:
+- carried from verification — blocking render-diff CI check after Phase 2 migration
+- historical tracker migration to YAML (Phase 2)
+- optional nested-contract (git/changelog) rejection tests
+verify: 'carried from verification — 9 render unit tests pass; full suite 398 passed (8 storage-integration environmental); Docker integration pass; plan compliance pass; review rounds: 1'
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/24
+  commit: b4f75dd
+  status: merged
+changelog:
+  update: false
+  reason: user-facing no; release skipped
+user_facing: false

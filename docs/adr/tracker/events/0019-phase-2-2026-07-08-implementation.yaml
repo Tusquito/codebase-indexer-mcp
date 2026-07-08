@@ -1,0 +1,23 @@
+adr_id: 0019
+phase_key: phase-2
+phase_title: Phase 2 — Historical migration
+event: implementation
+date: '2026-07-08'
+tracker_status: implemented
+choices: Built one-time `scripts/migrate_tracker_to_yaml.py`; migrated full historical tracker to `docs/adr/tracker/` (40 phase + 141 event YAML files); regenerated `IMPLEMENTATION_TRACKER.md` from YAML with manual preamble/postamble (partial-acceptance table + superseded note) preserved outside `<!-- BEGIN/END GENERATED -->` markers; kebab-case `phase_key` slugs; open-decisions collapsed to flat bullets from event `open_decisions`; plain `adr_id` summary; flipped CI render-diff check to blocking (dropped `|| true`); deleted the orphaned Phase-1 `0008-phase-2b` sample event.
+deviations: file counts 40/141 (vs plan estimate 28/100); resolved historical open-decision rows dropped (only genuinely-open carried); optional regression test not added.
+code_evidence:
+- scripts/migrate_tracker_to_yaml.py
+- docs/adr/tracker/phases/*.yaml
+- docs/adr/tracker/events/*.yaml
+- docs/adr/IMPLEMENTATION_TRACKER.md
+- .github/workflows/ci.yml
+- docs/adr/README.md
+test_debt:
+- migration-parser unit tests (low value, one-time helper)
+- minor rendered-cosmetics tidy (nested backticks / verbose slug)
+- optional full-tracker render regression test (mitigated by blocking CI `--check`)
+changelog:
+  update: false
+  reason: user-facing no
+user_facing: false

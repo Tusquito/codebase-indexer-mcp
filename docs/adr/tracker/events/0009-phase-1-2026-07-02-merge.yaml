@@ -1,0 +1,13 @@
+adr_id: 0009
+phase_key: phase-1
+phase_title: Phase 1 (docs + golden-set tags)
+event: merge
+date: '2026-07-02'
+tracker_status: merged
+choices: Client-orchestrated decomposition; no new server code in phase 1
+deviations: none
+code_evidence:
+- '`docs/SEARCH_BEHAVIOR.md`, `benchmarks/fixtures/golden_queries.jsonl` multi_hop tags'
+changelog:
+  update: false
+user_facing: false

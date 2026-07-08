@@ -1,0 +1,25 @@
+adr_id: '0017'
+phase_key: phase-1
+phase_title: Phase 1 — loader + Ollama backend
+event: verification
+date: '2026-07-03'
+tracker_status: verified
+choices: tokenizers.Tokenizer.from_pretrained; HF env cache dirs; shared class-level tokenizer; fallback = log WARNING + pass text through unchanged; sparse BM25 untouched; Phase 2 observability + ADR 0011 edit deferred
+deviations: none
+code_evidence:
+- mcp_server/src/codebase_indexer/indexer/tokenizer_loader.py
+- mcp_server/src/codebase_indexer/indexer/backends/ollama_dense.py
+- mcp_server/src/codebase_indexer/config.py
+- mcp_server/tests/test_ollama_dense_backend.py
+- mcp_server/tests/test_truncation.py
+- docs/ARCHITECTURE.md
+- .env.example
+- docker-compose.yml
+test_debt:
+- slow real-Nomic tokenizer test
+- no golden-set truncation accuracy fixture
+- Phase 2 metrics not implemented
+verify: '22 unit tests pass; integration report pass (8 storage integration, compose deploy OK); plan compliance pass; review rounds: 1'
+changelog:
+  update: true
+user_facing: true

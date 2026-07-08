@@ -1,0 +1,29 @@
+adr_id: '0014'
+phase_key: track-a-phase-1
+phase_title: Track A — Phase 1 (Recommendation search tool)
+event: verification
+date: '2026-07-03'
+tracker_status: verified
+choices: Tool name `recommend_code`; RecommendStrategy AVERAGE_VECTOR only; dense-only; path_glob post-filter fnmatch + limit×3; missing chunk IDs fail fast; multi-collection deferred
+deviations: none
+code_evidence:
+- mcp_server/src/codebase_indexer/config.py
+- mcp_server/src/codebase_indexer/storage/qdrant.py
+- mcp_server/src/codebase_indexer/tools/recommend.py
+- mcp_server/src/codebase_indexer/main.py
+- docker-compose.yml
+- .env.example
+- docs/SEARCH_BEHAVIOR.md
+- mcp_server/tests/test_recommend.py
+- mcp_server/tests/test_recommend_tool.py
+- mcp_server/tests/test_config.py
+- mcp_server/tests/test_storage_integration.py
+test_debt:
+- '`main.py` registration gate'
+- live HTTP/Ollama e2e
+- golden-set eval
+- multi-collection deferred
+verify: '258 pytest passed, ruff clean; review rounds: 2 (round 2 clean after R1 fix)'
+changelog:
+  update: true
+user_facing: true

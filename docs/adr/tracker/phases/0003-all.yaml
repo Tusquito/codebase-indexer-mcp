@@ -1,0 +1,7 @@
+adr_id: '0003'
+phase_key: all
+title: Hybrid search RRF default
+tracker_status: merged
+chosen_scope: Shipped
+last_updated: '2026-07-02'
+adr_status_note: Accepted

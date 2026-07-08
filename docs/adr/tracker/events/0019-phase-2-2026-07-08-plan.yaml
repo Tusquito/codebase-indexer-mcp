@@ -1,0 +1,12 @@
+adr_id: 0019
+phase_key: phase-2
+phase_title: Phase 2 — Historical migration
+event: plan
+date: '2026-07-08'
+tracker_status: planned
+choices: One-time semi-automated migration (helper + human diff review); YAML is new source of truth, markdown becomes generated artifact; open-decisions collapse to bullets; manual narrative preserved outside markers; blocking `--check` gate. **Chosen scope:** Add `scripts/migrate_tracker_to_yaml.py`; generate ~28 phase files + ~100 event files under `docs/adr/tracker/`; regenerate `IMPLEMENTATION_TRACKER.md` (marker-delimited generated blocks, manual preamble/postamble preserved); make CI render-diff check blocking (remove `|| true`); document migration in `docs/adr/README.md`. Phase 3 agent cutover deferred.
+deviations: none
+changelog:
+  update: false
+  reason: user-facing no
+user_facing: false

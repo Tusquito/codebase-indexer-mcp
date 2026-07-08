@@ -1,0 +1,23 @@
+adr_id: '0017'
+phase_key: phase-1
+phase_title: Phase 1 — loader + Ollama backend
+event: merge
+date: '2026-07-03'
+tracker_status: merged
+choices: squash merge `a094bf5` on feature branch `adr/0017-phase-1-tokenizer-loader`; ADR accepted as `Accepted (phase 1 — loader + Ollama backend)` (docs commit `695b678`); release skipped; Phase 2 observability + ADR 0011 body edit deferred
+deviations: none
+code_evidence:
+- 'merged via PR #11 (`adr/0017-phase-1-tokenizer-loader`; squash `a094bf5`)'
+test_debt:
+- carried from verification — slow real-Nomic tokenizer test
+- no golden-set truncation accuracy fixture
+- Phase 2 metrics not implemented
+verify: 'carried from verification — 22 unit tests pass; integration report pass (8 storage integration, compose deploy OK); plan compliance pass; review rounds: 1'
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/11
+  commit: a094bf5
+  status: merged
+changelog:
+  update: false
+  reason: release skipped; `[Unreleased]` bullet retained from verification step
+user_facing: false

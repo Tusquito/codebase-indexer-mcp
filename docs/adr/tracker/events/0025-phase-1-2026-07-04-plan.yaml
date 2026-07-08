@@ -1,0 +1,17 @@
+adr_id: '0025'
+phase_key: phase-1
+phase_title: Phase 1 — TEI hard replace
+event: plan
+date: '2026-07-04'
+tracker_status: planned
+choices: Accept in first PR commit; single PR; golden baseline threshold 0; bundle ADR 0017 doc rename; pre-release hard replace; quality validation required threshold 0; performance report yes; Docker integration required; final phase yes
+deviations: none
+test_debt:
+- golden-set baseline refresh on TEI+Jina (GPU)
+- integration harness TEI checks (`tei_health`, `tei_embed_smoke`, `tei_gpu_visible`)
+- '`eval_retrieval` baseline self-compare threshold 0'
+verify: unit tests; `eval_retrieval` baseline refresh; integration harness TEI checks; Docker integration required
+changelog:
+  update: false
+  reason: 'user-facing yes; invoker Changelog: no'
+user_facing: true

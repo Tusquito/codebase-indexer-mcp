@@ -1,0 +1,12 @@
+adr_id: '0023'
+phase_key: phase-1
+phase_title: Phase 1 — Symbol-unified CALLS + Neo4j caller query + dual-read routing
+event: prioritization
+date: '2026-07-04'
+tracker_status: candidate
+choices: 'Prioritizer ranked ADR 0023 Phase 1 (score ~26) over alternatives: 0002 Phase 3 `expand_search_context` (~24), 0017 Phase 2 truncation observability (~23), 0002 Phase 2 Qdrant `graph_node_ids` (~22); single phase per pipeline rule; pre-release: no backward-compat shrink. **Why now:** ADR 0022 all phases merged (GPU-default arc complete); ADR 0002 Phase 1 shipped Neo4j graph writer with CALLS edges but no caller query path; Qdrant `callees` payload duplicates graph data when `GRAPH_ENABLED=true`; call-site lookup is structural edge query — Neo4j is natural authority; unlocks multi-hop graph queries before ADR 0002 Phase 4. **Chosen scope:** `call_token` on CALLS relationships; symbol unification (CALLS target merges with DEFINES symbol when resolvable); `Neo4jStorage.find_callers` Cypher query; dual-engine routing in `cross_references.py` (Neo4j when graph enabled, Qdrant scroll fallback); parity tests; keep Qdrant `callees` dual-write (Phase 2 retires payload); bump `GRAPH_SCHEMA_VERSION` + graph re-index required. **Human gate resolved 2026-07-04:** (1) Accept ADR 0023 before planning; (2) symbol unification — exact `Symbol.name` match same-collection, qualified import fallback, keep stubs when ambiguous; (3) Phase 1 only, no 0002 P3 combine; (4) re-index messaging in PR body + `.env.example` comment, no CHANGELOG until user-facing phase. **Suggested scope:** one phase (= one PR).'
+deviations: none
+changelog:
+  update: false
+  reason: 'user-facing unknown; invoker Changelog: no'
+user_facing: false

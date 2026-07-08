@@ -1,0 +1,24 @@
+adr_id: 0008
+phase_key: phase-2-track-2b
+phase_title: Phase 2 — track 2b (per-tool `rerank=false` override)
+event: merge
+date: '2026-07-03'
+tracker_status: merged
+choices: 'squash merge PR #7 on feature branch `adr/0008-phase-2-track-2b-rerank-override`; ADR 0008 accepted as full **Accepted** status; final ADR 0008 phase complete; release skipped'
+deviations: none
+code_evidence:
+- 'merged via PR #7 (`adr/0008-phase-2-track-2b-rerank-override`; squash `00f4c3e4fcc3efe4d81936e6025dab41d05e08f9`)'
+test_debt:
+- carried from verification — direct Embedder rerank unit tests
+- adaptive + per-tool override integration
+- golden-set `rerank=false` quality sweep
+- live Qdrant adaptive integration (carried from track 2a)
+verify: 'carried from verification — 23 targeted + 264 unit tests pass; plan compliance pass; integration skipped per plan; review rounds: 1'
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/7
+  commit: 00f4c3e4fcc3efe4d81936e6025dab41d05e08f9
+  status: merged
+changelog:
+  update: false
+  reason: release skipped; `[Unreleased]` bullet retained from verification step
+user_facing: false

@@ -1,0 +1,32 @@
+adr_id: '0022'
+phase_key: phase-2
+phase_title: Phase 2 — Retire CPU ColBERT defaults
+event: implementation
+date: '2026-07-04'
+tracker_status: implemented
+choices: When `RERANK_ENABLED=true`, `COLBERT_EMBED_BACKEND` defaults to remote in Settings, compose env, and `compose_files.py`; explicit onnx for `ACCELERATOR=cpu` only; rerank off keeps onnx default
+deviations: none
+code_evidence:
+- config.py
+- compose_files.py
+- docker-compose.yml
+- docker-compose.colbert-worker.yml
+- docker-compose.colbert-worker.gpu.yml
+- .env.example
+- README.md
+- docs/DEPLOYMENT.md
+- docs/ARCHITECTURE.md
+- docs/SEARCH_BEHAVIOR.md
+- docs/adr/0015-colbert-http-sidecar.md
+- docs/adr/0022-gpu-default-cpu-fallback.md
+- test_config.py
+- test_compose_files.py
+- test_factory.py
+- test_colbert_rerank_slow.py
+test_debt:
+- Phase 3 CI split
+- optional `bench_colbert_sidecar.py` performance report
+changelog:
+  update: false
+  reason: 'user-facing yes; status `implemented` (not verified); invoker Changelog: no'
+user_facing: true

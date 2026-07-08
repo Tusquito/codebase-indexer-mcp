@@ -1,0 +1,7 @@
+adr_id: '0017'
+phase_key: phase-1
+title: Model-accurate tokenizer for TEI dense truncation
+tracker_status: merged
+chosen_scope: '`load_dense_tokenizer(model_id)` in `tokenizer_loader.py` via `tokenizers.Tokenizer.from_pretrained` + HF env cache dirs; shared class-level `Tokenizer` in `TeiDenseBackend` at `preload()` via `_ensure_truncation()`; `_truncate_batch` uses `truncate_for_embedding` (sparse BM25 path untouched); fallback = log WARNING + pass text through unchanged; unit tests (mock + optional slow Nomic); `ARCHITECTURE.md`, `.env.example`, `docker-compose.yml` HF_HOME; defer Phase 2 observability + ADR 0011 body edit; [PR #11](https://github.com/Tusquito/codebase-indexer-mcp/pull/11)'
+last_updated: '2026-07-03'
+adr_status_note: Accepted (phase 1 — loader + TEI backend)

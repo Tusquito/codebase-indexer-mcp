@@ -1,0 +1,7 @@
+adr_id: '0025'
+phase_key: phase-1
+title: Adopt HuggingFace TEI sidecar for dense embedding
+tracker_status: merged
+chosen_scope: 'Squash merge [PR #23](https://github.com/Tusquito/codebase-indexer-mcp/pull/23) (`0f01cda`); `TeiDenseBackend` + OpenAI `/v1/embeddings`; TEI compose (`docker-compose.tei.yml` + `.tei.gpu.yml`, profile `bundled-tei`); Ollama dense deleted; Ollama→TEI doc/docstring sweep (16 files); upstream TEI CUDA-detection bug fixed via `docker-compose.tei.gpu.yml` entrypoint override; upstream TEI CPU-warmup bug fixed via `--max-batch-tokens` cap + client-side `MAX_DENSE_EMBED_TOKENS` pairing (CPU-only CI path); live GPU quality-validation (recall@10=0.3590, MRR=0.3576, ndcg@10=0.2807, 43/43 golden labels); ADR accepted all phases via docs commit `a756677`; final ADR 0025 phase complete; test debt: optional offline CI alias-drift guard, `benchmarks/train/**` (ADR 0020 follow-up)'
+last_updated: '2026-07-07'
+adr_status_note: Accepted (all phases complete)

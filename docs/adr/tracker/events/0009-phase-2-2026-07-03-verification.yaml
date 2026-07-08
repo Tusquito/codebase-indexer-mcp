@@ -1,0 +1,30 @@
+adr_id: 0009
+phase_key: phase-2
+phase_title: Phase 2 — automated 2-hop client eval script
+event: verification
+date: '2026-07-03'
+tracker_status: verified
+choices: Separate `eval_multihop.py` CLI; curated `hop2_query_text` inline in golden fixture; RRF in `multihop_rrf.fuse_hop_rrf`; `--rerank` passthrough included; `multi_hop_2hop` baseline from live verify (nomic embed, not jina)
+deviations: none
+code_evidence:
+- mcp_server/benchmarks/eval_multihop.py
+- mcp_server/benchmarks/multihop_rrf.py
+- mcp_server/benchmarks/eval_retrieval.py
+- mcp_server/benchmarks/fixtures/golden_queries.jsonl
+- mcp_server/benchmarks/fixtures/eval_baseline.json
+- mcp_server/tests/test_multihop_rrf.py
+- mcp_server/tests/test_eval_multihop.py
+- docs/SEARCH_BEHAVIOR.md
+- docs/ARCHITECTURE.md
+test_debt:
+- No CI gate for `eval_multihop`
+- baseline snapshot not aligned to jina embed model
+- no unit test for `compare_vs_baseline()`
+verify: '20 unit tests pass + plan compliance pass; Docker integration skipped per plan; review rounds: 1'
+changelog:
+  update: true
+user_facing: true
+open_decisions:
+- '0009: Target multi_hop recall improvement threshold vs baseline 0.5 — Open — minimum recall lift threshold for eval_baseline.json multi_hop_2hop snapshot commit (plan or verification)'
+- '0009: CI gate for eval_multihop — Open — no CI gate at implementation; test debt'
+- '0009: Unit test for compare_vs_baseline() — Open — test debt at implementation'

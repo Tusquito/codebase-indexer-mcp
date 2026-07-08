@@ -1,0 +1,14 @@
+adr_id: '0015'
+phase_key: phase-2
+phase_title: Phase 2 — GPU ColBERT worker image + index throughput benchmark vs CPU sidecar
+event: plan
+date: '2026-07-03'
+tracker_status: planned
+choices: GPU acceleration in **sidecar image only** (not MCP) to avoid fastembed/fastembed-gpu lock conflict and ADR 0011 CPU MCP model; reuse `ColbertOnnxBackend` with `use_cuda` rather than new backend class; compose-only `COLBERT_GPU` doc flag (like `OLLAMA_GPU`); dedicated benchmark script over full `run_benchmark` with `rerank_enabled=True` + `colbert_embed_backend=remote`; single PR for entire phase. **Chosen scope:** Optional GPU ColBERT sidecar via `colbert_worker/Dockerfile.gpu` (fastembed-gpu + onnxruntime-gpu, separate from MCP CPU deps); compose override `docker-compose.colbert-worker.gpu.yml` mirroring `docker-compose.ollama.gpu.yml`; compose-only `COLBERT_GPU` / `COLBERT_GPU_COUNT` and worker `COLBERT_USE_CUDA`; extend `ColbertOnnxBackend` + worker `/health` device reporting; dedicated `benchmarks/bench_colbert_sidecar.py` for remote-sidecar index throughput CPU vs GPU; CI-safe mocked/skipped GPU tests + non-blocking GPU Dockerfile CI job; `ColbertRemoteBackend` and HTTP contract unchanged
+deviations: none
+test_debt:
+- CI-safe mocked/skipped GPU tests + non-blocking GPU Dockerfile CI job
+changelog:
+  update: false
+  reason: user-facing yes; entry at `verified` step
+user_facing: true

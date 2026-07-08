@@ -1,0 +1,15 @@
+adr_id: '0017'
+phase_key: phase-1
+phase_title: Phase 1 — loader + Ollama backend (single PR)
+event: plan
+date: '2026-07-03'
+tracker_status: planned
+choices: Single PR for Phase 1; mirror `OnnxSparseBackend` shared-tokenizer + `truncate_for_embedding` pattern; use `tokenizers.Tokenizer.from_pretrained` not `transformers.AutoTokenizer`; fallback = pass-through on load failure (log warning; not BM25, not char heuristic); no new mandatory infra; explicit `tokenizers` dep optional; ADR Accept before dev. **Chosen scope:** Add `indexer/tokenizer_loader.py` with `load_dense_tokenizer(model_id)` (HF Hub download + `HF_HOME`/`HF_HUB_CACHE`/`TRANSFORMERS_CACHE` resolution); class-level shared `tokenizers.Tokenizer` in `OllamaDenseBackend` loaded at `preload()` via `_ensure_truncation()`; replace `truncate_bm25_text` in `_truncate_batch` with `truncate_for_embedding`; fallback on load failure = log warning + pass text through unchanged (no BM25 fallback); unit tests with mock `Tokenizer` in `test_ollama_dense_backend.py` and loader/fallback in `test_truncation.py`; optional `@pytest.mark.slow` real Nomic tokenizer test; update `docs/ARCHITECTURE.md` and `.env.example` `HF_HOME` note; optional `docker-compose.yml` `HF_HOME` passthrough; defer Phase 2 observability and ADR 0011 body edit to finisher. **Assumptions:** `DENSE_EMBED_MODEL` is valid HF repo with tokenizer files; `tokenizers` remains transitive via fastembed; Phase 2 and ADR 0016 default switch are separate PRs; compose integration required for verification.
+deviations: none
+test_debt:
+- optional `@pytest.mark.slow` real Nomic tokenizer test
+verify: compose integration required for verification
+changelog:
+  update: false
+  reason: user-facing yes but status not yet verified
+user_facing: true

@@ -1,0 +1,7 @@
+adr_id: 0008
+phase_key: phase-2-track-2a
+title: Optional ColBERT reranking
+tracker_status: merged
+chosen_scope: '`RERANK_ADAPTIVE_ENABLED=true`, `RERANK_ADAPTIVE_GAP=0.02`; hybrid RRF probe in `QdrantStorage._search_single` before ColBERT; probe limit `max(top_k, 2)`; fewer than 2 probe hits always runs ColBERT; `AdaptiveRerankStats` on storage for bench/eval skip-rate; ColBERT query embed unchanged; unit tests + `bench.py`/`eval_retrieval.py` skip-rate reporting; `SEARCH_BEHAVIOR.md` + `.env.example`; track 2b per-tool override deferred; default deploy unchanged (`RERANK_ENABLED=false`); [PR #6](https://github.com/Tusquito/codebase-indexer-mcp/pull/6)'
+last_updated: '2026-07-03'
+adr_status_note: Accepted

@@ -1,0 +1,15 @@
+adr_id: '0014'
+phase_key: track-a-phase-1
+phase_title: Track A — Phase 1 (Recommendation search tool)
+event: plan
+date: '2026-07-03'
+tracker_status: planned
+choices: Tool name `recommend_code`; RecommendStrategy AVERAGE_VECTOR only; dense-only; path_glob post-filter with fnmatch + limit*3 over-fetch; missing chunk IDs fail fast; multi-collection deferred; ADR Accept at merge via finisher. **Chosen scope:** `recommend_code` MCP tool + `QdrantStorage.recommend` helper + config (`RECOMMEND_ENABLED`, `RECOMMEND_MAX_EXAMPLES`) + unit/integration tests + `main.py` conditional registration + compose/.env.example + `SEARCH_BEHAVIOR.md` note; dense-only; single-collection; defer outlier helper (Track A P2), n8n compose (Track B), sparse fusion, multi-collection
+deviations: none
+test_debt:
+- unit/integration tests per chosen scope
+- '`SEARCH_BEHAVIOR.md` recommend note'
+changelog:
+  update: false
+  reason: user-facing yes; entry at `verified` step
+user_facing: true

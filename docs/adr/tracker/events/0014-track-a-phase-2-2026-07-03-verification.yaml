@@ -1,0 +1,36 @@
+adr_id: '0014'
+phase_key: track-a-phase-2
+phase_title: Track A — Phase 2 (outlier / diversity helper)
+event: verification
+date: '2026-07-03'
+tracker_status: verified
+choices: Separate tool `find_outlier_chunks`; `RecommendStrategy.BEST_SCORE` negative-only; cosine-to-centroid ascending sort + `OUTLIER_MAX_SIMILARITY` filter; reuse `RECOMMEND_ENABLED` (no `OUTLIER_ENABLED`); scroll supplement only when `path_glob` set or no explicit `context_chunk_ids`; `limit` cap 20; dense-only single-collection
+deviations: Scroll supplement restricted when only `context_chunk_ids` provided — prevents outlier candidates being absorbed into context centroid during whole-collection scroll fill
+code_evidence:
+- mcp_server/src/codebase_indexer/tools/outliers.py
+- mcp_server/src/codebase_indexer/storage/qdrant.py
+- mcp_server/src/codebase_indexer/config.py
+- mcp_server/src/codebase_indexer/main.py
+- docker-compose.yml
+- .env.example
+- docs/SEARCH_BEHAVIOR.md
+- docs/ARCHITECTURE.md
+- README.md
+- mcp_server/tests/test_outliers.py
+- mcp_server/tests/test_outlier_tool.py
+- mcp_server/tests/test_config.py
+- mcp_server/tests/test_main.py
+- mcp_server/tests/test_storage_integration.py
+test_debt:
+- scroll-supplement restriction unit test
+- '`main.py` positive registration gate'
+- combined `path_glob`+`context_chunk_ids` integration
+- live HTTP/Ollama e2e for `find_outlier_chunks`
+- golden-set outlier quality eval
+- multi-collection/sparse fusion deferred
+verify: 'tests run + plan compliance pass — 287 unit tests passed; 17 targeted outlier tests passed; ruff clean; Docker integration report pass (8 pytest integration, smoke_recommend); review rounds: 1'
+changelog:
+  update: true
+user_facing: true
+open_decisions:
+- '0014: Parallel vs sequential with 0008 test-debt PR — Open — orchestrator decision'

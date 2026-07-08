@@ -1,0 +1,14 @@
+adr_id: '0022'
+phase_key: phase-1
+phase_title: Phase 1 — GPU-default compose + docs
+event: plan
+date: '2026-07-04'
+tracker_status: planned
+choices: 'Accept ADR 0022 (Proposed → Accepted, partial Phase 1) + README index row (next-number → 0023) are **first tasks in this phase PR**, before code changes. Phase 1 does not modify `.github/workflows/ci.yml`. After 0022 P1 merge, next cycle is 0021 P2 then 0022 P2. Pre-release: breaking GPU default; sparse BM25 stays in-process CPU. **Chosen scope:** `ACCELERATOR=gpu` default; new `scripts/compose_files.py` + `scripts/accelerator.py` (`require_gpu()`); merge GPU compose overrides by default; update `.env.example`, `README.md`, `docs/DEPLOYMENT.md`, `docs/ARCHITECTURE.md`, compose header comments; wire `scripts/run_compose_integration.py` to GPU stack; unit tests (`test_compose_files.py`, `test_accelerator.py`). Defer Phase 2 (ColBERT remote GPU default + 0021 P2 baseline), Phase 3 (CI `ACCELERATOR=cpu`, self-hosted GPU smoke, `ollama ps` GPU assertion). **Assumptions:** NVIDIA + Container Toolkit on maintainer integration host; integration harness keeps `RERANK_ENABLED=false`.'
+deviations: none
+test_debt:
+- unit tests (`test_compose_files.py`, `test_accelerator.py`)
+changelog:
+  update: false
+  reason: user-facing yes; draft at verified
+user_facing: true

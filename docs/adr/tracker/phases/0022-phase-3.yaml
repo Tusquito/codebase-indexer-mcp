@@ -1,0 +1,7 @@
+adr_id: '0022'
+phase_key: phase-3
+title: GPU-default acceleration; CPU only when explicit
+tracker_status: merged
+chosen_scope: 'Squash merge [PR #20](https://github.com/Tusquito/codebase-indexer-mcp/pull/20); six ubuntu-latest jobs `ACCELERATOR=cpu`; blocking GHA `compose-integration`; non-blocking self-hosted `gpu-smoke`; `check_ollama_gpu_processor()` in harness; finisher bundled 0021 P3 README + CHANGELOG close-out (`53f68e0`); final ADR 0022 phase complete; test debt: gpu-smoke first run when self-hosted runner available'
+last_updated: '2026-07-04'
+adr_status_note: Accepted (all phases complete)

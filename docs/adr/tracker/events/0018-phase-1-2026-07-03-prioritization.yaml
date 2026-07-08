@@ -1,0 +1,14 @@
+adr_id: 0018
+phase_key: phase-1
+phase_title: Phase 1 — Application Prometheus metrics (MCP + ColBERT worker)
+event: prioritization
+date: '2026-07-03'
+tracker_status: candidate
+choices: 'Prioritize 0018 Phase 1 over 0016 Phase 2 eval baseline; single phase per pipeline rule. **Chosen scope:** Accept ADR 0018 then implement Phase 1 only: `telemetry/metrics.py` with `METRICS_ENABLED=false` default; `prometheus_client>=0.21`; thin metrics-only decorator on MCP tool handlers; counters/histograms; `GET /metrics` on MCP and ColBERT worker; unit tests; `DEPLOYMENT.md` Qdrant scrape docs; defer Phase 2 OTel traces, Phase 3 compose stack; **requires formal Accept of Proposed ADR 0018 before dev**. **Why now:** Embedding prerequisites merged (0016 P1 [PR #12](https://github.com/Tusquito/codebase-indexer-mcp/pull/12), 0017 P1 [PR #11](https://github.com/Tusquito/codebase-indexer-mcp/pull/11)); multi-container topology from 0015 makes cross-service latency/OOM the dominant ops gap; zero instrumentation in code; 0017 Phase 2 explicitly deferred to 0018 metric namespace. **Suggested scope:** one phase (= one PR).'
+deviations: none
+code_evidence:
+- zero application `/metrics` endpoint or Prometheus instrumentation in codebase today
+changelog:
+  update: false
+  reason: user-facing unknown
+user_facing: false

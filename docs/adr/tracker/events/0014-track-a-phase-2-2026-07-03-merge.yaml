@@ -1,0 +1,26 @@
+adr_id: '0014'
+phase_key: track-a-phase-2
+phase_title: Track A — Phase 2 (outlier / diversity helper)
+event: merge
+date: '2026-07-03'
+tracker_status: merged
+choices: squash merge `b97c29b` on feature branch `adr/0014-phase-2-outlier-helper`; ADR accepted as `Accepted (phase 1; phase 2 — outlier / diversity helper)`; release skipped; Track B (n8n compose) deferred
+deviations: none
+code_evidence:
+- 'merged via PR #9 (`adr/0014-phase-2-outlier-helper`; squash `b97c29b`; branch commits `5a691ab`, `7032668`, `22a9d76`)'
+test_debt:
+- carried from verification — scroll-supplement restriction unit test
+- '`main.py` positive registration gate'
+- combined `path_glob`+`context_chunk_ids` integration
+- live HTTP/Ollama e2e for `find_outlier_chunks`
+- golden-set outlier quality eval
+- multi-collection/sparse fusion deferred
+verify: 'carried from verification — 287 unit tests passed; 17 targeted outlier tests passed; ruff clean; Docker integration report pass (8 pytest integration, smoke_recommend); review rounds: 1'
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/9
+  commit: b97c29b
+  status: merged
+changelog:
+  update: false
+  reason: release skipped; `[Unreleased]` bullet retained from verification step
+user_facing: false

@@ -1,0 +1,7 @@
+adr_id: '0015'
+phase_key: phase-3-plus
+title: ColBERT HTTP sidecar
+tracker_status: not_started
+chosen_scope: MCP slim image when remote-only
+last_updated: '2026-07-04'
+adr_status_note: Accepted

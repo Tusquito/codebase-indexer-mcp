@@ -1,0 +1,12 @@
+adr_id: '0014'
+phase_key: track-a-phase-1
+phase_title: Track A — Phase 1 (Recommendation search tool)
+event: prioritization
+date: '2026-07-03'
+tracker_status: candidate
+choices: Prioritize 0014 Track A P1 over 0009 Phase 2 eval script (closest alternative, +1.5 weighted score but benchmark-only), 0008 Phase 2 track 2 adaptive rerank (incremental latency), Proposed 0002 GraphRAG Phase 1 (Neo4j greenfield), and 0015 Phase 3 slim image (deferred twice); single phase per pipeline rule; formal Accept of Proposed ADR required before dev. **Chosen scope:** `recommend_code` MCP tool + `QdrantStorage.recommend` helper + config (`RECOMMEND_ENABLED`, `RECOMMEND_MAX_EXAMPLES`) + unit/integration tests + `main.py` registration; dense-only; defer outlier helper (Track A P2), n8n compose (Track B), sparse fusion. **Why now:** ColBERT arc (0008 P1, 0015 P1–P2, 0008 P2 track 1) merged; open-decisions queue deferred Proposed 0002/0014 greenfield to this cycle; no recommend API in codebase; payload indexes already shipped; no new mandatory infra; user-facing discovery capability on existing embedder/Qdrant stack. **Suggested scope:** one phase (= one PR).
+deviations: none
+changelog:
+  update: false
+  reason: user-facing unknown (likely yes)
+user_facing: false

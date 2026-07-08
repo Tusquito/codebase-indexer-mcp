@@ -1,0 +1,26 @@
+adr_id: 0008
+phase_key: phase-1
+phase_title: Phase 1 — optional ColBERT multivector reranking (index-time multivectors + query-time MAX_SIM rerank over hybrid prefetch pool)
+event: implementation
+date: '2026-07-03'
+tracker_status: implemented
+choices: '`COLBERT_EMBED_MODEL` default `colbert-ir/colbertv2.0` (128-d per token); `HnswConfigDiff(m=0)` on `colbert` vector; per-collection hybrid prefetch + ColBERT MAX_SIM rerank then global `fuse_cross_collection_rrf`; ColBERT always sequential after dense+sparse at index time; synthetic multivectors in CI integration test; real model behind `@pytest.mark.slow` + `RUN_SLOW_COLBERT=1`; `RERANK_ENABLED=false` default preserves existing behavior'
+deviations: none
+code_evidence:
+- mcp_server/src/codebase_indexer/config.py
+- mcp_server/src/codebase_indexer/indexer/backends/colbert_onnx.py
+- mcp_server/src/codebase_indexer/indexer/embedder.py
+- mcp_server/src/codebase_indexer/storage/qdrant.py
+- mcp_server/src/codebase_indexer/tools/search_common.py
+- mcp_server/tests/test_storage_integration.py
+- docs/SEARCH_BEHAVIOR.md
+- .env.example
+test_debt:
+- cross-collection rerank integration test
+- golden-set MRR with `--rerank`
+- rerank mismatch recreate test
+- wire ColBERT into cross_reference/service_map search when rerank enabled
+changelog:
+  update: false
+  reason: user-facing yes; entry at `verified` step
+user_facing: true

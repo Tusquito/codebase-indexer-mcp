@@ -1,0 +1,23 @@
+adr_id: '0014'
+phase_key: track-a-phase-1
+phase_title: Track A — Phase 1 (Recommendation search tool)
+event: merge
+date: '2026-07-03'
+tracker_status: merged
+choices: merge on feature branch `adr/0014-phase-1-recommend-code`; ADR accepted as `Accepted (phase 1 — recommendation search tool)`; release skipped; Track A P2 (outlier helper) + Track B (n8n compose) deferred
+deviations: none
+code_evidence:
+- 'merged via PR #5 (`adr/0014-phase-1-recommend-code`)'
+test_debt:
+- carried from verification — `main.py` registration gate
+- live HTTP/Ollama e2e
+- golden-set eval
+- multi-collection deferred
+verify: 'carried from verification — 258 pytest passed, ruff clean; review rounds: 2'
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/5
+  status: merged
+changelog:
+  update: false
+  reason: release skipped; `[Unreleased]` bullet retained from verification step
+user_facing: false

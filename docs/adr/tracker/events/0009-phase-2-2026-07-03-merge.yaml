@@ -1,0 +1,23 @@
+adr_id: 0009
+phase_key: phase-2
+phase_title: Phase 2 — automated 2-hop client eval script
+event: merge
+date: '2026-07-03'
+tracker_status: merged
+choices: squash merge `b101be6` on feature branch `adr/0009-phase-2-multihop-eval` (deleted post-merge); ADR accepted as `Accepted (phase 1; phase 2 merged)` (commit `d761d09` on main); release skipped
+deviations: none
+code_evidence:
+- 'merged via PR #8 (`adr/0009-phase-2-multihop-eval`; squash `b101be6`)'
+test_debt:
+- carried from verification — no CI gate for `eval_multihop`
+- baseline snapshot not aligned to jina embed model
+- no unit test for `compare_vs_baseline()`
+verify: 'carried from verification — 20 unit tests pass + plan compliance pass; Docker integration skipped per plan; review rounds: 1'
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/8
+  commit: b101be6
+  status: merged
+changelog:
+  update: false
+  reason: release skipped; `[Unreleased]` bullet retained from verification step
+user_facing: false

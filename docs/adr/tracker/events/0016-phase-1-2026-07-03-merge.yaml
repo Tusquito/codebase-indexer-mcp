@@ -1,0 +1,20 @@
+adr_id: '0016'
+phase_key: phase-1
+phase_title: Phase 1 — Config, Ollama MRL, docs, tests
+event: merge
+date: '2026-07-03'
+tracker_status: merged
+choices: merge on feature branch `adr/0016-phase-1-qwen3-default`; ADR accepted as `Accepted (phase 1 — config, Ollama MRL, docs, tests)`; release skipped; Phase 2 eval baseline + `num_ctx` deferred
+deviations: none
+code_evidence:
+- 'merged via [PR #12](https://github.com/Tusquito/codebase-indexer-mcp/pull/12) (`adr/0016-phase-1-qwen3-default`)'
+test_debt:
+- carried from verification — Phase 2 eval baseline deferred
+verify: 'carried from verification — 77 unit tests pass; integration 8/8 pass; plan compliance pass; review rounds: 1'
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/12
+  status: merged
+changelog:
+  update: false
+  reason: release skipped; `[Unreleased]` bullet retained from verification step
+user_facing: false

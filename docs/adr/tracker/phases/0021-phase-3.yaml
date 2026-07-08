@@ -1,0 +1,7 @@
+adr_id: '0021'
+phase_key: phase-3
+title: Revert default dense embedder to Jina code; retire Qwen3 as production default
+tracker_status: merged
+chosen_scope: 'Finisher bundled README index + CHANGELOG full update in docs commit `53f68e0` via [PR #20](https://github.com/Tusquito/codebase-indexer-mcp/pull/20); final ADR 0021 phase complete; test debt: golden label realignment, pre-commit recall gate CI, optional `eval_multihop` CI gate (carried from P2)'
+last_updated: '2026-07-04'
+adr_status_note: Accepted (all phases complete)

@@ -1,0 +1,15 @@
+adr_id: '0021'
+phase_key: phase-1
+phase_title: Phase 1 — Config + docs revert
+event: plan
+date: '2026-07-03'
+tracker_status: planned
+choices: '`OLLAMA_EMBED_MODEL` uncommented in `.env.example` REQUIRED; compose integration pull documented in docstring + `write_integration_env()` pre-step only (no auto-pull in deploy); README lists ADR 0021 as primary default-dense ADR with 0016 one-line historical note; `.env.compose.integration` updated via generator only (gitignored); one PR for entire Phase 1. **Chosen scope:** Revert production defaults to Jina @ 768 in `.env.example` (with uncommented `OLLAMA_EMBED_MODEL` in REQUIRED), `mcp_server/benchmarks/_settings.py`, `scripts/run_compose_integration.py` (Jina generator env + documented manual pull, no deploy auto-pull), and primary docs (`README.md`, `docs/ARCHITECTURE.md`, `docs/DEPLOYMENT.md`); demote Qwen3 to experimental preset block with −63.1% recall@10 citation; align `conftest.py` + `test_config.py`; retain Qwen3 in `KNOWN_EMBED_MODEL_*` and MRL passthrough; defer Phase 2 (`eval_baseline.json`) and Phase 3 (ADR index/CHANGELOG housekeeping)'
+deviations: none
+test_debt:
+- align `conftest.py` + `test_config.py` for Jina defaults
+- existing Jina registry tests
+changelog:
+  update: false
+  reason: user-facing yes; entry at `verified` step (Phase 3 CHANGELOG housekeeping deferred)
+user_facing: true

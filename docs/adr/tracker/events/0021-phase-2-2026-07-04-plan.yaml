@@ -1,0 +1,21 @@
+adr_id: '0021'
+phase_key: phase-2
+phase_title: Phase 2 — Eval baseline refresh
+event: plan
+date: '2026-07-04'
+tracker_status: planned
+choices: 'GPU host for capture (`ACCELERATOR=gpu`); single PR with baseline committed (no CI skip, no staged two-commit sequence); `RERANK_ENABLED=false` for baseline parity; reference gate = `eval_baseline_jina.json` recall@10 0.660256; post-commit quality compare threshold 0 (self-compare); pre-commit gate threshold 3 vs frozen reference; do not overwrite `eval_baseline_jina.json`; manual baseline assembly from three eval runs (matches ADR 0016 P2 pattern). **Chosen scope:** GPU re-index golden fixture collection (`codebase-indexer-mcp`) with Jina (`unclemusclez/jina-embeddings-v2-base-code`) @768 on `ACCELERATOR=gpu` stack; run `eval_retrieval --validate-labels`, hybrid + `--no-hybrid` + `eval_multihop` live capture; commit refreshed `mcp_server/benchmarks/fixtures/eval_baseline.json` with Jina params and `accelerator: gpu` metadata in same single PR; gate live capture vs frozen `eval_baseline_jina.json` (±2 pp / threshold 3); update ADR 0021 **Measured outcomes** table; preserve `eval_baseline_jina.json`; Docker integration + `--quality-validation --quality-threshold 0` required before review; defer Phase 3 (CHANGELOG/ADR index housekeeping), ADR 0019 Accept (until after P2 merge), and ADR 0022 P2'
+deviations: none
+test_debt:
+- Golden collection GPU re-index @768
+- '`eval_retrieval --validate-labels` hybrid + `--no-hybrid`'
+- '`eval_multihop` live capture'
+- manual baseline assembly from three eval runs
+- pre-commit gate vs `eval_baseline_jina.json` (threshold 3)
+- Docker integration `--quality-validation --quality-threshold 0`
+- resolves Phase 1 `smoke_recommend` dim mismatch
+verify: '`eval_retrieval --validate-labels`; live capture gate vs frozen `eval_baseline_jina.json` (recall@10 0.660256, threshold 3); Docker integration `--quality-validation --quality-threshold 0`'
+changelog:
+  update: false
+  reason: user-facing yes; entry at `verified` step (Phase 3 CHANGELOG housekeeping deferred)
+user_facing: true

@@ -1,0 +1,21 @@
+adr_id: '0023'
+phase_key: phase-2
+phase_title: Phase 2 — Stop dual-write to Qdrant
+event: merge
+date: '2026-07-04'
+tracker_status: merged
+choices: merge on feature branch `adr/0023-phase-2-stop-qdrant-dual-write`; ADR accept — `Accepted (phase 1; phase 2 — Stop dual-write to Qdrant)`; release skipped; Phases 3–4 deferred
+deviations: none
+code_evidence:
+- 'merged via [PR #22](https://github.com/Tusquito/codebase-indexer-mcp/pull/22) (`adr/0023-phase-2-stop-qdrant-dual-write`; squash `d0e8348`)'
+test_debt:
+- carried from verification — Testcontainers slow test optional CI job
+verify: 'carried from verification — 391 unit tests pass; integration pass; plan compliance pass; review rounds: 2'
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/22
+  commit: d0e8348
+  status: merged
+changelog:
+  update: false
+  reason: 'user-facing yes; invoker Changelog: no; `[Unreleased]` bullet retained from verification step'
+user_facing: true

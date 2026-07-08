@@ -1,0 +1,23 @@
+adr_id: '0024'
+phase_key: phase-1
+phase_title: Phase 1 — Analyze + allocate
+event: implementation
+date: '2026-07-07'
+tracker_status: implemented
+choices: Pure math in `tune_alloc.py`; CLI `analyze`/`allocate` + `tune`/`report` stubs; stdlib RAM detection with `--max-ram-gib` fallback; TEI caps `TEI_MEM_LIMIT`/`TEI_CPUS`; ColBERT MCP ≤35% cap; `.env` write refused.
+deviations: no-TEI topology priority (cpu_dense+graph combo unreachable); knob ranges to deterministic tiers; NVIDIA runtime probe deferred Phase 2.
+code_evidence:
+- scripts/tune_alloc.py
+- scripts/tune_stack.py
+- mcp_server/tests/test_tune_alloc.py
+- docs/adr/0024-resource-aware-stack-tuner.md
+- docs/adr/README.md
+test_debt:
+- Docker integration hook
+- CLI-layer tests
+- host-detection mocks
+- success-criteria ±10% preset assertion
+changelog:
+  update: false
+  reason: user-facing yes; entry at `verified` step
+user_facing: true
