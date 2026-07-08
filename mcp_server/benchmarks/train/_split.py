@@ -7,13 +7,27 @@ from typing import Literal, Protocol, TypeVar
 
 SplitStrategy = Literal["holdout_ids", "multi_hop", "stratified"]
 
-# All four multi_hop golden queries — default validation holdout (ADR 0020).
+# All multi_hop golden queries — fallback validation holdout (ADR 0020) used
+# only when entries carry no ``tags`` metadata; the ``multi_hop`` strategy
+# otherwise derives holdout ids dynamically from each entry's tags.
 DEFAULT_HOLDOUT_IDS: frozenset[str] = frozenset(
     {
         "q_mh_reindex_pipeline",
         "q_mh_search_stack",
         "q_mh_workspace_collection",
         "q_mh_xref_service_map",
+        "q_mh_build_deps",
+        "q_mh_graph_pipeline",
+        "q_mh_search_symbols",
+        "q_mh_service_endpoints",
+        "q_mh_tei_config",
+        "q_mh_rerank_config",
+        "q_mh_gpu_config",
+        "q_mh_truncation_config",
+        "q_mh_chunk_embed",
+        "q_mh_scan_chunk",
+        "q_mh_eval_harness",
+        "q_mh_memory_trim",
     }
 )
 

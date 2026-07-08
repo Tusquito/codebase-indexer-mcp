@@ -45,7 +45,7 @@ def _result(chunk_id: str, score: float = 0.9) -> SearchResult:
 
 def test_load_golden_fixture():
     entries = load_golden(GOLDEN)
-    assert len(entries) >= 22
+    assert len(entries) >= 75
     assert entries[0].query_id
     assert entries[0].collection == "codebase-indexer-mcp"
 
@@ -177,22 +177,52 @@ async def test_eval_smoke_on_indexed_collection():
         top_k=10,
         collection_override=None,
     )
-    assert result["n_queries"] >= 15
+    assert result["n_queries"] >= 75
     assert result["metrics"]["recall@10"] > 0.0
 
 
 def test_golden_fixture_has_ground_truth_subset():
     entries = load_golden(GOLDEN)
     with_gt = [e for e in entries if e.ground_truth]
-    assert len(with_gt) >= 6
+    assert len(with_gt) >= 19
     assert all(e.ground_truth.strip() for e in with_gt)
 
 
 def test_golden_fixture_has_multi_hop_queries():
     entries = load_golden(GOLDEN)
     multi = [e for e in entries if "multi_hop" in e.tags]
-    assert len(multi) >= 4
+    assert len(multi) >= 15
     assert all(e.hop2_query_text for e in multi)
+
+
+def test_golden_fixture_multi_hop_rows_carry_secondary_tag():
+    entries = load_golden(GOLDEN)
+    multi = [e for e in entries if "multi_hop" in e.tags]
+    for entry in multi:
+        secondary = [t for t in entry.tags if t != "multi_hop"]
+        assert secondary, f"{entry.query_id} is a pure multi_hop row (no secondary tag)"
+
+
+def test_golden_fixture_per_tag_membership_floors():
+    entries = load_golden(GOLDEN)
+    counts: dict[str, int] = {}
+    for entry in entries:
+        for tag in entry.tags:
+            counts[tag] = counts.get(tag, 0) + 1
+
+    floors = {
+        "symbol": 26,
+        "conceptual": 7,
+        "config": 19,
+        "cross_file": 19,
+        "multi_hop": 15,
+    }
+    for tag, floor in floors.items():
+        assert counts.get(tag, 0) >= floor, (
+            f"tag {tag!r} has {counts.get(tag, 0)} rows, expected >= {floor}"
+        )
+
+    assert all(e.anchors for e in entries), "every golden row must carry anchors"
 
 
 def test_golden_fixture_is_valid_jsonl():
@@ -203,4 +233,4 @@ def test_golden_fixture_is_valid_jsonl():
         assert "query_id" in data
         assert "query_text" in data
         assert "collection" in data
-        assert "labels" in data or "aliases" in data
+        assert "labels" in data or "aliases" in data or "anchors" in data
