@@ -1,0 +1,24 @@
+adr_id: "0019"
+phase_key: phase-3
+phase_title: Phase 3 — Agent pipeline cutover
+event: implementation
+date: "2026-07-08"
+tracker_status: implemented
+choices: >-
+  Rewrote `adr-tracker.md` to write append-only event YAML + upsert phase snapshot YAML then run `render_adr_tracker.py` (no markdown string-surgery path); orchestrator tracker contract updated with render-drift = acceptance failure; git-operator cleanup commits `docs/adr/tracker/**` + regenerated `IMPLEMENTATION_TRACKER.md`; synced `.cursor/agents/README.md` and `docs/adr/README.md`; archived `migrate_tracker_to_yaml.py` under `scripts/archive/` (human decision) with `REPO_ROOT` depth fix.
+deviations: none
+code_evidence:
+  - .cursor/agents/adr-tracker.md
+  - .cursor/agents/adr-orchestrator.md
+  - .cursor/agents/adr-git-operator.md
+  - .cursor/agents/README.md
+  - docs/adr/README.md
+  - scripts/archive/migrate_tracker_to_yaml.py
+test_debt:
+  - No automated coverage for agent-markdown contracts
+  - optional end-to-end adr-tracker YAML→render fixture test
+  - archived helper untested
+changelog:
+  update: false
+  reason: user-facing no
+user_facing: false

@@ -61,6 +61,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0018 | Adopt OpenTelemetry instrumentation with Prometheus metrics and optional OTLP export | Accepted (phase 1 — Application Prometheus metrics (MCP + ColBERT worker)) | phase-1 | `merged` | Opt-in `METRICS_ENABLED=false` default; `prometheus_client` on dedicated `CollectorRegistry`; metrics-only `@observe_tool` on all MCP tool handlers; no collection/rel_path labels; application counters/histograms + truncation counter; index metrics via IndexJobTracker; `GET /metrics` on MCP and ColBERT worker HTTP layer; unit tests (`test_telemetry_metrics.py`); `DEPLOYMENT.md` scrape docs; defer `METRICS_PORT`, docker-compose scrape wiring, Phase 2 OTel traces, Phase 3 observability compose stack; [PR #13](https://github.com/Tusquito/codebase-indexer-mcp/pull/13) | 2026-07-03 |
 | 0019 | Adopt YAML structured events for ADR implementation tracking | Accepted (phase 1) | phase-1 | `merged` | YAML tracker under `docs/adr/tracker/` with `schema.yaml` contract driving validation; stdlib+PyYAML render script generating marker-delimited summary/active/phase-logs/open-decisions blocks with preamble preservation; non-blocking `--check \|\| true` CI step validates sample YAML only — live `IMPLEMENTATION_TRACKER.md` hand-maintained until Phase 2 migration; Phase 3 agent cutover deferred; 9 render unit tests pass; 398 suite pass (8 storage-integration environmental); Docker integration pass; plan compliance pass; review rounds: 1; [PR #24](https://github.com/Tusquito/codebase-indexer-mcp/pull/24) | 2026-07-07 |
 | 0019 | Adopt YAML structured events for ADR implementation tracking | Accepted (phase 2) | phase-2 | `merged` | One-time `scripts/migrate_tracker_to_yaml.py` migration; YAML source of truth with generated markdown; kebab-case `phase_key`; plain `adr_id`; open-decisions collapsed to bullets; blocking `--check` gate; render `--check` zero drift; 40 phase + 142 event YAML valid; 9 render unit tests pass; ruff clean; CI render-diff blocking; Docker integration pass; review rounds: 1; Phase 3 agent cutover deferred; [PR #28](https://github.com/Tusquito/codebase-indexer-mcp/pull/28) | 2026-07-08 |
+| 0019 | Adopt YAML structured events for ADR implementation tracking | Accepted (phase 2) | phase-3 | `verified` | One PR: rewrite `.cursor/agents/adr-tracker.md` to write YAML event + phase files and run `scripts/render_adr_tracker.py` (replacing markdown string surgery); update `adr-orchestrator.md` tracker/render contract and `adr-git-operator.md` cleanup commit paths (`docs/adr/tracker/**` + regenerated `IMPLEMENTATION_TRACKER.md`); deprecate/remove legacy markdown-append instructions; sync `.cursor/agents/README.md` and `docs/adr/README.md`; archive one-time `scripts/migrate_tracker_to_yaml.py` under `scripts/archive/`. No server/runtime code. | 2026-07-08 |
 | 0020 | Fine-tune Qwen3 for code retrieval with Jina quality gate | Accepted (phase 1 — Dataset + training pipeline) | phase-1 | `merged` | Shipped: `mcp_server/benchmarks/train/` (`export_golden_pairs.py`, `mine_hard_negatives.py`, `finetune_qwen3_code.py`, `_schema.py`, `_split.py`, `_positives.py`, `README.md`); optional `[train]` pyproject extra isolated from runtime/CI; default validation holdout = all four `multi_hop` golden queries; hard-negative mining via base Qwen3 hybrid `run_search` (rerank off); LoRA via PEFT + sentence-transformers (TripletLoss when all pairs have mined negatives, else MnRL in-batch); outputs under `benchmarks/train/outputs/` gitignored; unit tests (export/split/mining + `test_finetune_mrr.py`); `DEPLOYMENT.md` training stub. Deviations: `resolve_positive_passage` (singular); single-pass checkpoint save (baseline + final val MRR in `train_summary.json`) vs per-epoch best (documented at verification). Defer Ollama export/registry (P2), Jina quality gate + baseline update (P3), CI observation job (P4); no Docker/runtime/registry changes; [PR #15](https://github.com/Tusquito/codebase-indexer-mcp/pull/15) | 2026-07-03 |
 | 0021 | Revert default dense embedder to Jina code; retire Qwen3 as production default | Accepted (phase 1 — Config + docs revert) | phase-1 | `merged` | Jina production default @ 768 in env/bench/compose/docs; Qwen3 experimental preset (−63.1% recall@10); `DENSE_EMBED_MODEL` in `.env.example` REQUIRED; TEI downloads model on first start; `config.py` Qwen3 registry/MRL retained; ADR index housekeeping in Phase 1 scope; defer Phase 2 (`eval_baseline.json`); CHANGELOG full update Phase 3; test debt: `smoke_recommend` dim mismatch until Phase 2 re-index; [PR #16](https://github.com/Tusquito/codebase-indexer-mcp/pull/16) | 2026-07-03 |
 | 0021 | Revert default dense embedder to Jina code; retire Qwen3 as production default | Accepted (phase 1; phase 2 — Eval baseline refresh) | phase-2 | `merged` | GPU Jina @768 live baseline committed (`eval_baseline.json`; `ACCELERATOR=gpu`, `RERANK_ENABLED=false`); pre-commit gate vs `eval_baseline_jina.json` failed (recall@10 0.263 vs 0.660 — golden alias drift, not embedder regression); post-commit Docker self-compare pass; frozen `eval_baseline_jina.json` preserved; scanner `.venv*` prune + golden alias fixes; `_settings.py` `ollama_embed_model` default; defer golden label realignment, pre-commit recall gate CI, optional `eval_multihop` CI gate; Phase 3 (CHANGELOG/ADR index housekeeping); [PR #18](https://github.com/Tusquito/codebase-indexer-mcp/pull/18) | 2026-07-04 |
@@ -80,7 +81,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 ## Active and upcoming work
 
 <!-- BEGIN GENERATED:active -->
-_No active or upcoming phases._
+- **0019** Adopt YAML structured events for ADR implementation tracking — `verified`
 <!-- END GENERATED:active -->
 
 ### Partial acceptance
@@ -815,10 +816,27 @@ _No active or upcoming phases._
 - **Verify:** render `--check` zero drift; `--validate-only` 40 phase + 142 event files valid; 9 render unit tests pass; ruff clean; CI render-diff step confirmed blocking (no `\|\| true`); Docker integration report pass (quality validation skipped per plan); manual preamble + partial-acceptance/superseded postamble preserved outside markers; review rounds: 1
 - **Changelog:** no — user-facing no
 
+#### 2026-07-08 — verification
+- **Phase:** Phase 3 — Agent pipeline cutover
+- **Tracker status:** `verified`
+- **Choices:** Confirmed full YAML-write + render cutover with no legacy string-surgery path; migration helper moved (not duplicated) to `scripts/archive/` per human decision; orchestrator tracker contract enforces render-drift as acceptance failure; git-operator cleanup commits `docs/adr/tracker/**` with regenerated `IMPLEMENTATION_TRACKER.md`.
+- **Deviations:** none
+- **Code evidence:** `.cursor/agents/adr-tracker.md`, `.cursor/agents/adr-orchestrator.md`, `.cursor/agents/adr-git-operator.md`, `.cursor/agents/README.md`, `docs/adr/README.md`, `scripts/archive/migrate_tracker_to_yaml.py`
+- **Test debt:** No automated coverage for agent-markdown contracts; optional end-to-end adr-tracker YAML→render fixture test; archived helper untested
+- **Verify:** Review rounds: 1. 9 render unit tests pass; `render_adr_tracker.py --validate-only` (41 phases / 146 events valid) and `--check` (no drift) pass; archived `migrate_tracker_to_yaml.py --dry-run` runs correctly from `scripts/archive/` with `parents[2]` root fix; Docker integration Verdict: pass (quality validation skipped per plan); plan compliance pass across all in-scope tasks.
+- **Changelog:** no — user-facing no
+
 #### 2026-07-08 — plan
 - **Phase:** Phase 2 — Historical migration
 - **Tracker status:** `planned`
 - **Choices:** One-time semi-automated migration (helper + human diff review); YAML is new source of truth, markdown becomes generated artifact; open-decisions collapse to bullets; manual narrative preserved outside markers; blocking `--check` gate. **Chosen scope:** Add `scripts/migrate_tracker_to_yaml.py`; generate ~28 phase files + ~100 event files under `docs/adr/tracker/`; regenerate `IMPLEMENTATION_TRACKER.md` (marker-delimited generated blocks, manual preamble/postamble preserved); make CI render-diff check blocking (remove `\|\| true`); document migration in `docs/adr/README.md`. Phase 3 agent cutover deferred.
+- **Deviations:** none
+- **Changelog:** no — user-facing no
+
+#### 2026-07-08 — plan
+- **Phase:** Phase 3 — Agent pipeline cutover
+- **Tracker status:** `planned`
+- **Choices:** adr-tracker writes both event (append-only) and phase (snapshot) YAML then renders, because `render_adr_tracker.py` does not upsert phase files from events; CHANGELOG rules kept verbatim; git-operator cleanup commits YAML + generated markdown; migration helper archived under `scripts/archive/` (human decision). **Chosen scope:** One PR: rewrite `.cursor/agents/adr-tracker.md` to write YAML event + phase files and run `scripts/render_adr_tracker.py` (replacing markdown string surgery); update `adr-orchestrator.md` tracker/render contract and `adr-git-operator.md` cleanup commit paths (`docs/adr/tracker/**` + regenerated `IMPLEMENTATION_TRACKER.md`); deprecate/remove legacy markdown-append instructions; sync `.cursor/agents/README.md` and `docs/adr/README.md`; archive one-time `scripts/migrate_tracker_to_yaml.py` under `scripts/archive/`. No server/runtime code. **Assumptions:** Phase 3 = ADR's two listed items (YAML-write cutover + deprecate markdown append); render/validation logic and schema unchanged; ADR reaches final phase and is accepted as Accepted (phase 3) by finisher; `phase_key` = `phase-3`.
 - **Deviations:** none
 - **Changelog:** no — user-facing no
 
@@ -840,6 +858,15 @@ _No active or upcoming phases._
 - **Deviations:** file counts 40/141 (vs plan estimate 28/100); resolved historical open-decision rows dropped (only genuinely-open carried); optional regression test not added.
 - **Code evidence:** `scripts/migrate_tracker_to_yaml.py`, `docs/adr/tracker/phases/*.yaml`, `docs/adr/tracker/events/*.yaml`, `docs/adr/IMPLEMENTATION_TRACKER.md`, `.github/workflows/ci.yml`, `docs/adr/README.md`
 - **Test debt:** migration-parser unit tests (low value, one-time helper); minor rendered-cosmetics tidy (nested backticks / verbose slug); optional full-tracker render regression test (mitigated by blocking CI `--check`)
+- **Changelog:** no — user-facing no
+
+#### 2026-07-08 — implementation
+- **Phase:** Phase 3 — Agent pipeline cutover
+- **Tracker status:** `implemented`
+- **Choices:** Rewrote `adr-tracker.md` to write append-only event YAML + upsert phase snapshot YAML then run `render_adr_tracker.py` (no markdown string-surgery path); orchestrator tracker contract updated with render-drift = acceptance failure; git-operator cleanup commits `docs/adr/tracker/**` + regenerated `IMPLEMENTATION_TRACKER.md`; synced `.cursor/agents/README.md` and `docs/adr/README.md`; archived `migrate_tracker_to_yaml.py` under `scripts/archive/` (human decision) with `REPO_ROOT` depth fix.
+- **Deviations:** none
+- **Code evidence:** `.cursor/agents/adr-tracker.md`, `.cursor/agents/adr-orchestrator.md`, `.cursor/agents/adr-git-operator.md`, `.cursor/agents/README.md`, `docs/adr/README.md`, `scripts/archive/migrate_tracker_to_yaml.py`
+- **Test debt:** No automated coverage for agent-markdown contracts; optional end-to-end adr-tracker YAML→render fixture test; archived helper untested
 - **Changelog:** no — user-facing no
 
 #### 2026-07-07 — verification

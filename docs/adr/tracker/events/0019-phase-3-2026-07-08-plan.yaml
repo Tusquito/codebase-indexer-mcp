@@ -1,0 +1,12 @@
+adr_id: 0019
+phase_key: phase-3
+phase_title: Phase 3 — Agent pipeline cutover
+event: plan
+date: '2026-07-08'
+tracker_status: planned
+choices: 'adr-tracker writes both event (append-only) and phase (snapshot) YAML then renders, because `render_adr_tracker.py` does not upsert phase files from events; CHANGELOG rules kept verbatim; git-operator cleanup commits YAML + generated markdown; migration helper archived under `scripts/archive/` (human decision). **Chosen scope:** One PR: rewrite `.cursor/agents/adr-tracker.md` to write YAML event + phase files and run `scripts/render_adr_tracker.py` (replacing markdown string surgery); update `adr-orchestrator.md` tracker/render contract and `adr-git-operator.md` cleanup commit paths (`docs/adr/tracker/**` + regenerated `IMPLEMENTATION_TRACKER.md`); deprecate/remove legacy markdown-append instructions; sync `.cursor/agents/README.md` and `docs/adr/README.md`; archive one-time `scripts/migrate_tracker_to_yaml.py` under `scripts/archive/`. No server/runtime code. **Assumptions:** Phase 3 = ADR''s two listed items (YAML-write cutover + deprecate markdown append); render/validation logic and schema unchanged; ADR reaches final phase and is accepted as Accepted (phase 3) by finisher; `phase_key` = `phase-3`.'
+deviations: none
+changelog:
+  update: false
+  reason: user-facing no
+user_facing: false

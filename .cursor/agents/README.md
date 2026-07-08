@@ -37,10 +37,21 @@ Every agent declares a `model:` in its frontmatter, sized to the step's reasonin
 | `## ADR integration report` | integration-tester | code-reviewer, orchestrator |
 | `## PR review findings` | pr-review | pr-babysit, finisher, orchestrator |
 
+## Tracker storage (ADR 0019)
+
+Per [ADR 0019](../../docs/adr/0019-yaml-structured-adr-tracker.md), the implementation tracker is **structured YAML** — the source of truth — and `IMPLEMENTATION_TRACKER.md` is a **generated artifact**:
+
+- [`docs/adr/tracker/schema.yaml`](../../docs/adr/tracker/schema.yaml) — field/enum contract
+- [`docs/adr/tracker/phases/`](../../docs/adr/tracker/phases/) — one snapshot per ADR phase
+- [`docs/adr/tracker/events/`](../../docs/adr/tracker/events/) — append-only pipeline events
+- [`scripts/render_adr_tracker.py`](../../scripts/render_adr_tracker.py) — validates YAML and regenerates the markdown (`--validate-only`, `--check`)
+
+`adr-tracker` writes an event + upserts the phase file, then runs the render script — **never** hand-edit inside the `<!-- BEGIN/END GENERATED:* -->` markers. CI runs `render_adr_tracker.py --check` as a blocking step.
+
 ## Docs
 
 - [`docs/adr/README.md`](../../docs/adr/README.md) — ADR index and agent policy
-- [`docs/adr/IMPLEMENTATION_TRACKER.md`](../../docs/adr/IMPLEMENTATION_TRACKER.md) — pipeline steps and resume
+- [`docs/adr/IMPLEMENTATION_TRACKER.md`](../../docs/adr/IMPLEMENTATION_TRACKER.md) — pipeline steps and resume (generated from tracker YAML)
 
 ## Invoke
 
