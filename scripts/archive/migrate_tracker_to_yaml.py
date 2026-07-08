@@ -20,8 +20,11 @@ Usage::
     python scripts/migrate_tracker_to_yaml.py             # write YAML files
 
 The helper is idempotent (overwrites existing generated files). Per ADR 0019
-it is a Phase-2-only artifact and may be deleted/archived after the migration
-lands and the render check is green.
+it is a Phase-2-only artifact.
+
+ARCHIVED (ADR 0019 Phase 3): the historical migration has landed and the render
+check is green, so this one-time helper is retained here under ``scripts/archive/``
+for provenance only. It is no longer part of the active pipeline.
 """
 
 from __future__ import annotations
@@ -33,7 +36,7 @@ from typing import Any
 
 import yaml
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SOURCE = REPO_ROOT / "docs" / "adr" / "IMPLEMENTATION_TRACKER.md"
 DEFAULT_TRACKER_DIR = REPO_ROOT / "docs" / "adr" / "tracker"
 
