@@ -9,10 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from benchmarks.eval_retrieval import load_golden  # noqa: E402
-from benchmarks.train._split import (  # noqa: E402
-    DEFAULT_HOLDOUT_IDS,
-    split_holdout,
-)
+from benchmarks.train._split import split_holdout  # noqa: E402
 
 GOLDEN = Path(__file__).resolve().parents[1] / "benchmarks" / "fixtures" / "golden_queries.jsonl"
 
@@ -23,11 +20,14 @@ class _Entry:
     tags: list[str] = field(default_factory=list)
 
 
-def test_multi_hop_split_reserves_four_queries():
+def test_multi_hop_split_reserves_all_multi_hop_queries():
     entries = load_golden(GOLDEN)
+    expected_val_ids = {e.query_id for e in entries if "multi_hop" in e.tags}
+    assert expected_val_ids, "golden fixture must contain multi_hop-tagged queries"
+
     train, val = split_holdout(entries, strategy="multi_hop")
     val_ids = {e.query_id for e in val}
-    assert val_ids == set(DEFAULT_HOLDOUT_IDS)
+    assert val_ids == expected_val_ids
     assert len(train) + len(val) == len(entries)
     assert not (set(e.query_id for e in train) & val_ids)
 
