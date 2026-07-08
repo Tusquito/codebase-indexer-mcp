@@ -619,7 +619,7 @@ Task(
 | ADR id, Phase / track | pipeline state |
 | Mode | `cleanup` |
 | Branch | from git report (step 5) |
-| Paths to commit | `docs/adr/IMPLEMENTATION_TRACKER.md`, `CHANGELOG.md` if modified |
+| Paths to commit | `docs/adr/tracker/**` (YAML source), regenerated `docs/adr/IMPLEMENTATION_TRACKER.md`, `CHANGELOG.md` if modified |
 
 **Expect as output:**
 
@@ -631,10 +631,10 @@ Task(
 
 - [ ] On **main** (or repo default base)
 - [ ] **Workspace cleanup result** is `clean` (or `partial` with documented reason — STOP unless invoker waives)
-- [ ] Tracker commit created and **pushed** when `IMPLEMENTATION_TRACKER.md` was modified by step 6 tracker
+- [ ] Tracker commit created and **pushed** when `docs/adr/tracker/**` YAML and/or regenerated `IMPLEMENTATION_TRACKER.md` were modified by step 6 tracker
 - [ ] Feature branch **deleted** locally (`-d`, then `-D` if squash-merged)
 - [ ] `git fetch --prune` run
-- [ ] **Workspace clean:** yes — no unstaged tracker or ADR accept files
+- [ ] **Workspace clean:** yes — no unstaged tracker YAML, generated markdown, or ADR accept files
 
 **On accept (`clean`) → store:** cleanup report. **Pipeline complete** — status `complete`.
 
@@ -644,7 +644,9 @@ Task(
 
 ### — `adr-tracker`
 
-**Aim:** Persist Tracker append to IMPLEMENTATION_TRACKER (+ CHANGELOG when rules met).
+**Aim:** Persist Tracker append as YAML event + phase files under `docs/adr/tracker/`, run `scripts/render_adr_tracker.py` to regenerate `IMPLEMENTATION_TRACKER.md`, and edit CHANGELOG when rules met.
+
+**Tracker contract (ADR 0019 cutover):** the tracker writes **structured YAML** — one append-only `events/{adr_id}-{phase_key}-{date}-{event}.yaml` plus an upserted snapshot `phases/{adr_id}-{phase_key}.yaml` — then runs the render script. The YAML is the source of truth; `IMPLEMENTATION_TRACKER.md` is generated. There is **no** markdown string-surgery path. **Render drift is an acceptance failure:** if the tracker report shows a validation error or `--check` drift, reject the result.
 
 **Provide as input:**
 
@@ -660,12 +662,13 @@ Task(
 
 **Acceptance criteria:**
 
-- [ ] Report confirms summary row updated for correct ADR id
-- [ ] Phase log entry prepended
+- [ ] Report lists the event YAML file written under `docs/adr/tracker/events/` for the correct ADR id + phase
+- [ ] Report lists the phase YAML file upserted under `docs/adr/tracker/phases/` (created or updated)
+- [ ] Render script run; result is `wrote …` / `ok` (no validation error, no `--check` drift)
 - [ ] Changelog edited only when status `verified` + user-facing yes
-- [ ] No ADR body files edited
+- [ ] No ADR body files edited; no hand-edit inside `IMPLEMENTATION_TRACKER.md` generated markers
 
-**On fail →** relaunch tracker Task once; else STOP (do not advance pipeline with stale tracker).
+**On fail →** relaunch tracker Task once; else STOP (do not advance pipeline with stale tracker or unrendered YAML drift).
 
 ## Cross-artifact consistency (check after every step)
 

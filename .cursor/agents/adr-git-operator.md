@@ -29,7 +29,7 @@ Read [project-phase.md](./project-phase.md). PR descriptions may document intent
 | Max wait minutes | no | Default `30` when `mode: wait_merge` |
 | Poll interval seconds | no | Default `60` when `mode: wait_merge` |
 | Branch | yes*** | Feature branch name when `mode: cleanup` |
-| Paths to commit | no | Default tracker + CHANGELOG if modified |
+| Paths to commit | no | Default `docs/adr/tracker/**` (YAML source) + regenerated `docs/adr/IMPLEMENTATION_TRACKER.md` + CHANGELOG if modified |
 | Constraints | no | e.g. plan only, commit only, no push — **no PR skip** unless `no pr` explicit |
 
 \* Required for `prepare` unless implementation report lists paths.
@@ -354,14 +354,17 @@ After orchestrator applies `merged` tracker append on **main**:
 
 ```
 1. git checkout main && git pull
-2. Inspect git status — paths from input (default: docs/adr/IMPLEMENTATION_TRACKER.md, CHANGELOG.md)
-3. If tracker/changelog modified → commit: docs(adr): record NNNN phase N merge
+2. Inspect git status — paths from input (default: docs/adr/tracker/**, docs/adr/IMPLEMENTATION_TRACKER.md, CHANGELOG.md)
+3. If tracker YAML / generated markdown / changelog modified → commit: docs(adr): record NNNN phase N merge
+   - Stage the tracker YAML source (docs/adr/tracker/**) alongside the regenerated docs/adr/IMPLEMENTATION_TRACKER.md so source + generated artifact land together
 4. git push origin main
 5. git branch -d <feature_branch>  → if fails (squash merge), git branch -D <feature_branch>
 6. git fetch --prune origin
 7. Delete other stale local branches for this ADR phase when safe (gone remote + PR merged)
 8. Emit git report — Workspace clean: yes | no
 ```
+
+Per ADR 0019, the tracker YAML under `docs/adr/tracker/**` is the source of truth and `IMPLEMENTATION_TRACKER.md` is a generated artifact — commit both together so they never drift.
 
 | Cleanup result | Meaning |
 |----------------|---------|
