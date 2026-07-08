@@ -187,10 +187,25 @@ jobs:
 
       - name: Install dependencies
         working-directory: mcp_server
-        run: uv sync --extra dev
+        run: uv sync --extra dev --extra benchmark
 
-      - name: Run compose integration (CPU stack)
-        run: python scripts/run_compose_integration.py --json
+      - name: Run compose integration (CPU stack, keep for reproducibility)
+        run: python scripts/run_compose_integration.py --json --quality-validation --keep
+
+      - name: Harness reproducibility (ADR 0026 — repeat-run stability)
+        working-directory: mcp_server
+        env:
+          QDRANT_URL: http://localhost:6333
+          TEI_URL: http://localhost:8080
+          DENSE_EMBED_MODEL: jinaai/jina-embeddings-v2-base-code
+          DENSE_EMBED_VECTOR_SIZE: "768"
+          SPARSE_EMBED_MODEL: Qdrant/bm25
+          SPARSE_THREADS: "2"
+        run: uv run pytest tests/test_harness_reproducibility.py -q -m benchmark
+
+      - name: Tear down compose stack
+        if: always()
+        run: docker compose --env-file .env.compose.integration down --remove-orphans || true
 
   gpu-smoke:
     # Non-blocking: real GPU stack smoke on self-hosted runner (ADR 0022 Phase 3).
