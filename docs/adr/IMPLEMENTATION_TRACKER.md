@@ -68,6 +68,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | [0023](0023-neo4j-primary-call-site-lookup.md) | Move call-site lookup from Qdrant callees to Neo4j CALLS | Accepted (phase 1; phase 2 — Stop dual-write to Qdrant) | Phase 2 — Stop dual-write to Qdrant | `merged` | Reused `graph_call_sites` metadata; per-collection Path D routing; Qdrant fallback + warning; retain callees index until Phase 3; 391 unit tests pass; integration pass; plan compliance pass; review rounds: 2; test debt: Testcontainers slow test optional CI job; defer Phases 3–4 and ADR 0002 Phase 2 `graph_node_ids`. [PR #22](https://github.com/Tusquito/codebase-indexer-mcp/pull/22) | 2026-07-04 |
 | [0025](0025-huggingface-tei-dense-embedding.md) | Adopt HuggingFace TEI sidecar for dense embedding | Accepted (all phases complete) | Phase 1 — TEI hard replace (final phase) — closeout | `merged` | Squash merge [PR #23](https://github.com/Tusquito/codebase-indexer-mcp/pull/23) (`0f01cda`); `TeiDenseBackend` + OpenAI `/v1/embeddings`; TEI compose (`docker-compose.tei.yml` + `.tei.gpu.yml`, profile `bundled-tei`); Ollama dense deleted; Ollama→TEI doc/docstring sweep (16 files); upstream TEI CUDA-detection bug fixed via `docker-compose.tei.gpu.yml` entrypoint override; upstream TEI CPU-warmup bug fixed via `--max-batch-tokens` cap + client-side `MAX_DENSE_EMBED_TOKENS` pairing (CPU-only CI path); live GPU quality-validation (recall@10=0.3590, MRR=0.3576, ndcg@10=0.2807, 43/43 golden labels); ADR accepted all phases via docs commit `a756677`; final ADR 0025 phase complete; test debt: optional offline CI alias-drift guard, `benchmarks/train/**` (ADR 0020 follow-up) | 2026-07-07 |
 | [0024](0024-resource-aware-stack-tuner.md) | Add resource-aware stack tuner for RSS allocation and performance tuning | Accepted (phase 1 — Analyze + allocate) | Phase 1 — Analyze + allocate | `merged` | Squash merge [PR #25](https://github.com/Tusquito/codebase-indexer-mcp/pull/25) (`e0c6100`); Pure `tune_alloc.py` split from `tune_stack.py` CLI; topology-priority RAM selection; deterministic knob tiers; tri-state flag precedence mirroring `compose_files.py`; stdlib RAM detection + `--max-ram-gib` fallback; TEI caps `TEI_MEM_LIMIT`/`TEI_CPUS`; ColBERT MCP ≤35% cap; compose-only env vars (`.env` write refused); ADR Accept + `docs/adr/README.md` index; 17 unit tests pass; CLI smoke pass; Docker integration pass; plan compliance pass; review rounds: 1; NVIDIA probe deferred Phase 2; defer `.env.example` preset sync (Phase 4); test debt: CLI-level tests for `tune_stack.py`, host-detection mocks, ADR success-criterion #1 ±10% preset assertion deferred; opt-in, no default behavior change | 2026-07-08 |
+| [0026](0026-full-stack-embedding-quality-benchmark.md) | Full-stack embedding model quality benchmark and selection framework | Proposed | Phase 1 — Harness reliability fix | `verified` | Content-anchored labels with 5-step ladder (`{rel_path}::{symbol_name}` + `start_line` hint); drift counted not silently scored; `--validate-labels` drift re-resolution with counts; `label_drift` per eval run; CI repro via `--keep` + kept-stack pytest in blocking `compose-integration`; `label_anchor.py` + `eval_retrieval.py` + golden `anchors`; 11 unit tests pass (`test_label_anchor.py`); ruff clean; Docker integration + quality validation pass (55 labels, 0 drifted, 0 unresolved; threshold 0 pass); repeat-run repro in blocking compose-integration CI job; review rounds: 1; one PR; no runtime/config/production change; defer Phases 2–5 (≥75-query expansion is Phase 2); test debt: symbol drift live integration unexercised (0 drift in run), Phase 4 collection override concern | 2026-07-08 |
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
 
@@ -1665,6 +1666,56 @@ Append newest entries at the **top** of each ADR section. Copy summaries from ea
 
 ---
 
+### ADR 0026 — Full-stack embedding model quality benchmark and selection framework
+
+#### 2026-07-08 — verification
+- **Phase / PR:** Phase 1 — Harness reliability fix
+- **Tracker status:** `verified`
+- **Choices:** Content-anchored labels with 5-step ladder; drift counted not silently scored; CI repro via `--keep` + kept-stack pytest
+- **Deviations:** none
+- **Code evidence:** `mcp_server/benchmarks/label_anchor.py`, `mcp_server/benchmarks/eval_retrieval.py`, `mcp_server/benchmarks/fixtures/golden_queries.jsonl`, `mcp_server/tests/test_label_anchor.py`, `mcp_server/tests/test_harness_reproducibility.py`, `.github/workflows/ci.yml`
+- **Test debt:** Symbol drift live integration unexercised (0 drift in run); Phase 4 collection override concern
+- **Verify:** unit tests pass (11 in `test_label_anchor.py`); ruff clean; Docker compose integration + quality validation pass (55 labels, 0 drifted, 0 unresolved; threshold 0 pass); repeat-run repro in blocking `compose-integration` CI job; review rounds: 1
+- **Git:** pending
+- **Changelog:** no — user-facing no; invoker Changelog: no
+
+#### 2026-07-08 — implementation
+- **Phase / PR:** Phase 1 — Harness reliability fix
+- **Tracker status:** `implemented`
+- **Choices:** Content-anchored label resolution keyed on `{rel_path}::{symbol_name}` with `start_line` as cached hint; fixed resolution ladder (legacy chunk_id → content → nearest-line → basename → unresolved); `--validate-labels` re-resolves drift and reports counts instead of hard-failing; `label_drift` surfaced per eval run; reproducibility enforced via live repeat-run test in blocking `compose-integration` job.
+- **Deviations:** CI repro wired via `--keep` + kept-stack pytest; tracker row emitted here.
+- **Code evidence:** `mcp_server/benchmarks/label_anchor.py`, `mcp_server/benchmarks/eval_retrieval.py`, `mcp_server/benchmarks/fixtures/golden_queries.jsonl`, `mcp_server/tests/test_label_anchor.py`, `mcp_server/tests/test_harness_reproducibility.py`, `.github/workflows/ci.yml`
+- **Test debt:** `load_point_index` async coverage; drift-report integration test; CI repro non-skip verification; legacy-path regression test
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing no; invoker Changelog: no
+
+#### 2026-07-08 — plan
+- **Phase / PR:** Phase 1 — Harness reliability fix
+- **Tracker status:** `planned`
+- **Choices:** **Label anchor rule:** primary key `{rel_path}::{symbol_name}` resolved live via Qdrant's indexed `rel_path`+`symbol_name` payload fields; `start_line` retained only as nearest-line tie-break hint; ladder = legacy chunk_id hit → content re-resolution on drift → nearest-line tie-break → basename anchor for non-code files → report `unresolved` (never silently score stale). Existing `aliases` kept as cached hints. **Repeat-run test CI placement:** pure resolver unit tests in blocking `test` job; live repeat-run determinism assertion in blocking `compose-integration` job; non-blocking `eval-retrieval` metric job unchanged. Blocking gates resolution determinism, not recall threshold.
+- **Deviations:** none
+- **Chosen scope:** Content-anchored label resolution (`label_anchor.py`), drift-tolerant `--validate-labels` with drift counts, repeat-run `recall@10` regression test, and migration of the existing 26 golden entries to carry `anchors` — one PR; no runtime/config/production change.
+- **Assumptions:** ≥75-query expansion is Phase 2; Phase 1 migrates current 26 entries to `anchors`. Accept-after-merge: auto.
+- **Code evidence:** —
+- **Test debt:** —
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing no; invoker Changelog: no
+
+#### 2026-07-08 — prioritization
+- **Phase / PR:** Phase 1 — Harness reliability fix
+- **Tracker status:** `candidate`
+- **Choices:** Recommend Phase 1 only (not Phases 2–5); Accept ADR 0026 before implementation (human confirmed yes); Docker integration required per project-phase policy; no GPU required for Phase 1; priority 0026 Phase 1 over ADR 0002 Phase 3 (human confirmed). **Why now:** Only Proposed ADR; golden-set harness has demonstrated ±60pp recall@10 non-reproducibility on unchanged Jina model (0021 frozen 0.660 vs live 0.263); labels still keyed on `rel_path:start_line` in `eval_retrieval.py`; 0021 test debt defers golden label realignment; prerequisites (0007, 0025, 0022, 0002 Phase 2) satisfied; Phase 1 is benchmark-only with zero production impact. **Suggested scope:** one phase (= one PR). **Chosen scope:** Phase 1 — content-anchored label resolution; `--validate-labels` drift re-resolution with drift counts; repeat-run regression test (`test_harness_reproducibility.py`); wire into `eval_retrieval.py` via `label_anchor.py`.
+- **Deviations:** none
+- **Code evidence:** labels keyed on `rel_path:start_line` in `eval_retrieval.py`; frozen `eval_baseline_jina.json` recall@10 0.660 vs live 0.263 (0021 Phase 2)
+- **Test debt:** —
+- **Verify:** —
+- **Git:** pending
+- **Changelog:** no — user-facing no; invoker Changelog: no
+
+---
+
 ## How to update
 
 Pipeline steps output a **Tracker append** block; the **invoker** (or a dedicated tracker specialist) applies file edits. ADR pipeline steps do not edit tracker or changelog files directly.
@@ -2103,3 +2154,13 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 | 2026-07-08 | 0002 | Phase 2 open decisions (post-verification) | **None** — verification complete; test debt carried; awaiting merge | no |
 | 2026-07-08 | 0002 | Phase 2 merged? | **Merged** at 2026-07-08 merge — squash merge [PR #26](https://github.com/Tusquito/codebase-indexer-mcp/pull/26) (`e3348b0`); tracker `merged` | no |
 | 2026-07-08 | 0002 | Phase 2 open decisions (post-merge) | **None** — Phase 2 complete; Phases 3–4 deferred; non-blocking test debt carried forward | no |
+| 2026-07-08 | 0026 | Accept ADR 0026 before implementation? | **Confirmed by human** at 2026-07-08 prioritization — Accept yes before dev | no |
+| 2026-07-08 | 0026 | Prioritize 0026 Phase 1 over ADR 0002 Phase 3? | **Confirmed by human** at 2026-07-08 prioritization — 0026 P1 `candidate` over 0002 P3 | no |
+| 2026-07-08 | 0026 | Label anchor fallback strategy? | **Resolved at planning** — primary key `{rel_path}::{symbol_name}` via Qdrant payload; ladder = legacy chunk_id → content re-resolution → nearest-line tie-break → basename anchor → `unresolved`; `aliases` kept as cached hints | no |
+| 2026-07-08 | 0026 | CI placement for harness reproducibility test? | **Resolved at planning** — resolver unit tests in blocking `test`; live repeat-run determinism in blocking `compose-integration`; `eval-retrieval` metric job unchanged (non-blocking); gates determinism not recall threshold | no |
+| 2026-07-08 | 0026 | Phase 1 open decisions (post-prioritization) | **None blocking** — Accept confirmed; label anchor fallback and CI placement deferred to planner | no |
+| 2026-07-08 | 0026 | Phase 1 open decisions (post-plan) | **None** — planner resolved label anchor fallback and CI placement; ready for implementation | no |
+| 2026-07-08 | 0026 | CI repro wiring for harness reproducibility test? | **Resolved at implementation** — `--keep` + kept-stack pytest in blocking `compose-integration` | no |
+| 2026-07-08 | 0026 | Phase 1 open decisions (post-implementation) | **None** — implementation complete; test debt carried; awaiting verification | no |
+| 2026-07-08 | 0026 | Phase 1 test debt (post-verification) | Symbol drift live integration unexercised (0 drift in run); Phase 4 collection override concern | no |
+| 2026-07-08 | 0026 | Phase 1 open decisions (post-verification) | **None** — verification complete; test debt carried; awaiting merge | no |
