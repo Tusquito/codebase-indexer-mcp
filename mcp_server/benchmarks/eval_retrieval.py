@@ -36,6 +36,13 @@ from codebase_indexer.tools.search_common import run_search  # noqa: E402
 
 from benchmarks._connectivity import tei_reachable, qdrant_reachable  # noqa: E402
 from benchmarks._settings import load_settings  # noqa: E402
+from benchmarks.label_anchor import (  # noqa: E402
+    Anchor,
+    PointIndex,
+    load_point_index,
+    parse_anchors,
+    resolve_anchors,
+)
 
 DEFAULT_GOLDEN = Path(__file__).resolve().parent / "fixtures" / "golden_queries.jsonl"
 DEFAULT_METRICS = ["recall@10", "mrr", "ndcg@10"]
@@ -54,6 +61,7 @@ class GoldenEntry:
     labels: dict[str, int]
     tags: list[str] = field(default_factory=list)
     aliases: dict[str, int] = field(default_factory=dict)
+    anchors: list[Anchor] = field(default_factory=list)
     ground_truth: str | None = None
     hop2_query_text: str | None = None
 
@@ -76,6 +84,7 @@ def load_golden(path: Path) -> list[GoldenEntry]:
                 labels=labels,
                 tags=list(data.get("tags", [])),
                 aliases=aliases,
+                anchors=parse_anchors(data.get("anchors")),
                 ground_truth=data.get("ground_truth"),
                 hop2_query_text=data.get("hop2_query_text"),
             )
@@ -105,6 +114,27 @@ def resolve_labels(entry: GoldenEntry) -> dict[str, int]:
         chunk_id = _make_chunk_id(rel_path, int(start_s))
         resolved.setdefault(chunk_id, grade)
     return resolved
+
+
+def resolve_entry_labels(
+    entry: GoldenEntry,
+    index: PointIndex,
+) -> tuple[dict[str, int], dict[str, Any] | None]:
+    """Resolve an entry's relevance labels against the live collection.
+
+    Prefers content-anchored resolution (ADR 0026) when the entry carries
+    ``anchors``; otherwise falls back to the legacy chunk_id/alias path.
+    Returns ``(labels, drift_report_or_none)``.
+    """
+    if not entry.anchors:
+        return resolve_labels(entry), None
+    labels, report = resolve_anchors(
+        entry.anchors, index, collection=entry.collection
+    )
+    # Merge any explicit legacy chunk_id labels (aliases stay a legacy hint).
+    for cid, grade in entry.labels.items():
+        labels[cid] = max(labels.get(cid, grade), grade)
+    return labels, report.as_dict()
 
 
 def score_for_ranx(rank: int, top_k: int) -> float:
@@ -156,41 +186,59 @@ async def validate_labels(
     storage: QdrantStorage,
     entries: list[GoldenEntry],
 ) -> dict[str, Any]:
-    """Check that labeled chunk_ids exist in Qdrant collections."""
-    by_collection: dict[str, set[str]] = {}
-    for entry in entries:
-        labels = resolve_labels(entry)
-        by_collection.setdefault(entry.collection, set()).update(labels.keys())
+    """Re-resolve golden labels against Qdrant, reporting drift (ADR 0026).
 
-    report: dict[str, Any] = {"collections": {}, "missing_total": 0}
+    Content-anchored entries are re-resolved by symbol against the live
+    collection; drifted (line-moved) anchors are counted, not failed. Only
+    genuinely unresolvable anchors count toward ``unresolved_total``, which is
+    the pre-flight gate for a bake-off session.
+    """
+    by_collection: dict[str, list[GoldenEntry]] = {}
+    for entry in entries:
+        by_collection.setdefault(entry.collection, []).append(entry)
+
+    report: dict[str, Any] = {
+        "collections": {},
+        "unresolved_total": 0,
+        "drifted_total": 0,
+        # Legacy field retained: total missing legacy chunk_id labels.
+        "missing_total": 0,
+    }
     client = await storage._get_client()
 
-    for collection, label_ids in sorted(by_collection.items()):
-        existing: set[str] = set()
-        offset = None
-        while True:
-            points, offset = await client.scroll(
-                collection_name=collection,
-                limit=5000,
-                offset=offset,
-                with_payload=["chunk_id"],
-                with_vectors=False,
-            )
-            for p in points:
-                payload = p.payload or {}
-                cid = payload.get("chunk_id")
-                if cid:
-                    existing.add(str(cid))
-            if offset is None:
-                break
+    for collection, coll_entries in sorted(by_collection.items()):
+        index = await load_point_index(client, collection)
+        drifted = 0
+        unresolved = 0
+        labeled = 0
+        unresolved_keys: list[str] = []
+        missing_legacy: list[str] = []
 
-        missing = sorted(label_ids - existing)
+        for entry in coll_entries:
+            if entry.anchors:
+                _labels, rep = resolve_entry_labels(entry, index)
+                assert rep is not None
+                labeled += rep["total"]
+                drifted += rep["drifted"]
+                unresolved += rep["unresolved"]
+                unresolved_keys.extend(rep["unresolved_keys"])
+            else:
+                legacy = resolve_labels(entry)
+                labeled += len(legacy)
+                for cid in legacy:
+                    if not index.has_chunk_id(cid):
+                        missing_legacy.append(cid)
+
         report["collections"][collection] = {
-            "labeled": len(label_ids),
-            "found": len(label_ids) - len(missing),
-            "missing": missing,
+            "labeled": labeled,
+            "drifted": drifted,
+            "unresolved": unresolved,
+            "unresolved_keys": sorted(unresolved_keys),
+            "missing_legacy": sorted(missing_legacy),
         }
-        report["missing_total"] += len(missing)
+        report["drifted_total"] += drifted
+        report["unresolved_total"] += unresolved
+        report["missing_total"] += len(missing_legacy)
 
     return report
 
@@ -234,9 +282,26 @@ async def run_evaluation(
     qrels: dict[str, dict[str, int]] = {}
     per_query: list[dict[str, Any]] = []
 
+    client = await storage._get_client()
+    index_cache: dict[str, PointIndex] = {}
+
+    async def _index_for(collection: str) -> PointIndex:
+        if collection not in index_cache:
+            index_cache[collection] = await load_point_index(client, collection)
+        return index_cache[collection]
+
+    drift_total = {"drifted": 0, "unresolved": 0}
+
     for entry in entries:
         collection = collection_override or entry.collection
-        labels = resolve_labels(entry)
+        if entry.anchors:
+            index = await _index_for(collection)
+            labels, drift = resolve_entry_labels(entry, index)
+            if drift is not None:
+                drift_total["drifted"] += drift["drifted"]
+                drift_total["unresolved"] += drift["unresolved"]
+        else:
+            labels = resolve_labels(entry)
         qrels[entry.query_id] = labels
 
         results = await run_search(
@@ -296,6 +361,7 @@ async def run_evaluation(
         "metrics_by_tag": metrics_by_tag,
         "per_query": per_query,
         "n_queries": len(entries),
+        "label_drift": drift_total,
     }
     if rerank_enabled:
         result["params"]["rerank_adaptive_enabled"] = settings.rerank_adaptive_enabled
@@ -416,9 +482,15 @@ def main() -> int:
         entries = load_golden(args.golden)
         report = asyncio.run(validate_labels(storage, entries))
         print(json.dumps(report, indent=2))
-        if report["missing_total"]:
+        if report["drifted_total"]:
             print(
-                f"WARN: {report['missing_total']} labeled chunk_id(s) missing from Qdrant",
+                f"INFO: {report['drifted_total']} anchor(s) re-resolved after line drift",
+                file=sys.stderr,
+            )
+        unresolved = report["unresolved_total"] + report["missing_total"]
+        if unresolved:
+            print(
+                f"WARN: {unresolved} label(s) unresolved against Qdrant",
                 file=sys.stderr,
             )
             return 1
