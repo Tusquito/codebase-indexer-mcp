@@ -42,7 +42,7 @@ def _result(chunk_id: str) -> SearchResult:
 def test_golden_multihop_entries_have_hop2_query_text():
     entries = load_golden(GOLDEN)
     multi = filter_multihop_entries(entries)
-    assert len(multi) == 4
+    assert len(multi) >= 15
     assert all(e.hop2_query_text and e.hop2_query_text.strip() for e in multi)
 
 
@@ -138,5 +138,5 @@ async def test_eval_multihop_smoke_on_indexed_collection():
         top_k=10,
         collection_override=None,
     )
-    assert result["n_queries"] == 4
+    assert result["n_queries"] >= 15
     assert result["metrics_two_hop"]["recall@10"] >= 0.0
