@@ -26,7 +26,11 @@ Skip ADRs for routine bug fixes, refactors with no design change, or dependency 
 
 [`IMPLEMENTATION_TRACKER.md`](IMPLEMENTATION_TRACKER.md) tracks **phases, choices, and delivery status** without editing ADR decision text. The invoker applies **Tracker append** blocks from pipeline steps to update it. User-facing shipped changes go in [`CHANGELOG.md`](../../CHANGELOG.md).
 
-Per [ADR 0019](0019-yaml-structured-adr-tracker.md), structured tracker data is moving to versioned YAML under [`tracker/`](tracker/): `schema.yaml` (field contract), `tracker/phases/` (one snapshot per ADR phase), and `tracker/events/` (append-only pipeline events). `scripts/render_adr_tracker.py` validates those files and regenerates the marker-delimited sections of the markdown tracker (`python scripts/render_adr_tracker.py --check`). Phase 1 seeds the layout with sample files; migrating the live tracker content is Phase 2.
+Per [ADR 0019](0019-yaml-structured-adr-tracker.md), structured tracker data lives in versioned YAML under [`tracker/`](tracker/): `schema.yaml` (field contract), `tracker/phases/` (one snapshot per ADR phase), and `tracker/events/` (append-only pipeline events). **The YAML is the source of truth**; the body of `IMPLEMENTATION_TRACKER.md` is a **generated artifact**. `scripts/render_adr_tracker.py` validates the YAML and regenerates the marker-delimited blocks (summary, active, phase-logs, open-decisions) between `<!-- BEGIN/END GENERATED:* -->` markers, preserving the manual preamble/postamble.
+
+**Do not hand-edit inside the generated markers.** To update the tracker, edit the YAML under `tracker/phases/` + `tracker/events/` and run `python scripts/render_adr_tracker.py`. CI runs `python scripts/render_adr_tracker.py --check` as a **blocking** step, so any drift between the YAML and the rendered markdown fails the build.
+
+Phase 2 (historical migration) is complete: all prior tracker content was migrated to `tracker/` via the one-time `scripts/migrate_tracker_to_yaml.py` helper (deletable/archivable now that the migration has landed), and the render check is blocking. Phase 3 (agent-pipeline cutover to emit YAML directly) remains.
 
 ## ADR pipeline agents
 
