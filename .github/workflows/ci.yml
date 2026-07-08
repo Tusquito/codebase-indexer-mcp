@@ -45,8 +45,8 @@ jobs:
       - name: Run tests
         run: uv run pytest -q
 
-      - name: Validate ADR tracker YAML (non-blocking, ADR 0019 Phase 1)
-        run: uv run python ../scripts/render_adr_tracker.py --check || true
+      - name: Validate ADR tracker render (blocking, ADR 0019 Phase 2)
+        run: uv run python ../scripts/render_adr_tracker.py --check
 
   benchmark:
     # Non-blocking: surfaces performance numbers as an artifact without gating
