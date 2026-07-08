@@ -71,7 +71,7 @@ Invoke the full pipeline with **`adr-orchestrator`**; resume a phase with `Resum
 | [0016](0016-qwen3-embedding-default-dense-model.md) | Adopt Qwen3-Embedding-4B as default Ollama dense model | Superseded (default policy → [0021](0021-revert-jina-production-default-retire-qwen3.md)) | 2026-07-03 |
 | [0017](0017-model-tokenizer-tei-dense-truncation.md) | Model-accurate tokenizer for TEI dense truncation | Accepted (phase 1 — loader + TEI backend) | 2026-07-03 |
 | [0018](0018-telemetry-observability-otel-prometheus.md) | Adopt OpenTelemetry instrumentation with Prometheus metrics and optional OTLP export | Accepted (phase 1 — Application Prometheus metrics (MCP + ColBERT worker)) | 2026-07-03 |
-| [0019](0019-yaml-structured-adr-tracker.md) | Adopt YAML structured events for ADR implementation tracking | Accepted (phase 1) | 2026-07-03 |
+| [0019](0019-yaml-structured-adr-tracker.md) | Adopt YAML structured events for ADR implementation tracking | Accepted (phase 2) | 2026-07-03 |
 | [0020](0020-qwen3-code-finetune-jina-quality-gate.md) | Fine-tune Qwen3 for code retrieval with Jina quality gate | Accepted (phase 1 only; phases 2–4 cancelled — gate failed) | 2026-07-03 |
 | [0021](0021-revert-jina-production-default-retire-qwen3.md) | Revert default dense embedder to Jina code; retire Qwen3 as production default | Accepted | 2026-07-04 |
 | [0022](0022-gpu-default-cpu-fallback.md) | GPU-default acceleration; CPU only when explicit | Accepted | 2026-07-04 |
