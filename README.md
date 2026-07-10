@@ -214,6 +214,12 @@ These tools use **zero embedding cost** (Qdrant payload scroll only). Use them f
 | `recommend_code` | Find chunks **similar to positive examples** and **dissimilar from negative examples** via Qdrant Recommendation API (dense-only, `AVERAGE_VECTOR`). Provide `positive_chunk_ids` and/or `positive_query`; optional negatives. Single collection; `path_glob` post-filter uses indexed `rel_path` prefix (e.g. `my-project/src/**/*.py`). Gated by `RECOMMEND_ENABLED` (default on). See [docs/SEARCH_BEHAVIOR.md](docs/SEARCH_BEHAVIOR.md#recommend_code). |
 | `find_outlier_chunks` | Find chunks **semantically distant** from a module context via Qdrant Recommendation API (`BEST_SCORE`, negative-only) + cosine-to-centroid filter. Provide `context_chunk_ids` and/or `path_glob` scroll sample. Single collection; `max_similarity` excludes near-context chunks (default `OUTLIER_MAX_SIMILARITY`). Gated by `RECOMMEND_ENABLED` (default on). See [docs/SEARCH_BEHAVIOR.md](docs/SEARCH_BEHAVIOR.md#find_outlier_chunks). |
 
+### Graph retrieval (opt-in)
+
+| Tool | Description |
+|------|-------------|
+| `expand_search_context` | **Graph-augmented retrieval** — registered only when `GRAPH_ENABLED=true`. Runs the same hybrid search as `search_codebase` to find seed chunks, then expands `1..GRAPH_MAX_HOPS` hops in the Neo4j code graph (`CALLS`, `HTTP_CALLS`, `DECLARES_ENDPOINT`, `DEFINES`, …) capped by `GRAPH_MAX_NODES`, and hydrates related chunk payloads from Qdrant. Returns structured graph context (`nodes`, `edges`, `related_chunks`, `seeds`) — **not** an LLM answer. Seeds purely from hit `chunk_id`s. Absent (zero behavior change) when `GRAPH_ENABLED=false`. |
+
 #### Finding method callers (call sites)
 
 ```

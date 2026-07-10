@@ -87,6 +87,7 @@ Each tool is a `register_*_tool(mcp, ctx)` function — register all of them in 
 | `map_service_dependencies` | `service_map.py` | Build a full microservice dependency graph. Detects HTTP call chains **and** build-level dependencies (Maven, NuGet, npm, Gradle, Go, Cargo, Python). When `RERANK_ENABLED=true`, batched discovery uses ColBERT rerank |
 | `recommend_code` | `recommend.py` | **Vector discovery**: chunks similar to positive examples and dissimilar from negatives (Qdrant Recommendation API, dense-only). Gated by `RECOMMEND_ENABLED` (default on); capped by `RECOMMEND_MAX_EXAMPLES`. Single collection; see `docs/SEARCH_BEHAVIOR.md` |
 | `find_outlier_chunks` | `recommend.py` | **Vector discovery**: chunks semantically distant from a module context (`BEST_SCORE`, negative-only) + cosine-to-centroid filter. Gated by `RECOMMEND_ENABLED` (default on); see `docs/SEARCH_BEHAVIOR.md` |
+| `expand_search_context` | `graph_search.py` | **Graph retrieval** (ADR 0002 Phase 3): hybrid search seeds → bounded Neo4j neighborhood (`Neo4jStorage.expand_subgraph`, chunk_id-only seeding, `1..GRAPH_MAX_HOPS` hops capped by `GRAPH_MAX_NODES`) → Qdrant payload hydration. Returns `nodes`/`edges`/`related_chunks`/`seeds`, not an answer. Registered **only** when `GRAPH_ENABLED=true`; absent by default |
 
 ### Token-efficient workflow
 

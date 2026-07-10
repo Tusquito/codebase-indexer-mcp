@@ -187,7 +187,9 @@ docker compose -f docker-compose.yml -f docker-compose.neo4j.yml up -d --build
 
 Set `GRAPH_ENABLED=true`, `NEO4J_PASSWORD`, and re-index collections when enabling graph on existing data.
 
-**Deferred:** Phase 3 `expand_search_context` MCP tool; Phase 4 Neo4j-backed cross-project queries.
+**Phase 3 (shipped):** `expand_search_context` MCP tool (gated by `GRAPH_ENABLED`, backed by `Neo4jStorage.expand_subgraph`) — see the Graph retrieval entry in the MCP tools table below.
+
+**Deferred:** Phase 4 Neo4j-backed cross-project queries.
 
 Based on [Qdrant’s GraphRAG + Neo4j pattern](https://qdrant.tech/documentation/examples/graphrag-qdrant-neo4j/#build-a-graphrag-agent-with-neo4j-and-qdrant), adapted to deterministic AST/extractor ingestion (no LLM ontology).
 
@@ -206,6 +208,7 @@ All tools register via `register_*_tool(mcp, ctx)` in `main.py`:
 | Orientation | `tools/summary.py`, `tools/outline.py` |
 | Retrieval | `tools/chunk.py`, `tools/collections.py` |
 | Cross-project | `tools/cross_references.py`, `tools/service_map.py`, `tools/build_deps.py` |
+| Graph retrieval | `tools/graph_search.py` (`expand_search_context`; gated by `GRAPH_ENABLED`, uses `Neo4jStorage.expand_subgraph`) |
 
 `tools/cross_references.py` provides `UrlExtractors` (keyword-driven URL/route extraction from `SERVICE_URL_KEYWORDS`).
 

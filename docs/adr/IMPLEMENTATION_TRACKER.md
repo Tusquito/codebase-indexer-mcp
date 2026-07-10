@@ -35,6 +35,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 |-----|-------|------------|-------|---------|--------------|--------------|
 | 0002 | Optional GraphRAG (Neo4j + Qdrant) | Accepted (phase 1 — Neo4j storage + index-time graph writer) | phase-1 | `merged` | Shipped: `storage/neo4j.py` async driver wrapper (neo4j driver 6.2.0) with idempotent schema; `indexer/graph_writer.py` writing ADR ontology from index batches (reuses `UrlExtractors`, `extract_build_deps`/`match_deps_to_collections`, public `extract_imported_names`); `pipeline.py` hooks mirroring Qdrant flush/delete cadence; best-effort graph errors to `PipelineResult.errors`; `context.py` optional `Neo4jStorage`; config (`GRAPH_ENABLED=false` default, `NEO4J_*`, `GRAPH_WRITER_BATCH`, `GRAPH_SCHEMA_VERSION=1`); `docker-compose.neo4j.yml` override only; mock driver CI unit tests; `.env.example` + `ARCHITECTURE.md`; no MCP tools Phase 1; endpoint `method` inference best-effort; defer Phase 2 Qdrant `graph_node_ids`, Phase 3 `expand_search_context`, Phase 4 Neo4j cross-project queries; [PR #10](https://github.com/Tusquito/codebase-indexer-mcp/pull/10) | 2026-07-03 |
 | 0002 | Optional GraphRAG (Neo4j + Qdrant) | Accepted (phase 1 — Neo4j storage + index-time graph writer) | phase-2 | `merged` | Neighbor-keys-only `graph_node_ids` via `graph_node_ids_from_batch`; batch before upsert; boolean `graph_enabled` collection metadata only; `graph_node_ids` omitted for zero-neighbor chunks and `GRAPH_ENABLED=false`; structlog `graph_linkage_missing` once per unlinked collection; 34 Phase 2 unit tests + 420 full suite pass; integration + plan compliance pass; review rounds: 1; defer Phase 3 `expand_search_context`, Phase 4 cross-project Cypher; test debt: prometheus_client and neo4j driver needed in CI env; [PR #26](https://github.com/Tusquito/codebase-indexer-mcp/pull/26) | 2026-07-08 |
+| 0002 | Phase 3 — Graph-augmented MCP retrieval | Accepted (phase 1 — Neo4j storage + index-time graph writer) | phase-3 | `verified` | MCP tool `expand_search_context` in `tools/graph_search.py`: hybrid search seeds → bounded Neo4j Cypher subgraph expansion (1–`GRAPH_MAX_HOPS` hops, `GRAPH_MAX_NODES` cap) → attach Qdrant chunk payloads → structured `GraphContext` JSON (`nodes`/`edges`/`related_chunks`/`seeds`). `Neo4jStorage.expand_subgraph` with injection-safe interpolated hop count + `LIMIT $max_nodes`; chunk_id-only seeding (no `graph_node_ids` reads); conditional registration in `main.py` gated on `GRAPH_ENABLED`. Docker harness `--graph` flag brings up Neo4j override and validates live stack via health + startup-log signal. Phase 4 deferred. | 2026-07-10 |
 | 0003 | Hybrid search RRF default | Accepted | all | `merged` | Shipped | 2026-07-02 |
 | 0004 | Collection-per-project isolation | Accepted | all | `merged` | Shipped | 2026-07-02 |
 | 0005 | MCP retrieval connector | Accepted | all | `merged` | Shipped | 2026-07-02 |
@@ -83,7 +84,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 ## Active and upcoming work
 
 <!-- BEGIN GENERATED:active -->
-_No active or upcoming phases._
+- **0002** Phase 3 — Graph-augmented MCP retrieval — `verified`
 <!-- END GENERATED:active -->
 
 ### Partial acceptance
@@ -106,7 +107,39 @@ _No active or upcoming phases._
 ## Phase logs
 
 <!-- BEGIN GENERATED:phase-logs -->
-### ADR 0002 — Phase 2 — Qdrant payload linking (`graph_node_ids`)
+### ADR 0002 — Phase 3 — Graph-augmented MCP retrieval
+
+#### 2026-07-10 — verification
+- **Phase:** Phase 3 — Graph-augmented MCP retrieval
+- **Tracker status:** `verified`
+- **Choices:** S1 (`LIMIT $max_nodes` bounds paths not distinct nodes) accepted as-is — plan-compliant and optional.
+- **Deviations:** none
+- **Code evidence:** `mcp_server/src/codebase_indexer/tools/graph_search.py`, `mcp_server/src/codebase_indexer/storage/neo4j.py`, `mcp_server/src/codebase_indexer/main.py`, `mcp_server/tests/test_graph_search.py`, `mcp_server/tests/test_graph_expand_integration.py`, `docs/ARCHITECTURE.md`
+- **Verify:** Round 1 covered full implementation (Cypher injection safety, chunk_id-only seeding, `GRAPH_ENABLED` gating, node-cap enforcement — all pass) with one warning (R1) and one non-blocking suggestion (S1). Round 2 confirmed the R1 docs fix in `docs/ARCHITECTURE.md` (Phase 3 documented as shipped, no contradiction) and re-ran the unit suite: `uv run pytest -q` → 481 passed, 8 skipped. Docker integration (step 3.5) Verdict: pass cross-checked. Quality validation and performance report skipped per plan. Review rounds: 2.
+- **Changelog:** yes — Add opt-in `expand_search_context` MCP tool for graph-augmented retrieval: seeds from a chunk_id and expands the Neo4j code subgraph (bounded by `max_nodes`), returning a structured GraphContext JSON response. Available only when `GRAPH_ENABLED=true`.
+
+#### 2026-07-10 — prioritization
+- **Phase:** Phase 3 — Graph-augmented MCP retrieval
+- **Tracker status:** `candidate`
+- **Choices:** Selected over ADR 0026 Phase 4 (GPU bake-off, deprioritized this run by invoker despite GPU availability) and over ADR 0027 (Proposed, invoker declined to Accept — remains Proposed, untouched); this is the prioritizer's next-ranked, no-GPU-dependency alternative from the 2026-07-10 prioritization report; single phase per pipeline rule; no ADR Accept required (0002 already Accepted phase 1). **Why now:** Human-directed pivot; adr-prioritizer 2026-07-10 run ranked ADR 0002 Phase 3 as alternative #2 (~29 score) behind ADR 0026 Phase 4 (~32 score); invoker explicitly deprioritized 0026 Phase 4 and declined Proposed ADR 0027; ADR 0002 Phases 1–2 merged (`graph_writer.py`, `storage/neo4j.py`, `graph_node_ids` payload linking shipped); Phase 3 (`expand_search_context`) not started. **Suggested scope:** one phase (= one PR). **Chosen scope:** New MCP tool `expand_search_context` (final name TBD by planner) in `mcp_server/src/codebase_indexer/tools/graph_search.py`: hybrid search via existing `search_common.py` → collect seed `chunk_id`/`graph_node_ids` → bounded Cypher neighborhood query (1–2 hops via `GRAPH_MAX_HOPS`/`GRAPH_MAX_NODES`) against `Neo4jStorage` → attach matching chunk payloads → return structured `GraphContext` (nodes, edges, related chunks) — no LLM-generated answer; gated behind existing `GRAPH_ENABLED` flag; zero behavior change when disabled; Docker integration via existing `docker-compose.neo4j.yml` override; defer Phase 4 (Neo4j-backed cross-project queries / `map_service_dependencies` Cypher backend).
+- **Deviations:** none
+- **Changelog:** no — tracker status candidate; invoker Changelog: yes deferred until verified
+
+#### 2026-07-10 — plan
+- **Phase:** Phase 3 — Graph-augmented MCP retrieval
+- **Tracker status:** `planned`
+- **Choices:** Tool named `expand_search_context` (human-confirmed); conditional registration mirrors `recommend_enabled` pattern; `chunk_id`-only Cypher seeding (human-confirmed); Quality validation skipped (no ranking-path change); Performance report skipped; suggested tier claude-opus-4-8-thinking-low; Docker integration harness extended for live Neo4j validation (human-confirmed). Assumptions: Phase defaults to single PR; registration guarded by `settings.graph_enabled`; hop count validated as int and clamped to `graph_max_hops` (cannot be a Cypher parameter).
+- **Deviations:** none
+- **Changelog:** no — invoker Changelog: no; status planned (not verified)
+
+#### 2026-07-10 — implementation
+- **Phase:** Phase 3 — Graph-augmented MCP retrieval
+- **Tracker status:** `implemented`
+- **Choices:** Tool `expand_search_context` in `tools/graph_search.py`; chunk_id-only seeding (no `graph_node_ids` reads); `Neo4jStorage.expand_subgraph` with injection-safe interpolated hop count + `LIMIT $max_nodes`; conditional registration behind `GRAPH_ENABLED`; `GraphContext` = `nodes`/`edges`/`related_chunks`/`seeds`; Docker harness `--graph` flag brings up Neo4j override and validates the live stack via health + startup-log signal.
+- **Deviations:** Live graph validation uses Neo4j health + mcp_server `graph_enabled` startup-log signal instead of an MCP `tools/list` handshake (deterministic, matches existing harness style).
+- **Code evidence:** `mcp_server/src/codebase_indexer/tools/graph_search.py`, `mcp_server/src/codebase_indexer/storage/neo4j.py`, `mcp_server/src/codebase_indexer/main.py`, `mcp_server/tests/test_graph_search.py`, `mcp_server/tests/test_graph_expand_integration.py`, `scripts/compose_files.py`, `scripts/run_compose_integration.py`
+- **Test debt:** node-cap truncation; hydration fallback; live `--graph` Docker run; multi-collection seeding
+- **Changelog:** no — invoker Changelog: no; status implemented (not verified)
 
 #### 2026-07-08 — verification
 - **Phase:** Phase 2 — Qdrant payload linking (`graph_node_ids`)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass, field
 
 import structlog
 from neo4j import AsyncGraphDatabase, AsyncDriver
@@ -12,6 +13,61 @@ from codebase_indexer.indexer.graph_writer import GraphBatch
 from codebase_indexer.storage.qdrant import SearchResult
 
 log = structlog.get_logger()
+
+# Node property keys surfaced in expand_subgraph output (a small, stable subset
+# — we never dump arbitrary node properties to keep the response bounded).
+_NODE_PROP_KEYS = (
+    "chunk_id",
+    "qualified_name",
+    "name",
+    "kind",
+    "rel_path",
+    "path",
+    "method",
+    "language",
+    "start_line",
+    "end_line",
+    "collection",
+)
+# Order in which we derive a stable, human-readable key for a node.
+_NODE_KEY_FIELDS = ("chunk_id", "qualified_name", "path", "rel_path", "name", "key")
+
+
+@dataclass
+class GraphNode:
+    labels: list[str]
+    key: str | None
+    props: dict
+
+
+@dataclass
+class GraphEdge:
+    type: str
+    from_key: str | None
+    to_key: str | None
+
+
+@dataclass
+class GraphExpansion:
+    """Bounded neighborhood returned by ``Neo4jStorage.expand_subgraph``."""
+
+    nodes: list[GraphNode] = field(default_factory=list)
+    edges: list[GraphEdge] = field(default_factory=list)
+    related_chunk_ids: list[str] = field(default_factory=list)
+    # chunk_id -> owning collection (from the Chunk node), for payload hydration.
+    related_chunk_collections: dict[str, str] = field(default_factory=dict)
+
+
+def _node_key(props: dict) -> str | None:
+    for f in _NODE_KEY_FIELDS:
+        value = props.get(f)
+        if value:
+            return str(value)
+    return None
+
+
+def _node_props(props: dict) -> dict:
+    return {k: props[k] for k in _NODE_PROP_KEYS if props.get(k) is not None}
 
 _SCHEMA_STATEMENTS = (
     "CREATE CONSTRAINT chunk_id_unique IF NOT EXISTS "
@@ -147,6 +203,85 @@ class Neo4jStorage:
         for batch in results:
             all_results.extend(batch)
         return all_results
+
+    async def expand_subgraph(
+        self,
+        chunk_ids: list[str],
+        max_hops: int,
+        max_nodes: int,
+    ) -> GraphExpansion:
+        """Return a bounded neighborhood around the given seed chunk_ids.
+
+        Expands 1..``max_hops`` hops from ``Chunk`` nodes whose ``chunk_id`` is in
+        ``chunk_ids`` (ADR 0002 Phase 3, chunk_id-only seeding). The hop count is
+        interpolated into the Cypher pattern text because a variable-length hop
+        bound cannot be a bound parameter; we validate it is a small positive int
+        (<= ``settings.graph_max_hops``) before string-building to avoid injection.
+        Node count is capped by ``max_nodes`` via ``LIMIT``.
+        """
+        if not self.enabled or not chunk_ids:
+            return GraphExpansion()
+
+        # Clamp/validate the hop count before interpolating it into the query.
+        ceiling = self._settings.graph_max_hops
+        hops = int(max_hops)
+        if hops < 1:
+            hops = 1
+        if hops > ceiling:
+            hops = ceiling
+        node_cap = int(max_nodes)
+        if node_cap < 1:
+            node_cap = 1
+
+        query = (
+            "MATCH (c:Chunk) WHERE c.chunk_id IN $chunk_ids "
+            f"MATCH p = (c)-[*1..{hops}]-(m) "
+            "RETURN p LIMIT $max_nodes"
+        )
+
+        driver = await self._get_driver()
+        seed_set = set(chunk_ids)
+        nodes_by_key: dict[str, GraphNode] = {}
+        edges: dict[tuple, GraphEdge] = {}
+        related: dict[str, str | None] = {}
+
+        async with driver.session(database=self._settings.neo4j_database) as session:
+            result = await session.run(query, chunk_ids=chunk_ids, max_nodes=node_cap)
+            graph = await result.graph()
+
+        for node in graph.nodes:
+            props = dict(node.items())
+            key = _node_key(props)
+            labels = list(node.labels)
+            if key is not None and key not in nodes_by_key:
+                nodes_by_key[key] = GraphNode(
+                    labels=labels, key=key, props=_node_props(props)
+                )
+            if "Chunk" in labels:
+                cid = props.get("chunk_id")
+                if cid and cid not in seed_set:
+                    coll = props.get("collection")
+                    related.setdefault(str(cid), str(coll) if coll else None)
+
+        for rel in graph.relationships:
+            start_props = dict(rel.start_node.items()) if rel.start_node else {}
+            end_props = dict(rel.end_node.items()) if rel.end_node else {}
+            from_key = _node_key(start_props)
+            to_key = _node_key(end_props)
+            edge_id = (rel.type, from_key, to_key)
+            if edge_id not in edges:
+                edges[edge_id] = GraphEdge(
+                    type=rel.type, from_key=from_key, to_key=to_key
+                )
+
+        return GraphExpansion(
+            nodes=list(nodes_by_key.values()),
+            edges=list(edges.values()),
+            related_chunk_ids=list(related.keys()),
+            related_chunk_collections={
+                cid: coll for cid, coll in related.items() if coll
+            },
+        )
 
     async def write_batch(self, batch: GraphBatch) -> None:
         """Upsert one graph batch produced by the index-time graph writer."""

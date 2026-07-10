@@ -35,6 +35,7 @@ from codebase_indexer.tools.outline import register_file_outline_tool
 from codebase_indexer.tools.recommend import register_recommend_tool
 from codebase_indexer.tools.outliers import register_find_outlier_chunks_tool
 from codebase_indexer.tools.summary import register_collection_summary_tool
+from codebase_indexer.tools.graph_search import register_expand_search_context_tool
 from codebase_indexer.telemetry.metrics import init_metrics, render_metrics
 
 _INSTRUCTIONS = """
@@ -108,6 +109,13 @@ _INSTRUCTIONS = """
     Prefer find_cross_references / map_service_dependencies for structural
     edges (imports, HTTP, endpoints); use decomposition for prose/config hops.
     Token savers between hops: search_symbols, get_file_outline, get_chunk.
+
+    GRAPH RETRIEVAL (only when GRAPH_ENABLED=true):
+    Use expand_search_context(query, top_k, collection/collections, graph_hops)
+    to run a normal hybrid search for seed chunks and then expand 1..GRAPH_MAX_HOPS
+    hops in the Neo4j code graph (CALLS, HTTP_CALLS, DECLARES_ENDPOINT, DEFINES, ...)
+    capped by GRAPH_MAX_NODES. Returns structured graph context (nodes, edges,
+    related_chunks, seeds) — NOT an answer. Absent when GRAPH_ENABLED=false.
 
     Search uses DENSE_EMBED_MODEL (dense via TEI HTTP) + SPARSE_EMBED_MODEL (sparse BM25)
     fused via RRF when HYBRID_SEARCH is enabled.
@@ -256,6 +264,8 @@ def create_app(settings: Settings | None = None, preload_models: bool | None = N
     if settings.recommend_enabled:
         register_recommend_tool(mcp, ctx)
         register_find_outlier_chunks_tool(mcp, ctx)
+    if settings.graph_enabled:
+        register_expand_search_context_tool(mcp, ctx)
 
     return mcp
 
