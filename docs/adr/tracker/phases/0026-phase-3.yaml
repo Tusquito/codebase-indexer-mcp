@@ -1,7 +1,7 @@
 adr_id: '0026'
 phase_key: phase-3
 title: Phase 3 — Candidate registry + integration spikes
-tracker_status: verified
+tracker_status: merged
 chosen_scope: >-
   10-row `model_candidates.yaml` registry with validating `candidates.py` loader;
   `config.py` entries for GTE_MODERNBERT_SPECS, GRANITE_EMBED_SPECS (including
@@ -13,4 +13,5 @@ chosen_scope: >-
   production default change. Defer live per-native-candidate verify runs and
   Phase 4 bake-off orchestration.
 last_updated: '2026-07-10'
+pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/31
 adr_status_note: Accepted (phase 1 — Harness reliability fix)

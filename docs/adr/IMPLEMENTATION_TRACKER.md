@@ -75,7 +75,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0025 | Adopt HuggingFace TEI sidecar for dense embedding | Accepted (all phases complete) | phase-1 | `merged` | Squash merge [PR #23](https://github.com/Tusquito/codebase-indexer-mcp/pull/23) (`0f01cda`); `TeiDenseBackend` + OpenAI `/v1/embeddings`; TEI compose (`docker-compose.tei.yml` + `.tei.gpu.yml`, profile `bundled-tei`); Ollama dense deleted; Ollama→TEI doc/docstring sweep (16 files); upstream TEI CUDA-detection bug fixed via `docker-compose.tei.gpu.yml` entrypoint override; upstream TEI CPU-warmup bug fixed via `--max-batch-tokens` cap + client-side `MAX_DENSE_EMBED_TOKENS` pairing (CPU-only CI path); live GPU quality-validation (recall@10=0.3590, MRR=0.3576, ndcg@10=0.2807, 43/43 golden labels); ADR accepted all phases via docs commit `a756677`; final ADR 0025 phase complete; test debt: optional offline CI alias-drift guard, `benchmarks/train/**` (ADR 0020 follow-up) | 2026-07-07 |
 | 0026 | Full-stack embedding model quality benchmark and selection framework | Accepted (phase 1 — Harness reliability fix) | phase-1 | `merged` | Squash merge [PR #27](https://github.com/Tusquito/codebase-indexer-mcp/pull/27) (`0ca2f88`); Content-anchored labels with 5-step ladder (`{rel_path}::{symbol_name}` + `start_line` hint); drift counted not silently scored; `--validate-labels` drift re-resolution with counts; `label_drift` per eval run; CI repro via `--keep` + kept-stack pytest in blocking `compose-integration`; `label_anchor.py` + `eval_retrieval.py` + golden `anchors`; 11 unit tests pass (`test_label_anchor.py`); ruff clean; Docker integration + quality validation pass (55 labels, 12 drifted and re-resolved via content anchoring, 0 unresolved; threshold 0 pass); repeat-run repro in blocking compose-integration CI job gates `recall@10` within ±1pp per ADR success criterion #1 (rank-sensitive `mrr`/`ndcg@10` bounded, not exact — see `test_harness_reproducibility.py`); review rounds: 1; one PR; no runtime/config/production change; defer Phases 2–5 (≥75-query expansion is Phase 2); test debt: symbol drift live integration exercised (12 drift observed in CI run), Phase 4 collection override concern | 2026-07-08 |
 | 0026 | Phase 2 — Golden-set expansion | Accepted (phase 1 — Harness reliability fix) | phase-2 | `merged` | Expand `mcp_server/benchmarks/fixtures/golden_queries.jsonl` in place from 26 to ≥75 distinct content-anchored (Phase-1 format) queries via the existing `suggest_labels.py` workflow; meet resolved per-tag membership targets (symbol 26, conceptual 7, config 19, cross_file 19, multi_hop 15); preserve `multi_hop` `hop2_query_text`; every multi_hop row carries a secondary tag (no pure multi_hop); ground-truth subset floor 19; `--validate-labels` zero unresolved; bump `golden_set_version` in `eval_baseline.json` only; raise golden-fixture unit-test floors + add a per-tag distribution/anchor-coverage test; Docker integration via `scripts/run_compose_integration.py`; quality validation report-only (`--threshold 0`). Defer Phases 3–5. [PR #30](https://github.com/Tusquito/codebase-indexer-mcp/pull/30) (`8be500b`) | 2026-07-08 |
-| 0026 | Phase 3 — Candidate registry + integration spikes | Accepted (phase 1 — Harness reliability fix) | phase-3 | `verified` | 10-row `model_candidates.yaml` registry with validating `candidates.py` loader; `config.py` entries for GTE_MODERNBERT_SPECS, GRANITE_EMBED_SPECS (including granite-embedding-97m), and INF_RETRIEVER_SPECS; `_settings.py` per-candidate swap helper; `verify_candidate.py` (`tei_health` + `tei_embed_smoke`); feature-flagged `query_instruction` and `normalize_output` hooks in `TeiDenseBackend`; inf-retriever spike passed; pplx-embed INT8 dropped for both sizes per 30-min drop-on-failure rule; unit tests; fixture-only, no production default change. Defer live per-native-candidate verify runs and Phase 4 bake-off orchestration. | 2026-07-10 |
+| 0026 | Phase 3 — Candidate registry + integration spikes | Accepted (phase 1 — Harness reliability fix) | phase-3 | `merged` | 10-row `model_candidates.yaml` registry with validating `candidates.py` loader; `config.py` entries for GTE_MODERNBERT_SPECS, GRANITE_EMBED_SPECS (including granite-embedding-97m), and INF_RETRIEVER_SPECS; `_settings.py` per-candidate swap helper; `verify_candidate.py` (`tei_health` + `tei_embed_smoke`); feature-flagged `query_instruction` and `normalize_output` hooks in `TeiDenseBackend`; inf-retriever spike passed; pplx-embed INT8 dropped for both sizes per 30-min drop-on-failure rule; unit tests; fixture-only, no production default change. Defer live per-native-candidate verify runs and Phase 4 bake-off orchestration. | 2026-07-10 |
 <!-- END GENERATED:summary -->
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
@@ -83,7 +83,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 ## Active and upcoming work
 
 <!-- BEGIN GENERATED:active -->
-- **0026** Phase 3 — Candidate registry + integration spikes — `verified`
+_No active or upcoming phases._
 <!-- END GENERATED:active -->
 
 ### Partial acceptance
@@ -1467,6 +1467,17 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 - **Tracker status:** `planned`
 - **Choices:** one phase = one PR; native candidates route through existing `TeiDenseBackend`/`create_dense_backend`, no new runtime env vars; spike hooks are per-candidate flags leaving the Jina default path unchanged; Quality validation required threshold 0 report-only; Performance report skip; suggested tier claude-opus-4-8-thinking-low
 - **Deviations:** none
+- **Changelog:** no — user-facing no; invoker Changelog: no
+
+#### 2026-07-10 — merge
+- **Phase:** Phase 3 — Candidate registry + integration spikes
+- **Tracker status:** `merged`
+- **Choices:** squash merge `3035113` on feature branch `adr/0026-phase-3-candidate-registry`; ADR Accept skipped; release skipped; Phases 4–5 deferred
+- **Deviations:** none
+- **Code evidence:** `merged via [PR #31](https://github.com/Tusquito/codebase-indexer-mcp/pull/31) (`adr/0026-phase-3-candidate-registry`; squash `3035113`)`
+- **Test debt:** Live TEI verification deferred to Phase 4 GPU session
+- **Verify:** carried from verification — unit tests pass (32 Phase 3 + 9 adjacent), lints clean, Docker integration Verdict pass with quality validation; plan compliance pass; R1 resolved and regression-tested; review rounds: 2
+- **Git:** https://github.com/Tusquito/codebase-indexer-mcp/pull/31 — status: merged — commit: 3035113
 - **Changelog:** no — user-facing no; invoker Changelog: no
 
 #### 2026-07-10 — implementation
