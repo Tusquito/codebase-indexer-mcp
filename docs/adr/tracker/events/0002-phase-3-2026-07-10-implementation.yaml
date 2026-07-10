@@ -1,0 +1,27 @@
+adr_id: '0002'
+phase_key: phase-3
+phase_title: Phase 3 — Graph-augmented MCP retrieval
+event: implementation
+date: '2026-07-10'
+tracker_status: implemented
+choices: >-
+  Tool `expand_search_context` in `tools/graph_search.py`; chunk_id-only seeding (no `graph_node_ids` reads); `Neo4jStorage.expand_subgraph` with injection-safe interpolated hop count + `LIMIT $max_nodes`; conditional registration behind `GRAPH_ENABLED`; `GraphContext` = `nodes`/`edges`/`related_chunks`/`seeds`; Docker harness `--graph` flag brings up Neo4j override and validates the live stack via health + startup-log signal.
+deviations: >-
+  Live graph validation uses Neo4j health + mcp_server `graph_enabled` startup-log signal instead of an MCP `tools/list` handshake (deterministic, matches existing harness style).
+code_evidence:
+  - mcp_server/src/codebase_indexer/tools/graph_search.py
+  - mcp_server/src/codebase_indexer/storage/neo4j.py
+  - mcp_server/src/codebase_indexer/main.py
+  - mcp_server/tests/test_graph_search.py
+  - mcp_server/tests/test_graph_expand_integration.py
+  - scripts/compose_files.py
+  - scripts/run_compose_integration.py
+test_debt:
+  - node-cap truncation
+  - hydration fallback
+  - live `--graph` Docker run
+  - multi-collection seeding
+changelog:
+  update: false
+  reason: 'invoker Changelog: no; status implemented (not verified)'
+user_facing: true

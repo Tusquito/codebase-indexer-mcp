@@ -1,0 +1,33 @@
+adr_id: '0002'
+phase_key: phase-3
+phase_title: Phase 3 — Graph-augmented MCP retrieval
+event: verification
+date: '2026-07-10'
+tracker_status: verified
+choices: >-
+  S1 (`LIMIT $max_nodes` bounds paths not distinct nodes) accepted as-is —
+  plan-compliant and optional.
+deviations: none
+code_evidence:
+  - mcp_server/src/codebase_indexer/tools/graph_search.py
+  - mcp_server/src/codebase_indexer/storage/neo4j.py
+  - mcp_server/src/codebase_indexer/main.py
+  - mcp_server/tests/test_graph_search.py
+  - mcp_server/tests/test_graph_expand_integration.py
+  - docs/ARCHITECTURE.md
+verify: >-
+  Round 1 covered full implementation (Cypher injection safety, chunk_id-only
+  seeding, `GRAPH_ENABLED` gating, node-cap enforcement — all pass) with one
+  warning (R1) and one non-blocking suggestion (S1). Round 2 confirmed the R1
+  docs fix in `docs/ARCHITECTURE.md` (Phase 3 documented as shipped, no
+  contradiction) and re-ran the unit suite: `uv run pytest -q` → 481 passed, 8
+  skipped. Docker integration (step 3.5) Verdict: pass cross-checked. Quality
+  validation and performance report skipped per plan. Review rounds: 2.
+changelog:
+  update: true
+  bullet: >-
+    Add opt-in `expand_search_context` MCP tool for graph-augmented retrieval:
+    seeds from a chunk_id and expands the Neo4j code subgraph (bounded by
+    `max_nodes`), returning a structured GraphContext JSON response. Available
+    only when `GRAPH_ENABLED=true`.
+user_facing: true

@@ -1,0 +1,13 @@
+adr_id: '0002'
+phase_key: phase-3
+phase_title: Phase 3 — Graph-augmented MCP retrieval
+event: prioritization
+date: '2026-07-10'
+tracker_status: candidate
+choices: 'Selected over ADR 0026 Phase 4 (GPU bake-off, deprioritized this run by invoker despite GPU availability) and over ADR 0027 (Proposed, invoker declined to Accept — remains Proposed, untouched); this is the prioritizer''s next-ranked, no-GPU-dependency alternative from the 2026-07-10 prioritization report; single phase per pipeline rule; no ADR Accept required (0002 already Accepted phase 1). **Why now:** Human-directed pivot; adr-prioritizer 2026-07-10 run ranked ADR 0002 Phase 3 as alternative #2 (~29 score) behind ADR 0026 Phase 4 (~32 score); invoker explicitly deprioritized 0026 Phase 4 and declined Proposed ADR 0027; ADR 0002 Phases 1–2 merged (`graph_writer.py`, `storage/neo4j.py`, `graph_node_ids` payload linking shipped); Phase 3 (`expand_search_context`) not started. **Suggested scope:** one phase (= one PR). **Chosen scope:** New MCP tool `expand_search_context` (final name TBD by planner) in `mcp_server/src/codebase_indexer/tools/graph_search.py`: hybrid search via existing `search_common.py` → collect seed `chunk_id`/`graph_node_ids` → bounded Cypher neighborhood query (1–2 hops via `GRAPH_MAX_HOPS`/`GRAPH_MAX_NODES`) against `Neo4jStorage` → attach matching chunk payloads → return structured `GraphContext` (nodes, edges, related chunks) — no LLM-generated answer; gated behind existing `GRAPH_ENABLED` flag; zero behavior change when disabled; Docker integration via existing `docker-compose.neo4j.yml` override; defer Phase 4 (Neo4j-backed cross-project queries / `map_service_dependencies` Cypher backend).'
+deviations: none
+open_decisions: []
+changelog:
+  update: false
+  reason: 'tracker status candidate; invoker Changelog: yes deferred until verified'
+user_facing: true

@@ -1,0 +1,14 @@
+adr_id: '0002'
+phase_key: phase-3
+phase_title: Phase 3 — Graph-augmented MCP retrieval
+event: plan
+date: '2026-07-10'
+tracker_status: planned
+choices: >-
+  Tool named `expand_search_context` (human-confirmed); conditional registration mirrors `recommend_enabled` pattern; `chunk_id`-only Cypher seeding (human-confirmed); Quality validation skipped (no ranking-path change); Performance report skipped; suggested tier claude-opus-4-8-thinking-low; Docker integration harness extended for live Neo4j validation (human-confirmed). Assumptions: Phase defaults to single PR; registration guarded by `settings.graph_enabled`; hop count validated as int and clamped to `graph_max_hops` (cannot be a Cypher parameter).
+deviations: none
+open_decisions: []
+changelog:
+  update: false
+  reason: 'invoker Changelog: no; status planned (not verified)'
+user_facing: true

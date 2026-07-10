@@ -76,6 +76,7 @@ cost.
 | `map_service_dependencies` | Multiple embeds | Full microservice call graph; ColBERT rerank when `RERANK_ENABLED=true` |
 | `recommend_code` | Embed per text example | "Like this, not that" discovery via Qdrant Recommendation API (dense-only) |
 | `find_outlier_chunks` | Embed per text example | Semantically distant chunks in a module (refactor / dead-code triage) |
+| `expand_search_context` | Embed once + graph query | Hybrid seeds → Neo4j neighborhood (`CALLS`/`HTTP_CALLS`/…). Structured graph context, not an answer. Only when `GRAPH_ENABLED=true` |
 
 ## Common Patterns
 
