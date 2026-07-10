@@ -118,6 +118,7 @@ Per the tutorial’s metric guide:
 - ~~Script to suggest label candidates from `search_symbols` + maintainer confirmation~~ → `benchmarks/suggest_labels.py` (search top-k → alias lines)
 - Multi-collection golden entries (cross-project queries)
 - `compare()` across multiple pipeline configs in one report (Qdrant course pattern)
+- Golden-set `tags` as routing labels for first-tool accuracy eval — [ADR 0027](0027-client-side-search-intent-routing.md) Phase 3
 
 ## Implementation notes
 

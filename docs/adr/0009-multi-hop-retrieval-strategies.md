@@ -80,7 +80,7 @@ Optional future server endpoint `search_multi_hop` (server runs decomposition wi
 | **In-server decomposition loop** | One-shot MCP tool | LLM keys in indexer; latency; violates [ADR 0005](0005-mcp-retrieval-connector.md) |
 | **GraphRAG only** | No LLM at retrieval | Misses prose/config hops not in graph schema |
 | **Single-pass hybrid + rerank only** | Simple | Cannot fix missing-hop recall ([decomposition tutorial](https://qdrant.tech/documentation/improve-search/query-decomposition/)) |
-| **HyDE / hypothetical document embedding** | Better semantic recall | Extra LLM call; deferred |
+| **HyDE / hypothetical document embedding** | Better semantic recall | Extra LLM call; deferred — pre-search routing without hypothetical docs → [ADR 0027](0027-client-side-search-intent-routing.md) |
 
 ## Consequences
 
@@ -102,7 +102,8 @@ Optional future server endpoint `search_multi_hop` (server runs decomposition wi
 - ~~MCP server instructions: document decomposition + RRF merge pattern with example client pseudo-flow~~ → done (phase 1)
 - ~~Golden set tag: `multi_hop: true` queries for [ADR 0007](0007-ranx-retrieval-evaluation.md)~~ → `multi_hop` tag in golden set (4 queries)
 - `expand_search_context` ([ADR 0002](0002-graphrag-neo4j-qdrant.md)) as preferred path when `GRAPH_ENABLED=true`
-- Automated 2-hop client script for eval comparison vs single-pass on `multi_hop` tag slice
+- ~~Automated 2-hop client script for eval comparison vs single-pass on `multi_hop` tag slice~~ → done (phase 2, `eval_multihop.py`)
+- Pre-search intent routing (tool selection before hop 1) — [ADR 0027](0027-client-side-search-intent-routing.md); orthogonal to post-search decomposition
 
 ## Implementation notes
 

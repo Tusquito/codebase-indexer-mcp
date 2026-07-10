@@ -16,7 +16,7 @@ Skip ADRs for routine bug fixes, refactors with no design change, or dependency 
 ## How to add an ADR
 
 1. Copy [`template.md`](template.md) to a new file: `NNNN-short-kebab-title.md`
-2. Use the next available four-digit number (see index below — currently **0027**)
+2. Use the next available four-digit number (see index below — currently **0028**)
 3. Fill in all sections; leave **Status** as `Proposed` until reviewed
 4. Add a row to the index table below
 5. Link the ADR from related docs (e.g. [`ARCHITECTURE.md`](../ARCHITECTURE.md)) when relevant
@@ -79,6 +79,7 @@ Invoke the full pipeline with **`adr-orchestrator`**; resume a phase with `Resum
 | [0024](0024-resource-aware-stack-tuner.md) | Add resource-aware stack tuner for RSS allocation and performance tuning | Accepted | 2026-07-04 |
 | [0025](0025-huggingface-tei-dense-embedding.md) | Adopt HuggingFace TEI sidecar for dense embedding (hard replace of Ollama dense) | Accepted (all phases complete) | 2026-07-04 |
 | [0026](0026-full-stack-embedding-quality-benchmark.md) | Full-stack embedding model quality benchmark and selection framework | Accepted (phase 1 — Harness reliability fix) | 2026-07-08 |
+| [0027](0027-client-side-search-intent-routing.md) | Client-side search intent routing before retrieval | Proposed | 2026-07-10 |
 
 ## Qdrant Build Prototypes & Improve Search map
 
@@ -97,6 +98,7 @@ Cross-reference for [Build Prototypes](https://qdrant.tech/documentation/example
 | Measuring Retrieval Relevance (ranx) | Yes | [0007](0007-ranx-retrieval-evaluation.md) |
 | Evaluating Pipeline Output Quality (Ragas) | Partial | [0010](0010-defer-ragas-to-client.md) — client-side only; export via `export_ragas_dataset.py` |
 | Query Decomposition (multi-hop) | Yes | [0009](0009-multi-hop-retrieval-strategies.md) |
+| Pre-search intent / tool routing | Yes | [0027](0027-client-side-search-intent-routing.md) — client-side; optional heuristic MCP hint |
 | Recommendation API (like / not like) | Yes | [0014](0014-vector-discovery-and-ops-automation.md) — Phase 1: `recommend_code` |
 | Movie / song / image search notebooks | No | Wrong modality (recommendations, audio, vision) |
 | Extractive QA | No | In-server answer generation conflicts with [0005](0005-mcp-retrieval-connector.md) |
