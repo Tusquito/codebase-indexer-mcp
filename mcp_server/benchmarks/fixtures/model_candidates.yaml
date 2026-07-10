@@ -1,0 +1,165 @@
+# ADR 0026 — Full-stack embedding model candidate registry (Phase 3).
+#
+# Single source of truth for every dense candidate in the bake-off. Consumed by
+# benchmarks/candidates.py (loader + schema validation), verify_candidate.py
+# (tei_health / tei_embed_smoke), and — in Phase 4 — bakeoff.py.
+#
+# status vocabulary:
+#   registered   native TEI drop-in; scored in the bake-off
+#   spike_passed integration spike succeeded; feature-flagged hooks landed;
+#                scored in the bake-off
+#   dropped      integration spike failed / infeasible within budget; NOT scored
+#   excluded     policy/license exclusion (e.g. gated repo); NOT scored
+#
+# `included` in the bake-off == status in {registered, spike_passed}.
+# vector_size is the dimension the candidate is registered/served at for the
+# bake-off (native unless a re-index-cheaper MRL dim is chosen deliberately).
+
+golden_set_version: v4-expanded-75q
+
+candidates:
+  - model: jinaai/jina-embeddings-v2-base-code
+    role: default
+    params: "~161M"
+    native_dim: 768
+    mrl_dims: null
+    vector_size: 768
+    context: 8192
+    license: Apache-2.0
+    tei_status: native
+    status: registered
+    notes: >-
+      Current production default and bake-off reference row. Re-verify on the
+      fixed harness; do not inherit ADR 0021 numbers.
+
+  - model: Qwen/Qwen3-Embedding-0.6B
+    role: candidate
+    params: "596M"
+    native_dim: 1024
+    mrl_dims: [1024, 768, 512, 256, 128]
+    vector_size: 1024
+    context: 32768
+    license: Apache-2.0
+    tei_status: native
+    status: registered
+    notes: Already in QWEN3_EMBED_SPECS. Clean retest at this size.
+
+  - model: Qwen/Qwen3-Embedding-4B
+    role: candidate
+    params: "4.3B"
+    native_dim: 2560
+    mrl_dims: [2560, 2048, 1024, 512, 256, 128]
+    vector_size: 2560
+    context: 32768
+    license: Apache-2.0
+    tei_status: native
+    status: registered
+    notes: Already in QWEN3_EMBED_SPECS. Retest; prior score came from disputed baseline.
+
+  - model: Alibaba-NLP/gte-modernbert-base
+    role: candidate
+    params: "149M"
+    native_dim: 768
+    mrl_dims: null
+    vector_size: 768
+    context: 8192
+    license: Apache-2.0
+    tei_status: native
+    status: registered
+    notes: >-
+      Matches current DENSE_EMBED_VECTOR_SIZE=768. Standard ModernBERT; native
+      TEI. Published CoIR NDCG@10 79.31.
+
+  - model: ibm-granite/granite-embedding-311m-multilingual-r2
+    role: candidate
+    params: "311M"
+    native_dim: 768
+    mrl_dims: [768, 512, 384, 256, 128]
+    vector_size: 768
+    context: 32768
+    license: Apache-2.0
+    tei_status: native
+    status: registered
+    notes: Explicit code-retrieval training claim per model card.
+
+  - model: ibm-granite/granite-embedding-97m-multilingual-r2
+    role: candidate
+    params: "97M"
+    native_dim: 384
+    mrl_dims: null
+    vector_size: 384
+    context: 32768
+    license: Apache-2.0
+    tei_status: native
+    status: registered
+    notes: >-
+      Cheap-tier comparator; requires DENSE_EMBED_VECTOR_SIZE=384 (re-index).
+      Included per Phase 3 constraint.
+
+  - model: google/embeddinggemma-300m
+    role: candidate
+    params: "308M"
+    native_dim: 768
+    mrl_dims: [768, 512, 256, 128]
+    vector_size: 768
+    context: 2048
+    license: Apache-2.0
+    tei_status: native
+    status: excluded
+    rationale: >-
+      Gated Hugging Face repo — requires one-time license acceptance and HF_TOKEN
+      to pull. Excluded from Phase 3/4 per the "exclude all gated models"
+      constraint; revisit in a future ADR if the gate is cleared.
+
+  - model: infly/inf-retriever-v1-1.5b
+    role: candidate
+    params: "1.5B"
+    native_dim: 1536
+    mrl_dims: null
+    vector_size: 1536
+    context: 32768
+    license: Apache-2.0
+    tei_status: spike
+    status: spike_passed
+    spike: instruction_prefix
+    notes: >-
+      use_instructions=True — needs task-prefixed query encoding. Spike PASSED:
+      feature-flagged query-instruction hook added to TeiDenseBackend
+      (query_instruction param), no new dependency, default path unchanged.
+      Live TEI verification of the prefix effect is deferred to the Phase 4 GPU
+      session.
+
+  - model: perplexity-ai/pplx-embed-v1-0.6b
+    role: candidate
+    params: "596M"
+    native_dim: 1024
+    mrl_dims: [1024, 768, 512, 256, 128]
+    vector_size: 1024
+    context: 32768
+    license: MIT
+    tei_status: spike
+    status: dropped
+    spike: int8_unnormalized_cosine
+    rationale: >-
+      Native INT8/binary unnormalized output requires cosine handling distinct
+      from the float embedders. The response-format/dequantization contract
+      cannot be verified within the 30-min spike budget without a live GPU TEI
+      build serving the actual INT8 weights. Dropped per the "drop if infeasible
+      within spike budget" constraint. A generic feature-flagged L2-normalize
+      hook was landed in TeiDenseBackend to make a future retry cheap.
+
+  - model: perplexity-ai/pplx-embed-v1-4b
+    role: candidate
+    params: "4.3B"
+    native_dim: 2560
+    mrl_dims: [2560, 2048, 1024, 512, 256, 128]
+    vector_size: 2560
+    context: 32768
+    license: MIT
+    tei_status: spike
+    status: dropped
+    spike: int8_unnormalized_cosine
+    rationale: >-
+      Same INT8/unnormalized-cosine caveat as pplx-embed-v1-0.6b, plus the
+      largest/most expensive candidate. Dropped for the same unverifiable-within-
+      budget reason.

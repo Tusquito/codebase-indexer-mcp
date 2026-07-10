@@ -27,3 +27,24 @@ def load_settings(**overrides: object) -> Settings:
     if env_file is not None:
         return Settings(_env_file=env_file, **merged)  # type: ignore[arg-type]
     return Settings(**merged)  # type: ignore[arg-type]
+
+
+def load_settings_for_candidate(candidate: object, **overrides: object) -> Settings:
+    """Build Settings for one ADR 0026 bake-off candidate.
+
+    Swaps ``DENSE_EMBED_MODEL`` / ``DENSE_EMBED_VECTOR_SIZE`` to the candidate's
+    registered model + dimension so a bake-off run indexes/queries against the
+    right vector space. ``TEI_URL`` and every other field still come from
+    :func:`load_settings` (env / bench defaults). Extra ``overrides`` win last.
+
+    ``candidate`` is a :class:`benchmarks.candidates.Candidate` (duck-typed on
+    ``model`` / ``vector_size``) so this helper stays import-light for callers
+    that already hold a registry object.
+    """
+    model = getattr(candidate, "model")
+    vector_size = getattr(candidate, "vector_size")
+    return load_settings(
+        dense_embed_model=model,
+        dense_embed_vector_size=vector_size,
+        **overrides,
+    )
