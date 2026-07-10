@@ -1,0 +1,20 @@
+adr_id: '0026'
+phase_key: phase-3
+phase_title: Phase 3 — Candidate registry + integration spikes
+event: prioritization
+date: '2026-07-08'
+tracker_status: candidate
+choices: >-
+  Prioritize 0026 Phase 3 over 0002 Phase 3 `expand_search_context` (scores within ~10%; tie-breaker: lower scope/risk — benchmark tooling vs new MCP tool); over 0023 Phase 3 callees index retirement; over 0018 Phase 2 OTel traces; over 0024 Phase 2 tuner seed bench; single phase per pipeline rule; no ADR Accept required (0026 already Accepted); pre-release: fixture-only, throwaway collections, no production default change. **Why now:** ADR 0026 Phases 1 and 2 merged 2026-07-08; golden fixture expanded to 78 content-anchored queries (`golden_set_version: v4-expanded-75q`); `model_candidates.yaml` and `bakeoff.py` absent; Phases 4–5 (GPU bake-off, promotion/reaffirmation) explicitly blocked on Phase 3 per ADR phased delivery; resolves disputed embedding-model evidence base (0016/0020/0021) before further default-model or GraphRAG work; tracker shows no active phases. **Suggested scope:** one phase (= one PR). **Chosen scope:** `model_candidates.yaml` registry; `config.py` entries for six native TEI candidates; `_settings.py` per-candidate swap helper; time-boxed TEI spikes for `inf-retriever-v1-1.5b` (instruction prefix) and `pplx-embed-v1-{0.6b,4b}` (INT8/cosine) with documented drop-on-failure; `tei_health` + `tei_embed_smoke` per native candidate; unit tests; Docker integration (fixture-only, no production default change); defer Phase 4 bake-off orchestration and Phase 5 decision.
+deviations: none
+code_evidence:
+  - golden fixture expanded to 78 content-anchored queries (`golden_set_version: v4-expanded-75q`)
+  - '`model_candidates.yaml` and `bakeoff.py` absent'
+changelog:
+  update: false
+  reason: 'user-facing unknown; invoker Changelog: no'
+user_facing: false
+open_decisions:
+  - 'RESOLVED — Spike time-box: 30 minutes per spike; drop on failure after time-box expires.'
+  - 'RESOLVED — Granite-97m: include `ibm-granite/granite-embedding-97m` in Phase 3 native TEI verification.'
+  - 'RESOLVED — Gated models: exclude all P2Use/gated models from Phase 3 (including `google/embeddinggemma-300m`) despite HF_TOKEN in `.env`; document skip/exclusion rationale in registry'

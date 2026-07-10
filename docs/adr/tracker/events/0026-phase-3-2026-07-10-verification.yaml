@@ -1,0 +1,30 @@
+adr_id: '0026'
+phase_key: phase-3
+phase_title: Phase 3 — Candidate registry + integration spikes
+event: verification
+date: '2026-07-10'
+tracker_status: verified
+choices: >-
+  feature-flagged query_instruction/normalize_output hooks in TeiDenseBackend
+  (default OFF); inf-retriever spike_passed; both pplx dropped;
+  embeddinggemma excluded; fixture-only, no production default change
+deviations: none
+code_evidence:
+  - mcp_server/benchmarks/fixtures/model_candidates.yaml
+  - mcp_server/benchmarks/candidates.py
+  - mcp_server/benchmarks/verify_candidate.py
+  - mcp_server/benchmarks/_settings.py
+  - mcp_server/src/codebase_indexer/config.py
+  - mcp_server/src/codebase_indexer/indexer/backends/tei_dense.py
+  - mcp_server/src/codebase_indexer/indexer/backends/base.py
+  - mcp_server/src/codebase_indexer/indexer/embedder.py
+test_debt:
+  - Live TEI verification deferred to Phase 4 GPU session
+verify: >-
+  unit tests pass (32 Phase 3 + 9 adjacent), lints clean, Docker integration
+  Verdict pass with quality validation; plan compliance pass; R1 resolved and
+  regression-tested; review rounds: 2
+changelog:
+  update: false
+  reason: 'user-facing no; invoker Changelog: no'
+user_facing: false

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import time
 from typing import Any
 
@@ -41,10 +42,21 @@ class TeiDenseBackend:
         dense_embed_model: str = "",
         known_max_tokens: dict[str, int] | None = None,
         mrl_dimensions: int | None = None,
+        query_instruction: str = "",
+        normalize_output: bool = False,
     ) -> None:
         self.model_name = model_name
         self.vector_size = vector_size
         self._mrl_dimensions = mrl_dimensions
+        # ADR 0026 Phase 3 spike hooks. Both default OFF: the Jina/default path
+        # is byte-for-byte unchanged unless a candidate opts in.
+        #   query_instruction  instruction-tuned retrievers (e.g. inf-retriever)
+        #                      need a task prefix on the *query* side only.
+        #   normalize_output   candidates whose TEI build emits unnormalized
+        #                      vectors (e.g. pplx INT8) need L2 normalization for
+        #                      cosine similarity to behave.
+        self._query_instruction = query_instruction
+        self._normalize_output = normalize_output
         self.tei_url = tei_url.rstrip("/")
         self.batch_size = batch_size
         self.timeout = timeout
@@ -146,6 +158,24 @@ class TeiDenseBackend:
             )
         return truncated
 
+    @staticmethod
+    def _l2_normalize(vec: list[float]) -> list[float]:
+        norm = math.sqrt(sum(v * v for v in vec))
+        if norm == 0.0:
+            return vec
+        return [v / norm for v in vec]
+
+    def _postprocess(self, results: list[list[float]]) -> list[list[float]]:
+        for idx, vec in enumerate(results):
+            if len(vec) != self.vector_size:
+                raise EmbeddingError(
+                    f"TEI embedding {idx} dimension mismatch: "
+                    f"expected {self.vector_size}, got {len(vec)}"
+                )
+        if self._normalize_output:
+            results = [self._l2_normalize(vec) for vec in results]
+        return results
+
     async def embed_batch(self, texts: list[str]) -> list[list[float]]:
         if not texts:
             return []
@@ -154,13 +184,19 @@ class TeiDenseBackend:
         for i in range(0, len(texts), self.batch_size):
             batch = texts[i : i + self.batch_size]
             results.extend(await self._embed_http(batch))
-        for idx, vec in enumerate(results):
-            if len(vec) != self.vector_size:
-                raise EmbeddingError(
-                    f"TEI embedding {idx} dimension mismatch: "
-                    f"expected {self.vector_size}, got {len(vec)}"
-                )
-        return results
+        return self._postprocess(results)
+
+    async def embed_query(self, texts: list[str]) -> list[list[float]]:
+        """Embed query text, applying the candidate's instruction prefix.
+
+        Instruction-tuned retrievers (ADR 0026 spike: ``inf-retriever``) prefix
+        only the *query* side. Falls back to :meth:`embed_batch` (no prefix) when
+        ``query_instruction`` is empty, so the default path is unchanged.
+        """
+        if not self._query_instruction:
+            return await self.embed_batch(texts)
+        prefixed = [f"{self._query_instruction}{text}" for text in texts]
+        return await self.embed_batch(prefixed)
 
     def _embed_payload(self, texts: list[str]) -> dict[str, Any]:
         payload: dict[str, Any] = {

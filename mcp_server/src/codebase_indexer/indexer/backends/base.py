@@ -42,6 +42,8 @@ class DenseEmbedBackend(Protocol):
 
     async def embed_batch(self, texts: list[str]) -> list[list[float]]: ...
 
+    async def embed_query(self, texts: list[str]) -> list[list[float]]: ...
+
 
 @runtime_checkable
 class SparseEmbedBackend(Protocol):

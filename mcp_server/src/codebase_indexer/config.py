@@ -34,6 +34,29 @@ QWEN3_EMBED_SPECS: dict[str, tuple[int, int]] = {
 
 QWEN3_MRL_MIN_DIMENSIONS = 32
 
+# Alibaba GTE ModernBERT base — code/text retrieval (dimension, max sequence length).
+# https://huggingface.co/Alibaba-NLP/gte-modernbert-base
+GTE_MODERNBERT_SPECS: dict[str, tuple[int, int]] = {
+    "Alibaba-NLP/gte-modernbert-base": (768, 8192),
+}
+
+# IBM Granite multilingual embedding r2 — code-retrieval trained (dimension, max tokens).
+# https://huggingface.co/ibm-granite/granite-embedding-311m-multilingual-r2
+# https://huggingface.co/ibm-granite/granite-embedding-97m-multilingual-r2
+# The 311m exposes MRL (768/512/384/256/128); the 97m is fixed at 384.
+GRANITE_EMBED_SPECS: dict[str, tuple[int, int]] = {
+    "ibm-granite/granite-embedding-311m-multilingual-r2": (768, 32768),
+    "ibm-granite/granite-embedding-97m-multilingual-r2": (384, 32768),
+}
+
+# infly inf-retriever v1 1.5b — instruction-tuned retriever (dimension, max tokens).
+# https://huggingface.co/infly/inf-retriever-v1-1.5b
+# ADR 0026 Phase 3 spike PASSED: query-side instruction prefixing wires cleanly
+# into TeiDenseBackend (feature-flagged, no new dependency). See model_candidates.yaml.
+INF_RETRIEVER_SPECS: dict[str, tuple[int, int]] = {
+    "infly/inf-retriever-v1-1.5b": (1536, 32768),
+}
+
 # Known dense embedding models and their output dimensions. When listed,
 # DENSE_EMBED_VECTOR_SIZE must match exactly (set both in .env — see .env.example).
 # Qwen3 models use MRL validation instead (32 <= size <= native).
@@ -42,6 +65,9 @@ KNOWN_EMBED_MODEL_DIMENSIONS: dict[str, int] = {
     **{model: dims for model, (dims, _) in BGE_EN_V1_5_SPECS.items()},
     **{model: dims for model, (dims, _) in JINA_CODE_EMBED_V2_SPECS.items()},
     **{model: dims for model, (dims, _) in QWEN3_EMBED_SPECS.items()},
+    **{model: dims for model, (dims, _) in GTE_MODERNBERT_SPECS.items()},
+    **{model: dims for model, (dims, _) in GRANITE_EMBED_SPECS.items()},
+    **{model: dims for model, (dims, _) in INF_RETRIEVER_SPECS.items()},
 }
 
 # Known dense transformer models and max input tokens (embedding truncation).
@@ -50,6 +76,9 @@ KNOWN_EMBED_MODEL_MAX_TOKENS: dict[str, int] = {
     **{model: max_tokens for model, (_, max_tokens) in BGE_EN_V1_5_SPECS.items()},
     **{model: max_tokens for model, (_, max_tokens) in JINA_CODE_EMBED_V2_SPECS.items()},
     **{model: max_tokens for model, (_, max_tokens) in QWEN3_EMBED_SPECS.items()},
+    **{model: max_tokens for model, (_, max_tokens) in GTE_MODERNBERT_SPECS.items()},
+    **{model: max_tokens for model, (_, max_tokens) in GRANITE_EMBED_SPECS.items()},
+    **{model: max_tokens for model, (_, max_tokens) in INF_RETRIEVER_SPECS.items()},
 }
 
 
