@@ -1,0 +1,36 @@
+adr_id: '0002'
+phase_key: phase-3
+phase_title: Phase 3 — Graph-augmented MCP retrieval
+event: merge
+date: '2026-07-10'
+tracker_status: merged
+choices: >-
+  squash merge `829aae1` on feature branch `adr/0002-phase-3-graph-expand`
+  (deleted after merge; includes `d9b21ac` feat(graph): add expand_subgraph
+  storage; `7968b24` feat(graph): add expand_search_context; `90b038a`
+  test(graph): add expand context tests; `9a0959a` chore(integration): add graph
+  flag; `91e3aab` docs(adr): sync phase 3 graph expand); ADR Accept skipped —
+  ADR 0002 status unchanged (`Accepted (phase 1 — Neo4j storage + index-time
+  graph writer)`); release skipped; Phase 4 remains open/deferred
+deviations: none
+code_evidence:
+  - >-
+    merged via [PR #32](https://github.com/Tusquito/codebase-indexer-mcp/pull/32)
+    (`adr/0002-phase-3-graph-expand`; squash `829aae1`)
+verify: >-
+  carried from verification — Round 1 full implementation pass with one warning
+  (R1) and one non-blocking suggestion (S1); Round 2 confirmed R1 docs fix and
+  re-ran unit suite (481 passed, 8 skipped); Docker integration Verdict pass;
+  review rounds: 2
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/32
+  commit: 829aae1
+  status: merged
+changelog:
+  update: false
+  reason: >-
+    version cut skipped; [Unreleased] bullet already added during verification
+    step
+user_facing: true
+open_decisions:
+  - Phase 4 — graph-augmented MCP retrieval (open/deferred)

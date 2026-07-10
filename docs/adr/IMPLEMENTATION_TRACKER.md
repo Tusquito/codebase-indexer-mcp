@@ -35,7 +35,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 |-----|-------|------------|-------|---------|--------------|--------------|
 | 0002 | Optional GraphRAG (Neo4j + Qdrant) | Accepted (phase 1 — Neo4j storage + index-time graph writer) | phase-1 | `merged` | Shipped: `storage/neo4j.py` async driver wrapper (neo4j driver 6.2.0) with idempotent schema; `indexer/graph_writer.py` writing ADR ontology from index batches (reuses `UrlExtractors`, `extract_build_deps`/`match_deps_to_collections`, public `extract_imported_names`); `pipeline.py` hooks mirroring Qdrant flush/delete cadence; best-effort graph errors to `PipelineResult.errors`; `context.py` optional `Neo4jStorage`; config (`GRAPH_ENABLED=false` default, `NEO4J_*`, `GRAPH_WRITER_BATCH`, `GRAPH_SCHEMA_VERSION=1`); `docker-compose.neo4j.yml` override only; mock driver CI unit tests; `.env.example` + `ARCHITECTURE.md`; no MCP tools Phase 1; endpoint `method` inference best-effort; defer Phase 2 Qdrant `graph_node_ids`, Phase 3 `expand_search_context`, Phase 4 Neo4j cross-project queries; [PR #10](https://github.com/Tusquito/codebase-indexer-mcp/pull/10) | 2026-07-03 |
 | 0002 | Optional GraphRAG (Neo4j + Qdrant) | Accepted (phase 1 — Neo4j storage + index-time graph writer) | phase-2 | `merged` | Neighbor-keys-only `graph_node_ids` via `graph_node_ids_from_batch`; batch before upsert; boolean `graph_enabled` collection metadata only; `graph_node_ids` omitted for zero-neighbor chunks and `GRAPH_ENABLED=false`; structlog `graph_linkage_missing` once per unlinked collection; 34 Phase 2 unit tests + 420 full suite pass; integration + plan compliance pass; review rounds: 1; defer Phase 3 `expand_search_context`, Phase 4 cross-project Cypher; test debt: prometheus_client and neo4j driver needed in CI env; [PR #26](https://github.com/Tusquito/codebase-indexer-mcp/pull/26) | 2026-07-08 |
-| 0002 | Phase 3 — Graph-augmented MCP retrieval | Accepted (phase 1 — Neo4j storage + index-time graph writer) | phase-3 | `verified` | MCP tool `expand_search_context` in `tools/graph_search.py`: hybrid search seeds → bounded Neo4j Cypher subgraph expansion (1–`GRAPH_MAX_HOPS` hops, `GRAPH_MAX_NODES` cap) → attach Qdrant chunk payloads → structured `GraphContext` JSON (`nodes`/`edges`/`related_chunks`/`seeds`). `Neo4jStorage.expand_subgraph` with injection-safe interpolated hop count + `LIMIT $max_nodes`; chunk_id-only seeding (no `graph_node_ids` reads); conditional registration in `main.py` gated on `GRAPH_ENABLED`. Docker harness `--graph` flag brings up Neo4j override and validates live stack via health + startup-log signal. Phase 4 deferred. | 2026-07-10 |
+| 0002 | Phase 3 — Graph-augmented MCP retrieval | Accepted (phase 1 — Neo4j storage + index-time graph writer) | phase-3 | `merged` | MCP tool `expand_search_context` in `tools/graph_search.py`: hybrid search seeds → bounded Neo4j Cypher subgraph expansion (1–`GRAPH_MAX_HOPS` hops, `GRAPH_MAX_NODES` cap) → attach Qdrant chunk payloads → structured `GraphContext` JSON (`nodes`/`edges`/`related_chunks`/`seeds`). `Neo4jStorage.expand_subgraph` with injection-safe interpolated hop count + `LIMIT $max_nodes`; chunk_id-only seeding (no `graph_node_ids` reads); conditional registration in `main.py` gated on `GRAPH_ENABLED`. Docker harness `--graph` flag brings up Neo4j override and validates live stack via health + startup-log signal. Phase 4 deferred. | 2026-07-10 |
 | 0003 | Hybrid search RRF default | Accepted | all | `merged` | Shipped | 2026-07-02 |
 | 0004 | Collection-per-project isolation | Accepted | all | `merged` | Shipped | 2026-07-02 |
 | 0005 | MCP retrieval connector | Accepted | all | `merged` | Shipped | 2026-07-02 |
@@ -84,7 +84,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 ## Active and upcoming work
 
 <!-- BEGIN GENERATED:active -->
-- **0002** Phase 3 — Graph-augmented MCP retrieval — `verified`
+_No active or upcoming phases._
 <!-- END GENERATED:active -->
 
 ### Partial acceptance
@@ -131,6 +131,16 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 - **Choices:** Tool named `expand_search_context` (human-confirmed); conditional registration mirrors `recommend_enabled` pattern; `chunk_id`-only Cypher seeding (human-confirmed); Quality validation skipped (no ranking-path change); Performance report skipped; suggested tier claude-opus-4-8-thinking-low; Docker integration harness extended for live Neo4j validation (human-confirmed). Assumptions: Phase defaults to single PR; registration guarded by `settings.graph_enabled`; hop count validated as int and clamped to `graph_max_hops` (cannot be a Cypher parameter).
 - **Deviations:** none
 - **Changelog:** no — invoker Changelog: no; status planned (not verified)
+
+#### 2026-07-10 — merge
+- **Phase:** Phase 3 — Graph-augmented MCP retrieval
+- **Tracker status:** `merged`
+- **Choices:** squash merge `829aae1` on feature branch `adr/0002-phase-3-graph-expand` (deleted after merge; includes `d9b21ac` feat(graph): add expand_subgraph storage; `7968b24` feat(graph): add expand_search_context; `90b038a` test(graph): add expand context tests; `9a0959a` chore(integration): add graph flag; `91e3aab` docs(adr): sync phase 3 graph expand); ADR Accept skipped — ADR 0002 status unchanged (`Accepted (phase 1 — Neo4j storage + index-time graph writer)`); release skipped; Phase 4 remains open/deferred
+- **Deviations:** none
+- **Code evidence:** `merged via [PR #32](https://github.com/Tusquito/codebase-indexer-mcp/pull/32) (`adr/0002-phase-3-graph-expand`; squash `829aae1`)`
+- **Verify:** carried from verification — Round 1 full implementation pass with one warning (R1) and one non-blocking suggestion (S1); Round 2 confirmed R1 docs fix and re-ran unit suite (481 passed, 8 skipped); Docker integration Verdict pass; review rounds: 2
+- **Git:** https://github.com/Tusquito/codebase-indexer-mcp/pull/32 — status: merged — commit: 829aae1
+- **Changelog:** no — version cut skipped; [Unreleased] bullet already added during verification step
 
 #### 2026-07-10 — implementation
 - **Phase:** Phase 3 — Graph-augmented MCP retrieval
@@ -1629,6 +1639,7 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 
 <!-- BEGIN GENERATED:open-decisions -->
 - 0002: Whether to run 0009 CI gate or 0008 test-debt PR in parallel with Accept/plan — Open — orchestrator decision
+- Phase 4 — graph-augmented MCP retrieval (open/deferred)
 - 0008: Live Qdrant integration test vs unit mocks only for adaptive skip — Open — test debt at verification
 - 0008: Multi-collection adaptive skip + global RRF unit test — Open — deferred to verification
 - 0008: Dedicated unit test for single-probe-hit ColBERT path (< 2 probe hits) — Open — test debt at verification
