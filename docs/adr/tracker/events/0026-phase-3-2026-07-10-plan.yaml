@@ -1,0 +1,14 @@
+adr_id: '0026'
+phase_key: phase-3
+phase_title: Phase 3 — Candidate registry + integration spikes
+event: plan
+date: '2026-07-10'
+tracker_status: planned
+choices: >-
+  one phase = one PR; native candidates route through existing `TeiDenseBackend`/`create_dense_backend`, no new runtime env vars; spike hooks are per-candidate flags leaving the Jina default path unchanged; Quality validation required threshold 0 report-only; Performance report skip; suggested tier claude-opus-4-8-thinking-low
+deviations: none
+changelog:
+  update: false
+  reason: 'user-facing no; invoker Changelog: no'
+user_facing: false
+open_decisions: []

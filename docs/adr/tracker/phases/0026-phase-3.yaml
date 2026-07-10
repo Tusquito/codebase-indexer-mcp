@@ -1,0 +1,16 @@
+adr_id: '0026'
+phase_key: phase-3
+title: Phase 3 — Candidate registry + integration spikes
+tracker_status: verified
+chosen_scope: >-
+  10-row `model_candidates.yaml` registry with validating `candidates.py` loader;
+  `config.py` entries for GTE_MODERNBERT_SPECS, GRANITE_EMBED_SPECS (including
+  granite-embedding-97m), and INF_RETRIEVER_SPECS; `_settings.py` per-candidate
+  swap helper; `verify_candidate.py` (`tei_health` + `tei_embed_smoke`);
+  feature-flagged `query_instruction` and `normalize_output` hooks in
+  `TeiDenseBackend`; inf-retriever spike passed; pplx-embed INT8 dropped for
+  both sizes per 30-min drop-on-failure rule; unit tests; fixture-only, no
+  production default change. Defer live per-native-candidate verify runs and
+  Phase 4 bake-off orchestration.
+last_updated: '2026-07-10'
+adr_status_note: Accepted (phase 1 — Harness reliability fix)

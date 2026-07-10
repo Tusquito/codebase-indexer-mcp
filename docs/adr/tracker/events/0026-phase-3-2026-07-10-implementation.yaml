@@ -1,0 +1,26 @@
+adr_id: '0026'
+phase_key: phase-3
+phase_title: Phase 3 — Candidate registry + integration spikes
+event: implementation
+date: '2026-07-10'
+tracker_status: implemented
+choices: >-
+  10-row machine-readable registry with validating loader; GTE_MODERNBERT_SPECS / GRANITE_EMBED_SPECS / INF_RETRIEVER_SPECS in config.py; per-candidate settings swap helper; tei_health+tei_embed_smoke verifier; feature-flagged query_instruction and normalize_output hooks in TeiDenseBackend; granite-embedding-97m included
+deviations: >-
+  inf-retriever spike passed; pplx-embed INT8 dropped for both sizes per 30-min drop-on-failure rule
+code_evidence:
+  - mcp_server/benchmarks/fixtures/model_candidates.yaml
+  - mcp_server/benchmarks/candidates.py
+  - mcp_server/benchmarks/verify_candidate.py
+  - mcp_server/benchmarks/_settings.py
+  - mcp_server/src/codebase_indexer/config.py
+  - mcp_server/src/codebase_indexer/indexer/backends/tei_dense.py
+  - mcp_server/tests/test_model_candidates.py
+  - mcp_server/tests/test_candidate_config.py
+  - mcp_server/tests/test_tei_dense_spikes.py
+test_debt:
+  - live per-native-candidate verify_candidate runs deferred to Phase 4 GPU session
+changelog:
+  update: false
+  reason: 'user-facing no; invoker Changelog: no'
+user_facing: false
