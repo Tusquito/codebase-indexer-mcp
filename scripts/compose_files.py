@@ -58,8 +58,13 @@ def compose_file_args(
     repo_root: Path | None = None,
     env: Mapping[str, str] | None = None,
     include_tei: bool = True,
+    include_neo4j: bool | None = None,
 ) -> list[str]:
-    """Return ``-f`` arguments for the active accelerator and ColBERT sidecar mode."""
+    """Return ``-f`` arguments for the active accelerator and ColBERT sidecar mode.
+
+    When ``include_neo4j`` is None, the Neo4j override is added if ``GRAPH_ENABLED``
+    is truthy in the environment; pass True/False to force it on/off.
+    """
     root = repo_root or REPO_ROOT
     source = env if env is not None else os.environ
     use_gpu = get_accelerator(source) == "gpu"
@@ -74,6 +79,11 @@ def compose_file_args(
         files.append(root / "docker-compose.colbert-worker.yml")
         if use_gpu:
             files.append(root / "docker-compose.colbert-worker.gpu.yml")
+
+    if include_neo4j is None:
+        include_neo4j = _truthy(source.get("GRAPH_ENABLED"))
+    if include_neo4j:
+        files.append(root / "docker-compose.neo4j.yml")
 
     args: list[str] = []
     for path in files:

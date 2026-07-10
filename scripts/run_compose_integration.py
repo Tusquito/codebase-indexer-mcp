@@ -49,6 +49,10 @@ QDRANT_URL = "http://127.0.0.1:6333"
 MCP_HEALTH_URL = "http://127.0.0.1:8000/health"
 TEI_URL = "http://127.0.0.1:8080"
 TEI_CONTAINER = "codeindexer_tei"
+NEO4J_URL = "http://127.0.0.1:7474"
+MCP_CONTAINER = "codeindexer_mcp"
+# Non-secret password used only for the throwaway integration Neo4j container.
+GRAPH_INTEGRATION_PASSWORD = "graph-integration-pw"
 JINA_DENSE_MODEL = "jinaai/jina-embeddings-v2-base-code"
 DENSE_VECTOR_SIZE = 768
 
@@ -83,7 +87,7 @@ def docker_available() -> bool:
     return _run(["docker", "info"]).returncode == 0
 
 
-def write_integration_env(workspace_root: Path) -> None:
+def write_integration_env(workspace_root: Path, *, graph: bool = False) -> None:
     """Minimal compose env for integration — does not touch developer .env."""
     workspace = workspace_root.resolve()
     accelerator = get_accelerator()
@@ -129,6 +133,16 @@ TEI_CPUS={tei_cpus}
 {tei_batch_tokens_line}FLUSH_EVERY=128
 RERANK_ENABLED=false
 """
+    if graph:
+        content += (
+            "GRAPH_ENABLED=true\n"
+            f"NEO4J_PASSWORD={GRAPH_INTEGRATION_PASSWORD}\n"
+            "NEO4J_USER=neo4j\n"
+            "NEO4J_URI=bolt://neo4j:7687\n"
+            "NEO4J_DATABASE=neo4j\n"
+            "GRAPH_MAX_HOPS=2\n"
+            "GRAPH_MAX_NODES=200\n"
+        )
     ENV_FILE.write_text(content, encoding="utf-8")
 
 
@@ -153,7 +167,7 @@ def _capture_failure_logs() -> str:
     return out.strip()[-6000:]
 
 
-def deploy() -> tuple[bool, str]:
+def deploy(*, services: tuple[str, ...] = SERVICES) -> tuple[bool, str]:
     build = _run(compose_cmd("build", "mcp_server"))
     if build.returncode != 0:
         return False, build.stderr or build.stdout or "compose build failed"
@@ -164,7 +178,7 @@ def deploy() -> tuple[bool, str]:
             "up",
             "-d",
             "--wait",
-            *SERVICES,
+            *services,
         )
     )
     if up.returncode != 0:
@@ -424,6 +438,31 @@ def quality_validation_passed(rows: dict[str, dict[str, str]]) -> bool:
     return eval_row.get("status") == "pass"
 
 
+def run_graph_validation() -> tuple[str, str]:
+    """Validate the live Neo4j-enabled stack registered expand_search_context.
+
+    Waits for the Neo4j browser port, then confirms the mcp_server booted with
+    graph enabled (it logs ``graph_enabled`` at startup only when GRAPH_ENABLED=true,
+    which is also the exact condition under which expand_search_context is
+    registered — see main.create_app). Returns (status, detail): pass / fail.
+    """
+    ok, detail = wait_http(NEO4J_URL)
+    if not ok:
+        return "fail", f"neo4j not healthy: {detail}"
+
+    logs = _run(
+        compose_cmd(
+            "--profile", COMPOSE_PROFILE, "logs", "--no-color", "--tail", "500", "mcp_server"
+        )
+    )
+    out = (logs.stdout or "") + (logs.stderr or "")
+    if "graph_enabled" not in out:
+        return "fail", "mcp_server did not log graph_enabled at startup"
+    if "graph_disabled" in out:
+        return "fail", "mcp_server logged graph_disabled (GRAPH_ENABLED not applied)"
+    return "pass", "neo4j healthy; mcp_server registered expand_search_context (graph_enabled)"
+
+
 def teardown() -> None:
     _run(compose_cmd("--profile", COMPOSE_PROFILE, "down", "--remove-orphans"))
 
@@ -461,6 +500,12 @@ def main() -> int:
         help="Run bench.py vs baseline (report-only; does not fail harness)",
     )
     parser.add_argument(
+        "--graph",
+        action="store_true",
+        help="Bring up docker-compose.neo4j.yml with GRAPH_ENABLED=true and validate "
+        "the live expand_search_context tool (ADR 0002 Phase 3)",
+    )
+    parser.add_argument(
         "--bench-compare",
         type=Path,
         default=BENCH_BASELINE,
@@ -479,6 +524,7 @@ def main() -> int:
         "smoke_recommend": {"status": "pending", "detail": ""},
         "quality_validation": {"required": args.quality_validation, "status": "skipped", "checks": {}},
         "performance_report": {"requested": args.performance_report, "status": "skipped", "detail": ""},
+        "graph_validation": {"required": args.graph, "status": "skipped", "detail": ""},
         "verdict": "pending",
     }
 
@@ -491,7 +537,7 @@ def main() -> int:
             print("SKIP: Docker not available")
         return 2
 
-    write_integration_env(REPO_ROOT.parent)
+    write_integration_env(REPO_ROOT.parent, graph=args.graph)
 
     try:
         require_gpu()
@@ -505,10 +551,11 @@ def main() -> int:
         return 1
 
     try:
+        deploy_services = SERVICES + ("neo4j",) if args.graph else SERVICES
         if args.skip_deploy:
             report["deploy"] = {"status": "skipped", "detail": "--skip-deploy"}
         else:
-            ok, detail = deploy()
+            ok, detail = deploy(services=deploy_services)
             report["deploy"] = {"status": "pass" if ok else "fail", "detail": detail}
             if not ok:
                 report["verdict"] = "fail"
@@ -577,6 +624,14 @@ def main() -> int:
                 "compare": str(args.bench_compare),
             }
 
+        if args.graph:
+            graph_status, graph_detail = run_graph_validation()
+            report["graph_validation"] = {
+                "required": True,
+                "status": graph_status,
+                "detail": graph_detail,
+            }
+
         required_ok = all(
             report[k]["status"] in ("pass", "skipped")
             for k in ("deploy", "qdrant_health", "mcp_health", "tei_embed_smoke", "pytest_integration")
@@ -585,6 +640,8 @@ def main() -> int:
             required_ok = required_ok and report["tei_gpu_visible"]["status"] == "pass"
         if args.quality_validation:
             required_ok = required_ok and report["quality_validation"]["status"] == "pass"
+        if args.graph:
+            required_ok = required_ok and report["graph_validation"]["status"] == "pass"
         report["verdict"] = "pass" if required_ok else "fail"
 
         if args.json:
