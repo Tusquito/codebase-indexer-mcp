@@ -192,12 +192,12 @@ class Embedder(metaclass=_EmbedderMeta):
         Embedder._ensure_idle_timer()
         if self.hybrid:
             dense_list, sparse_list = await asyncio.gather(
-                self.dense_backend.embed_batch([text]),
+                self.dense_backend.embed_query([text]),
                 self.sparse_backend.embed_batch([text]),
             )
             dense_vec, sparse_vec = dense_list[0], sparse_list[0]
         else:
-            dense_list = await self.dense_backend.embed_batch([text])
+            dense_list = await self.dense_backend.embed_query([text])
             dense_vec, sparse_vec = dense_list[0], None
 
         use_rerank = self.rerank and rerank is not False
@@ -214,11 +214,11 @@ class Embedder(metaclass=_EmbedderMeta):
         Embedder._ensure_idle_timer()
         if self.hybrid:
             dense_list, sparse_list = await asyncio.gather(
-                self.dense_backend.embed_batch(texts),
+                self.dense_backend.embed_query(texts),
                 self.sparse_backend.embed_batch(texts),
             )
         else:
-            dense_list = await self.dense_backend.embed_batch(texts)
+            dense_list = await self.dense_backend.embed_query(texts)
             sparse_list = [None] * len(texts)  # type: ignore[list-item]
 
         use_rerank = self.rerank and rerank is not False
