@@ -58,7 +58,9 @@ python scripts/run_compose_integration.py --json --performance-report   # + benc
 
 This builds `mcp_server`, starts Qdrant + bundled TEI + MCP via Compose, waits for health, runs `tests/test_storage_integration.py` against live Qdrant, and checks `http://127.0.0.1:8000/health`. When `--quality-validation` is set, it validates golden labels (auto-indexing via MCP if missing), runs `eval_retrieval` vs `fixtures/eval_baseline.json`, and optionally compares latency via `bench.py` with `--performance-report`. Uses generated `.env.compose.integration` (does not overwrite your `.env`).
 
-The ADR pipeline runs this via **`adr-integration-tester`** (step 3.5) before code review on **every phase**. Search/embed/rerank phases also require **`--quality-validation`** per the implementation plan.
+The ADR pipeline runs this via **`adr-integration-tester`** (step 3.5) before code review on **every phase** — it is **mandatory locally**. Search/embed/rerank phases also require **`--quality-validation`** per the implementation plan.
+
+In GitHub CI, the `compose-integration` job runs the same harness but is **optional** (`continue-on-error`): the full Compose deploy adds 15min+ to every PR, so failures surface without blocking merges. See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md#continuous-integration-adr-0022-phase-3) for the full CI job table.
 
 ### Integration smoke tests
 

@@ -393,14 +393,14 @@ GitHub Actions (`.github/workflows/ci.yml`) is the **sole supported CPU exceptio
 | Job | Runner | `ACCELERATOR` | Gates merge? |
 |-----|--------|---------------|--------------|
 | `test` | `ubuntu-latest` | `cpu` | yes |
-| `compose-integration` | `ubuntu-latest` | `cpu` | yes — full Docker Compose stack via `scripts/run_compose_integration.py --json` (45 min timeout) |
+| `compose-integration` | `ubuntu-latest` | `cpu` | no (`continue-on-error`) — full Docker Compose stack via `scripts/run_compose_integration.py --json` (45 min timeout; typically 15min+) |
 | `benchmark` | `ubuntu-latest` | `cpu` | no (`continue-on-error`) |
 | `eval-retrieval` | `ubuntu-latest` | `cpu` | no |
 | `docker-image` | `ubuntu-latest` | `cpu` | no |
 | `colbert-gpu-image` | `ubuntu-latest` | `cpu` | no |
 | `gpu-smoke` | `[self-hosted, gpu]` | `gpu` | no — real GPU stack smoke; `docker exec codeindexer_tei nvidia-smi` GPU assertion when runner available |
 
-**Blocking compose integration** runs the same harness as local pre-PR validation on the CPU stack (`ACCELERATOR=cpu`): deploy Qdrant + bundled TEI + MCP, health checks, and `tests/test_storage_integration.py`. The GPU processor check is skipped in CPU mode.
+**Compose integration is optional in GitHub CI** (`continue-on-error`) — the full Compose deploy adds 15min+ to every PR, so it surfaces failures without blocking merges. It **is mandatory in the local ADR pipeline**: `adr-integration-tester` runs this same harness before code review on every phase ([`CONTRIBUTING.md`](../CONTRIBUTING.md#docker-compose-integration-adr-pipeline)). The job runs the same harness as local pre-PR validation on the CPU stack (`ACCELERATOR=cpu`): deploy Qdrant + bundled TEI + MCP, health checks, and `tests/test_storage_integration.py`. The GPU processor check is skipped in CPU mode.
 
 **Optional GPU smoke** on a self-hosted NVIDIA runner exercises the production path (`ACCELERATOR=gpu`): the harness pulls Jina, runs a probe embed, and asserts `docker exec codeindexer_tei nvidia-smi` lists the GPU and the running TEI process. Failures do not block merges.
 

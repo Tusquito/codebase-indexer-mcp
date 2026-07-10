@@ -171,8 +171,12 @@ jobs:
         run: docker build -f colbert_worker/Dockerfile.gpu -t colbert-worker-gpu ./mcp_server
 
   compose-integration:
-    # Blocking: full Docker Compose stack on CPU (ADR 0022 — sole CI CPU exception).
+    # Non-blocking: full Docker Compose stack on CPU (ADR 0022 — sole CI CPU
+    # exception). Mandatory in the local ADR pipeline (adr-integration-tester
+    # runs this before every phase's code review); optional in GitHub CI since
+    # the ~15min+ Compose deploy otherwise slows down every PR.
     runs-on: ubuntu-latest
+    continue-on-error: true
     timeout-minutes: 45
     env:
       ACCELERATOR: cpu
