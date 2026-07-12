@@ -28,6 +28,7 @@ from scripts.tune_alloc import (  # noqa: E402
     FeatureFlags,
     ServiceSet,
     build_allocation,
+    default_reserve_gib,
     detect_host,
     render_env_fragment,
     resolve_budget,
@@ -197,8 +198,8 @@ def _add_global_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--reserve-gib",
         type=float,
-        default=2.5,
-        help="Kernel/Docker/WSL2 headroom (default 2.5)",
+        default=default_reserve_gib(),
+        help="Kernel/Docker/WSL2 headroom (default 4.0 on macOS, 2.5 elsewhere)",
     )
 
 

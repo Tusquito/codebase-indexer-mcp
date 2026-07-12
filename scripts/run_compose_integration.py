@@ -35,7 +35,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.accelerator import GpuRequiredError, get_accelerator, require_gpu
-from scripts.compose_files import TEI_IMAGE_CPU_DEFAULT, compose_file_args
+from scripts.compose_files import compose_file_args, container_arch, tei_image_default
 
 MCP_SERVER = REPO_ROOT / "mcp_server"
 ENV_FILE = REPO_ROOT / ".env.compose.integration"
@@ -91,9 +91,13 @@ def write_integration_env(workspace_root: Path, *, graph: bool = False) -> None:
     """Minimal compose env for integration — does not touch developer .env."""
     workspace = workspace_root.resolve()
     accelerator = get_accelerator()
-    tei_image_line = (
-        f"TEI_IMAGE={TEI_IMAGE_CPU_DEFAULT}\n" if accelerator == "cpu" else ""
-    )
+    env_for_defaults = {"ACCELERATOR": accelerator}
+    tei_image_line = ""
+    mkl_line = ""
+    if accelerator == "cpu":
+        tei_image_line = f"TEI_IMAGE={tei_image_default(env_for_defaults)}\n"
+        if container_arch() == "amd64":
+            mkl_line = "TEI_MKL_INSTRUCTIONS=AVX2\n"
     # CPU-only TEI warmup runs the model's full max-input-length forward pass
     # (attention buffers land in container RSS, unlike GPU where they live in
     # VRAM outside the cgroup limit) — the ADR 0025 general-purpose 4g/4cpu
@@ -130,7 +134,7 @@ TEI_URL=http://tei:80
 TEI_TIMEOUT=600
 TEI_MEM_LIMIT={tei_mem_limit}
 TEI_CPUS={tei_cpus}
-{tei_batch_tokens_line}FLUSH_EVERY=128
+{tei_batch_tokens_line}{mkl_line}FLUSH_EVERY=128
 RERANK_ENABLED=false
 """
     if graph:

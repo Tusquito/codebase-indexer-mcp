@@ -1,0 +1,6 @@
+# amd64-only: cap oneMKL ISA for x86_64 TEI (virtualized CPUs may report AVX-512
+# without exposing it — see docker-compose.tei.yml comments). Omitted on arm64 TEI.
+services:
+  tei:
+    environment:
+      MKL_ENABLE_INSTRUCTIONS: ${TEI_MKL_INSTRUCTIONS:-AVX2}

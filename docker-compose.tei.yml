@@ -24,13 +24,8 @@ services:
       - tei_data:/data
     environment:
       HF_TOKEN: ${HF_TOKEN:-}
-      # Some virtualized/cloud CPUs (e.g. GitHub Actions runners) report AVX-512
-      # in CPUID without the hypervisor actually exposing it, which crashes the
-      # image's oneMKL dispatcher with "Illegal instruction" the moment TEI runs
-      # its first real forward pass (warmup). Cap the ISA at AVX2 — universally
-      # supported on x86_64 since ~2013 — unless the operator overrides it for a
-      # known-good bare-metal AVX-512 host.
-      MKL_ENABLE_INSTRUCTIONS: ${TEI_MKL_INSTRUCTIONS:-AVX2}
+      # MKL ISA cap (x86-only) is merged from docker-compose.tei.amd64-mkl.yml on
+      # amd64 CPU hosts via scripts/compose_files.py — not applied to arm64 TEI.
     # max-batch-tokens also sizes TEI's own startup warmup pass
     # (warmup_tokens = min(max_input_length, max_batch_tokens) pre-#884). The
     # 16384 CLI default makes CPU warmup for long-context models (e.g. jina

@@ -12,6 +12,7 @@ are transcribed from ``docs/adr/0024-resource-aware-stack-tuner.md``.
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -25,6 +26,14 @@ if str(REPO_ROOT) not in sys.path:
 from scripts.accelerator import get_accelerator  # noqa: E402
 
 DEFAULT_RESERVE_GIB = 2.5
+DARWIN_RESERVE_GIB = 4.0
+
+
+def default_reserve_gib() -> float:
+    """Kernel/Docker headroom: 4 GiB on macOS, 2.5 GiB elsewhere."""
+    if sys.platform == "darwin":
+        return DARWIN_RESERVE_GIB
+    return DEFAULT_RESERVE_GIB
 
 # Phase B minimum RSS floors (GiB) per service.
 RAM_FLOORS_GIB: dict[str, float] = {
@@ -71,7 +80,7 @@ class Budget:
 
     max_cpus: int
     max_ram_gib: float
-    reserve_gib: float = DEFAULT_RESERVE_GIB
+    reserve_gib: float = field(default_factory=default_reserve_gib)
 
     @property
     def usable_ram_gib(self) -> float:
@@ -136,11 +145,30 @@ class EnvFragment:
 # ---------------------------------------------------------------------------
 
 
+def _detect_total_ram_gib_darwin() -> float | None:
+    try:
+        proc = subprocess.run(
+            ["sysctl", "-n", "hw.memsize"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        if proc.returncode == 0:
+            return int(proc.stdout.strip()) / (1024**3)
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return None
+    return None
+
+
 def _detect_total_ram_gib() -> float | None:
     """Best-effort stdlib RAM detection; None when undetectable.
 
-    On Linux reads ``/proc/meminfo``; on Windows uses ``ctypes`` GlobalMemoryStatusEx.
+    On Linux reads ``/proc/meminfo``; on Windows uses ``ctypes`` GlobalMemoryStatusEx;
+    on darwin reads ``sysctl hw.memsize``.
     """
+    if sys.platform == "darwin":
+        return _detect_total_ram_gib_darwin()
     meminfo = Path("/proc/meminfo")
     if meminfo.exists():
         try:
@@ -189,9 +217,9 @@ def resolve_budget(
     *,
     max_cpus: int | None = None,
     max_ram_gib: float | None = None,
-    reserve_gib: float = DEFAULT_RESERVE_GIB,
+    reserve_gib: float | None = None,
 ) -> Budget:
-    """Apply ADR defaults: max-cpus=host, max-ram-gib=floor(host/2), reserve=2.5.
+    """Apply ADR defaults: max-cpus=host, max-ram-gib=floor(host/2), reserve from host OS.
 
     Raises ``ValueError`` when RAM is neither detected nor supplied.
     """
@@ -204,7 +232,8 @@ def resolve_budget(
         raise ValueError(
             "Host RAM could not be detected; pass --max-ram-gib to set the budget."
         )
-    return Budget(max_cpus=cpus, max_ram_gib=ram, reserve_gib=reserve_gib)
+    reserve = default_reserve_gib() if reserve_gib is None else reserve_gib
+    return Budget(max_cpus=cpus, max_ram_gib=ram, reserve_gib=reserve)
 
 
 # ---------------------------------------------------------------------------
