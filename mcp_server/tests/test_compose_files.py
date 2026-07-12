@@ -11,7 +11,6 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.compose_files import (  # noqa: E402
     TEI_IMAGE_CPU_ARM64_DEFAULT,
-    TEI_IMAGE_CPU_DEFAULT,
     compose_file_args,
     container_arch,
     tei_image_default,
