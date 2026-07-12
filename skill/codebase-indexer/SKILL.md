@@ -156,6 +156,24 @@ find_cross_references(query="...", collections=["project-a", "project-b"])
 map_service_dependencies(collections=["project-a", "project-b"])
 ```
 
+## Deployment (macOS)
+
+Apple Silicon Macs without NVIDIA GPU use the **native arm64 CPU profile** by default ([ADR 0028](docs/adr/0028-apple-silicon-arm64-cpu-deployment.md)):
+
+- `.env`: `ACCELERATOR=cpu`, `TEI_IMAGE=ghcr.io/huggingface/text-embeddings-inference:cpu-arm64-latest`, `COMPOSE_PROFILES=bundled-tei`, `RERANK_ENABLED=false`
+- Docker Desktop Memory: **24 GiB** recommended (M3 Pro preset in `.env.example`)
+- `docker compose $(ACCELERATOR=cpu python scripts/compose_files.py) --profile bundled-tei up -d --build`
+
+**Optional faster dense embed** — host Metal TEI ([ADR 0029](docs/adr/0029-macos-host-native-tei-metal-acceleration.md)):
+
+1. `brew install text-embeddings-inference`
+2. Start host TEI: `text-embeddings-router --model-id jinaai/jina-embeddings-v2-base-code --hostname 127.0.0.1 --port 8080 --max-batch-tokens 1024`
+3. `.env`: `COMPOSE_PROFILES=` (empty), `TEI_URL=http://host.docker.internal:8080`, `MCP_MEM_LIMIT=12g`, `QDRANT_MEM_LIMIT=8g`
+4. `docker compose -f docker-compose.yml up -d --build` — start host TEI **before** Docker; restart `mcp_server` if TEI was late
+5. Verify: `curl http://127.0.0.1:8080/health` (host) and `curl http://localhost:8000/health` (MCP)
+
+Host TEI and Docker VM share **unified memory** — monitor Activity Monitor on first index. Full operator guide: [docs/DEPLOYMENT.md § macOS host-native TEI (Metal)](docs/DEPLOYMENT.md#macos-host-native-tei-metal).
+
 ## Path Conventions
 
 - `index_codebase(path=...)` takes the **folder basename only** -- e.g. `my-project`,
