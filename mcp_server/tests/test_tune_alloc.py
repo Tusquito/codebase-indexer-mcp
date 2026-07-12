@@ -16,6 +16,8 @@ from scripts.tune_alloc import (  # noqa: E402
     allocate_cpus,
     allocate_ram,
     build_allocation,
+    default_reserve_gib,
+    detect_host,
     render_env_fragment,
     resolve_budget,
     resolve_services,
@@ -30,7 +32,8 @@ def _budget(ram: float, cpus: int) -> Budget:
 # --- budget resolution -----------------------------------------------------
 
 
-def test_budget_defaults_half_ram_all_cpus():
+def test_budget_defaults_half_ram_all_cpus(monkeypatch):
+    monkeypatch.setattr("scripts.tune_alloc.sys.platform", "linux")
     host = HostResources(cpu_count=16, total_ram_gib=32.0)
     budget = resolve_budget(host)
     assert budget.max_cpus == 16
@@ -50,6 +53,34 @@ def test_budget_requires_max_ram_when_undetected():
         raise AssertionError("expected ValueError when RAM undetected")
     budget = resolve_budget(host, max_ram_gib=8)
     assert budget.max_ram_gib == 8
+
+
+def test_default_reserve_gib_darwin_vs_linux(monkeypatch):
+    monkeypatch.setattr("scripts.tune_alloc.sys.platform", "darwin")
+    assert default_reserve_gib() == 4.0
+    monkeypatch.setattr("scripts.tune_alloc.sys.platform", "linux")
+    assert default_reserve_gib() == 2.5
+
+
+def test_detect_host_darwin_ram(monkeypatch):
+    import subprocess
+
+    monkeypatch.setattr("scripts.tune_alloc.sys.platform", "darwin")
+
+    def fake_run(cmd, **_kwargs):
+        assert cmd == ["sysctl", "-n", "hw.memsize"]
+        return subprocess.CompletedProcess(cmd, 0, "34359738368\n", "")
+
+    monkeypatch.setattr("scripts.tune_alloc.subprocess.run", fake_run)
+    host = detect_host()
+    assert host.total_ram_gib == 32.0
+
+
+def test_resolve_budget_uses_darwin_reserve(monkeypatch):
+    monkeypatch.setattr("scripts.tune_alloc.sys.platform", "darwin")
+    host = HostResources(cpu_count=8, total_ram_gib=32.0)
+    budget = resolve_budget(host)
+    assert budget.reserve_gib == 4.0
 
 
 # --- feature-flag / service resolution -------------------------------------
