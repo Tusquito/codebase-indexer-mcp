@@ -1,0 +1,20 @@
+adr_id: '0028'
+phase_key: phase-1
+phase_title: Phase 1 — Documented profile
+event: verification
+date: '2026-07-12'
+tracker_status: verified
+choices: >-
+  Documented native arm64 CPU-first profile with manual TEI_IMAGE=cpu-arm64-1.9; M3 Pro 24 GiB + 18 GiB presets; RERANK_ENABLED=false; rejected amd64 emulation
+deviations: none
+code_evidence:
+  - docs/DEPLOYMENT.md
+  - .env.example
+  - README.md
+  - .github/copilot-instructions.md
+verify: 'tests run + plan compliance pass; review rounds: 2'
+changelog:
+  update: false
+  reason: 'user-facing yes; invoker Changelog: no'
+user_facing: true
+open_decisions: []

@@ -1,0 +1,9 @@
+adr_id: '0028'
+phase_key: phase-1
+title: Phase 1 — Documented profile
+tracker_status: merged
+chosen_scope: >-
+  Phase 1 — `docs/DEPLOYMENT.md` § Apple Silicon (arm64 CPU) with M3 Pro 24 GiB Docker VM profile and minimal 18 GiB tier; `.env.example` macOS presets; README + `.github/copilot-instructions.md` cross-links; manual operator checklist; defer Phase 2 code.
+last_updated: '2026-07-12'
+pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/33
+adr_status_note: Accepted (phase 1 — Documented profile)

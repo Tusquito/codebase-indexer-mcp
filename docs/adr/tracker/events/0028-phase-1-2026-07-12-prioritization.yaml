@@ -1,0 +1,21 @@
+adr_id: '0028'
+phase_key: phase-1
+phase_title: Phase 1 — Documented profile
+event: prioritization
+date: '2026-07-12'
+tracker_status: candidate
+choices: >-
+  Prioritize 0028 Phase 1 over 0026 Phase 4 (strategically higher score but NVIDIA-GPU-blocked on M3 Pro); over 0027 Phase 1 (Proposed, needs Accept, declined 2026-07-10); over 0029 Phase 1 (depends on 0028 baseline); over 0002 Phase 4 and 0023 Phase 3 (higher scope, lower immediate ops urgency); single phase per pipeline rule; no ADR Accept required (0028 already Accepted); pre-release: docs-only Phase 1, no global default change for NVIDIA hosts. **Why now:** ADRs 0028 and 0029 Accepted 2026-07-12 with zero tracker phases and zero code; maintainer hardware is Apple Silicon M3 Pro without NVIDIA GPU; `compose_files.py` still defaults to x86 `cpu-1.9` TEI, `tune_alloc.py` lacks darwin RAM detection, and `DEPLOYMENT.md`/`.env.example` have no Apple Silicon profile — operational blocker for daily development; ADR 0026 Phase 4 GPU bake-off cannot run on Mac per GPU-only scoring policy; tracker shows no active phases. **Suggested scope:** one phase (= one PR). **Chosen scope:** Phase 1 — `docs/DEPLOYMENT.md` § Apple Silicon (arm64 CPU) with M3 Pro 24 GiB Docker VM profile and minimal 18 GiB tier; `.env.example` macOS presets (`ACCELERATOR=cpu`, `TEI_IMAGE=ghcr.io/huggingface/text-embeddings-inference:cpu-arm64-1.9`, `TEI_MKL_INSTRUCTIONS=`, `RERANK_ENABLED=false`, cgroup caps); README + `.github/copilot-instructions.md` cross-links; manual operator checklist; defer Phase 2 arch-aware `compose_files.py` / `tune_alloc.py` / MKL compose fix.
+deviations: none
+code_evidence:
+  - '`scripts/compose_files.py` defaults `ACCELERATOR=cpu` → x86 `cpu-1.9` TEI'
+  - '`scripts/tune_alloc.py` lacks darwin RAM detection'
+  - '`docs/DEPLOYMENT.md` and `.env.example` have no Apple Silicon profile'
+changelog:
+  update: false
+  reason: 'user-facing yes; invoker Changelog: no'
+user_facing: true
+open_decisions:
+  - 'RESOLVED — (1) do not Accept ADR 0027 this cycle; proceed with 0028'
+  - 'RESOLVED — (2) no NVIDIA GPU access — defer 0026 Phase 4 until after 0028 Mac path lands'
+  - 'RESOLVED — (3) Phase 1 only — do not combine Phase 2 code in this PR'

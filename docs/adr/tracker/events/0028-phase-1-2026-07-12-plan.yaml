@@ -1,0 +1,14 @@
+adr_id: '0028'
+phase_key: phase-1
+phase_title: Phase 1 — Documented profile
+event: plan
+date: '2026-07-12'
+tracker_status: planned
+choices: >-
+  Docs-only Phase 1 per binding human decision; no Phase 2 code in this PR; ADR 0028 already Accepted; NVIDIA default unchanged; CI amd64 path unchanged. Operators manually set TEI_IMAGE and TEI_MKL_INSTRUCTIONS= until Phase 2; M3 Pro manual smoke is primary merge gate for Mac correctness.
+deviations: none
+changelog:
+  update: false
+  reason: 'user-facing yes; invoker Changelog: no'
+user_facing: true
+open_decisions: []

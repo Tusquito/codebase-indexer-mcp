@@ -77,6 +77,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0026 | Full-stack embedding model quality benchmark and selection framework | Accepted (phase 1 — Harness reliability fix) | phase-1 | `merged` | Squash merge [PR #27](https://github.com/Tusquito/codebase-indexer-mcp/pull/27) (`0ca2f88`); Content-anchored labels with 5-step ladder (`{rel_path}::{symbol_name}` + `start_line` hint); drift counted not silently scored; `--validate-labels` drift re-resolution with counts; `label_drift` per eval run; CI repro via `--keep` + kept-stack pytest in blocking `compose-integration`; `label_anchor.py` + `eval_retrieval.py` + golden `anchors`; 11 unit tests pass (`test_label_anchor.py`); ruff clean; Docker integration + quality validation pass (55 labels, 12 drifted and re-resolved via content anchoring, 0 unresolved; threshold 0 pass); repeat-run repro in blocking compose-integration CI job gates `recall@10` within ±1pp per ADR success criterion #1 (rank-sensitive `mrr`/`ndcg@10` bounded, not exact — see `test_harness_reproducibility.py`); review rounds: 1; one PR; no runtime/config/production change; defer Phases 2–5 (≥75-query expansion is Phase 2); test debt: symbol drift live integration exercised (12 drift observed in CI run), Phase 4 collection override concern | 2026-07-08 |
 | 0026 | Phase 2 — Golden-set expansion | Accepted (phase 1 — Harness reliability fix) | phase-2 | `merged` | Expand `mcp_server/benchmarks/fixtures/golden_queries.jsonl` in place from 26 to ≥75 distinct content-anchored (Phase-1 format) queries via the existing `suggest_labels.py` workflow; meet resolved per-tag membership targets (symbol 26, conceptual 7, config 19, cross_file 19, multi_hop 15); preserve `multi_hop` `hop2_query_text`; every multi_hop row carries a secondary tag (no pure multi_hop); ground-truth subset floor 19; `--validate-labels` zero unresolved; bump `golden_set_version` in `eval_baseline.json` only; raise golden-fixture unit-test floors + add a per-tag distribution/anchor-coverage test; Docker integration via `scripts/run_compose_integration.py`; quality validation report-only (`--threshold 0`). Defer Phases 3–5. [PR #30](https://github.com/Tusquito/codebase-indexer-mcp/pull/30) (`8be500b`) | 2026-07-08 |
 | 0026 | Phase 3 — Candidate registry + integration spikes | Accepted (phase 1 — Harness reliability fix) | phase-3 | `merged` | 10-row `model_candidates.yaml` registry with validating `candidates.py` loader; `config.py` entries for GTE_MODERNBERT_SPECS, GRANITE_EMBED_SPECS (including granite-embedding-97m), and INF_RETRIEVER_SPECS; `_settings.py` per-candidate swap helper; `verify_candidate.py` (`tei_health` + `tei_embed_smoke`); feature-flagged `query_instruction` and `normalize_output` hooks in `TeiDenseBackend`; inf-retriever spike passed; pplx-embed INT8 dropped for both sizes per 30-min drop-on-failure rule; unit tests; fixture-only, no production default change. Defer live per-native-candidate verify runs and Phase 4 bake-off orchestration. | 2026-07-10 |
+| 0028 | Phase 1 — Documented profile | Accepted (phase 1 — Documented profile) | phase-1 | `merged` | Phase 1 — `docs/DEPLOYMENT.md` § Apple Silicon (arm64 CPU) with M3 Pro 24 GiB Docker VM profile and minimal 18 GiB tier; `.env.example` macOS presets; README + `.github/copilot-instructions.md` cross-links; manual operator checklist; defer Phase 2 code. | 2026-07-12 |
 <!-- END GENERATED:summary -->
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
@@ -1629,6 +1630,50 @@ _No active or upcoming phases._
 - **Code evidence:** `mcp_server/benchmarks/fixtures/golden_queries.jsonl`, `mcp_server/benchmarks/fixtures/eval_baseline.json`, `mcp_server/tests/test_eval_retrieval.py`, `mcp_server/tests/test_eval_multihop.py`
 - **Test debt:** Compose harness must invoke eval with --extra benchmark; Phase 4 GPU bake-off to regenerate baseline metrics
 - **Changelog:** no — user-facing no; invoker Changelog: no
+
+### ADR 0028 — Phase 1 — Documented profile
+
+#### 2026-07-12 — verification
+- **Phase:** Phase 1 — Documented profile
+- **Tracker status:** `verified`
+- **Choices:** Documented native arm64 CPU-first profile with manual TEI_IMAGE=cpu-arm64-1.9; M3 Pro 24 GiB + 18 GiB presets; RERANK_ENABLED=false; rejected amd64 emulation
+- **Deviations:** none
+- **Code evidence:** `docs/DEPLOYMENT.md`, `.env.example`, `README.md`, `.github/copilot-instructions.md`
+- **Verify:** tests run + plan compliance pass; review rounds: 2
+- **Changelog:** no — user-facing yes; invoker Changelog: no
+
+#### 2026-07-12 — prioritization
+- **Phase:** Phase 1 — Documented profile
+- **Tracker status:** `candidate`
+- **Choices:** Prioritize 0028 Phase 1 over 0026 Phase 4 (strategically higher score but NVIDIA-GPU-blocked on M3 Pro); over 0027 Phase 1 (Proposed, needs Accept, declined 2026-07-10); over 0029 Phase 1 (depends on 0028 baseline); over 0002 Phase 4 and 0023 Phase 3 (higher scope, lower immediate ops urgency); single phase per pipeline rule; no ADR Accept required (0028 already Accepted); pre-release: docs-only Phase 1, no global default change for NVIDIA hosts. **Why now:** ADRs 0028 and 0029 Accepted 2026-07-12 with zero tracker phases and zero code; maintainer hardware is Apple Silicon M3 Pro without NVIDIA GPU; `compose_files.py` still defaults to x86 `cpu-1.9` TEI, `tune_alloc.py` lacks darwin RAM detection, and `DEPLOYMENT.md`/`.env.example` have no Apple Silicon profile — operational blocker for daily development; ADR 0026 Phase 4 GPU bake-off cannot run on Mac per GPU-only scoring policy; tracker shows no active phases. **Suggested scope:** one phase (= one PR). **Chosen scope:** Phase 1 — `docs/DEPLOYMENT.md` § Apple Silicon (arm64 CPU) with M3 Pro 24 GiB Docker VM profile and minimal 18 GiB tier; `.env.example` macOS presets (`ACCELERATOR=cpu`, `TEI_IMAGE=ghcr.io/huggingface/text-embeddings-inference:cpu-arm64-1.9`, `TEI_MKL_INSTRUCTIONS=`, `RERANK_ENABLED=false`, cgroup caps); README + `.github/copilot-instructions.md` cross-links; manual operator checklist; defer Phase 2 arch-aware `compose_files.py` / `tune_alloc.py` / MKL compose fix.
+- **Deviations:** none
+- **Code evidence:** ``scripts/compose_files.py` defaults `ACCELERATOR=cpu` → x86 `cpu-1.9` TEI`, ``scripts/tune_alloc.py` lacks darwin RAM detection`, ``docs/DEPLOYMENT.md` and `.env.example` have no Apple Silicon profile`
+- **Changelog:** no — user-facing yes; invoker Changelog: no
+
+#### 2026-07-12 — plan
+- **Phase:** Phase 1 — Documented profile
+- **Tracker status:** `planned`
+- **Choices:** Docs-only Phase 1 per binding human decision; no Phase 2 code in this PR; ADR 0028 already Accepted; NVIDIA default unchanged; CI amd64 path unchanged. Operators manually set TEI_IMAGE and TEI_MKL_INSTRUCTIONS= until Phase 2; M3 Pro manual smoke is primary merge gate for Mac correctness.
+- **Deviations:** none
+- **Changelog:** no — user-facing yes; invoker Changelog: no
+
+#### 2026-07-12 — merge
+- **Phase:** Phase 1 — Documented profile
+- **Tracker status:** `merged`
+- **Choices:** merge via [PR #33](https://github.com/Tusquito/codebase-indexer-mcp/pull/33) on branch `adr/0028-phase-1-documented-profile`; ADR Accept skipped — already Accepted (phase 1 — Documented profile)
+- **Deviations:** none
+- **Code evidence:** `merged via [PR #33](https://github.com/Tusquito/codebase-indexer-mcp/pull/33) (`adr/0028-phase-1-documented-profile`)`
+- **Verify:** carried from verification — tests run + plan compliance pass; review rounds: 2
+- **Git:** https://github.com/Tusquito/codebase-indexer-mcp/pull/33 — status: merged
+- **Changelog:** no — user-facing yes; invoker Changelog: no
+
+#### 2026-07-12 — implementation
+- **Phase:** Phase 1 — Documented profile
+- **Tracker status:** `implemented`
+- **Choices:** Documented native arm64 CPU-first profile with manual TEI_IMAGE=cpu-arm64-1.9; M3 Pro 24 GiB + 18 GiB presets; RERANK_ENABLED=false; rejected amd64 emulation
+- **Deviations:** none
+- **Code evidence:** `docs/DEPLOYMENT.md`, `.env.example`, `README.md`, `.github/copilot-instructions.md`
+- **Changelog:** no — invoker Changelog: no; status implemented
 <!-- END GENERATED:phase-logs -->
 
 ---
@@ -1661,6 +1706,9 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 - RESOLVED — Spike time-box: 30 minutes per spike; drop on failure after time-box expires.
 - RESOLVED — Granite-97m: include `ibm-granite/granite-embedding-97m` in Phase 3 native TEI verification.
 - RESOLVED — Gated models: exclude all P2Use/gated models from Phase 3 (including `google/embeddinggemma-300m`) despite HF_TOKEN in `.env`; document skip/exclusion rationale in registry
+- RESOLVED — (1) do not Accept ADR 0027 this cycle; proceed with 0028
+- RESOLVED — (2) no NVIDIA GPU access — defer 0026 Phase 4 until after 0028 Mac path lands
+- RESOLVED — (3) Phase 1 only — do not combine Phase 2 code in this PR
 <!-- END GENERATED:open-decisions -->
 
 ---

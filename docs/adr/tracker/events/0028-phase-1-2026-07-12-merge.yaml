@@ -1,0 +1,19 @@
+adr_id: '0028'
+phase_key: phase-1
+phase_title: Phase 1 — Documented profile
+event: merge
+date: '2026-07-12'
+tracker_status: merged
+choices: >-
+  merge via [PR #33](https://github.com/Tusquito/codebase-indexer-mcp/pull/33) on branch `adr/0028-phase-1-documented-profile`; ADR Accept skipped — already Accepted (phase 1 — Documented profile)
+deviations: none
+code_evidence:
+  - 'merged via [PR #33](https://github.com/Tusquito/codebase-indexer-mcp/pull/33) (`adr/0028-phase-1-documented-profile`)'
+verify: 'carried from verification — tests run + plan compliance pass; review rounds: 2'
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/33
+  status: merged
+changelog:
+  update: false
+  reason: 'user-facing yes; invoker Changelog: no'
+user_facing: true
