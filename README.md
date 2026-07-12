@@ -13,6 +13,7 @@ A fully self-hosted, Docker-based MCP server that indexes your codebase into a l
 - **Optional GraphRAG** — index-time Neo4j code graph alongside Qdrant when `GRAPH_ENABLED=true` and `docker-compose.neo4j.yml` overlay is used ([ADR 0002](docs/adr/0002-graphrag-neo4j-qdrant.md)); disabled by default
 - **MCP Compatible** — Works with Claude Desktop, Copilot CLI, Cursor, and more
 - **GPU-default acceleration** — Dense TEI and ColBERT sidecar run on NVIDIA GPU by default ([ADR 0022](docs/adr/0022-gpu-default-cpu-fallback.md)); set `ACCELERATOR=cpu` only for explicit CPU-only hosts
+- **Apple Silicon (arm64 CPU)** — Native `cpu-arm64-1.9` TEI profile for M-series Macs without NVIDIA ([ADR 0028](docs/adr/0028-apple-silicon-arm64-cpu-deployment.md)); optional host Metal TEI ([ADR 0029](docs/adr/0029-macos-host-native-tei-metal-acceleration.md))
 
 ## Documentation
 
@@ -23,7 +24,7 @@ A fully self-hosted, Docker-based MCP server that indexes your codebase into a l
 | [CHANGELOG.md](CHANGELOG.md) | Release history (Keep a Changelog format) |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Per-component responsibilities, indexing pipeline, embedding layer, hybrid search |
 | [docs/adr/](docs/adr/) | Architecture Decision Records — see [0025](docs/adr/0025-huggingface-tei-dense-embedding.md) (TEI dense), [0021](docs/adr/0021-revert-jina-production-default-retire-qwen3.md) (Jina production default), [0016](docs/adr/0016-qwen3-embedding-default-dense-model.md) (Qwen3 experimental preset — historical), [0012](docs/adr/0012-retrieval-only-rag-split.md) (retrieval-only RAG), [0008](docs/adr/0008-optional-colbert-reranking.md) (ColBERT rerank), [0014](docs/adr/0014-vector-discovery-and-ops-automation.md) (recommendation search), [0015](docs/adr/0015-colbert-http-sidecar.md) (ColBERT sidecar) |
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | GPU-default TEI compose, explicit `ACCELERATOR=cpu` exception, GraphRAG overlay, metrics, memory/CPU tuning |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | GPU-default TEI compose, explicit `ACCELERATOR=cpu` exception, Apple Silicon arm64 profile, GraphRAG overlay, metrics, memory/CPU tuning |
 | [docs/SEARCH_BEHAVIOR.md](docs/SEARCH_BEHAVIOR.md) | `search_codebase` / `search_symbols` caps, `min_score` vs RRF, `recommend_code`, `find_outlier_chunks`, ColBERT rerank |
 
 ## System Architecture
@@ -79,6 +80,28 @@ For CI, air-gapped CPU servers, or hosts without NVIDIA — not the production d
 # In .env: ACCELERATOR=cpu, TEI_GPU=0
 docker compose $(ACCELERATOR=cpu python scripts/compose_files.py) --profile bundled-tei up -d --build
 ```
+
+### Apple Silicon (M1/M2/M3/M4)
+
+No discrete NVIDIA GPU on Apple Silicon — use the **native arm64 CPU profile** ([ADR 0028](docs/adr/0028-apple-silicon-arm64-cpu-deployment.md)). Copy the M3 Pro preset from `.env.example` (24 GiB Docker Desktop VM primary; 18 GiB minimal tier). Key settings:
+
+- `ACCELERATOR=cpu`
+- `TEI_IMAGE=ghcr.io/huggingface/text-embeddings-inference:cpu-arm64-1.9` (manual until Phase 2)
+- `TEI_MKL_INSTRUCTIONS=` (empty — do not use x86 AVX2 on arm64)
+- `RERANK_ENABLED=false` (ColBERT GPU sidecar unavailable)
+- Docker Desktop → Resources → Memory: **24 GiB** recommended (leave 4–6 GiB for macOS on 18 GiB hosts)
+
+```bash
+cp .env.example .env
+# Paste M3 Pro 24 GiB preset; set WORKSPACE_ROOT=/Users/<user>/Documents/Repositories
+
+docker compose $(ACCELERATOR=cpu python scripts/compose_files.py) --profile bundled-tei up -d --build
+curl http://localhost:8000/health
+curl http://127.0.0.1:8080/health
+docker version --format '{{.Server.Arch}}'   # expect arm64
+```
+
+Full operator checklist, cgroup presets, and architecture verification: [docs/DEPLOYMENT.md § Apple Silicon](docs/DEPLOYMENT.md#apple-silicon-arm64-cpu). Optional faster dense embed: [ADR 0029](docs/adr/0029-macos-host-native-tei-metal-acceleration.md) (host Metal TEI).
 
 ## MCP Client Configuration
 
@@ -649,6 +672,8 @@ Dense vectors always come from **TEI** (`DENSE_EMBED_MODEL`, default `jinaai/jin
 TEI has no manual pull step — it downloads the `--model-id` weights to the `tei_data` volume automatically on first container start; subsequent restarts reuse the cached weights.
 
 For CPU-only hosts, set `ACCELERATOR=cpu` in `.env` (see [DEPLOYMENT.md](docs/DEPLOYMENT.md#explicit-cpu-only-acceleratorcpu)) — not the production default.
+
+**Apple Silicon:** use native `cpu-arm64-1.9` TEI and M3 Pro presets in `.env.example` — see [DEPLOYMENT.md § Apple Silicon](docs/DEPLOYMENT.md#apple-silicon-arm64-cpu) and [ADR 0028](docs/adr/0028-apple-silicon-arm64-cpu-deployment.md).
 
 GPU is the default when `ACCELERATOR=gpu`: use `docker compose $(python scripts/compose_files.py)`. Verify with `docker exec codeindexer_tei nvidia-smi`.
 
