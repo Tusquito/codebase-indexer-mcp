@@ -132,7 +132,7 @@ No hand-assembled file lists. No “optional GPU” wording.
 ### Out of scope
 
 - **Moving sparse BM25 to GPU** — MCP stays `onnxruntime` CPU + fastembed CPU for sparse ([ADR 0011](0011-ollama-only-dense-embedding.md), [ADR 0015](0015-colbert-http-sidecar.md))
-- AMD ROCm / Apple Metal (future ADR; until then those hosts use `ACCELERATOR=cpu` explicitly)
+- AMD ROCm (future ADR); **Apple Silicon:** CPU arm64 profile [0028](0028-apple-silicon-arm64-cpu-deployment.md); optional host Metal TEI [0029](0029-macos-host-native-tei-metal-acceleration.md) — both use `ACCELERATOR=cpu` explicitly
 - Automatic multi-GPU scheduling between Ollama and ColBERT (operator configures device IDs)
 - Changing default dense model ([ADR 0021](0021-revert-jina-production-default-retire-qwen3.md))
 - Mandatory GPU gate on every PR in shared GitHub Actions (CPU jobs stay explicit `ACCELERATOR=cpu`)
