@@ -1,0 +1,21 @@
+adr_id: '0028'
+phase_key: phase-2
+phase_title: Phase 2 — Arch-aware compose defaults
+event: merge
+date: '2026-07-12'
+tracker_status: merged
+choices: >-
+  squash merge `94d3bf7` on feature branch `adr/0028-phase-2-arch-aware-compose`; ADR Accept skipped — already Accepted; release skipped
+deviations: none
+code_evidence:
+  - 'merged via [PR #34](https://github.com/Tusquito/codebase-indexer-mcp/pull/34) (`adr/0028-phase-2-arch-aware-compose`; squash `94d3bf7`)'
+verify: >-
+  carried from verification — tests run + plan compliance pass — 43 targeted unit tests passed; Docker integration pass on arm64 with quality validation threshold 0; review rounds: 1
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/34
+  commit: 94d3bf7
+  status: merged
+changelog:
+  update: false
+  reason: 'user-facing yes; invoker Changelog: no'
+user_facing: true

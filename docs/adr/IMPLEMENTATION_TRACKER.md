@@ -78,7 +78,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0026 | Phase 2 — Golden-set expansion | Accepted (phase 1 — Harness reliability fix) | phase-2 | `merged` | Expand `mcp_server/benchmarks/fixtures/golden_queries.jsonl` in place from 26 to ≥75 distinct content-anchored (Phase-1 format) queries via the existing `suggest_labels.py` workflow; meet resolved per-tag membership targets (symbol 26, conceptual 7, config 19, cross_file 19, multi_hop 15); preserve `multi_hop` `hop2_query_text`; every multi_hop row carries a secondary tag (no pure multi_hop); ground-truth subset floor 19; `--validate-labels` zero unresolved; bump `golden_set_version` in `eval_baseline.json` only; raise golden-fixture unit-test floors + add a per-tag distribution/anchor-coverage test; Docker integration via `scripts/run_compose_integration.py`; quality validation report-only (`--threshold 0`). Defer Phases 3–5. [PR #30](https://github.com/Tusquito/codebase-indexer-mcp/pull/30) (`8be500b`) | 2026-07-08 |
 | 0026 | Phase 3 — Candidate registry + integration spikes | Accepted (phase 1 — Harness reliability fix) | phase-3 | `merged` | 10-row `model_candidates.yaml` registry with validating `candidates.py` loader; `config.py` entries for GTE_MODERNBERT_SPECS, GRANITE_EMBED_SPECS (including granite-embedding-97m), and INF_RETRIEVER_SPECS; `_settings.py` per-candidate swap helper; `verify_candidate.py` (`tei_health` + `tei_embed_smoke`); feature-flagged `query_instruction` and `normalize_output` hooks in `TeiDenseBackend`; inf-retriever spike passed; pplx-embed INT8 dropped for both sizes per 30-min drop-on-failure rule; unit tests; fixture-only, no production default change. Defer live per-native-candidate verify runs and Phase 4 bake-off orchestration. | 2026-07-10 |
 | 0028 | Phase 1 — Documented profile | Accepted (phase 1 — Documented profile) | phase-1 | `merged` | Phase 1 — `docs/DEPLOYMENT.md` § Apple Silicon (arm64 CPU) with M3 Pro 24 GiB Docker VM profile and minimal 18 GiB tier; `.env.example` macOS presets; README + `.github/copilot-instructions.md` cross-links; manual operator checklist; defer Phase 2 code. | 2026-07-12 |
-| 0028 | Phase 2 — Arch-aware compose defaults | Accepted (phase 2 — Arch-aware compose defaults) | phase-2 | `verified` | `TEI_IMAGE_CPU_ARM64_DEFAULT` + `container_arch()` (Docker server arch → `platform.machine()` fallback) in `scripts/compose_files.py`; arch-aware `tei_image_default()`; darwin `sysctl hw.memsize` + `DEFAULT_RESERVE_GIB=4.0` in `scripts/tune_alloc.py`; MKL compose fix or arm64 gate in `docker-compose.tei.yml`; arch-aware `TEI_IMAGE` in `scripts/run_compose_integration.py`; unit tests per ADR 0028 Validation; Docker integration. Defer Phase 3 ColBERT-on-Mac doc and Phase 4 `macos_m3pro_matrix.json`. | 2026-07-12 |
+| 0028 | Phase 2 — Arch-aware compose defaults | Accepted (phase 2 — Arch-aware compose defaults) | phase-2 | `merged` | `TEI_IMAGE_CPU_ARM64_DEFAULT` + `container_arch()` (Docker server arch → `platform.machine()` fallback) in `scripts/compose_files.py`; arch-aware `tei_image_default()`; darwin `sysctl hw.memsize` + `DEFAULT_RESERVE_GIB=4.0` in `scripts/tune_alloc.py`; MKL compose fix or arm64 gate in `docker-compose.tei.yml`; arch-aware `TEI_IMAGE` in `scripts/run_compose_integration.py`; unit tests per ADR 0028 Validation; Docker integration. Defer Phase 3 ColBERT-on-Mac doc and Phase 4 `macos_m3pro_matrix.json`. | 2026-07-12 |
 <!-- END GENERATED:summary -->
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
@@ -86,7 +86,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 ## Active and upcoming work
 
 <!-- BEGIN GENERATED:active -->
-- **0028** Phase 2 — Arch-aware compose defaults — `verified`
+_No active or upcoming phases._
 <!-- END GENERATED:active -->
 
 ### Partial acceptance
@@ -1690,6 +1690,16 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 - **Code evidence:** `merged via [PR #33](https://github.com/Tusquito/codebase-indexer-mcp/pull/33) (`adr/0028-phase-1-documented-profile`)`
 - **Verify:** carried from verification — tests run + plan compliance pass; review rounds: 2
 - **Git:** https://github.com/Tusquito/codebase-indexer-mcp/pull/33 — status: merged
+- **Changelog:** no — user-facing yes; invoker Changelog: no
+
+#### 2026-07-12 — merge
+- **Phase:** Phase 2 — Arch-aware compose defaults
+- **Tracker status:** `merged`
+- **Choices:** squash merge `94d3bf7` on feature branch `adr/0028-phase-2-arch-aware-compose`; ADR Accept skipped — already Accepted; release skipped
+- **Deviations:** none
+- **Code evidence:** `merged via [PR #34](https://github.com/Tusquito/codebase-indexer-mcp/pull/34) (`adr/0028-phase-2-arch-aware-compose`; squash `94d3bf7`)`
+- **Verify:** carried from verification — tests run + plan compliance pass — 43 targeted unit tests passed; Docker integration pass on arm64 with quality validation threshold 0; review rounds: 1
+- **Git:** https://github.com/Tusquito/codebase-indexer-mcp/pull/34 — status: merged — commit: 94d3bf7
 - **Changelog:** no — user-facing yes; invoker Changelog: no
 
 #### 2026-07-12 — implementation

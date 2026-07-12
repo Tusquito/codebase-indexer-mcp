@@ -1,8 +1,9 @@
 adr_id: '0028'
 phase_key: phase-2
 title: Phase 2 — Arch-aware compose defaults
-tracker_status: verified
+tracker_status: merged
 chosen_scope: >-
   `TEI_IMAGE_CPU_ARM64_DEFAULT` + `container_arch()` (Docker server arch → `platform.machine()` fallback) in `scripts/compose_files.py`; arch-aware `tei_image_default()`; darwin `sysctl hw.memsize` + `DEFAULT_RESERVE_GIB=4.0` in `scripts/tune_alloc.py`; MKL compose fix or arm64 gate in `docker-compose.tei.yml`; arch-aware `TEI_IMAGE` in `scripts/run_compose_integration.py`; unit tests per ADR 0028 Validation; Docker integration. Defer Phase 3 ColBERT-on-Mac doc and Phase 4 `macos_m3pro_matrix.json`.
 last_updated: '2026-07-12'
+pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/34
 adr_status_note: Accepted (phase 2 — Arch-aware compose defaults)
