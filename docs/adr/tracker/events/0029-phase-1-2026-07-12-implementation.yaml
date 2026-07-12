@@ -1,0 +1,24 @@
+adr_id: '0029'
+phase_key: phase-1
+phase_title: Phase 1 — Documentation
+event: implementation
+date: '2026-07-12'
+tracker_status: implemented
+choices: >-
+  Docs-only single PR per ADR Phase 1; bundled 0028 CPU TEI remains default; Metal opt-in via existing `TEI_URL` + empty `COMPOSE_PROFILES`; DEPLOYMENT Metal § placed after Apple Silicon, before generic External TEI; four-surface sync (README, copilot-instructions, SKILL, DEPLOYMENT + `.env.example`); `--hostname 127.0.0.1` documented with upstream flag verification note; Phase 2 `--external-tei` integration smoke and Phase 3 `metal_host_tei` benchmark deferred
+deviations: none
+code_evidence:
+  - docs/DEPLOYMENT.md
+  - .env.example
+  - README.md
+  - .github/copilot-instructions.md
+  - skill/codebase-indexer/SKILL.md
+test_debt:
+  - Phase 2 `--external-tei` harness path
+  - Phase 3 `metal_host_tei` benchmark
+  - maintainer manual Metal log check on first embed
+  - full `run_compose_integration.py` re-run after `uv` install on verification host
+changelog:
+  update: false
+  reason: 'user-facing yes; invoker Changelog: no'
+user_facing: true

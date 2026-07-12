@@ -1,0 +1,9 @@
+adr_id: '0029'
+phase_key: phase-1
+title: Phase 1 — Documentation
+tracker_status: merged
+chosen_scope: >-
+  Docs-only single PR; host-native Metal TEI in `docs/DEPLOYMENT.md` (after Apple Silicon, before External TEI); `.env.example` Metal preset; four-surface sync (README, copilot-instructions, SKILL, DEPLOYMENT); bundled 0028 CPU TEI remains default; Metal opt-in via `TEI_URL` + empty `COMPOSE_PROFILES`; `--hostname 127.0.0.1` with upstream flag verification note. Defer Phase 2 `--external-tei` integration smoke and Phase 3 `metal_host_tei` benchmark.
+last_updated: '2026-07-12'
+pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/35
+adr_status_note: Accepted (phase 1 — Documentation)

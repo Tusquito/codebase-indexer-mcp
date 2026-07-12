@@ -1,0 +1,21 @@
+adr_id: '0029'
+phase_key: phase-1
+phase_title: Phase 1 — Documentation
+event: merge
+date: '2026-07-12'
+tracker_status: merged
+choices: >-
+  squash merge `05f44a5` on feature branch `adr/0029-phase-1-metal-tei-docs` (`7c9503e` docs(deploy): add metal tei operator profile); ADR Accept skipped — already Accepted; release skipped
+deviations: none
+code_evidence:
+  - 'merged via [PR #35](https://github.com/Tusquito/codebase-indexer-mcp/pull/35) (`adr/0029-phase-1-metal-tei-docs`; squash `05f44a5`)'
+verify: >-
+  carried from verification — tests run + plan compliance pass; unit 492 passed 8 skipped; integration ACCELERATOR=cpu run_compose_integration.py --json exit 0; review round 1 clean
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/35
+  commit: 05f44a5
+  status: merged
+changelog:
+  update: false
+  reason: 'user-facing yes; invoker Changelog: no'
+user_facing: true

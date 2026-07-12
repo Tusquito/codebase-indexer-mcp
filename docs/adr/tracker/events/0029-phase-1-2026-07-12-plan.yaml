@@ -1,0 +1,16 @@
+adr_id: '0029'
+phase_key: phase-1
+phase_title: Phase 1 — Documentation
+event: plan
+date: '2026-07-12'
+tracker_status: planned
+choices: >-
+  Single PR; docs-only per ADR Phase 1; no server/compose/Python changes; 0028 bundled CPU TEI remains default; Metal opt-in via existing `TEI_URL` + empty `COMPOSE_PROFILES`; DEPLOYMENT Metal § placed after Apple Silicon, before generic External TEI; SKILL gets Deployment (macOS) section per AGENTS four-surface sync; ARCHITECTURE.md left unchanged (already cites 0029); suggested tier `claude-sonnet-5-thinking-high`. **Assumptions:** ADR 0028 Phases 1–2 merged; ADR 0029 Accepted; `docker-compose.yml` external TEI wiring sufficient; maintainer validates Metal path manually (not CI); Homebrew formula available on Apple Silicon host.
+deviations: none
+changelog:
+  update: false
+  reason: 'user-facing yes; invoker Changelog: no'
+user_facing: true
+open_decisions:
+  - Confirm `text-embeddings-router --hostname` flag spelling at doc-write time
+  - Whether to add DEPLOYMENT Metal anchor to `docs/ARCHITECTURE.md` (optional, out of chosen scope)

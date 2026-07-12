@@ -1,0 +1,25 @@
+adr_id: '0029'
+phase_key: phase-1
+phase_title: Phase 1 — Documentation
+event: verification
+date: '2026-07-12'
+tracker_status: verified
+choices: >-
+  Docs-only single PR; host-native Metal TEI in docs/DEPLOYMENT.md; four-surface sync; bundled 0028 CPU TEI remains default; Metal opt-in; Phase 2/3 deferred
+deviations: none
+code_evidence:
+  - docs/DEPLOYMENT.md
+  - .env.example
+  - README.md
+  - .github/copilot-instructions.md
+  - skill/codebase-indexer/SKILL.md
+test_debt:
+  - Phase 2 --external-tei harness
+  - Phase 3 metal_host_tei benchmark
+  - maintainer manual Metal log check
+verify: >-
+  tests run + plan compliance pass; unit 492 passed 8 skipped; integration ACCELERATOR=cpu run_compose_integration.py --json exit 0; review round 1 clean
+changelog:
+  update: false
+  reason: 'user-facing yes; invoker Changelog: no'
+user_facing: true

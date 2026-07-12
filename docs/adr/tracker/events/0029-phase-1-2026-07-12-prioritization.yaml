@@ -1,0 +1,18 @@
+adr_id: '0029'
+phase_key: phase-1
+phase_title: Phase 1 — Documentation
+event: prioritization
+date: '2026-07-12'
+tracker_status: candidate
+choices: >-
+  Prioritize 0029 Phase 1 over 0028 Phase 4 (higher raw score but maintainer-manual benchmark session); over 0029 Phase 2 (delivery-order prerequisite — P1 docs first); over 0030 Phase 1 (Proposed, needs Accept, 7-phase greenfield); over 0028 Phase 3 (lower impact — rerank off by default); over 0027 Phase 1 (Proposed, tracker resolved defer Accept); over 0026 Phase 4 (NVIDIA-GPU-blocked on M3 Pro); single phase per pipeline rule; no ADR Accept required (0029 already Accepted); pre-release: opt-in profile only, bundled 0028 CPU TEI remains default. **Why now:** ADR 0028 Phases 1–2 merged 2026-07-12; compose arch-aware TEI defaults and darwin `tune_alloc` shipped. ADR 0029 Accepted with zero tracker phases. Maintainer is Apple Silicon M3 Pro without NVIDIA; 0026 Phase 4 GPU bake-off deferred until Mac path completes. Phase 1 docs normative-ize host Homebrew Metal TEI — the explicit next step deferred behind 0028 Phase 2 in the 2026-07-12 prioritization event. Partial README/copilot cross-links exist; DEPLOYMENT § Metal profile, `.env.example` Metal preset, and maintainer checklist remain open. **Suggested scope:** one phase (= one PR). **Chosen scope:** `docs/DEPLOYMENT.md` § host-native Metal TEI (brew install, `text-embeddings-router` operator profile, 24 GiB Docker VM reduced caps table, unified-memory notes, first-embed Metal log check); `.env.example` external Metal TEI comment block; README + `.github/copilot-instructions.md` + `skill/codebase-indexer/SKILL.md` sync; fix stale `.env.example` "until Phase 2 arch-aware defaults" comment. Defer Phase 2 `--external-tei` integration smoke and Phase 3 `macos_m3pro_matrix.json` `metal_host_tei` benchmark.
+deviations: none
+changelog:
+  update: false
+  reason: 'user-facing yes; invoker Changelog: no'
+user_facing: true
+open_decisions:
+  - Accept ADR 0030 before .NET migration?
+  - Accept ADR 0027 in a future cycle?
+  - '0028 Phase 4 benchmark tier: 24 GiB vs 18 GiB Docker VM?'
+  - NVIDIA GPU host availability for 0026 Phase 4 bake-off?
