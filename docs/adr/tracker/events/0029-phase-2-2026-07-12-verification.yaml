@@ -1,0 +1,26 @@
+adr_id: '0029'
+phase_key: phase-2
+phase_title: Phase 2 — Integration smoke
+event: verification
+date: '2026-07-12'
+tracker_status: verified
+choices: >-
+  Harness-only PR; `include_tei=False` via `compose_file_args`; force `ACCELERATOR=cpu`; M3 Pro Metal cgroup preset; host TEI preflight; `tei_container_absent` verdict gate; bundled path unchanged; quality/perf validation skipped
+deviations: none
+code_evidence:
+  - scripts/run_compose_integration.py
+  - mcp_server/tests/test_run_compose_integration_gpu.py
+  - docs/adr/0029-macos-host-native-tei-metal-acceleration.md
+  - docs/DEPLOYMENT.md
+  - CONTRIBUTING.md
+  - .cursor/agents/adr-integration-tester.md
+test_debt:
+  - Live M3 Pro `--external-tei` full Docker integration before merge
+  - Phase 3 `metal_host_tei` benchmark
+  - maintainer Metal log check on first embed
+verify: >-
+  14/14 unit tests pass; bundled Docker integration pass; plan compliance pass; review rounds: 1
+changelog:
+  update: false
+  reason: 'user-facing yes; invoker Changelog: no'
+user_facing: true
