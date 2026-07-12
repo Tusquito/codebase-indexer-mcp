@@ -13,7 +13,7 @@ A fully self-hosted, Docker-based MCP server that indexes your codebase into a l
 - **Optional GraphRAG** — index-time Neo4j code graph alongside Qdrant when `GRAPH_ENABLED=true` and `docker-compose.neo4j.yml` overlay is used ([ADR 0002](docs/adr/0002-graphrag-neo4j-qdrant.md)); disabled by default
 - **MCP Compatible** — Works with Claude Desktop, Copilot CLI, Cursor, and more
 - **GPU-default acceleration** — Dense TEI and ColBERT sidecar run on NVIDIA GPU by default ([ADR 0022](docs/adr/0022-gpu-default-cpu-fallback.md)); set `ACCELERATOR=cpu` only for explicit CPU-only hosts
-- **Apple Silicon (arm64 CPU)** — Native `cpu-arm64-1.9` TEI profile for M-series Macs without NVIDIA ([ADR 0028](docs/adr/0028-apple-silicon-arm64-cpu-deployment.md)); optional host Metal TEI ([ADR 0029](docs/adr/0029-macos-host-native-tei-metal-acceleration.md))
+- **Apple Silicon (arm64 CPU)** — Native `cpu-arm64-latest` TEI profile for M-series Macs without NVIDIA ([ADR 0028](docs/adr/0028-apple-silicon-arm64-cpu-deployment.md)); optional host Metal TEI ([ADR 0029](docs/adr/0029-macos-host-native-tei-metal-acceleration.md))
 
 ## Documentation
 
@@ -86,7 +86,7 @@ docker compose $(ACCELERATOR=cpu python scripts/compose_files.py) --profile bund
 No discrete NVIDIA GPU on Apple Silicon — use the **native arm64 CPU profile** ([ADR 0028](docs/adr/0028-apple-silicon-arm64-cpu-deployment.md)). Copy the M3 Pro preset from `.env.example` (24 GiB Docker Desktop VM primary; 18 GiB minimal tier). Key settings:
 
 - `ACCELERATOR=cpu`
-- `TEI_IMAGE=ghcr.io/huggingface/text-embeddings-inference:cpu-arm64-1.9` (manual until Phase 2)
+- `TEI_IMAGE=ghcr.io/huggingface/text-embeddings-inference:cpu-arm64-latest` (set in `.env` for manual compose up; integration harness uses `tei_image_default()`)
 - `TEI_MKL_INSTRUCTIONS=` (empty — do not use x86 AVX2 on arm64)
 - `RERANK_ENABLED=false` (ColBERT GPU sidecar unavailable)
 - Docker Desktop → Resources → Memory: **24 GiB** recommended (leave 4–6 GiB for macOS on 18 GiB hosts)
@@ -673,7 +673,7 @@ TEI has no manual pull step — it downloads the `--model-id` weights to the `te
 
 For CPU-only hosts, set `ACCELERATOR=cpu` in `.env` (see [DEPLOYMENT.md](docs/DEPLOYMENT.md#explicit-cpu-only-acceleratorcpu)) — not the production default.
 
-**Apple Silicon:** use native `cpu-arm64-1.9` TEI and M3 Pro presets in `.env.example` — see [DEPLOYMENT.md § Apple Silicon](docs/DEPLOYMENT.md#apple-silicon-arm64-cpu) and [ADR 0028](docs/adr/0028-apple-silicon-arm64-cpu-deployment.md).
+**Apple Silicon:** use native `cpu-arm64-latest` TEI and M3 Pro presets in `.env.example` — see [DEPLOYMENT.md § Apple Silicon](docs/DEPLOYMENT.md#apple-silicon-arm64-cpu) and [ADR 0028](docs/adr/0028-apple-silicon-arm64-cpu-deployment.md).
 
 GPU is the default when `ACCELERATOR=gpu`: use `docker compose $(python scripts/compose_files.py)`. Verify with `docker exec codeindexer_tei nvidia-smi`.
 
