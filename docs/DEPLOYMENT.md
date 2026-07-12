@@ -9,6 +9,7 @@ Docker Compose runs Qdrant, the MCP server, and the cron reindex job. **Dense em
 | `docker-compose.yml` | Base stack: `codeindexer_qdrant`, `codeindexer_mcp`, `codeindexer_cron` |
 | `docker-compose.tei.yml` | Optional bundled `tei` service (`COMPOSE_PROFILES=bundled-tei`) |
 | `docker-compose.tei.gpu.yml` | **Default stack** — NVIDIA GPU for bundled TEI when `ACCELERATOR=gpu` (merged by `scripts/compose_files.py`) |
+| `docker-compose.tei.amd64-mkl.yml` | amd64 CPU only — injects `MKL_ENABLE_INSTRUCTIONS` for bundled TEI; omitted on arm64 ([ADR 0028](adr/0028-apple-silicon-arm64-cpu-deployment.md)) |
 | `docker-compose.colbert-worker.yml` | Optional ColBERT HTTP sidecar when `RERANK_ENABLED=true` and `COLBERT_EMBED_BACKEND=remote` |
 | `docker-compose.colbert-worker.gpu.yml` | **Default stack** — NVIDIA GPU for ColBERT sidecar when remote sidecar + `ACCELERATOR=gpu` |
 | `docker-compose.neo4j.yml` | Optional Neo4j graph storage for GraphRAG ([ADR 0002](adr/0002-graphrag-neo4j-qdrant.md)) |
@@ -29,7 +30,7 @@ Compose reads your host `.env` at `docker compose up` time and injects variables
 
 **Not in `.env`:** dense embedding is TEI-only via `TeiDenseBackend` ([ADR 0025](adr/0025-huggingface-tei-dense-embedding.md)). `FASTEMBED_CACHE_PATH` is set to the container cache volume path.
 
-**Compose-only variables** (not read by Python `Settings`): `WORKSPACE_ROOT`, `MCP_MEM_LIMIT`, `QDRANT_MEM_LIMIT`, `MCP_CPUS`, `QDRANT_CPUS`, `COMPOSE_PROFILES`, `ACCELERATOR`, `TEI_GPU`, `TEI_GPU_COUNT`, `TEI_PORT`, `TEI_MEM_LIMIT`, `TEI_CPUS`, `COLBERT_GPU`, `COLBERT_GPU_COUNT`, `COLBERT_MEM_LIMIT`, `COLBERT_CPUS`, `NEO4J_MEM_LIMIT`, `NEO4J_CPUS`.
+**Compose-only variables** (not read by Python `Settings`): `WORKSPACE_ROOT`, `MCP_MEM_LIMIT`, `QDRANT_MEM_LIMIT`, `MCP_CPUS`, `QDRANT_CPUS`, `COMPOSE_PROFILES`, `ACCELERATOR`, `TEI_IMAGE`, `TEI_MKL_INSTRUCTIONS`, `TEI_GPU`, `TEI_GPU_COUNT`, `TEI_PORT`, `TEI_MEM_LIMIT`, `TEI_CPUS`, `COLBERT_GPU`, `COLBERT_GPU_COUNT`, `COLBERT_MEM_LIMIT`, `COLBERT_CPUS`, `NEO4J_MEM_LIMIT`, `NEO4J_CPUS`.
 
 For local `uv run python -m codebase_indexer.main`, pydantic reads `.env` in `mcp_server/` directly — same variable names apply.
 

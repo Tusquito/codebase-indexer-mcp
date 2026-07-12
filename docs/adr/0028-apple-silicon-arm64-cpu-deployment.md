@@ -32,7 +32,7 @@ The stack was developed and benchmarked on **Windows amd64 hosts with NVIDIA GPU
 
 | Workload | Windows + NVIDIA (production) | M3 Pro today (undocumented) | Target (this ADR) |
 |----------|------------------------------|----------------------------|-------------------|
-| Dense embed | GPU TEI `89-1.9` | Fails if `ACCELERATOR=gpu` (no NVIDIA) | **CPU TEI `cpu-arm64-1.9`**, native `linux/arm64` |
+| Dense embed | GPU TEI `89-1.9` | Fails if `ACCELERATOR=gpu` (no NVIDIA) | **CPU TEI `cpu-arm64-latest`**, native `linux/arm64` |
 | Sparse BM25 | CPU in MCP | Same (arm64 ONNX wheels) | Unchanged |
 | ColBERT rerank | GPU sidecar default | GPU sidecar unavailable | **`RERANK_ENABLED=false`** default; optional in-process ONNX only under `ACCELERATOR=cpu` |
 | Compose platform | amd64 | Risk of amd64 emulation | **Native arm64** — reject amd64 emulation as default |
@@ -58,7 +58,7 @@ The stack was developed and benchmarked on **Windows amd64 hosts with NVIDIA GPU
 ### Why now
 
 - Maintainer hardware is shifting to Apple Silicon (M3 Pro) without discrete GPU.
-- TEI ships a maintained **`cpu-arm64-1.9`** image ([TEI hardware table](https://huggingface.co/docs/text-embeddings-inference/en/supported_models)); the repo still defaults to `cpu-1.9` for all CPU hosts.
+- TEI ships a maintained **`cpu-arm64-latest`** arm64 image on GHCR ([TEI hardware table](https://huggingface.co/docs/text-embeddings-inference/en/supported_models)); Phase 2 ([PR #34](https://github.com/Tusquito/codebase-indexer-mcp/pull/34)) confirmed this tag over the originally cited `cpu-arm64-1.9` manifest. The repo still defaults to `cpu-1.9` for amd64 CPU hosts until arch detection runs.
 - [ADR 0022](0022-gpu-default-cpu-fallback.md) explicitly lists "Apple Metal (future ADR)" — this ADR closes the **documented CPU arm64 path** so orchestration can proceed before optional Metal work.
 
 ## Decision
@@ -72,7 +72,7 @@ We will adopt a **native arm64 CPU-first deployment profile** for Apple Silicon 
 | Variable | Apple Silicon value | Rationale |
 |----------|---------------------|-----------|
 | `ACCELERATOR` | `cpu` | No NVIDIA; only supported non-GPU path ([0022](0022-gpu-default-cpu-fallback.md)) |
-| `TEI_IMAGE` | `ghcr.io/huggingface/text-embeddings-inference:cpu-arm64-1.9` | Native aarch64 TEI ([TEI docs](https://huggingface.co/docs/text-embeddings-inference/en/supported_models)) |
+| `TEI_IMAGE` | `ghcr.io/huggingface/text-embeddings-inference:cpu-arm64-latest` | Native aarch64 TEI ([TEI docs](https://huggingface.co/docs/text-embeddings-inference/en/supported_models)) |
 | `COMPOSE_PROFILES` | `bundled-tei` | Same dense sidecar topology as production |
 | `DENSE_EMBED_MODEL` | `jinaai/jina-embeddings-v2-base-code` | Production default ([0021](0021-revert-jina-production-default-retire-qwen3.md)); quality parity, slower CPU |
 | `DENSE_EMBED_VECTOR_SIZE` | `768` | Matches Jina |
@@ -88,7 +88,7 @@ We will adopt a **native arm64 CPU-first deployment profile** for Apple Silicon 
 ```env
 ACCELERATOR=cpu
 COMPOSE_PROFILES=bundled-tei
-TEI_IMAGE=ghcr.io/huggingface/text-embeddings-inference:cpu-arm64-1.9
+TEI_IMAGE=ghcr.io/huggingface/text-embeddings-inference:cpu-arm64-latest
 TEI_URL=http://tei:80
 DENSE_EMBED_MODEL=jinaai/jina-embeddings-v2-base-code
 DENSE_EMBED_VECTOR_SIZE=768
@@ -141,7 +141,7 @@ RERANK_ENABLED=false
 
 *(Same `ACCELERATOR`, `TEI_IMAGE`, model, and `TEI_MAX_BATCH_TOKENS` vars as the 24 GiB preset.)*
 
-**36 GiB unified Mac hosts:** scale cgroup caps using the `.env.example` 16C/16GB or 32C/64GB ratio blocks, but keep `TEI_IMAGE=cpu-arm64-1.9` and `ACCELERATOR=cpu`; run `tune_stack.py allocate --cpu` after Phase 2 darwin detection lands.
+**36 GiB unified Mac hosts:** scale cgroup caps using the `.env.example` 16C/16GB or 32C/64GB ratio blocks, but keep `TEI_IMAGE=cpu-arm64-latest` and `ACCELERATOR=cpu`; run `tune_stack.py allocate --cpu` after Phase 2 darwin detection lands.
 
 Canonical invocation:
 
@@ -155,7 +155,7 @@ curl http://127.0.0.1:8080/health   # TEI ready after model download
 
 | Option | Verdict |
 |--------|---------|
-| **Native `linux/arm64` (chosen)** | Fastest path on M-series; TEI `cpu-arm64-1.9`; MCP/Qdrant build arm64 wheels |
+| **Native `linux/arm64` (chosen)** | Fastest path on M-series; TEI `cpu-arm64-latest`; MCP/Qdrant build arm64 wheels |
 | `linux/amd64` via Rosetta/QEMU | **Not recommended** — 2–5× slower TEI inference, higher RAM, wrong MKL knobs; only for debugging upstream x86-only bugs |
 | `ACCELERATOR=gpu` hoping for Metal in Docker | **Invalid** — fail fast; Metal requires host-native TEI ([0029](0029-macos-host-native-tei-metal-acceleration.md)) |
 
@@ -165,15 +165,15 @@ Do **not** document `docker compose --platform linux/amd64` as a Mac quick start
 
 | Area | Change |
 |------|--------|
-| `docs/DEPLOYMENT.md` | New § "Apple Silicon (arm64 CPU)" with 24 GiB Docker VM profile, minimal 18 GiB tier, `cpu-arm64-1.9` |
-| `.env.example` | macOS path presets (M3 Pro 24 GiB Docker VM primary; 18 GiB minimal); `TEI_IMAGE=cpu-arm64-1.9` and `TEI_MKL_INSTRUCTIONS=` under CPU section |
+| `docs/DEPLOYMENT.md` | New § "Apple Silicon (arm64 CPU)" with 24 GiB Docker VM profile, minimal 18 GiB tier, `cpu-arm64-latest` |
+| `.env.example` | macOS path presets (M3 Pro 24 GiB Docker VM primary; 18 GiB minimal); `TEI_IMAGE=cpu-arm64-latest` and `TEI_MKL_INSTRUCTIONS=` under CPU section |
 | `scripts/compose_files.py` | `TEI_IMAGE_CPU_ARM64_DEFAULT`; `tei_image_default()` branches on host arch; arch detection precedence (below) |
 | `docker-compose.tei.yml` *(Phase 2)* | Omit `MKL_ENABLE_INSTRUCTIONS` on arm64 TEI image path, or document `TEI_MKL_INSTRUCTIONS=` override until fixed |
 | `scripts/tune_alloc.py` | darwin RAM via `sysctl hw.memsize`; macOS `DEFAULT_RESERVE_GIB=4.0`; budget uses **Docker VM RAM** when detectable |
 | `README.md`, `.github/copilot-instructions.md` | Cross-link Apple Silicon profile; note Docker Desktop reserve |
 | `scripts/run_compose_integration.py` | Integration env generator uses arch-aware CPU TEI image |
 | `benchmarks/fixtures/macos_m3pro_matrix.json` | Phase 4 full-feature tier pass/fail artifact |
-| Unit tests | `test_compose_files.py`: arm64 host → `cpu-arm64-1.9`; amd64 → `cpu-1.9` |
+| Unit tests | `test_compose_files.py`: arm64 host → `cpu-arm64-latest`; amd64 → `cpu-1.9` |
 
 ### Out of scope
 
@@ -191,7 +191,7 @@ Do **not** document `docker compose --platform linux/amd64` as a Mac quick start
 
 ### Phased delivery
 
-1. **Phase 1 — Documented profile** — DEPLOYMENT.md § Apple Silicon, `.env.example` M3 Pro presets (24 GiB Docker VM primary), README/copilot cross-links; manual `TEI_IMAGE=cpu-arm64-1.9` and `TEI_MKL_INSTRUCTIONS=`.
+1. **Phase 1 — Documented profile** — DEPLOYMENT.md § Apple Silicon, `.env.example` M3 Pro presets (24 GiB Docker VM primary), README/copilot cross-links; manual `TEI_IMAGE=cpu-arm64-latest` and `TEI_MKL_INSTRUCTIONS=`.
 2. **Phase 2 — Arch-aware compose defaults** — `compose_files.py` arch detection + `tei_image_default()` wired into `run_compose_integration.py`; `tune_alloc.py` darwin detection; MKL compose fix; tests.
 3. **Phase 3 — Optional ColBERT on Mac doc** — when `RERANK_ENABLED=true` on Mac: `COLBERT_EMBED_BACKEND=onnx`, `UPSERT_BATCH=10`, `FLUSH_EVERY=96`, warn below 24 GiB Docker VM (no GPU sidecar).
 4. **Phase 4 — Full-feature feasibility benchmark** — run the benchmark matrix below on maintainer M3 Pro (24 GiB Docker VM); record pass/fail per feature tier; commit `benchmarks/fixtures/macos_m3pro_matrix.json` when complete.
@@ -302,7 +302,7 @@ Sketch schema:
   "host": "M3 Pro",
   "docker_vm_gib": 24,
   "accelerator": "cpu",
-  "tei_image": "cpu-arm64-1.9",
+  "tei_image": "cpu-arm64-latest",
   "tiers": {
     "baseline": { "pass": true, "index_chunks_per_sec": null, "oom": false, "notes": "" },
     "+rerank": { "pass": null, "index_chunks_per_sec": null, "oom": false, "notes": "" },
@@ -337,7 +337,7 @@ Quality/feasibility review against the current codebase surfaced these items —
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **Native arm64 + `ACCELERATOR=cpu` + `cpu-arm64-1.9` (chosen)** | Correct ISA; maintained TEI image; same MCP topology | CPU-bound dense embed; slower than Windows GPU |
+| **Native arm64 + `ACCELERATOR=cpu` + `cpu-arm64-latest` (chosen)** | Correct ISA; maintained TEI image; same MCP topology | CPU-bound dense embed; slower than Windows GPU |
 | Status quo (`cpu-1.9` on Mac) | No code change | Wrong arch risk; emulation; MKL env noise; poor operator experience |
 | amd64 emulation (`--platform linux/amd64`) | Runs x86 TEI tag without arch detection | Slow; high RAM; contradicts "appropriate setup" |
 | Smaller dense model default on Mac (nomic/bge-small) | Faster CPU indexing | Different vectors → re-index; deviates from production default ([0021](0021-revert-jina-production-default-retire-qwen3.md)) — document as optional dev preset only |
@@ -387,7 +387,7 @@ Quality/feasibility review against the current codebase surfaced these items —
 # Precedence for tei_image_default() when ACCELERATOR=cpu and TEI_IMAGE unset:
 # 1. docker version --format '{{.Server.Arch}}'  → arm64 | amd64
 # 2. platform.machine()                          → arm64/aarch64 | x86_64/amd64
-# arm64 → TEI_IMAGE_CPU_ARM64_DEFAULT (cpu-arm64-1.9)
+# arm64 → TEI_IMAGE_CPU_ARM64_DEFAULT (cpu-arm64-latest)
 # amd64 → TEI_IMAGE_CPU_DEFAULT (cpu-1.9)
 ```
 
@@ -410,7 +410,7 @@ Quality/feasibility review against the current codebase surfaced these items —
 ### Dependencies
 
 - **Runtime:** Docker Desktop for Mac (arm64); **maintainer M3 Pro: 24 GiB VM RAM** (Settings → Resources → Memory)
-- **Images:** `qdrant/qdrant:v1.18.2` (multi-arch), `python:3.12-slim` (multi-arch), TEI `cpu-arm64-1.9`
+- **Images:** `qdrant/qdrant:v1.18.2` (multi-arch), `python:3.12-slim` (multi-arch), TEI `cpu-arm64-latest`
 - **No new Python packages**
 
 ### Rollout
@@ -426,7 +426,7 @@ Quality/feasibility review against the current codebase surfaced these items —
 
 ### Automated tests
 
-- **Unit** — `tei_image_default(env)` with mocked `container_arch()` → `cpu-arm64-1.9` on arm64, `cpu-1.9` on amd64
+- **Unit** — `tei_image_default(env)` with mocked `container_arch()` → `cpu-arm64-latest` on arm64, `cpu-1.9` on amd64
 - **Unit** — `container_arch()` prefers Docker server arch over `platform.machine()` (mock both paths)
 - **Unit** — `detect_host()` on darwin mock → non-`None` `total_ram_gib`
 - **Unit** — `compose_file_args(ACCELERATOR=cpu)` never includes `.gpu.yml` on any arch
@@ -471,7 +471,7 @@ Committed artifact: `benchmarks/fixtures/macos_m3pro_matrix.json`
 
 - **Docker Desktop → Settings → Resources → Memory:** maintainer M3 Pro uses **24 GiB**. cgroup `MCP + QDRANT + TEI` preset sums to **20 GiB**; leave ~2 GiB for the Linux VM and daemon inside the 24 GiB slice. On 18 GiB unified Macs without 24 GiB Docker allocation, use the minimal tier (~12 GiB VM).
 - **Host unified memory ≠ Docker VM budget:** `tune_stack.py --max-ram-gib` should reflect the **Docker Desktop Memory slider**, not necessarily `sysctl hw.memsize` (e.g. 36 GiB Mac with 24 GiB Docker VM → budget 24, not 36).
-- **Verify architecture:** `docker version --format '{{.Server.Arch}}'` should show `arm64`; `docker pull --platform linux/arm64 ghcr.io/huggingface/text-embeddings-inference:cpu-arm64-1.9`.
+- **Verify architecture:** `docker version --format '{{.Server.Arch}}'` should show `arm64`; `docker pull --platform linux/arm64 ghcr.io/huggingface/text-embeddings-inference:cpu-arm64-latest`.
 - **MKL on arm64:** set `TEI_MKL_INSTRUCTIONS=` (empty) in `.env` until Phase 2 compose fix; do not use `AVX2` on arm64 TEI.
 - For faster local iteration without quality parity, optional dev preset may swap `DENSE_EMBED_MODEL=nomic-ai/nomic-embed-text-v1.5` with full re-index.
 - For faster dense embed with same Jina model, see [ADR 0029](0029-macos-host-native-tei-metal-acceleration.md) (host Metal TEI; TEI RAM outside Docker VM).

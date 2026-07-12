@@ -8,7 +8,7 @@
 
 ## Context
 
-[ADR 0028](0028-apple-silicon-arm64-cpu-deployment.md) establishes the **baseline** Apple Silicon path: bundled **CPU TEI** in Docker (`cpu-arm64-1.9`, `ACCELERATOR=cpu`). That profile is correct and complete but **CPU-bound** for dense embedding — often 5–20× slower than the prior Windows **CUDA TEI** production setup.
+[ADR 0028](0028-apple-silicon-arm64-cpu-deployment.md) establishes the **baseline** Apple Silicon path: bundled **CPU TEI** in Docker (`cpu-arm64-latest`, `ACCELERATOR=cpu`). That profile is correct and complete but **CPU-bound** for dense embedding — often 5–20× slower than the prior Windows **CUDA TEI** production setup.
 
 Apple Silicon Macs expose a capable GPU via **Metal**, and TEI supports a **host-native** install path:
 
@@ -278,7 +278,7 @@ Run the same harness steps B–G from [0028](0028-apple-silicon-arm64-cpu-deploy
 ### Success criteria
 
 1. Host `curl http://127.0.0.1:8080/health` OK; MCP indexes a small repo via `host.docker.internal`.
-2. TEI logs on **first embed** show Metal device **or** documented CPU fallback; either must beat [0028](0028-apple-silicon-arm64-cpu-deployment.md) bundled `cpu-arm64-1.9` throughput on the same M3 Pro (maintainer benchmark).
+2. TEI logs on **first embed** show Metal device **or** documented CPU fallback; either must beat [0028](0028-apple-silicon-arm64-cpu-deployment.md) bundled `cpu-arm64-latest` throughput on the same M3 Pro (maintainer benchmark).
 3. Dense embed throughput measurably higher than [0028](0028-apple-silicon-arm64-cpu-deployment.md) **24 GiB Docker VM** bundled preset on same machine.
 4. `COMPOSE_PROFILES` unset — `codeindexer_tei` container **not** created.
 5. TEI listens on `127.0.0.1:8080` only (not `0.0.0.0`).
@@ -290,7 +290,7 @@ Run the same harness steps B–G from [0028](0028-apple-silicon-arm64-cpu-deploy
 
 | Variant | Index chunks/s | Notes |
 |---------|----------------|-------|
-| [0028](0028-apple-silicon-arm64-cpu-deployment.md) bundled `cpu-arm64-1.9`, 24 GiB Docker VM | | Baseline |
+| [0028](0028-apple-silicon-arm64-cpu-deployment.md) bundled `cpu-arm64-latest`, 24 GiB Docker VM | | Baseline |
 | [0029](0029-macos-host-native-tei-metal-acceleration.md) Homebrew Metal TEI + 24 GiB Docker MCP/Qdrant | | Target: significant uplift vs baseline |
 | [0029](0029-macos-host-native-tei-metal-acceleration.md) tier `full` + host Metal TEI | | Phase 3 — all features enabled |
 

@@ -10,7 +10,7 @@ deviations: none
 changelog:
   update: true
   bullet: >-
-    **Arch-aware compose defaults for Apple Silicon** ([ADR 0028](docs/adr/0028-apple-silicon-arm64-cpu-deployment.md)) — `tei_image_default()` and integration script select native `cpu-arm64-1.9` on arm64 Docker hosts; darwin RAM detection in `tune_alloc.py`/`tune_stack.py`; MKL instructions via amd64-only compose overlay; NVIDIA/CI amd64 path unchanged; manual `compose up` on Mac still requires `.env` `TEI_IMAGE` preset
+    **Arch-aware compose defaults for Apple Silicon** ([ADR 0028](docs/adr/0028-apple-silicon-arm64-cpu-deployment.md)) — `tei_image_default()` and integration script select native `cpu-arm64-latest` on arm64 Docker hosts; darwin RAM detection in `tune_alloc.py`/`tune_stack.py`; MKL instructions via amd64-only compose overlay; NVIDIA/CI amd64 path unchanged; manual `compose up` on Mac still requires `.env` `TEI_IMAGE` preset
   reason: 'user-facing yes; invoker Changelog: yes'
 user_facing: true
 open_decisions:
