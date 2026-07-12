@@ -1,14 +1,20 @@
-"""Unit tests for scripts/compose_files.py (ADR 0022 Phase 1)."""
+"""Unit tests for scripts/compose_files.py (ADR 0022 Phase 1, ADR 0028 Phase 2)."""
 
 from __future__ import annotations
 
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.compose_files import compose_file_args, tei_image_default  # noqa: E402
+from scripts.compose_files import (  # noqa: E402
+    TEI_IMAGE_CPU_ARM64_DEFAULT,
+    compose_file_args,
+    container_arch,
+    tei_image_default,
+)
 
 
 def _paths(args: list[str]) -> list[Path]:
@@ -26,11 +32,13 @@ def test_default_includes_gpu_tei_override():
 
 
 def test_accelerator_cpu_omits_gpu_files():
-    args = compose_file_args(repo_root=REPO_ROOT, env={"ACCELERATOR": "cpu"})
+    with patch("scripts.compose_files.container_arch", return_value="amd64"):
+        args = compose_file_args(repo_root=REPO_ROOT, env={"ACCELERATOR": "cpu"})
     paths = _paths(args)
     assert paths == [
         REPO_ROOT / "docker-compose.yml",
         REPO_ROOT / "docker-compose.tei.yml",
+        REPO_ROOT / "docker-compose.tei.amd64-mkl.yml",
     ]
     assert not any(".gpu.yml" in str(p) for p in paths)
 
@@ -40,7 +48,51 @@ def test_tei_image_default_gpu():
 
 
 def test_tei_image_default_cpu():
-    assert tei_image_default({"ACCELERATOR": "cpu"}).endswith("cpu-1.9")
+    with patch("scripts.compose_files.container_arch", return_value="amd64"):
+        assert tei_image_default({"ACCELERATOR": "cpu"}).endswith("cpu-1.9")
+
+
+def test_tei_image_default_arm64():
+    with patch("scripts.compose_files.container_arch", return_value="arm64"):
+        assert tei_image_default({"ACCELERATOR": "cpu"}) == TEI_IMAGE_CPU_ARM64_DEFAULT
+
+
+def test_tei_image_default_respects_explicit_override():
+    custom = "ghcr.io/example/custom:tag"
+    with patch("scripts.compose_files.container_arch", return_value="arm64"):
+        assert tei_image_default({"ACCELERATOR": "cpu", "TEI_IMAGE": custom}) == custom
+
+
+def test_container_arch_prefers_docker_server_arch():
+    with patch(
+        "scripts.compose_files.subprocess.run",
+        return_value=type("P", (), {"returncode": 0, "stdout": "arm64\n"})(),
+    ):
+        with patch("scripts.compose_files.platform.machine", return_value="x86_64"):
+            assert container_arch() == "arm64"
+
+
+def test_container_arch_falls_back_to_platform_machine():
+    with patch(
+        "scripts.compose_files.subprocess.run",
+        return_value=type("P", (), {"returncode": 1, "stdout": ""})(),
+    ):
+        with patch("scripts.compose_files.platform.machine", return_value="aarch64"):
+            assert container_arch() == "arm64"
+
+
+def test_cpu_arm64_omits_mkl_overlay():
+    with patch("scripts.compose_files.container_arch", return_value="arm64"):
+        args = compose_file_args(repo_root=REPO_ROOT, env={"ACCELERATOR": "cpu"})
+    paths = _paths(args)
+    assert REPO_ROOT / "docker-compose.tei.amd64-mkl.yml" not in paths
+
+
+def test_cpu_amd64_includes_mkl_overlay():
+    with patch("scripts.compose_files.container_arch", return_value="amd64"):
+        args = compose_file_args(repo_root=REPO_ROOT, env={"ACCELERATOR": "cpu"})
+    paths = _paths(args)
+    assert REPO_ROOT / "docker-compose.tei.amd64-mkl.yml" in paths
 
 
 def test_remote_colbert_sidecar_includes_worker_files():

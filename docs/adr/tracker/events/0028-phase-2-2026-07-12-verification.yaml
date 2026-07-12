@@ -1,0 +1,32 @@
+adr_id: '0028'
+phase_key: phase-2
+phase_title: Phase 2 — Arch-aware compose defaults
+event: verification
+date: '2026-07-12'
+tracker_status: verified
+choices: >-
+  `cpu-arm64-latest` arm64 TEI tag (human-approved deviation from ADR `cpu-arm64-1.9`); MKL via amd64-only overlay; arch detection in `compose_files.py`; `default_reserve_gib()` shared by `tune_alloc`/`tune_stack`; integration script sets arch-aware TEI/MKL; NVIDIA/CI amd64 path unchanged
+deviations: arm64 tag `cpu-arm64-latest` instead of ADR `cpu-arm64-1.9` (human-approved)
+code_evidence:
+  - scripts/compose_files.py
+  - docker-compose.tei.amd64-mkl.yml
+  - docker-compose.tei.yml
+  - scripts/tune_alloc.py
+  - scripts/tune_stack.py
+  - scripts/run_compose_integration.py
+  - mcp_server/tests/test_compose_files.py
+  - mcp_server/tests/test_tune_alloc.py
+  - mcp_server/tests/test_run_compose_integration_gpu.py
+  - docs/DEPLOYMENT.md
+  - .env.example
+  - README.md
+  - .github/copilot-instructions.md
+  - CHANGELOG.md
+verify: >-
+  tests run + plan compliance pass — 43 targeted unit tests passed; Docker integration pass on arm64 with quality validation threshold 0; review rounds: 1
+changelog:
+  update: true
+  bullet: >-
+    **Arch-aware compose defaults for Apple Silicon** ([ADR 0028](docs/adr/0028-apple-silicon-arm64-cpu-deployment.md)) — `tei_image_default()` and integration script select native `cpu-arm64-latest` on arm64 Docker hosts; darwin RAM detection in `tune_alloc.py`/`tune_stack.py`; MKL instructions via amd64-only compose overlay; NVIDIA/CI amd64 path unchanged; manual `compose up` on Mac still requires `.env` `TEI_IMAGE` preset
+  reason: already present in [Unreleased]; no duplicate edit
+user_facing: true

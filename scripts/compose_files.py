@@ -9,6 +9,8 @@ Print for shell substitution::
 from __future__ import annotations
 
 import os
+import platform
+import subprocess
 import sys
 from collections.abc import Mapping
 from pathlib import Path
@@ -23,12 +25,46 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 TEI_IMAGE_GPU_DEFAULT = "ghcr.io/huggingface/text-embeddings-inference:89-1.9"
 TEI_IMAGE_CPU_DEFAULT = "ghcr.io/huggingface/text-embeddings-inference:cpu-1.9"
+TEI_IMAGE_CPU_ARM64_DEFAULT = (
+    "ghcr.io/huggingface/text-embeddings-inference:cpu-arm64-latest"
+)
+
+_ARM64_ALIASES = frozenset({"arm64", "aarch64"})
+_AMD64_ALIASES = frozenset({"amd64", "x86_64", "x86"})
 
 
 def _truthy(value: str | None) -> bool:
     if value is None:
         return False
     return value.strip().lower() in ("1", "true", "yes", "on")
+
+
+def _normalize_arch(raw: str) -> str:
+    value = raw.strip().lower()
+    if value in _ARM64_ALIASES:
+        return "arm64"
+    if value in _AMD64_ALIASES:
+        return "amd64"
+    return value
+
+
+def container_arch() -> str:
+    """Return container runtime arch: Docker Server.Arch, else ``platform.machine()``."""
+    try:
+        proc = subprocess.run(
+            ["docker", "version", "--format", "{{.Server.Arch}}"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        if proc.returncode == 0:
+            arch = proc.stdout.strip()
+            if arch:
+                return _normalize_arch(arch)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    return _normalize_arch(platform.machine())
 
 
 def _resolve_colbert_backend(env: Mapping[str, str]) -> str:
@@ -47,9 +83,14 @@ def _colbert_sidecar_enabled(env: Mapping[str, str]) -> bool:
 
 
 def tei_image_default(env: Mapping[str, str]) -> str:
-    """Return default TEI image tag for the active accelerator."""
+    """Return default TEI image tag for the active accelerator and container arch."""
+    explicit = env.get("TEI_IMAGE")
+    if explicit is not None and explicit.strip():
+        return explicit.strip()
     if get_accelerator(env) == "gpu":
         return TEI_IMAGE_GPU_DEFAULT
+    if container_arch() == "arm64":
+        return TEI_IMAGE_CPU_ARM64_DEFAULT
     return TEI_IMAGE_CPU_DEFAULT
 
 
@@ -74,6 +115,8 @@ def compose_file_args(
         files.append(root / "docker-compose.tei.yml")
         if use_gpu:
             files.append(root / "docker-compose.tei.gpu.yml")
+        elif container_arch() == "amd64":
+            files.append(root / "docker-compose.tei.amd64-mkl.yml")
 
     if _colbert_sidecar_enabled(source):
         files.append(root / "docker-compose.colbert-worker.yml")

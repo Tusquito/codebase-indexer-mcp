@@ -29,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Arch-aware compose defaults for Apple Silicon** ([ADR 0028](docs/adr/0028-apple-silicon-arm64-cpu-deployment.md)) — `tei_image_default()` and integration script select native `cpu-arm64-latest` on arm64 Docker hosts; darwin RAM detection in `tune_alloc.py`/`tune_stack.py`; MKL instructions via amd64-only compose overlay; NVIDIA/CI amd64 path unchanged; manual `compose up` on Mac still requires `.env` `TEI_IMAGE` preset
+
 - **TEI hard replace for dense embedding** ([ADR 0025](docs/adr/0025-huggingface-tei-dense-embedding.md)) — HuggingFace Text Embeddings Inference (TEI) replaces Ollama dense entirely; OpenAI `/v1/embeddings` via `TeiDenseBackend`; `docker-compose.tei.yml` + profile `bundled-tei`; removed `OLLAMA_*`, `DENSE_EMBED_BACKEND`, `ollama_dense.py`, and Ollama compose overlays. **Breaking:** full re-index required; set `COMPOSE_PROFILES=bundled-tei` and `DENSE_EMBED_MODEL` as HF repo id.
 
 - **Graph call-site lookup (ADR 0023 Phase 2)** — when `GRAPH_ENABLED=true`, indexing omits `callees` from Qdrant payloads and stamps `graph_call_sites: true` collection metadata; `find_cross_references` Path D routes per collection (Neo4j for graph-ready collections, Qdrant scroll for others); force re-index when enabling graph on existing collections

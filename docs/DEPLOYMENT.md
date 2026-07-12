@@ -99,12 +99,12 @@ Recommended deployment profile for **M1/M2/M3/M4 Macs** without discrete NVIDIA 
 | Variable | Apple Silicon value | Rationale |
 |----------|---------------------|-----------|
 | `ACCELERATOR` | `cpu` | Only supported non-GPU path ([0022](adr/0022-gpu-default-cpu-fallback.md)) |
-| `TEI_IMAGE` | `ghcr.io/huggingface/text-embeddings-inference:cpu-arm64-1.9` | Native aarch64 TEI — **set manually in `.env` until Phase 2** arch-aware defaults |
+| `TEI_IMAGE` | `ghcr.io/huggingface/text-embeddings-inference:cpu-arm64-latest` | Native aarch64 TEI — set in `.env` or use `tei_image_default()` / integration script on arm64 |
 | `COMPOSE_PROFILES` | `bundled-tei` | Same dense sidecar topology as production |
 | `DENSE_EMBED_MODEL` | `jinaai/jina-embeddings-v2-base-code` | Production default; quality parity, slower CPU |
 | `DENSE_EMBED_VECTOR_SIZE` | `768` | Matches Jina |
 | `RERANK_ENABLED` | `false` | ColBERT GPU sidecar unavailable; avoid RAM-heavy multivector path by default |
-| `TEI_MKL_INSTRUCTIONS` | *(empty)* | MKL ISA caps are x86-only — set `TEI_MKL_INSTRUCTIONS=` in `.env` until Phase 2 compose fix |
+| `TEI_MKL_INSTRUCTIONS` | *(empty)* | MKL ISA caps are x86-only — omitted on arm64 via compose overlay; amd64 CPU gets `AVX2` from `docker-compose.tei.amd64-mkl.yml` |
 | `TEI_MAX_BATCH_TOKENS` | `1024` | Bound CPU TEI cold start |
 | `MAX_DENSE_EMBED_TOKENS` | `1024` | Keep ≤ `TEI_MAX_BATCH_TOKENS` |
 | `WORKSPACE_ROOT` | macOS path, e.g. `/Users/<user>/Documents/Repositories` | Host bind mount |
@@ -117,7 +117,7 @@ Recommended deployment profile for **M1/M2/M3/M4 Macs** without discrete NVIDIA 
 |------|----------------------|---------------|
 | 18 GiB unified Mac | ~12–14 GiB VM | Leave **4–6 GiB** for macOS + VM overhead |
 | M3 Pro maintainer reference | **24 GiB VM** | cgroup sum **20 GiB** + ~2 GiB Linux/Docker inside VM |
-| 36 GiB unified Mac | Scale via `.env.example` 16C/16GB or 32C/64GB ratio blocks | Keep `TEI_IMAGE=cpu-arm64-1.9` and `ACCELERATOR=cpu` |
+| 36 GiB unified Mac | Scale via `.env.example` 16C/16GB or 32C/64GB ratio blocks | Keep `TEI_IMAGE=cpu-arm64-latest` and `ACCELERATOR=cpu` |
 
 On macOS, reserve **at least 4 GiB** for macOS and Docker Desktop VM overhead (vs 2–3 GiB on WSL2). Over-allocating cgroup caps causes silent OOM kills inside the Linux VM.
 
@@ -128,7 +128,7 @@ Maintainer reference host. Copy into `.env` (see also `.env.example` TUNING PRES
 ```env
 ACCELERATOR=cpu
 COMPOSE_PROFILES=bundled-tei
-TEI_IMAGE=ghcr.io/huggingface/text-embeddings-inference:cpu-arm64-1.9
+TEI_IMAGE=ghcr.io/huggingface/text-embeddings-inference:cpu-arm64-latest
 TEI_URL=http://tei:80
 DENSE_EMBED_MODEL=jinaai/jina-embeddings-v2-base-code
 DENSE_EMBED_VECTOR_SIZE=768
@@ -183,7 +183,7 @@ RERANK_ENABLED=false
 
 | Option | Verdict |
 |--------|---------|
-| **Native `linux/arm64` (chosen)** | Fastest path on M-series; TEI `cpu-arm64-1.9`; MCP/Qdrant build arm64 wheels |
+| **Native `linux/arm64` (chosen)** | Fastest path on M-series; TEI `cpu-arm64-latest`; MCP/Qdrant build arm64 wheels |
 | `linux/amd64` via Rosetta/QEMU | **Not recommended** — 2–5× slower TEI inference, higher RAM, wrong MKL knobs |
 | `ACCELERATOR=gpu` hoping for Metal in Docker | **Invalid** — fail fast; Metal requires host-native TEI ([0029](adr/0029-macos-host-native-tei-metal-acceleration.md)) |
 
@@ -208,28 +208,27 @@ docker version --format '{{.Server.Arch}}'    # expect: arm64
 docker inspect codeindexer_tei --format '{{.Architecture}}'   # expect: arm64
 
 # Pull native TEI image explicitly if unsure
-docker pull --platform linux/arm64 ghcr.io/huggingface/text-embeddings-inference:cpu-arm64-1.9
+docker pull --platform linux/arm64 ghcr.io/huggingface/text-embeddings-inference:cpu-arm64-latest
 ```
 
 MCP logs should show `tei_embed_ready` after TEI warmup. First TEI start can take several minutes; `start_period: 480s` healthcheck accounts for CPU Jina load.
 
-### Stack tuner workaround (darwin)
+### Stack tuner (darwin)
 
-`scripts/tune_alloc.py` does not yet detect RAM on macOS (darwin returns `None` until [ADR 0028](adr/0028-apple-silicon-arm64-cpu-deployment.md) Phase 2). Until then:
+`scripts/tune_alloc.py` detects host RAM on macOS via `sysctl hw.memsize` and defaults **4 GiB** reserve (`default_reserve_gib()`). Size the budget to your **Docker Desktop Memory** slider when it differs from host unified RAM:
 
 ```bash
-# Use Docker VM RAM budget, not host unified memory
-python scripts/tune_stack.py analyze --max-ram-gib 24
+python scripts/tune_stack.py analyze
 python scripts/tune_stack.py allocate --cpu --max-ram-gib 22
 ```
 
-Pass `--max-ram-gib` matching your **Docker Desktop Memory** slider (e.g. 24 on maintainer M3 Pro, not 36 on a 36 GiB Mac with 24 GiB Docker VM).
+Pass `--max-ram-gib` matching your **Docker Desktop Memory** slider when host RAM ≠ VM budget (e.g. 36 GiB Mac with 24 GiB Docker VM → `--max-ram-gib 24`).
 
 ### Operator checklist
 
 1. Set **Docker Desktop → Resources → Memory** to 24 GiB (or minimal tier ~12–14 GiB on 18 GiB host).
 2. Copy M3 Pro preset from `.env.example` into `.env`; set `WORKSPACE_ROOT` to your macOS repos parent path.
-3. Set `ACCELERATOR=cpu`, `TEI_IMAGE=ghcr.io/huggingface/text-embeddings-inference:cpu-arm64-1.9`, and `TEI_MKL_INSTRUCTIONS=` (empty).
+3. Set `ACCELERATOR=cpu` and `TEI_IMAGE=ghcr.io/huggingface/text-embeddings-inference:cpu-arm64-latest` in `.env` (or rely on arch-aware defaults from `scripts/compose_files.py` / integration harness).
 4. Keep `RERANK_ENABLED=false` unless you have headroom and accept slower indexing (Phase 3 ColBERT ONNX doc).
 5. Run canonical compose command above; verify `arm64` architecture and both health endpoints.
 6. Index a small project: `index_codebase(path='<folder>', wait=True)` via MCP client.
@@ -267,7 +266,7 @@ docker compose restart mcp_server
 | `TEI_PORT` | `8080` | Host port when bundled TEI publishes to loopback |
 | `TEI_MEM_LIMIT` | `4g` | cgroup memory cap for bundled TEI |
 | `TEI_CPUS` | `4` | CPU limit for bundled TEI |
-| `TEI_IMAGE` | `89-1.9` (GPU) / `cpu-1.9` (amd64 CPU) / `cpu-arm64-1.9` (arm64 CPU) | Compose-only TEI Docker tag override; on Apple Silicon use `cpu-arm64-1.9` ([§ Apple Silicon](#apple-silicon-arm64-cpu)) |
+| `TEI_IMAGE` | `89-1.9` (GPU) / `cpu-1.9` (amd64 CPU) / `cpu-arm64-latest` (arm64 CPU) | Compose-only TEI Docker tag override; on Apple Silicon use `cpu-arm64-latest` ([§ Apple Silicon](#apple-silicon-arm64-cpu)) |
 
 Verify MCP: `curl http://localhost:8000/health` and logs show `tei_embed_ready`. If TEI is down at startup, MCP still serves `/health` but logs `model_preload_failed_continuing` until TEI is reachable (restart `mcp_server` after TEI is ready).
 

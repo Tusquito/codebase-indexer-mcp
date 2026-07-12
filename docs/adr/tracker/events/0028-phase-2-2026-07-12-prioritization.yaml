@@ -1,0 +1,21 @@
+adr_id: '0028'
+phase_key: phase-2
+phase_title: Phase 2 — Arch-aware compose defaults
+event: prioritization
+date: '2026-07-12'
+tracker_status: candidate
+choices: >-
+  Prioritize 0028 Phase 2 over 0026 Phase 4 (higher raw score but NVIDIA-GPU-blocked on M3 Pro per resolved open decision); over 0029 Phase 1 (Metal docs — does not fix compose foot-gun); over 0002 Phase 4 (higher scope GraphRAG); over 0027 Phase 1 (Proposed, needs Accept, deferred in prior cycles); over 0023 Phase 3 (callees retirement); single phase per pipeline rule; no ADR Accept required (0028 already Accepted); pre-release: no global default change for NVIDIA hosts. **Why now:** ADR 0028 Phase 1 merged 2026-07-12; code still defaults `tei_image_default()` to amd64 `cpu-1.9` on all CPU hosts, `tune_alloc.py` lacks darwin RAM detection, and MKL compose env is x86-only — operators must manually set `TEI_IMAGE=cpu-arm64-1.9` per DEPLOYMENT.md. Maintainer is Apple Silicon M3 Pro without NVIDIA GPU; tracker open decisions defer 0026 Phase 4 GPU bake-off until Mac path completes. No active tracker phases. **Suggested scope:** one phase (= one PR). **Chosen scope:** `TEI_IMAGE_CPU_ARM64_DEFAULT` + `container_arch()` (Docker server arch → `platform.machine()` fallback) in `scripts/compose_files.py`; arch-aware `tei_image_default()`; darwin `sysctl hw.memsize` + `DEFAULT_RESERVE_GIB=4.0` in `scripts/tune_alloc.py`; MKL compose fix or arm64 gate in `docker-compose.tei.yml`; arch-aware `TEI_IMAGE` in `scripts/run_compose_integration.py`; unit tests per ADR 0028 Validation; Docker integration. Defer Phase 3 ColBERT-on-Mac doc and Phase 4 `macos_m3pro_matrix.json`.
+deviations: none
+code_evidence:
+  - '`scripts/compose_files.py` `tei_image_default()` defaults to amd64 `cpu-1.9` on all CPU hosts'
+  - '`scripts/tune_alloc.py` lacks darwin RAM detection'
+  - '`docker-compose.tei.yml` MKL compose env is x86-only'
+changelog:
+  update: false
+  reason: 'user-facing yes; invoker Changelog: no'
+user_facing: true
+open_decisions:
+  - Whether to Accept ADR 0027 in a future cycle
+  - Whether NVIDIA GPU host is available for 0026 Phase 4 bake-off
+  - Whether 0028 Phase 4 maintainer benchmark runs on 24 GiB or 18 GiB Docker VM tier

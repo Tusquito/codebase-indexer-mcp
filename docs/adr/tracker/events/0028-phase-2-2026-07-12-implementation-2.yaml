@@ -1,0 +1,31 @@
+adr_id: '0028'
+phase_key: phase-2
+phase_title: Phase 2 — Arch-aware compose defaults
+event: implementation
+date: '2026-07-12'
+tracker_status: implemented
+choices: >-
+  arm64 TEI tag `cpu-arm64-latest` (not `cpu-arm64-1.9` — GHCR manifest unknown); MKL via amd64-only `docker-compose.tei.amd64-mkl.yml`; arch detection in `compose_files.py`; `default_reserve_gib()` shared by `tune_alloc`/`tune_stack`; integration script sets arch-aware TEI/MKL; NVIDIA/CI amd64 path unchanged
+deviations: arm64 tag `cpu-arm64-latest` instead of ADR `cpu-arm64-1.9`
+code_evidence:
+  - scripts/compose_files.py
+  - docker-compose.tei.amd64-mkl.yml
+  - docker-compose.tei.yml
+  - scripts/tune_alloc.py
+  - scripts/tune_stack.py
+  - scripts/run_compose_integration.py
+  - mcp_server/tests/test_compose_files.py
+  - mcp_server/tests/test_tune_alloc.py
+  - mcp_server/tests/test_run_compose_integration_gpu.py
+  - docs/DEPLOYMENT.md
+  - .env.example
+  - README.md
+  - .github/copilot-instructions.md
+  - CHANGELOG.md
+test_debt:
+  - Docker integration on M3 Pro arm64
+  - full uv run pytest on maintainer host
+changelog:
+  update: false
+  reason: invoker/changelog already had [Unreleased] bullet; tag updated in place
+user_facing: true
