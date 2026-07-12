@@ -1,0 +1,19 @@
+adr_id: '0029'
+phase_key: phase-2
+phase_title: Phase 2 — Integration smoke
+event: prioritization
+date: '2026-07-12'
+tracker_status: candidate
+choices: >-
+  Prioritize 0029 Phase 2 over 0027 Phase 1 (Proposed, needs Accept, deferred in prior cycles); over 0028 Phase 4 (higher raw score but maintainer-manual benchmark, not code PR); over 0030 Phase 1 (Proposed, 7-phase greenfield); over 0026 Phase 4 (NVIDIA-GPU-blocked on M3 Pro); single phase per pipeline rule; no ADR Accept required (0029 already Accepted); pre-release: opt-in Metal profile only. **Why now:** ADR 0028 Phases 1–2 and ADR 0029 Phase 1 merged 2026-07-12; tracker has no active phases; Phase 2 is explicit delivery-order prerequisite; `run_compose_integration.py` lacks `--external-tei` path; maintainer M3 Pro without NVIDIA blocks 0026 Phase 4. **Suggested scope:** one phase (= one PR). **Chosen scope:** Optional `--external-tei` flag in `scripts/run_compose_integration.py` — skip bundled `tei` service assertions when `TEI_URL` points at host (`host.docker.internal`); maintainer M3 Pro smoke checklist; Docker integration on external-TEI path.
+deviations: none
+changelog:
+  update: false
+  reason: 'user-facing unknown; invoker Changelog: no'
+user_facing: false
+open_decisions:
+  - Accept ADR 0027 in a future cycle?
+  - Accept ADR 0030 before .NET migration?
+  - '0028 Phase 4 benchmark tier: 24 GiB vs 18 GiB Docker VM?'
+  - NVIDIA GPU host availability for 0026 Phase 4 bake-off?
+  - confirm `text-embeddings-router --hostname` flag spelling at implementation
