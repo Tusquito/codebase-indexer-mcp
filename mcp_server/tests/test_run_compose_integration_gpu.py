@@ -11,7 +11,9 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.compose_files import TEI_IMAGE_CPU_ARM64_DEFAULT, TEI_IMAGE_CPU_DEFAULT  # noqa: E402
 from scripts.run_compose_integration import (  # noqa: E402
+    check_tei_container_absent,
     check_tei_gpu_visible,
+    preflight_host_tei,
     tei_embed_smoke,
     write_integration_env,
 )
@@ -168,3 +170,61 @@ def test_check_tei_gpu_visible_fails_on_embed_error():
     )
     assert ok is False
     assert "embed failed" in detail
+
+
+def test_write_integration_env_external_tei_preset(monkeypatch, tmp_path):
+    env_file = tmp_path / ".env.compose.integration"
+    monkeypatch.setattr("scripts.run_compose_integration.ENV_FILE", env_file)
+
+    write_integration_env(tmp_path / "workspace", external_tei=True)
+
+    content = env_file.read_text(encoding="utf-8")
+    assert "ACCELERATOR=cpu" in content
+    assert "TEI_URL=http://host.docker.internal:8080" in content
+    assert "MCP_MEM_LIMIT=12g" in content
+    assert "QDRANT_MEM_LIMIT=8g" in content
+    assert "COMPOSE_PROFILES=" not in content
+    assert "TEI_IMAGE=" not in content
+    assert "TEI_MEM_LIMIT=" not in content
+
+
+def test_check_tei_container_absent_passes_when_no_container():
+    def fake_run(cmd: list[str], **_kwargs) -> subprocess.CompletedProcess:
+        assert cmd[:3] == ["docker", "ps", "--filter"]
+        return _completed(0, "")
+
+    ok, detail = check_tei_container_absent(run_cmd=fake_run)
+    assert ok is True
+    assert "no bundled tei container" in detail
+
+
+def test_check_tei_container_absent_fails_when_container_running():
+    def fake_run(cmd: list[str], **_kwargs) -> subprocess.CompletedProcess:
+        return _completed(0, "codeindexer_tei\n")
+
+    ok, detail = check_tei_container_absent(run_cmd=fake_run)
+    assert ok is False
+    assert "codeindexer_tei" in detail
+
+
+def test_preflight_host_tei_fails_when_unhealthy(monkeypatch):
+    monkeypatch.setattr(
+        "scripts.run_compose_integration.http_ok",
+        lambda _url, timeout=3.0: (False, "connection refused"),
+    )
+
+    ok, detail = preflight_host_tei()
+    assert ok is False
+    assert "host TEI not healthy" in detail
+    assert "127.0.0.1:8080" in detail
+
+
+def test_preflight_host_tei_passes_when_healthy(monkeypatch):
+    monkeypatch.setattr(
+        "scripts.run_compose_integration.http_ok",
+        lambda _url, timeout=3.0: (True, "ok"),
+    )
+
+    ok, detail = preflight_host_tei()
+    assert ok is True
+    assert detail == "ok"

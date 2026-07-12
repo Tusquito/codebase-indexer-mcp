@@ -294,6 +294,23 @@ Run the same harness steps B–G from [0028](0028-apple-silicon-arm64-cpu-deploy
 | [0029](0029-macos-host-native-tei-metal-acceleration.md) Homebrew Metal TEI + 24 GiB Docker MCP/Qdrant | | Target: significant uplift vs baseline |
 | [0029](0029-macos-host-native-tei-metal-acceleration.md) tier `full` + host Metal TEI | | Phase 3 — all features enabled |
 
+### Phase 2 maintainer smoke checklist (M3 Pro)
+
+Run **before merge approval** on maintainer Apple Silicon Mac with Docker Desktop (24 GiB VM recommended). Not CI-runnable on `ubuntu-latest`.
+
+1. **Host TEI** — `brew install text-embeddings-inference`; start `text-embeddings-router` with Jina model on `127.0.0.1:8080` (see § Operator profile).
+2. **Preflight** — `curl http://127.0.0.1:8080/health` returns OK.
+3. **Harness** — from repo root:
+
+   ```bash
+   ACCELERATOR=cpu python scripts/run_compose_integration.py --json --external-tei
+   ```
+
+4. **JSON verdict** — `verdict: pass`; `external_tei: true`; `host_tei_preflight`, `tei_container_absent`, `tei_embed_smoke`, `pytest_integration` all `pass`.
+5. **No bundled TEI** — `docker ps --filter name=codeindexer_tei` empty after deploy.
+6. **Metal log check** — on first embed in host TEI stdout, confirm Metal or documented CPU fallback (throughput gate vs bundled [0028](0028-apple-silicon-arm64-cpu-deployment.md) path).
+7. **Teardown** — harness tears down by default; use `--keep` only for debugging.
+
 ### Operational notes
 
 - Start host TEI **before** or restart MCP after TEI is healthy.

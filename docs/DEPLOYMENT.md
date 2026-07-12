@@ -362,6 +362,14 @@ Complete the [§ Apple Silicon operator checklist](#operator-checklist) steps 1�
 7. Index a small repo; check TEI logs on first embed for Metal or CPU fallback
 8. Monitor Activity Monitor for unified memory pressure during first full index
 
+**Integration harness (Metal profile validation):** with host TEI running, from the repository root:
+
+```bash
+ACCELERATOR=cpu python scripts/run_compose_integration.py --json --external-tei
+```
+
+Expect `verdict: pass`, `tei_container_absent: pass`, and no `codeindexer_tei` container. Maintainer M3 Pro smoke only — not run in GitHub CI.
+
 **Do not** set `ACCELERATOR=gpu` on Mac — Metal is not CUDA. **Do not** enable ColBERT GPU sidecar; keep `RERANK_ENABLED=false` unless following Phase 3 tier `full` preset in [ADR 0029](adr/0029-macos-host-native-tei-metal-acceleration.md).
 
 ## External TEI on the host

@@ -1,0 +1,13 @@
+adr_id: '0029'
+phase_key: phase-2
+phase_title: Phase 2 — Integration smoke
+event: plan
+date: '2026-07-12'
+tracker_status: planned
+choices: >-
+  Single PR; harness-only change (no MCP server code); `include_tei=False` via existing `compose_file_args`; force `ACCELERATOR=cpu` in harness process env; M3 Pro Metal cgroup preset in generated env; host TEI preflight before compose up; `tei_container_absent` required check; CI unchanged (bundled path); quality/perf validation skipped; throughput table deferred to Phase 3. **Assumptions:** Phase 1 merged; maintainer runs live `--external-tei` smoke on M3 Pro before merge approval; host Homebrew TEI started manually per DEPLOYMENT § Metal.
+deviations: none
+changelog:
+  update: false
+  reason: 'user-facing yes; invoker Changelog: no'
+user_facing: true

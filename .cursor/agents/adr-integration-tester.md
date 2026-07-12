@@ -28,6 +28,7 @@ Read plan **Target** and map to `scripts/run_compose_integration.py` flags:
 | **Quality threshold:** `N` | `--quality-threshold N` (`0` = report-only compare) |
 | **Quality rerank: yes** | `--quality-rerank` |
 | **Performance report: yes** | `--performance-report` (report-only; never fails verdict) |
+| **External / host TEI (ADR 0029 Metal)** | `--external-tei` (requires host TEI on `127.0.0.1:8080`; maintainer Mac only) |
 
 ## Output
 
@@ -134,6 +135,13 @@ python scripts/run_compose_integration.py --json \
 |------|------|
 | `--skip-deploy` | Invoker says stack already running |
 | `--keep` | Leave stack up for debugging (report teardown: no) |
+| `--external-tei` | Host-native TEI at `127.0.0.1:8080` (ADR 0029); skip bundled `tei` service; maintainer Mac smoke — start Homebrew TEI before harness |
+
+**External TEI example** (ADR 0029 Phase 2 — maintainer Mac with Homebrew TEI already running):
+
+```bash
+ACCELERATOR=cpu python scripts/run_compose_integration.py --json --external-tei
+```
 
 Default: **teardown** after tests (`compose down`).
 

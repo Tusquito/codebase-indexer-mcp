@@ -80,6 +80,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0028 | Phase 1 — Documented profile | Accepted (phase 1 — Documented profile) | phase-1 | `merged` | Phase 1 — `docs/DEPLOYMENT.md` § Apple Silicon (arm64 CPU) with M3 Pro 24 GiB Docker VM profile and minimal 18 GiB tier; `.env.example` macOS presets; README + `.github/copilot-instructions.md` cross-links; manual operator checklist; defer Phase 2 code. | 2026-07-12 |
 | 0028 | Phase 2 — Arch-aware compose defaults | Accepted (phase 2 — Arch-aware compose defaults) | phase-2 | `merged` | `TEI_IMAGE_CPU_ARM64_DEFAULT` + `container_arch()` (Docker server arch → `platform.machine()` fallback) in `scripts/compose_files.py`; arch-aware `tei_image_default()`; darwin `sysctl hw.memsize` + `DEFAULT_RESERVE_GIB=4.0` in `scripts/tune_alloc.py`; MKL compose fix or arm64 gate in `docker-compose.tei.yml`; arch-aware `TEI_IMAGE` in `scripts/run_compose_integration.py`; unit tests per ADR 0028 Validation; Docker integration. Defer Phase 3 ColBERT-on-Mac doc and Phase 4 `macos_m3pro_matrix.json`. | 2026-07-12 |
 | 0029 | Phase 1 — Documentation | Accepted (phase 1 — Documentation) | phase-1 | `merged` | Docs-only single PR; host-native Metal TEI in `docs/DEPLOYMENT.md` (after Apple Silicon, before External TEI); `.env.example` Metal preset; four-surface sync (README, copilot-instructions, SKILL, DEPLOYMENT); bundled 0028 CPU TEI remains default; Metal opt-in via `TEI_URL` + empty `COMPOSE_PROFILES`; `--hostname 127.0.0.1` with upstream flag verification note. Defer Phase 2 `--external-tei` integration smoke and Phase 3 `metal_host_tei` benchmark. | 2026-07-12 |
+| 0029 | Phase 2 — Integration smoke | — | phase-2 | `verified` | Harness-only PR; `include_tei=False` via `compose_file_args`; force `ACCELERATOR=cpu`; M3 Pro Metal cgroup preset; host TEI preflight; `tei_container_absent` verdict gate; bundled path unchanged; quality/perf validation skipped. Defer live M3 Pro `--external-tei` full Docker integration before merge, Phase 3 `metal_host_tei` benchmark, and maintainer Metal log check on first embed. | 2026-07-12 |
 <!-- END GENERATED:summary -->
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
@@ -87,7 +88,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 ## Active and upcoming work
 
 <!-- BEGIN GENERATED:active -->
-_No active or upcoming phases._
+- **0029** Phase 2 — Integration smoke — `verified`
 <!-- END GENERATED:active -->
 
 ### Partial acceptance
@@ -1741,6 +1742,16 @@ _No active or upcoming phases._
 - **Verify:** tests run + plan compliance pass; unit 492 passed 8 skipped; integration ACCELERATOR=cpu run_compose_integration.py --json exit 0; review round 1 clean
 - **Changelog:** no — user-facing yes; invoker Changelog: no
 
+#### 2026-07-12 — verification
+- **Phase:** Phase 2 — Integration smoke
+- **Tracker status:** `verified`
+- **Choices:** Harness-only PR; `include_tei=False` via `compose_file_args`; force `ACCELERATOR=cpu`; M3 Pro Metal cgroup preset; host TEI preflight; `tei_container_absent` verdict gate; bundled path unchanged; quality/perf validation skipped
+- **Deviations:** none
+- **Code evidence:** `scripts/run_compose_integration.py`, `mcp_server/tests/test_run_compose_integration_gpu.py`, `docs/adr/0029-macos-host-native-tei-metal-acceleration.md`, `docs/DEPLOYMENT.md`, `CONTRIBUTING.md`, `.cursor/agents/adr-integration-tester.md`
+- **Test debt:** Live M3 Pro `--external-tei` full Docker integration before merge; Phase 3 `metal_host_tei` benchmark; maintainer Metal log check on first embed
+- **Verify:** 14/14 unit tests pass; bundled Docker integration pass; plan compliance pass; review rounds: 1
+- **Changelog:** no — user-facing yes; invoker Changelog: no
+
 #### 2026-07-12 — prioritization
 - **Phase:** Phase 1 — Documentation
 - **Tracker status:** `candidate`
@@ -1748,10 +1759,24 @@ _No active or upcoming phases._
 - **Deviations:** none
 - **Changelog:** no — user-facing yes; invoker Changelog: no
 
+#### 2026-07-12 — prioritization
+- **Phase:** Phase 2 — Integration smoke
+- **Tracker status:** `candidate`
+- **Choices:** Prioritize 0029 Phase 2 over 0027 Phase 1 (Proposed, needs Accept, deferred in prior cycles); over 0028 Phase 4 (higher raw score but maintainer-manual benchmark, not code PR); over 0030 Phase 1 (Proposed, 7-phase greenfield); over 0026 Phase 4 (NVIDIA-GPU-blocked on M3 Pro); single phase per pipeline rule; no ADR Accept required (0029 already Accepted); pre-release: opt-in Metal profile only. **Why now:** ADR 0028 Phases 1–2 and ADR 0029 Phase 1 merged 2026-07-12; tracker has no active phases; Phase 2 is explicit delivery-order prerequisite; `run_compose_integration.py` lacks `--external-tei` path; maintainer M3 Pro without NVIDIA blocks 0026 Phase 4. **Suggested scope:** one phase (= one PR). **Chosen scope:** Optional `--external-tei` flag in `scripts/run_compose_integration.py` — skip bundled `tei` service assertions when `TEI_URL` points at host (`host.docker.internal`); maintainer M3 Pro smoke checklist; Docker integration on external-TEI path.
+- **Deviations:** none
+- **Changelog:** no — user-facing unknown; invoker Changelog: no
+
 #### 2026-07-12 — plan
 - **Phase:** Phase 1 — Documentation
 - **Tracker status:** `planned`
 - **Choices:** Single PR; docs-only per ADR Phase 1; no server/compose/Python changes; 0028 bundled CPU TEI remains default; Metal opt-in via existing `TEI_URL` + empty `COMPOSE_PROFILES`; DEPLOYMENT Metal § placed after Apple Silicon, before generic External TEI; SKILL gets Deployment (macOS) section per AGENTS four-surface sync; ARCHITECTURE.md left unchanged (already cites 0029); suggested tier `claude-sonnet-5-thinking-high`. **Assumptions:** ADR 0028 Phases 1–2 merged; ADR 0029 Accepted; `docker-compose.yml` external TEI wiring sufficient; maintainer validates Metal path manually (not CI); Homebrew formula available on Apple Silicon host.
+- **Deviations:** none
+- **Changelog:** no — user-facing yes; invoker Changelog: no
+
+#### 2026-07-12 — plan
+- **Phase:** Phase 2 — Integration smoke
+- **Tracker status:** `planned`
+- **Choices:** Single PR; harness-only change (no MCP server code); `include_tei=False` via existing `compose_file_args`; force `ACCELERATOR=cpu` in harness process env; M3 Pro Metal cgroup preset in generated env; host TEI preflight before compose up; `tei_container_absent` required check; CI unchanged (bundled path); quality/perf validation skipped; throughput table deferred to Phase 3. **Assumptions:** Phase 1 merged; maintainer runs live `--external-tei` smoke on M3 Pro before merge approval; host Homebrew TEI started manually per DEPLOYMENT § Metal.
 - **Deviations:** none
 - **Changelog:** no — user-facing yes; invoker Changelog: no
 
@@ -1772,6 +1797,15 @@ _No active or upcoming phases._
 - **Deviations:** none
 - **Code evidence:** `docs/DEPLOYMENT.md`, `.env.example`, `README.md`, `.github/copilot-instructions.md`, `skill/codebase-indexer/SKILL.md`
 - **Test debt:** Phase 2 `--external-tei` harness path; Phase 3 `metal_host_tei` benchmark; maintainer manual Metal log check on first embed; full `run_compose_integration.py` re-run after `uv` install on verification host
+- **Changelog:** no — user-facing yes; invoker Changelog: no
+
+#### 2026-07-12 — implementation
+- **Phase:** Phase 2 — Integration smoke
+- **Tracker status:** `implemented`
+- **Choices:** Harness-only PR; `include_tei=False` via `compose_file_args`; force `ACCELERATOR=cpu`; M3 Pro Metal cgroup preset (12g/8g MCP/Qdrant); host TEI preflight before compose up; `tei_container_absent` required; bundled default path unchanged; quality/perf validation skipped
+- **Deviations:** none
+- **Code evidence:** `scripts/run_compose_integration.py`, `mcp_server/tests/test_run_compose_integration_gpu.py`, `docs/adr/0029-macos-host-native-tei-metal-acceleration.md`, `docs/DEPLOYMENT.md`, `CONTRIBUTING.md`, `.cursor/agents/adr-integration-tester.md`
+- **Test debt:** Live M3 Pro `--external-tei` Docker integration (integration-tester); Phase 3 `metal_host_tei` benchmark; maintainer Metal log check on first embed
 - **Changelog:** no — user-facing yes; invoker Changelog: no
 <!-- END GENERATED:phase-logs -->
 
@@ -1819,6 +1853,7 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 - Accept ADR 0027 in a future cycle?
 - 0028 Phase 4 benchmark tier: 24 GiB vs 18 GiB Docker VM?
 - NVIDIA GPU host availability for 0026 Phase 4 bake-off?
+- confirm `text-embeddings-router --hostname` flag spelling at implementation
 <!-- END GENERATED:open-decisions -->
 
 ---
