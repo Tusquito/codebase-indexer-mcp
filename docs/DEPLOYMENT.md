@@ -233,9 +233,136 @@ Pass `--max-ram-gib` matching your **Docker Desktop Memory** slider when host RA
 4. Keep `RERANK_ENABLED=false` unless you have headroom and accept slower indexing (Phase 3 ColBERT ONNX doc).
 5. Run canonical compose command above; verify `arm64` architecture and both health endpoints.
 6. Index a small project: `index_codebase(path='<folder>', wait=True)` via MCP client.
-7. For faster dense embed with same Jina model, see [ADR 0029](adr/0029-macos-host-native-tei-metal-acceleration.md) (host Metal TEI outside Docker VM).
+7. For faster dense embed with same Jina model, see [§ macOS host-native TEI (Metal)](#macos-host-native-tei-metal) ([ADR 0029](adr/0029-macos-host-native-tei-metal-acceleration.md)).
 
 **Qdrant volume portability:** moving Windows GPU → Mac CPU with unchanged `DENSE_EMBED_MODEL` and `DENSE_EMBED_VECTOR_SIZE` requires no re-index. Full re-index if changing dense model/dim.
+
+## macOS host-native TEI (Metal)
+
+Optional **faster dense embed** on Apple Silicon when bundled Docker CPU TEI is too slow ([ADR 0029](adr/0029-macos-host-native-tei-metal-acceleration.md)). TEI runs **on the macOS host** via Homebrew (Metal when available); MCP + Qdrant stay in Docker. This is **opt-in** — the [§ Apple Silicon](#apple-silicon-arm64-cpu) bundled CPU TEI profile remains the simpler default (single `compose up`, no extra process).
+
+**Why host-native:** Docker cannot use Metal/MPS ([PyTorch #81224](https://github.com/pytorch/pytorch/issues/81224)); bundled `tei` in Compose is always CPU-bound on Mac. Homebrew `text-embeddings-inference` is upstream-supported for Apple Silicon Metal acceleration.
+
+### When to use
+
+| Profile | Dense device | Ops complexity | Throughput |
+|---------|--------------|----------------|------------|
+| [§ Apple Silicon](#apple-silicon-arm64-cpu) bundled CPU TEI | Docker CPU | Low — one compose command | Baseline |
+| **This section — host Metal TEI** | macOS Metal (or CPU fallback) | Medium — host TEI + Docker stack | Target: significant uplift vs bundled CPU |
+
+Same `DENSE_EMBED_MODEL` / `DENSE_EMBED_VECTOR_SIZE` as bundled path — **no re-index** when switching profiles.
+
+### Host TEI install and start
+
+Install once via Homebrew ([upstream docs](https://github.com/huggingface/text-embeddings-inference#apple-silicon-homebrew)):
+
+```bash
+brew install text-embeddings-inference
+```
+
+Start TEI in a **separate terminal** (or via your own `launchd` plist — not shipped in this repo):
+
+```bash
+text-embeddings-router \
+  --model-id jinaai/jina-embeddings-v2-base-code \
+  --hostname 127.0.0.1 \
+  --port 8080 \
+  --max-batch-tokens 1024
+```
+
+Use `--hostname 127.0.0.1` so TEI listens on loopback only (same posture as bundled compose `127.0.0.1:${TEI_PORT}`). Confirm the flag name against `text-embeddings-router --help` — upstream spelling may differ. Model weights cache under `~/.cache/huggingface` (or `HF_HOME`).
+
+### Docker stack (no bundled TEI)
+
+Leave `COMPOSE_PROFILES` unset — the `codeindexer_tei` container is **not** created. MCP reaches host TEI via Docker Desktop's `host.docker.internal` gateway.
+
+**M3 Pro preset — 24 GiB Docker Desktop VM** (maintainer reference; TEI cgroup removed — full VM budget for MCP + Qdrant):
+
+```env
+ACCELERATOR=cpu
+COMPOSE_PROFILES=
+TEI_URL=http://host.docker.internal:8080
+DENSE_EMBED_MODEL=jinaai/jina-embeddings-v2-base-code
+DENSE_EMBED_VECTOR_SIZE=768
+SPARSE_EMBED_MODEL=Qdrant/bm25
+SPARSE_THREADS=2
+WORKSPACE_ROOT=/Users/<user>/Documents/Repositories
+
+# Docker Desktop → Settings → Resources → Memory: 24 GiB
+MCP_MEM_LIMIT=12g
+QDRANT_MEM_LIMIT=8g
+MCP_CPUS=10
+QDRANT_CPUS=4
+OMP_NUM_THREADS=8
+
+BATCH_SIZE=32
+FLUSH_EVERY=1500
+MAX_DENSE_EMBED_TOKENS=1024
+SEQUENTIAL_EMBED=false
+RERANK_ENABLED=false
+```
+
+Copy the full block from `.env.example` (TUNING PRESETS → Apple Silicon host Metal TEI).
+
+### Unified memory accounting
+
+Host TEI (Jina weights + Metal working set) and the Docker Desktop VM **share the same physical unified memory** on Apple Silicon. Do **not** set Docker Desktop Memory to 24 GiB and assume unlimited host TEI headroom — monitor **Activity Monitor** during the first index. If memory pressure is high, lower `MCP_MEM_LIMIT`, reduce the Docker VM slider, or fall back to [§ Apple Silicon](#apple-silicon-arm64-cpu) bundled CPU TEI.
+
+### Startup order
+
+1. Start **host TEI first** and wait until healthy.
+2. Start Docker stack (base compose only — no `bundled-tei` profile):
+
+```bash
+docker compose -f docker-compose.yml up -d --build
+```
+
+3. If MCP started before TEI was ready, restart once TEI responds:
+
+```bash
+docker compose restart mcp_server
+```
+
+MCP logs `model_preload_failed_continuing` when TEI is unreachable at boot — this is expected; restart after TEI is up.
+
+### Health checks
+
+```bash
+# Host TEI (loopback)
+curl http://127.0.0.1:8080/health
+
+# MCP (Docker)
+curl http://localhost:8000/health
+```
+
+Confirm no `codeindexer_tei` container exists:
+
+```bash
+docker ps --filter name=codeindexer_tei   # expect empty
+```
+
+Index a small project via MCP client to verify end-to-end dense embed through `host.docker.internal`.
+
+### Metal log check (first embed)
+
+On the **first real embed** after startup, inspect host TEI stdout/stderr for device selection. Homebrew TEI may report **Metal** acceleration or fall back to **CPU** depending on model/build — either is acceptable if throughput beats bundled `cpu-arm64-latest` on the same machine ([ADR 0029](adr/0029-macos-host-native-tei-metal-acceleration.md) success criteria).
+
+Look for lines mentioning Metal, MPS, or device placement in the terminal running `text-embeddings-router`. Pin a validated version optionally: `brew pin text-embeddings-inference`.
+
+### Operator checklist (Metal path)
+
+Complete the [§ Apple Silicon operator checklist](#operator-checklist) steps 1–2 (Docker Desktop memory, `WORKSPACE_ROOT`), then:
+
+1. `brew install text-embeddings-inference`
+2. Start `text-embeddings-router` with Jina model on `127.0.0.1:8080` (command above)
+3. Copy Metal preset into `.env` — `COMPOSE_PROFILES=` empty, `TEI_URL=http://host.docker.internal:8080`
+4. Set Docker Desktop Memory to **24 GiB**; use `MCP_MEM_LIMIT=12g`, `QDRANT_MEM_LIMIT=8g` (no `TEI_MEM_LIMIT`)
+5. `docker compose -f docker-compose.yml up -d --build`; restart `mcp_server` if needed
+6. Verify both health endpoints; confirm `codeindexer_tei` container absent
+7. Index a small repo; check TEI logs on first embed for Metal or CPU fallback
+8. Monitor Activity Monitor for unified memory pressure during first full index
+
+**Do not** set `ACCELERATOR=gpu` on Mac — Metal is not CUDA. **Do not** enable ColBERT GPU sidecar; keep `RERANK_ENABLED=false` unless following Phase 3 tier `full` preset in [ADR 0029](adr/0029-macos-host-native-tei-metal-acceleration.md).
 
 ## External TEI on the host
 

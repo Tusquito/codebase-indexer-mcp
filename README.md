@@ -101,7 +101,28 @@ curl http://127.0.0.1:8080/health
 docker version --format '{{.Server.Arch}}'   # expect arm64
 ```
 
-Full operator checklist, cgroup presets, and architecture verification: [docs/DEPLOYMENT.md § Apple Silicon](docs/DEPLOYMENT.md#apple-silicon-arm64-cpu). Optional faster dense embed: [ADR 0029](docs/adr/0029-macos-host-native-tei-metal-acceleration.md) (host Metal TEI).
+Full operator checklist, cgroup presets, and architecture verification: [docs/DEPLOYMENT.md § Apple Silicon](docs/DEPLOYMENT.md#apple-silicon-arm64-cpu).
+
+#### Optional: host Metal TEI (faster dense embed)
+
+When bundled CPU TEI is too slow, run TEI **on the macOS host** via Homebrew for Metal acceleration — MCP + Qdrant stay in Docker ([ADR 0029](docs/adr/0029-macos-host-native-tei-metal-acceleration.md)). Opt-in only; bundled CPU TEI above remains the simpler default.
+
+```bash
+brew install text-embeddings-inference
+text-embeddings-router \
+  --model-id jinaai/jina-embeddings-v2-base-code \
+  --hostname 127.0.0.1 --port 8080 --max-batch-tokens 1024
+```
+
+In `.env`: `COMPOSE_PROFILES=` (empty), `TEI_URL=http://host.docker.internal:8080`, `ACCELERATOR=cpu`. Use the M3 Pro **host Metal** preset in `.env.example` (`MCP_MEM_LIMIT=12g`, `QDRANT_MEM_LIMIT=8g` — no bundled TEI cgroup). Start host TEI **before** Docker; restart `mcp_server` if TEI was late.
+
+```bash
+docker compose -f docker-compose.yml up -d --build
+curl http://127.0.0.1:8080/health   # host TEI
+curl http://localhost:8000/health    # MCP
+```
+
+Host TEI and the Docker VM share **unified memory** — monitor Activity Monitor on first index. Check TEI logs on first embed for Metal or CPU fallback. Full guide: [docs/DEPLOYMENT.md § macOS host-native TEI (Metal)](docs/DEPLOYMENT.md#macos-host-native-tei-metal).
 
 ## MCP Client Configuration
 

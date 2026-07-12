@@ -18,6 +18,14 @@ docker compose $(ACCELERATOR=cpu python scripts/compose_files.py) --profile bund
 #      TEI_MKL_INSTRUCTIONS= (empty), RERANK_ENABLED=false; Docker Desktop Memory 24 GiB recommended
 docker compose $(ACCELERATOR=cpu python scripts/compose_files.py) --profile bundled-tei up -d --build
 
+# Apple Silicon — optional host Metal TEI (faster dense; ADR 0029; opt-in)
+# brew install text-embeddings-inference && text-embeddings-router --model-id jinaai/jina-embeddings-v2-base-code \
+#   --hostname 127.0.0.1 --port 8080 --max-batch-tokens 1024
+# .env: COMPOSE_PROFILES= (empty), TEI_URL=http://host.docker.internal:8080, ACCELERATOR=cpu
+# Start host TEI before Docker; MCP_MEM_LIMIT=12g, QDRANT_MEM_LIMIT=8g (24 GiB Docker VM)
+# docker compose -f docker-compose.yml up -d --build && docker compose restart mcp_server
+# See docs/DEPLOYMENT.md § macOS host-native TEI (Metal)
+
 # Check health
 curl http://localhost:8000/health
 
@@ -123,7 +131,7 @@ Never call `search_codebase` without `max_content_chars` when you only need symb
 - **Chunk sizes**: verbose/markup languages (`xml`, `yaml`, `json`, `markdown`, etc.) are capped at 60 lines per chunk; all others use `MAX_CHUNK_LINES` (default 150).
 - **Cross-collection search**: pass multiple collection names in the `collections` parameter of `search_codebase` / `find_cross_references`. Single-collection search goes through a faster code path.
 - **Build dependency detection**: `tools/build_deps.py` provides `extract_build_deps(content, rel_path)`, `is_build_manifest(rel_path)`, and `match_deps_to_collections(deps, collection_names)`. These parse Maven/NuGet/npm/Gradle/Go/Cargo/Python manifests and fuzzy-match artifact names against indexed collection names (e.g. artifact `my-core-definitions` matches collection `my-core`). Reference type `build_dependency` is returned by `find_cross_references` for manifest files. `map_service_dependencies` adds a Phase 2b that emits `build_dependency` edges. `get_collection_summary` auto-detects and reports `build_dependencies` when other collections are indexed.
-- **TEI GPU**: default when `ACCELERATOR=gpu` — use `docker compose $(python scripts/compose_files.py)`; set `ACCELERATOR=cpu` for CPU-only. **Apple Silicon:** `ACCELERATOR=cpu` + `TEI_IMAGE=cpu-arm64-latest` + `TEI_MKL_INSTRUCTIONS=` (empty); see [ADR 0028](docs/adr/0028-apple-silicon-arm64-cpu-deployment.md), [DEPLOYMENT.md § Apple Silicon](docs/DEPLOYMENT.md#apple-silicon-arm64-cpu). See [ADR 0022](docs/adr/0022-gpu-default-cpu-fallback.md), [ADR 0025](docs/adr/0025-huggingface-tei-dense-embedding.md).
+- **TEI GPU**: default when `ACCELERATOR=gpu` — use `docker compose $(python scripts/compose_files.py)`; set `ACCELERATOR=cpu` for CPU-only. **Apple Silicon (default):** `ACCELERATOR=cpu` + `TEI_IMAGE=cpu-arm64-latest` + `TEI_MKL_INSTRUCTIONS=` (empty) + `COMPOSE_PROFILES=bundled-tei`; see [ADR 0028](docs/adr/0028-apple-silicon-arm64-cpu-deployment.md), [DEPLOYMENT.md § Apple Silicon](docs/DEPLOYMENT.md#apple-silicon-arm64-cpu). **Apple Silicon (optional Metal):** host Homebrew TEI on `127.0.0.1:8080`, `COMPOSE_PROFILES=` empty, `TEI_URL=http://host.docker.internal:8080` — Metal acceleration outside Docker; start host TEI before compose; unified memory shared with Docker VM; see [ADR 0029](docs/adr/0029-macos-host-native-tei-metal-acceleration.md), [DEPLOYMENT.md § macOS host-native TEI (Metal)](docs/DEPLOYMENT.md#macos-host-native-tei-metal). See [ADR 0022](docs/adr/0022-gpu-default-cpu-fallback.md), [ADR 0025](docs/adr/0025-huggingface-tei-dense-embedding.md).
 - **Documentation**: whenever you add, remove, or change an MCP tool (signature, behaviour, description), you **must** also update:
   1. `README.md` — the tool table and any relevant sections (Quick Start, Configuration, Architecture)
   2. `.github/copilot-instructions.md` — the tool table and Key conventions
