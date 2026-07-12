@@ -13,6 +13,11 @@ docker compose $(python scripts/compose_files.py) --profile bundled-tei up -d --
 # Explicit CPU-only (CI / no NVIDIA)
 docker compose $(ACCELERATOR=cpu python scripts/compose_files.py) --profile bundled-tei up -d --build
 
+# Apple Silicon (M1/M2/M3/M4) — native arm64 CPU profile; see docs/DEPLOYMENT.md § Apple Silicon
+# .env: ACCELERATOR=cpu, TEI_IMAGE=ghcr.io/huggingface/text-embeddings-inference:cpu-arm64-1.9,
+#      TEI_MKL_INSTRUCTIONS= (empty), RERANK_ENABLED=false; Docker Desktop Memory 24 GiB recommended
+docker compose $(ACCELERATOR=cpu python scripts/compose_files.py) --profile bundled-tei up -d --build
+
 # Check health
 curl http://localhost:8000/health
 
@@ -22,7 +27,7 @@ docker logs -f codeindexer_mcp
 
 All config is env-var driven via `.env` (copy from `.env.example`). **Required in `.env` (no Python defaults):** `WORKSPACE_ROOT`, `MCP_MEM_LIMIT`, `QDRANT_MEM_LIMIT`, `MCP_CPUS`, `QDRANT_CPUS`, `OMP_NUM_THREADS`, `ACCELERATOR`, `DENSE_EMBED_MODEL`, `SPARSE_EMBED_MODEL`, `DENSE_EMBED_VECTOR_SIZE`, `SPARSE_THREADS`. **TEI (dense):** `TEI_URL`, `DENSE_EMBED_MODEL`, `COMPOSE_PROFILES=bundled-tei`, `TEI_GPU=1` with GPU compose merged by `scripts/compose_files.py` when `ACCELERATOR=gpu` (default). Set `ACCELERATOR=cpu` for CPU-only hosts. Optional: `HYBRID_SEARCH`, `MCP_TRANSPORT`, pipeline/storage knobs in `config.py`. Default sparse is `Qdrant/bm25` with `SPARSE_THREADS=2` (always CPU in MCP — see [ADR 0022](docs/adr/0022-gpu-default-cpu-fallback.md)). Performance/RAM knobs: batching `BATCH_SIZE`/`FLUSH_EVERY`/`UPSERT_BATCH`/`READAHEAD_BUFFER`/`MAX_DENSE_EMBED_TOKENS`/`MAX_SPARSE_EMBED_TOKENS`, `SEQUENTIAL_EMBED`, glibc `MALLOC_ARENA_MAX`/`MALLOC_TRIM_THRESHOLD_`, Qdrant storage `VECTORS_ON_DISK`/`SPARSE_ON_DISK`/`QUANTIZATION`/`MEMMAP_THRESHOLD_KB`, memory pressure `MEMORY_PRESSURE_WARN_PCT`/`MEMORY_PRESSURE_HALT_PCT`, and model lifecycle `RELEASE_MODELS_AFTER_INDEX`/`MODEL_IDLE_TIMEOUT`. See [ADR 0025](docs/adr/0025-huggingface-tei-dense-embedding.md).
 
-**Important:** `MCP_MEM_LIMIT + QDRANT_MEM_LIMIT` must leave at least 2–3 GiB for the Linux kernel, Docker daemon, and WSL2 overhead. Over-allocating causes silent OOM kills.
+**Important:** `MCP_MEM_LIMIT + QDRANT_MEM_LIMIT` must leave headroom for the Linux VM and Docker daemon. **Windows/WSL:** reserve at least 2–3 GiB. **macOS Docker Desktop:** reserve **4–6 GiB** for macOS + VM overhead — size cgroup caps to the Docker Desktop Memory slider, not host unified RAM. Over-allocating causes silent OOM kills. Apple Silicon presets: [DEPLOYMENT.md § Apple Silicon](docs/DEPLOYMENT.md#apple-silicon-arm64-cpu), [ADR 0028](docs/adr/0028-apple-silicon-arm64-cpu-deployment.md), optional Metal TEI [ADR 0029](docs/adr/0029-macos-host-native-tei-metal-acceleration.md).
 
 ## Development
 
@@ -118,7 +123,7 @@ Never call `search_codebase` without `max_content_chars` when you only need symb
 - **Chunk sizes**: verbose/markup languages (`xml`, `yaml`, `json`, `markdown`, etc.) are capped at 60 lines per chunk; all others use `MAX_CHUNK_LINES` (default 150).
 - **Cross-collection search**: pass multiple collection names in the `collections` parameter of `search_codebase` / `find_cross_references`. Single-collection search goes through a faster code path.
 - **Build dependency detection**: `tools/build_deps.py` provides `extract_build_deps(content, rel_path)`, `is_build_manifest(rel_path)`, and `match_deps_to_collections(deps, collection_names)`. These parse Maven/NuGet/npm/Gradle/Go/Cargo/Python manifests and fuzzy-match artifact names against indexed collection names (e.g. artifact `my-core-definitions` matches collection `my-core`). Reference type `build_dependency` is returned by `find_cross_references` for manifest files. `map_service_dependencies` adds a Phase 2b that emits `build_dependency` edges. `get_collection_summary` auto-detects and reports `build_dependencies` when other collections are indexed.
-- **TEI GPU**: default when `ACCELERATOR=gpu` — use `docker compose $(python scripts/compose_files.py)`; set `ACCELERATOR=cpu` for CPU-only. See [ADR 0022](docs/adr/0022-gpu-default-cpu-fallback.md), [ADR 0025](docs/adr/0025-huggingface-tei-dense-embedding.md).
+- **TEI GPU**: default when `ACCELERATOR=gpu` — use `docker compose $(python scripts/compose_files.py)`; set `ACCELERATOR=cpu` for CPU-only. **Apple Silicon:** `ACCELERATOR=cpu` + `TEI_IMAGE=cpu-arm64-1.9` + `TEI_MKL_INSTRUCTIONS=` (empty); see [ADR 0028](docs/adr/0028-apple-silicon-arm64-cpu-deployment.md), [DEPLOYMENT.md § Apple Silicon](docs/DEPLOYMENT.md#apple-silicon-arm64-cpu). See [ADR 0022](docs/adr/0022-gpu-default-cpu-fallback.md), [ADR 0025](docs/adr/0025-huggingface-tei-dense-embedding.md).
 - **Documentation**: whenever you add, remove, or change an MCP tool (signature, behaviour, description), you **must** also update:
   1. `README.md` — the tool table and any relevant sections (Quick Start, Configuration, Architecture)
   2. `.github/copilot-instructions.md` — the tool table and Key conventions
