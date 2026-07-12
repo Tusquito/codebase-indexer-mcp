@@ -95,8 +95,10 @@ def write_integration_env(workspace_root: Path, *, graph: bool = False) -> None:
     tei_image_line = ""
     mkl_line = ""
     if accelerator == "cpu":
-        tei_image_line = f"TEI_IMAGE={tei_image_default(env_for_defaults)}\n"
-        if container_arch() == "amd64":
+        tei_image = tei_image_default(env_for_defaults)
+        tei_image_line = f"TEI_IMAGE={tei_image}\n"
+        # MKL ISA knobs are x86-only — omit for arm64 TEI (ADR 0028).
+        if container_arch() == "amd64" and "arm64" not in tei_image.lower():
             mkl_line = "TEI_MKL_INSTRUCTIONS=AVX2\n"
     # CPU-only TEI warmup runs the model's full max-input-length forward pass
     # (attention buffers land in container RSS, unlike GPU where they live in
