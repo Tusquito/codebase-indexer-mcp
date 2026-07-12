@@ -78,6 +78,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0026 | Phase 2 — Golden-set expansion | Accepted (phase 1 — Harness reliability fix) | phase-2 | `merged` | Expand `mcp_server/benchmarks/fixtures/golden_queries.jsonl` in place from 26 to ≥75 distinct content-anchored (Phase-1 format) queries via the existing `suggest_labels.py` workflow; meet resolved per-tag membership targets (symbol 26, conceptual 7, config 19, cross_file 19, multi_hop 15); preserve `multi_hop` `hop2_query_text`; every multi_hop row carries a secondary tag (no pure multi_hop); ground-truth subset floor 19; `--validate-labels` zero unresolved; bump `golden_set_version` in `eval_baseline.json` only; raise golden-fixture unit-test floors + add a per-tag distribution/anchor-coverage test; Docker integration via `scripts/run_compose_integration.py`; quality validation report-only (`--threshold 0`). Defer Phases 3–5. [PR #30](https://github.com/Tusquito/codebase-indexer-mcp/pull/30) (`8be500b`) | 2026-07-08 |
 | 0026 | Phase 3 — Candidate registry + integration spikes | Accepted (phase 1 — Harness reliability fix) | phase-3 | `merged` | 10-row `model_candidates.yaml` registry with validating `candidates.py` loader; `config.py` entries for GTE_MODERNBERT_SPECS, GRANITE_EMBED_SPECS (including granite-embedding-97m), and INF_RETRIEVER_SPECS; `_settings.py` per-candidate swap helper; `verify_candidate.py` (`tei_health` + `tei_embed_smoke`); feature-flagged `query_instruction` and `normalize_output` hooks in `TeiDenseBackend`; inf-retriever spike passed; pplx-embed INT8 dropped for both sizes per 30-min drop-on-failure rule; unit tests; fixture-only, no production default change. Defer live per-native-candidate verify runs and Phase 4 bake-off orchestration. | 2026-07-10 |
 | 0028 | Phase 1 — Documented profile | Accepted (phase 1 — Documented profile) | phase-1 | `merged` | Phase 1 — `docs/DEPLOYMENT.md` § Apple Silicon (arm64 CPU) with M3 Pro 24 GiB Docker VM profile and minimal 18 GiB tier; `.env.example` macOS presets; README + `.github/copilot-instructions.md` cross-links; manual operator checklist; defer Phase 2 code. | 2026-07-12 |
+| 0028 | Phase 2 — Arch-aware compose defaults | Accepted (phase 2 — Arch-aware compose defaults) | phase-2 | `verified` | `TEI_IMAGE_CPU_ARM64_DEFAULT` + `container_arch()` (Docker server arch → `platform.machine()` fallback) in `scripts/compose_files.py`; arch-aware `tei_image_default()`; darwin `sysctl hw.memsize` + `DEFAULT_RESERVE_GIB=4.0` in `scripts/tune_alloc.py`; MKL compose fix or arm64 gate in `docker-compose.tei.yml`; arch-aware `TEI_IMAGE` in `scripts/run_compose_integration.py`; unit tests per ADR 0028 Validation; Docker integration. Defer Phase 3 ColBERT-on-Mac doc and Phase 4 `macos_m3pro_matrix.json`. | 2026-07-12 |
 <!-- END GENERATED:summary -->
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
@@ -85,7 +86,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 ## Active and upcoming work
 
 <!-- BEGIN GENERATED:active -->
-_No active or upcoming phases._
+- **0028** Phase 2 — Arch-aware compose defaults — `verified`
 <!-- END GENERATED:active -->
 
 ### Partial acceptance
@@ -1642,6 +1643,15 @@ _No active or upcoming phases._
 - **Verify:** tests run + plan compliance pass; review rounds: 2
 - **Changelog:** no — user-facing yes; invoker Changelog: no
 
+#### 2026-07-12 — verification
+- **Phase:** Phase 2 — Arch-aware compose defaults
+- **Tracker status:** `verified`
+- **Choices:** `cpu-arm64-latest` arm64 TEI tag (human-approved deviation from ADR `cpu-arm64-1.9`); MKL via amd64-only overlay; arch detection in `compose_files.py`; `default_reserve_gib()` shared by `tune_alloc`/`tune_stack`; integration script sets arch-aware TEI/MKL; NVIDIA/CI amd64 path unchanged
+- **Deviations:** arm64 tag `cpu-arm64-latest` instead of ADR `cpu-arm64-1.9` (human-approved)
+- **Code evidence:** `scripts/compose_files.py`, `docker-compose.tei.amd64-mkl.yml`, `docker-compose.tei.yml`, `scripts/tune_alloc.py`, `scripts/tune_stack.py`, `scripts/run_compose_integration.py`, `mcp_server/tests/test_compose_files.py`, `mcp_server/tests/test_tune_alloc.py`, `mcp_server/tests/test_run_compose_integration_gpu.py`, `docs/DEPLOYMENT.md`, `.env.example`, `README.md`, `.github/copilot-instructions.md`, `CHANGELOG.md`
+- **Verify:** tests run + plan compliance pass — 43 targeted unit tests passed; Docker integration pass on arm64 with quality validation threshold 0; review rounds: 1
+- **Changelog:** yes — **Arch-aware compose defaults for Apple Silicon** ([ADR 0028](docs/adr/0028-apple-silicon-arm64-cpu-deployment.md)) — `tei_image_default()` and integration script select native `cpu-arm64-latest` on arm64 Docker hosts; darwin RAM detection in `tune_alloc.py`/`tune_stack.py`; MKL instructions via amd64-only compose overlay; NVIDIA/CI amd64 path unchanged; manual `compose up` on Mac still requires `.env` `TEI_IMAGE` preset
+
 #### 2026-07-12 — prioritization
 - **Phase:** Phase 1 — Documented profile
 - **Tracker status:** `candidate`
@@ -1650,12 +1660,27 @@ _No active or upcoming phases._
 - **Code evidence:** ``scripts/compose_files.py` defaults `ACCELERATOR=cpu` → x86 `cpu-1.9` TEI`, ``scripts/tune_alloc.py` lacks darwin RAM detection`, ``docs/DEPLOYMENT.md` and `.env.example` have no Apple Silicon profile`
 - **Changelog:** no — user-facing yes; invoker Changelog: no
 
+#### 2026-07-12 — prioritization
+- **Phase:** Phase 2 — Arch-aware compose defaults
+- **Tracker status:** `candidate`
+- **Choices:** Prioritize 0028 Phase 2 over 0026 Phase 4 (higher raw score but NVIDIA-GPU-blocked on M3 Pro per resolved open decision); over 0029 Phase 1 (Metal docs — does not fix compose foot-gun); over 0002 Phase 4 (higher scope GraphRAG); over 0027 Phase 1 (Proposed, needs Accept, deferred in prior cycles); over 0023 Phase 3 (callees retirement); single phase per pipeline rule; no ADR Accept required (0028 already Accepted); pre-release: no global default change for NVIDIA hosts. **Why now:** ADR 0028 Phase 1 merged 2026-07-12; code still defaults `tei_image_default()` to amd64 `cpu-1.9` on all CPU hosts, `tune_alloc.py` lacks darwin RAM detection, and MKL compose env is x86-only — operators must manually set `TEI_IMAGE=cpu-arm64-1.9` per DEPLOYMENT.md. Maintainer is Apple Silicon M3 Pro without NVIDIA GPU; tracker open decisions defer 0026 Phase 4 GPU bake-off until Mac path completes. No active tracker phases. **Suggested scope:** one phase (= one PR). **Chosen scope:** `TEI_IMAGE_CPU_ARM64_DEFAULT` + `container_arch()` (Docker server arch → `platform.machine()` fallback) in `scripts/compose_files.py`; arch-aware `tei_image_default()`; darwin `sysctl hw.memsize` + `DEFAULT_RESERVE_GIB=4.0` in `scripts/tune_alloc.py`; MKL compose fix or arm64 gate in `docker-compose.tei.yml`; arch-aware `TEI_IMAGE` in `scripts/run_compose_integration.py`; unit tests per ADR 0028 Validation; Docker integration. Defer Phase 3 ColBERT-on-Mac doc and Phase 4 `macos_m3pro_matrix.json`.
+- **Deviations:** none
+- **Code evidence:** ``scripts/compose_files.py` `tei_image_default()` defaults to amd64 `cpu-1.9` on all CPU hosts`, ``scripts/tune_alloc.py` lacks darwin RAM detection`, ``docker-compose.tei.yml` MKL compose env is x86-only`
+- **Changelog:** no — user-facing yes; invoker Changelog: no
+
 #### 2026-07-12 — plan
 - **Phase:** Phase 1 — Documented profile
 - **Tracker status:** `planned`
 - **Choices:** Docs-only Phase 1 per binding human decision; no Phase 2 code in this PR; ADR 0028 already Accepted; NVIDIA default unchanged; CI amd64 path unchanged. Operators manually set TEI_IMAGE and TEI_MKL_INSTRUCTIONS= until Phase 2; M3 Pro manual smoke is primary merge gate for Mac correctness.
 - **Deviations:** none
 - **Changelog:** no — user-facing yes; invoker Changelog: no
+
+#### 2026-07-12 — plan
+- **Phase:** Phase 2 — Arch-aware compose defaults
+- **Tracker status:** `planned`
+- **Choices:** Single PR; MKL via amd64-only `docker-compose.tei.amd64-mkl.yml` overlay wired from `compose_file_args()` (not empty global default); arch detection in `compose_files.py` (no separate `platform_detect.py`); `tei_image_default()` respects explicit `TEI_IMAGE` override; integration sets `TEI_MKL_INSTRUCTIONS=AVX2` on amd64 CPU only; `default_reserve_gib()` callable shared by `tune_alloc` and `tune_stack`; minimal DEPLOYMENT.md footnote sync; NVIDIA/CI amd64 path unchanged. **Assumptions:** Phase 1 merged; ADR Accepted; CI runs amd64 `ACCELERATOR=cpu`; maintainer runs Docker integration on M3 Pro arm64 before merge approval; Docker Desktop VM RAM not auto-detected (operators use `--max-ram-gib` when host RAM ≠ VM budget).
+- **Deviations:** none
+- **Changelog:** yes — **Arch-aware compose defaults for Apple Silicon** ([ADR 0028](docs/adr/0028-apple-silicon-arm64-cpu-deployment.md)) — `tei_image_default()` and integration script select native `cpu-arm64-1.9` on arm64 Docker hosts; darwin RAM detection in `tune_alloc.py`/`tune_stack.py`; MKL instructions via amd64-only compose overlay; NVIDIA/CI amd64 path unchanged; manual `compose up` on Mac still requires `.env` `TEI_IMAGE` preset
 
 #### 2026-07-12 — merge
 - **Phase:** Phase 1 — Documented profile
@@ -1673,6 +1698,24 @@ _No active or upcoming phases._
 - **Choices:** Documented native arm64 CPU-first profile with manual TEI_IMAGE=cpu-arm64-1.9; M3 Pro 24 GiB + 18 GiB presets; RERANK_ENABLED=false; rejected amd64 emulation
 - **Deviations:** none
 - **Code evidence:** `docs/DEPLOYMENT.md`, `.env.example`, `README.md`, `.github/copilot-instructions.md`
+- **Changelog:** no — invoker Changelog: no; status implemented
+
+#### 2026-07-12 — implementation
+- **Phase:** Phase 2 — Arch-aware compose defaults
+- **Tracker status:** `implemented`
+- **Choices:** arm64 TEI tag `cpu-arm64-latest` (not `cpu-arm64-1.9` — GHCR manifest unknown); MKL via amd64-only `docker-compose.tei.amd64-mkl.yml`; arch detection in `compose_files.py`; `default_reserve_gib()` shared by `tune_alloc`/`tune_stack`; integration script sets arch-aware TEI/MKL; NVIDIA/CI amd64 path unchanged
+- **Deviations:** arm64 tag `cpu-arm64-latest` instead of ADR `cpu-arm64-1.9`
+- **Code evidence:** `scripts/compose_files.py`, `docker-compose.tei.amd64-mkl.yml`, `docker-compose.tei.yml`, `scripts/tune_alloc.py`, `scripts/tune_stack.py`, `scripts/run_compose_integration.py`, `mcp_server/tests/test_compose_files.py`, `mcp_server/tests/test_tune_alloc.py`, `mcp_server/tests/test_run_compose_integration_gpu.py`, `docs/DEPLOYMENT.md`, `.env.example`, `README.md`, `.github/copilot-instructions.md`, `CHANGELOG.md`
+- **Test debt:** Docker integration on M3 Pro arm64; full uv run pytest on maintainer host
+- **Changelog:** no — invoker/changelog already had [Unreleased] bullet; tag updated in place
+
+#### 2026-07-12 — implementation
+- **Phase:** Phase 2 — Arch-aware compose defaults
+- **Tracker status:** `implemented`
+- **Choices:** MKL via amd64-only `docker-compose.tei.amd64-mkl.yml` overlay wired from `compose_file_args()`; arch detection in `compose_files.py`; `tei_image_default()` respects explicit `TEI_IMAGE` override; integration sets `TEI_MKL_INSTRUCTIONS=AVX2` on amd64 CPU only; `default_reserve_gib()` shared by `tune_alloc` and `tune_stack`; minimal DEPLOYMENT.md footnote sync; NVIDIA/CI amd64 path unchanged
+- **Deviations:** none
+- **Code evidence:** `scripts/compose_files.py`, `docker-compose.tei.amd64-mkl.yml`, `docker-compose.tei.yml`, `scripts/tune_alloc.py`, `scripts/tune_stack.py`, `scripts/run_compose_integration.py`, `mcp_server/tests/test_compose_files.py`, `mcp_server/tests/test_tune_alloc.py`, `mcp_server/tests/test_run_compose_integration_gpu.py`, `docs/DEPLOYMENT.md`
+- **Test debt:** Docker compose integration on arm64 M3 Pro not run in agent session; maintainer must run `python scripts/run_compose_integration.py` before merge
 - **Changelog:** no — invoker Changelog: no; status implemented
 <!-- END GENERATED:phase-logs -->
 
@@ -1709,6 +1752,11 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 - RESOLVED — (1) do not Accept ADR 0027 this cycle; proceed with 0028
 - RESOLVED — (2) no NVIDIA GPU access — defer 0026 Phase 4 until after 0028 Mac path lands
 - RESOLVED — (3) Phase 1 only — do not combine Phase 2 code in this PR
+- RESOLVED — MKL overlay vs invert-default: amd64-only `docker-compose.tei.amd64-mkl.yml` overlay
+- Manual Mac `compose up` still requires Phase 1 `.env` preset for `TEI_IMAGE` (automation limited to integration script + helper function)
+- Whether to Accept ADR 0027 in a future cycle
+- Whether NVIDIA GPU host is available for 0026 Phase 4 bake-off
+- Whether 0028 Phase 4 maintainer benchmark runs on 24 GiB or 18 GiB Docker VM tier
 <!-- END GENERATED:open-decisions -->
 
 ---

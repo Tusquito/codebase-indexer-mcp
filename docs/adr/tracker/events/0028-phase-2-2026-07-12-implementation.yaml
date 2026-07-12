@@ -1,0 +1,26 @@
+adr_id: '0028'
+phase_key: phase-2
+phase_title: Phase 2 — Arch-aware compose defaults
+event: implementation
+date: '2026-07-12'
+tracker_status: implemented
+choices: >-
+  MKL via amd64-only `docker-compose.tei.amd64-mkl.yml` overlay wired from `compose_file_args()`; arch detection in `compose_files.py`; `tei_image_default()` respects explicit `TEI_IMAGE` override; integration sets `TEI_MKL_INSTRUCTIONS=AVX2` on amd64 CPU only; `default_reserve_gib()` shared by `tune_alloc` and `tune_stack`; minimal DEPLOYMENT.md footnote sync; NVIDIA/CI amd64 path unchanged
+deviations: none
+code_evidence:
+  - scripts/compose_files.py
+  - docker-compose.tei.amd64-mkl.yml
+  - docker-compose.tei.yml
+  - scripts/tune_alloc.py
+  - scripts/tune_stack.py
+  - scripts/run_compose_integration.py
+  - mcp_server/tests/test_compose_files.py
+  - mcp_server/tests/test_tune_alloc.py
+  - mcp_server/tests/test_run_compose_integration_gpu.py
+  - docs/DEPLOYMENT.md
+test_debt:
+  - Docker compose integration on arm64 M3 Pro not run in agent session; maintainer must run `python scripts/run_compose_integration.py` before merge
+changelog:
+  update: false
+  reason: 'invoker Changelog: no; status implemented'
+user_facing: true
