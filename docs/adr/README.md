@@ -16,7 +16,7 @@ Skip ADRs for routine bug fixes, refactors with no design change, or dependency 
 ## How to add an ADR
 
 1. Copy [`template.md`](template.md) to a new file: `NNNN-short-kebab-title.md`
-2. Use the next available four-digit number (see index below — currently **0030**)
+2. Use the next available four-digit number (see index below — currently **0031**)
 3. Fill in all sections; leave **Status** as `Proposed` until reviewed
 4. Add a row to the index table below
 5. Link the ADR from related docs (e.g. [`ARCHITECTURE.md`](../ARCHITECTURE.md)) when relevant
@@ -82,6 +82,7 @@ Invoke the full pipeline with **`adr-orchestrator`**; resume a phase with `Resum
 | [0027](0027-client-side-search-intent-routing.md) | Client-side search intent routing before retrieval | Proposed | 2026-07-10 |
 | [0028](0028-apple-silicon-arm64-cpu-deployment.md) | Apple Silicon arm64 CPU-first deployment profile | Accepted | 2026-07-12 |
 | [0029](0029-macos-host-native-tei-metal-acceleration.md) | macOS host-native TEI with Metal for dense embedding acceleration | Accepted | 2026-07-12 |
+| [0030](0030-migrate-mcp-server-to-dotnet10.md) | Migrate MCP server runtime from Python to C# .NET 10 | Proposed | 2026-07-12 |
 
 ## Qdrant Build Prototypes & Improve Search map
 
