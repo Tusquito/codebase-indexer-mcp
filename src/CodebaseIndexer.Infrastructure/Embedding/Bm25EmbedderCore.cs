@@ -41,8 +41,22 @@ internal sealed class Bm25EmbedderCore
         }
 
         var tfMap = TermFrequency(stemmed);
-        var indices = tfMap.Keys.OrderBy(k => k).Select(k => (uint)k).ToArray();
-        var values = indices.Select(i => tfMap[(int)i]).ToArray();
+        var keys = new List<int>(tfMap.Count);
+        foreach (var key in tfMap.Keys)
+        {
+            keys.Add(key);
+        }
+
+        keys.Sort();
+        var indices = new uint[keys.Count];
+        var values = new float[keys.Count];
+        for (var i = 0; i < keys.Count; i++)
+        {
+            var key = keys[i];
+            indices[i] = (uint)key;
+            values[i] = tfMap[key];
+        }
+
         return new SparseVector(indices, values);
     }
 

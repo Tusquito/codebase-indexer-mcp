@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Security.Cryptography;
 using System.Threading.Channels;
+using CodebaseIndexer.Application.Options;
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
 using CodebaseIndexer.Infrastructure.Configuration;
@@ -9,6 +10,7 @@ using Microsoft.Extensions.Options;
 
 namespace CodebaseIndexer.Infrastructure.Indexing;
 
+/// <summary>Parallel workspace file scanner with gitignore filtering and incremental hashing.</summary>
 public sealed class WorkspaceScanner : IWorkspaceScanner
 {
     private static readonly HashSet<string> DefaultExcludedDirs = new(StringComparer.Ordinal)
@@ -18,15 +20,19 @@ public sealed class WorkspaceScanner : IWorkspaceScanner
         ".ruff_cache", ".idea", ".vscode", "migrations",
     };
 
-    private readonly Settings _settings;
+    private readonly WorkspaceOptions _options;
     private readonly ILogger<WorkspaceScanner> _logger;
 
-    public WorkspaceScanner(IOptions<Settings> settings, ILogger<WorkspaceScanner> logger)
+    /// <summary>Creates a scanner from workspace options.</summary>
+    /// <param name="options">Workspace scan configuration.</param>
+    /// <param name="logger">Logger instance.</param>
+    public WorkspaceScanner(IOptions<WorkspaceOptions> options, ILogger<WorkspaceScanner> logger)
     {
-        _settings = settings.Value;
+        _options = options.Value;
         _logger = logger;
     }
 
+    /// <inheritdoc />
     public async IAsyncEnumerable<FileRecord> ScanFilesAsync(
         string workspacePath,
         string subPath,
@@ -48,10 +54,10 @@ public sealed class WorkspaceScanner : IWorkspaceScanner
             yield break;
         }
 
-        var excluded = ParseExcludedDirs(_settings.ExcludedDirs);
+        var excluded = ParseExcludedDirs(_options.ExcludedDirs);
         var metadata = force ? null : existingMetadata;
-        var dop = Math.Max(1, _settings.HashWorkerDop);
-        var capacity = Math.Max(1, _settings.ReadaheadBuffer);
+        var dop = Math.Max(1, _options.HashWorkerDop);
+        var capacity = Math.Max(1, _options.ReadaheadBuffer);
 
         var pathChannel = Channel.CreateBounded<string>(new BoundedChannelOptions(capacity)
         {
@@ -260,7 +266,7 @@ public sealed class WorkspaceScanner : IWorkspaceScanner
             double mtime;
             try
             {
-                mtime = File.GetLastWriteTimeUtc(absPath).ToUniversalTime().Subtract(DateTime.UnixEpoch).TotalSeconds;
+                mtime = File.GetLastWriteTimeUtc(absPath).Subtract(DateTime.UnixEpoch).TotalSeconds;
             }
             catch (Exception ex)
             {
@@ -378,9 +384,6 @@ public sealed class WorkspaceScanner : IWorkspaceScanner
         }
     }
 
-    private static string ComputeSha256(byte[] raw)
-    {
-        var hashBytes = SHA256.HashData(raw);
-        return Convert.ToHexString(hashBytes).ToLowerInvariant();
-    }
+    private static string ComputeSha256(ReadOnlySpan<byte> raw) =>
+        Convert.ToHexStringLower(SHA256.HashData(raw));
 }

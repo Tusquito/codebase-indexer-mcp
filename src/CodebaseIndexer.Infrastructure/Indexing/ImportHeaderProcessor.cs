@@ -101,7 +101,7 @@ internal static partial class ImportHeaderProcessor
                 continue;
             }
 
-            if (names.Any(name => SymbolReferencedInContent(name, chunkContent)))
+            if (names.Any(name => SymbolReferencedInContent(name, chunkContent.AsSpan())))
             {
                 relevant.Add(line);
             }
@@ -121,11 +121,48 @@ internal static partial class ImportHeaderProcessor
         return chunk with { Content = header + "\n" + chunk.Content };
     }
 
-    private static bool SymbolReferencedInContent(string name, string content) =>
-        SymbolRegex(name).IsMatch(content);
+    private static bool SymbolReferencedInContent(string name, ReadOnlySpan<char> content)
+    {
+        if (content.IsEmpty || name.Length == 0)
+        {
+            return false;
+        }
 
-    private static Regex SymbolRegex(string name) =>
-        new($@"(?<![A-Za-z0-9_]){Regex.Escape(name)}(?![A-Za-z0-9_])", RegexOptions.CultureInvariant);
+        var nameSpan = name.AsSpan();
+        var start = 0;
+        while (start <= content.Length - nameSpan.Length)
+        {
+            var index = content.Slice(start).IndexOf(nameSpan, StringComparison.Ordinal);
+            if (index < 0)
+            {
+                break;
+            }
+
+            var position = start + index;
+            if (IsIdentifierBoundary(content, position, nameSpan.Length))
+            {
+                return true;
+            }
+
+            start = position + 1;
+        }
+
+        return false;
+    }
+
+    private static bool IsIdentifierBoundary(ReadOnlySpan<char> content, int start, int length)
+    {
+        if (start > 0 && IsIdentifierChar(content[start - 1]))
+        {
+            return false;
+        }
+
+        var end = start + length;
+        return end >= content.Length || !IsIdentifierChar(content[end]);
+    }
+
+    private static bool IsIdentifierChar(char ch) =>
+        char.IsLetterOrDigit(ch) || ch == '_';
 
     private static IReadOnlyList<string>? ExtractImportedNames(string line, string language) =>
         language switch
@@ -313,8 +350,11 @@ internal static partial class ImportHeaderProcessor
         return define.Success ? [define.Groups[1].Value] : Array.Empty<string>();
     }
 
-    private static string LastDottedSegment(string qualified) =>
-        qualified.Split('.').Last();
+    private static string LastDottedSegment(ReadOnlySpan<char> qualified)
+    {
+        var index = qualified.LastIndexOf('.');
+        return index < 0 ? qualified.ToString() : qualified[(index + 1)..].ToString();
+    }
 
     private static string GoImportPathName(string importPath)
     {

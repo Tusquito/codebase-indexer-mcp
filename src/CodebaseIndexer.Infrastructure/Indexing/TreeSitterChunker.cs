@@ -8,6 +8,7 @@ using TreeSitter;
 
 namespace CodebaseIndexer.Infrastructure.Indexing;
 
+/// <summary>Tree-sitter AST-based code chunker with sliding-window fallback.</summary>
 public sealed class TreeSitterChunker : ICodeChunker
 {
     private static readonly FrozenDictionary<string, string> LanguageIds = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -24,29 +25,33 @@ public sealed class TreeSitterChunker : ICodeChunker
         ["sql"] = "Sql",
     }.ToFrozenDictionary(StringComparer.Ordinal);
 
-    private readonly Settings _settings;
+    private readonly ChunkingOptions _options;
     private readonly ILogger<TreeSitterChunker> _logger;
     private readonly Dictionary<string, Parser> _parsers = new(StringComparer.Ordinal);
 
-    public TreeSitterChunker(IOptions<Settings> settings, ILogger<TreeSitterChunker> logger)
+    /// <summary>Creates a chunker from chunking options.</summary>
+    /// <param name="options">Chunk line limit and overlap configuration.</param>
+    /// <param name="logger">Logger instance.</param>
+    public TreeSitterChunker(IOptions<ChunkingOptions> options, ILogger<TreeSitterChunker> logger)
     {
-        _settings = settings.Value;
+        _options = options.Value;
         _logger = logger;
     }
 
+    /// <inheritdoc />
     public IReadOnlyList<Chunk> ChunkFile(string relPath, string content, string language, string fileSha256) =>
         ChunkerCore.ChunkFile(
             content,
             relPath,
             language,
             fileSha256,
-            _settings.MaxChunkLines,
-            _settings.ChunkOverlapLines,
+            _options.MaxLines,
+            _options.OverlapLines,
             0,
             TryTreeSitterChunk);
 
     private IReadOnlyList<Chunk> TryTreeSitterChunk(
-        string content,
+        LineIndex lineIndex,
         string relPath,
         string language,
         string fileSha256,
@@ -64,24 +69,25 @@ public sealed class TreeSitterChunker : ICodeChunker
         try
         {
             var parser = GetOrCreateParser(languageId);
-            using var tree = parser.Parse(content);
+            using var tree = parser.Parse(lineIndex.Content);
             if (tree?.RootNode is null)
             {
                 return Array.Empty<Chunk>();
             }
 
-            var lines = content.Split('\n');
             var chunks = new List<Chunk>();
-            ExtractNodes(tree.RootNode, lines, relPath, language, fileSha256, maxChunkLines, nodeTypes, chunks);
+            var lastLine = lineIndex.LineCount - 1;
+            ExtractNodes(tree.RootNode, lineIndex, relPath, language, fileSha256, maxChunkLines, nodeTypes, chunks);
             if (chunks.Count == 0)
             {
                 return ChunkerCore.SlidingWindowRange(
-                    lines, 0, lines.Length - 1, relPath, language, fileSha256,
+                    lineIndex, 0, lastLine, relPath, language, fileSha256,
                     maxChunkLines, chunkOverlapLines, fileMtime);
             }
 
-            var ordered = chunks.OrderBy(c => c.StartLine).ToArray();
-            return ImportHeaderProcessor.ApplyImportHeaders(ordered, tree.RootNode, lines, language);
+            chunks.Sort(static (left, right) => left.StartLine.CompareTo(right.StartLine));
+            var lines = lineIndex.ToLines();
+            return ImportHeaderProcessor.ApplyImportHeaders(chunks, tree.RootNode, lines, language);
         }
         catch (Exception ex)
         {
@@ -105,7 +111,7 @@ public sealed class TreeSitterChunker : ICodeChunker
 
     private static void ExtractNodes(
         Node node,
-        IReadOnlyList<string> lines,
+        LineIndex lineIndex,
         string relPath,
         string language,
         string fileSha256,
@@ -121,13 +127,13 @@ public sealed class TreeSitterChunker : ICodeChunker
             {
                 foreach (var child in node.Children)
                 {
-                    ExtractNodes(child, lines, relPath, language, fileSha256, maxChunkLines, nodeTypes, output);
+                    ExtractNodes(child, lineIndex, relPath, language, fileSha256, maxChunkLines, nodeTypes, output);
                 }
 
                 return;
             }
 
-            var nodeContent = node.Text ?? string.Join('\n', lines.Skip(start).Take(end - start + 1));
+            var nodeContent = node.Text ?? lineIndex.ExtractRange(start, end);
             output.Add(new Chunk(
                 ChunkId.FromPathAndLine(relPath, start + 1),
                 relPath,
@@ -142,7 +148,7 @@ public sealed class TreeSitterChunker : ICodeChunker
 
         foreach (var child in node.Children)
         {
-            ExtractNodes(child, lines, relPath, language, fileSha256, maxChunkLines, nodeTypes, output);
+            ExtractNodes(child, lineIndex, relPath, language, fileSha256, maxChunkLines, nodeTypes, output);
         }
     }
 

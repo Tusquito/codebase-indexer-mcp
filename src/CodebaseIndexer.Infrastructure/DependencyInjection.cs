@@ -1,3 +1,4 @@
+using CodebaseIndexer.Domain.Embedding;
 using CodebaseIndexer.Domain.Ports;
 using CodebaseIndexer.Infrastructure.Configuration;
 using CodebaseIndexer.Infrastructure.Embedding;
@@ -12,15 +13,19 @@ using Refit;
 
 namespace CodebaseIndexer.Infrastructure;
 
+/// <summary>Dependency injection registration for the infrastructure layer.</summary>
 public static class DependencyInjection
 {
+    /// <summary>Registers vector store, embedders, chunker, scanner, and TEI HTTP client.</summary>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The same service collection for chaining.</returns>
     public static IServiceCollection AddCodebaseIndexerInfrastructure(this IServiceCollection services)
     {
         services.AddCodebaseIndexerSettings();
 
         services.TryAddSingleton<IVectorStore, QdrantVectorStore>();
-        services.TryAddSingleton<IDenseEmbedder, TeiDenseEmbedder>();
-        services.TryAddSingleton<ISparseEmbedder, OnnxSparseEmbedder>();
+        services.AddKeyedSingleton<IDenseEmbedder, TeiDenseEmbedder>(EmbedderBackendKeys.Dense.Tei);
+        services.AddKeyedSingleton<ISparseEmbedder, OnnxSparseEmbedder>(EmbedderBackendKeys.Sparse.Onnx);
         services.TryAddSingleton<ICodeChunker, TreeSitterChunker>();
         services.TryAddSingleton<IWorkspaceScanner, WorkspaceScanner>();
         services.TryAddSingleton<IMemoryPressureGuard, CgroupMemoryPressureGuard>();
@@ -28,9 +33,9 @@ public static class DependencyInjection
         services.AddRefitClient<ITeiEmbeddingsApi>()
             .ConfigureHttpClient((sp, client) =>
             {
-                var settings = sp.GetRequiredService<IOptions<Settings>>().Value;
-                client.BaseAddress = new Uri(settings.TeiUrl.TrimEnd('/') + "/");
-                client.Timeout = TimeSpan.FromSeconds(settings.TeiTimeoutSeconds);
+                var tei = sp.GetRequiredService<IOptions<TeiOptions>>().Value;
+                client.BaseAddress = new Uri(tei.Url.TrimEnd('/') + "/");
+                client.Timeout = TimeSpan.FromSeconds(tei.TimeoutSeconds);
             })
             .AddStandardResilienceHandler();
 

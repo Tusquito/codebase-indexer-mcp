@@ -18,13 +18,16 @@ internal static class ChunkerCore
         int maxChunkLines,
         int chunkOverlapLines,
         double fileMtime,
-        Func<string, string, string, string, int, int, double, IReadOnlyList<Chunk>>? treeSitterChunker)
+        Func<LineIndex, string, string, string, int, int, double, IReadOnlyList<Chunk>>? treeSitterChunker)
     {
-        var lines = content.Split('\n');
-        if (lines.Length == 0 || (lines.Length == 1 && lines[0].Length == 0))
+        var lineIndex = LineIndex.Parse(content);
+        if (lineIndex.LineCount == 0
+            || (lineIndex.LineCount == 1 && lineIndex.GetLine(0).IsEmpty))
         {
             return Array.Empty<Chunk>();
         }
+
+        var lastLine = lineIndex.LineCount - 1;
 
         if (VerboseLanguages.Contains(language))
         {
@@ -36,6 +39,7 @@ internal static class ChunkerCore
         IReadOnlyList<Chunk> procedureChunks = Array.Empty<Chunk>();
         if (language == "sql")
         {
+            var lines = lineIndex.ToLines();
             procedureChunks = SqlProcedureRegexFallback.ExtractProcedureChunks(
                 lines, relPath, language, fileSha256, maxChunkLines, chunkOverlapLines, fileMtime);
             procedureSpans = SqlProcedureRegexFallback.FindProcedureSpans(lines);
@@ -49,7 +53,7 @@ internal static class ChunkerCore
             try
             {
                 chunks = treeSitterChunker(
-                    content,
+                    lineIndex,
                     relPath,
                     language,
                     fileSha256,
@@ -59,17 +63,17 @@ internal static class ChunkerCore
             }
             catch (Exception)
             {
-                chunks = SlidingWindowRange(lines, 0, lines.Length - 1, relPath, language, fileSha256, maxChunkLines, chunkOverlapLines, fileMtime);
+                chunks = SlidingWindowRange(lineIndex, 0, lastLine, relPath, language, fileSha256, maxChunkLines, chunkOverlapLines, fileMtime);
             }
         }
         else if (LanguageRegistry.SlidingWindowLanguages.Contains(language)
             || !LanguageRegistry.TreeSitterGrammars.ContainsKey(language))
         {
-            chunks = SlidingWindowRange(lines, 0, lines.Length - 1, relPath, language, fileSha256, maxChunkLines, chunkOverlapLines, fileMtime);
+            chunks = SlidingWindowRange(lineIndex, 0, lastLine, relPath, language, fileSha256, maxChunkLines, chunkOverlapLines, fileMtime);
         }
         else
         {
-            chunks = SlidingWindowRange(lines, 0, lines.Length - 1, relPath, language, fileSha256, maxChunkLines, chunkOverlapLines, fileMtime);
+            chunks = SlidingWindowRange(lineIndex, 0, lastLine, relPath, language, fileSha256, maxChunkLines, chunkOverlapLines, fileMtime);
         }
 
         if (language == "sql" && procedureSpans.Count > 0)
@@ -89,7 +93,7 @@ internal static class ChunkerCore
     }
 
     internal static IReadOnlyList<Chunk> SlidingWindowRange(
-        IReadOnlyList<string> lines,
+        LineIndex lineIndex,
         int start,
         int end,
         string relPath,
@@ -106,11 +110,11 @@ internal static class ChunkerCore
         while (pos <= end)
         {
             var chunkEnd = Math.Min(pos + maxLines - 1, end);
-            var content = string.Join('\n', lines.Skip(pos).Take(chunkEnd - pos + 1));
+            var chunkContent = lineIndex.ExtractRange(pos, chunkEnd);
             chunks.Add(new Chunk(
                 ChunkId.FromPathAndLine(relPath, pos + 1),
                 relPath,
-                content,
+                chunkContent,
                 pos + 1,
                 chunkEnd + 1,
                 symbolName,
@@ -127,6 +131,20 @@ internal static class ChunkerCore
 
         return chunks;
     }
+
+    internal static IReadOnlyList<Chunk> SlidingWindowRange(
+        IReadOnlyList<string> lines,
+        int start,
+        int end,
+        string relPath,
+        string language,
+        string fileSha256,
+        int maxLines,
+        int overlap,
+        double fileMtime,
+        string? symbolName = null,
+        string symbolType = "other") =>
+        SlidingWindowRange(LineIndex.Parse(string.Join('\n', lines)), start, end, relPath, language, fileSha256, maxLines, overlap, fileMtime, symbolName, symbolType);
 
     private static IReadOnlyList<Chunk> ApplyFileSymbolType(IReadOnlyList<Chunk> chunks, string relPath, string language)
     {

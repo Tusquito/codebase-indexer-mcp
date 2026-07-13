@@ -5,7 +5,14 @@ namespace CodebaseIndexer.Infrastructure.Embedding;
 internal static class Bm25MurmurHash3
 {
     public static int ComputeTokenId(string token) =>
-        Math.Abs(Hash32(Encoding.UTF8.GetBytes(token), seed: 0));
+        ComputeTokenId(token.AsSpan());
+
+    public static int ComputeTokenId(ReadOnlySpan<char> token)
+    {
+        Span<byte> buffer = stackalloc byte[Encoding.UTF8.GetMaxByteCount(token.Length)];
+        var written = Encoding.UTF8.GetBytes(token, buffer);
+        return Math.Abs(Hash32(buffer[..written], seed: 0));
+    }
 
     private static int Hash32(ReadOnlySpan<byte> data, uint seed)
     {

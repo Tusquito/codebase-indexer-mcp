@@ -4,8 +4,13 @@ using Microsoft.ML.Tokenizers;
 
 namespace CodebaseIndexer.Infrastructure.Embedding;
 
+/// <summary>Loads Hugging Face tokenizers from the local model cache for dense truncation.</summary>
 public static class DenseTokenizerLoader
 {
+    /// <summary>Loads a tokenizer for the given model from the Hugging Face hub cache.</summary>
+    /// <param name="modelId">Hugging Face model identifier (e.g. org/model).</param>
+    /// <param name="logger">Optional logger for load failures.</param>
+    /// <returns>Tokenizer instance, or null when files are unavailable.</returns>
     public static Tokenizer? LoadDenseTokenizer(string modelId, ILogger? logger = null)
     {
         var snapshotDir = ResolveModelSnapshotDir(modelId);
@@ -78,6 +83,8 @@ public static class DenseTokenizerLoader
         return null;
     }
 
+    /// <summary>Resolves the Hugging Face hub cache directory from environment variables.</summary>
+    /// <returns>Cache directory path, or null when not configured or missing.</returns>
     public static string? ResolveHfCacheDir()
     {
         if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("HF_HUB_CACHE")))

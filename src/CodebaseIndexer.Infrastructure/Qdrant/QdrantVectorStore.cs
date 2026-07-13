@@ -1,5 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
+using CodebaseIndexer.Application.Options;
+using CodebaseIndexer.Domain.Embedding;
 using CodebaseIndexer.Domain.Exceptions;
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
@@ -12,27 +14,39 @@ using Qdrant.Client.Grpc;
 
 namespace CodebaseIndexer.Infrastructure.Qdrant;
 
+/// <summary>Qdrant-backed implementation of <see cref="IVectorStore"/>.</summary>
 public sealed class QdrantVectorStore : IVectorStore
 {
     private static readonly Guid ChunkNamespace = Guid.Parse("6ba7b811-9dad-11d1-80b4-00c04fd430c8");
 
-    private readonly Settings _settings;
+    private readonly QdrantOptions _qdrant;
+    private readonly EmbeddingOptions _embedding;
     private readonly ILogger<QdrantVectorStore> _logger;
     private readonly Lazy<QdrantClient> _client;
 
-    public QdrantVectorStore(IOptions<Settings> settings, ILogger<QdrantVectorStore> logger)
+    /// <summary>Creates a vector store client from Qdrant and embedding options.</summary>
+    /// <param name="qdrant">Qdrant connection options.</param>
+    /// <param name="embedding">Embedding model configuration.</param>
+    /// <param name="logger">Logger instance.</param>
+    public QdrantVectorStore(
+        IOptions<QdrantOptions> qdrant,
+        IOptions<EmbeddingOptions> embedding,
+        ILogger<QdrantVectorStore> logger)
     {
-        _settings = settings.Value;
+        _qdrant = qdrant.Value;
+        _embedding = embedding.Value;
         _logger = logger;
-        _client = new Lazy<QdrantClient>(() => CreateClient(_settings));
+        _client = new Lazy<QdrantClient>(() => CreateClient(_qdrant));
     }
 
+    /// <inheritdoc />
     public async ValueTask<bool> CollectionExistsAsync(string collection, CancellationToken cancellationToken = default)
     {
         var collections = await _client.Value.ListCollectionsAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
         return collections.Contains(collection);
     }
 
+    /// <inheritdoc />
     public async Task EnsureCollectionAsync(string collection, bool force = false, CancellationToken cancellationToken = default)
     {
         if (await CollectionExistsAsync(collection, cancellationToken).ConfigureAwait(false))
@@ -57,15 +71,15 @@ public sealed class QdrantVectorStore : IVectorStore
             {
                 ["dense"] = new VectorParams
                 {
-                    Size = (ulong)_settings.DenseEmbedVectorSize,
+                    Size = (ulong)_embedding.DenseVectorSize,
                     Distance = Distance.Cosine,
-                    OnDisk = _settings.VectorsOnDisk,
+                    OnDisk = _qdrant.VectorsOnDisk,
                 },
             },
         };
 
         SparseVectorConfig? sparseVectorsConfig = null;
-        if (_settings.HybridSearch)
+        if (_embedding.HybridSearch)
         {
             sparseVectorsConfig = new SparseVectorConfig
             {
@@ -73,7 +87,7 @@ public sealed class QdrantVectorStore : IVectorStore
                 {
                     ["sparse"] = new SparseVectorParams
                     {
-                        Index = new SparseIndexConfig { OnDisk = _settings.SparseOnDisk },
+                        Index = new SparseIndexConfig { OnDisk = _qdrant.SparseOnDisk },
                     },
                 },
             };
@@ -86,6 +100,7 @@ public sealed class QdrantVectorStore : IVectorStore
             cancellationToken: cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
     public async Task UpsertChunksAsync(
         string collection,
         IReadOnlyList<EmbeddedChunk> chunks,
@@ -100,6 +115,7 @@ public sealed class QdrantVectorStore : IVectorStore
         await _client.Value.UpsertAsync(collection, points, cancellationToken: cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
     public async Task<IReadOnlyList<SearchHit>> SearchAsync(
         string collection,
         string query,
@@ -117,12 +133,14 @@ public sealed class QdrantVectorStore : IVectorStore
         return Array.Empty<SearchHit>();
     }
 
+    /// <inheritdoc />
     public async Task<IReadOnlyList<string>> ListCollectionsAsync(CancellationToken cancellationToken = default)
     {
         var collections = await _client.Value.ListCollectionsAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
         return collections.OrderBy(c => c, StringComparer.Ordinal).ToArray();
     }
 
+    /// <inheritdoc />
     public async ValueTask<CollectionStats?> GetCollectionStatsAsync(
         string collection,
         CancellationToken cancellationToken = default)
@@ -139,13 +157,14 @@ public sealed class QdrantVectorStore : IVectorStore
             collection,
             (long)info.PointsCount,
             0,
-            _settings.DenseEmbedModel,
-            _settings.SparseEmbedModel,
-            "tei",
-            _settings.HybridSearch,
-            _settings.RerankEnabled);
+            _embedding.DenseModel,
+            _embedding.SparseModel,
+            EmbedderBackendKeys.Dense.Tei,
+            _embedding.HybridSearch,
+            _embedding.RerankEnabled);
     }
 
+    /// <inheritdoc />
     public async Task<IReadOnlyDictionary<string, FileMetadata>> GetFileMetadataAsync(
         string collection,
         CancellationToken cancellationToken = default)
@@ -209,6 +228,7 @@ public sealed class QdrantVectorStore : IVectorStore
         return metadata;
     }
 
+    /// <inheritdoc />
     public async Task DeleteByPathsAsync(
         string collection,
         IReadOnlyList<string> relPaths,
@@ -243,6 +263,7 @@ public sealed class QdrantVectorStore : IVectorStore
         }
     }
 
+    /// <inheritdoc />
     public async Task SetIndexingAsync(
         string collection,
         bool enabled,
@@ -276,13 +297,13 @@ public sealed class QdrantVectorStore : IVectorStore
             return true;
         }
 
-        if ((int)dense.Size != _settings.DenseEmbedVectorSize)
+        if ((int)dense.Size != _embedding.DenseVectorSize)
         {
             return true;
         }
 
         var hasSparse = info.Config.Params.SparseVectorsConfig.Map.ContainsKey("sparse");
-        return hasSparse != _settings.HybridSearch;
+        return hasSparse != _embedding.HybridSearch;
     }
 
     private static PointStruct ToPoint(EmbeddedChunk chunk)
@@ -339,20 +360,20 @@ public sealed class QdrantVectorStore : IVectorStore
         Array.Reverse(bytes, 6, 2);
     }
 
-    private static QdrantClient CreateClient(Settings settings)
+    private static QdrantClient CreateClient(QdrantOptions options)
     {
         try
         {
-            if (Uri.TryCreate(settings.QdrantUrl, UriKind.Absolute, out var uri))
+            if (Uri.TryCreate(options.Url, UriKind.Absolute, out var uri))
             {
                 return new QdrantClient(host: uri.Host, port: uri.Port, https: uri.Scheme == "https");
             }
         }
         catch (Exception ex) when (ex is UriFormatException or RpcException)
         {
-            throw new VectorStoreException($"Invalid Qdrant URL '{settings.QdrantUrl}'.", ex);
+            throw new VectorStoreException($"Invalid Qdrant URL '{options.Url}'.", ex);
         }
 
-        throw new VectorStoreException($"Invalid Qdrant URL '{settings.QdrantUrl}'.");
+        throw new VectorStoreException($"Invalid Qdrant URL '{options.Url}'.");
     }
 }

@@ -1,3 +1,4 @@
+using CodebaseIndexer.Application.Options;
 using CodebaseIndexer.Domain.Exceptions;
 using CodebaseIndexer.Domain.Ports;
 using CodebaseIndexer.Infrastructure.Configuration;
@@ -8,65 +9,84 @@ using Microsoft.ML.Tokenizers;
 
 namespace CodebaseIndexer.Infrastructure.Tei;
 
+/// <summary>Dense embedder that calls a Text Embeddings Inference (TEI) HTTP service.</summary>
 public sealed class TeiDenseEmbedder : IDenseEmbedder
 {
     private readonly ITeiEmbeddingsApi _api;
-    private readonly Settings _settings;
+    private readonly TeiOptions _tei;
+    private readonly EmbeddingOptions _embedding;
+    private readonly KnownEmbedModelsOptions _knownEmbedModels;
     private readonly ILogger<TeiDenseEmbedder> _logger;
     private bool _ready;
     private int _maxTokens;
     private Tokenizer? _tokenizer;
 
+    /// <summary>Creates a TEI-backed dense embedder.</summary>
+    /// <param name="api">Refit client for the TEI embeddings API.</param>
+    /// <param name="tei">TEI service options.</param>
+    /// <param name="embedding">Embedding model configuration.</param>
+    /// <param name="knownEmbedModels">Known model token limit registry.</param>
+    /// <param name="logger">Logger instance.</param>
     public TeiDenseEmbedder(
         ITeiEmbeddingsApi api,
-        IOptions<Settings> settings,
+        IOptions<TeiOptions> tei,
+        IOptions<EmbeddingOptions> embedding,
+        IOptions<KnownEmbedModelsOptions> knownEmbedModels,
         ILogger<TeiDenseEmbedder> logger)
     {
         _api = api;
-        _settings = settings.Value;
+        _tei = tei.Value;
+        _embedding = embedding.Value;
+        _knownEmbedModels = knownEmbedModels.Value;
         _logger = logger;
     }
 
-    public string BackendName => "tei";
-    public int VectorSize => _settings.DenseEmbedVectorSize;
+    /// <inheritdoc />
+    public int VectorSize => _embedding.DenseVectorSize;
+
+    /// <inheritdoc />
     public bool IsLoaded => _ready;
 
+    /// <inheritdoc />
     public async Task PreloadAsync(CancellationToken cancellationToken = default)
     {
         using var healthResponse = await _api.GetHealthAsync(cancellationToken).ConfigureAwait(false);
         healthResponse.EnsureSuccessStatusCode();
 
         var probe = await _api.CreateEmbeddingsAsync(
-            new EmbeddingsRequest(_settings.DenseEmbedModel, ["."], _settings.MrlDimensions),
+            new EmbeddingsRequest(_embedding.DenseModel, ["."], _tei.MrlDimensions),
             cancellationToken).ConfigureAwait(false);
 
         var embedding = probe.Data.OrderBy(d => d.Index).First().Embedding;
         if (embedding.Count != VectorSize)
         {
             throw new EmbeddingException(
-                $"TEI model '{_settings.DenseEmbedModel}' returned dimension {embedding.Count}, expected {VectorSize}.");
+                $"TEI model '{_embedding.DenseModel}' returned dimension {embedding.Count}, expected {VectorSize}.");
         }
 
         _ready = true;
         var tokenLimit = EmbeddingTruncation.ResolveMaxEmbedTokens(
             EmbedRole.Dense,
-            _settings.DenseEmbedModel,
-            _settings.MaxDenseEmbedTokens,
+            _embedding.DenseModel,
+            _embedding.MaxDenseTokens,
             modelDir: null,
-            KnownEmbedModels.MaxTokens,
+            _knownEmbedModels.FrozenMaxTokens,
             _logger);
         _maxTokens = tokenLimit.MaxTokens;
         EnsureTruncation();
-        _logger.LogInformation("TEI dense embedder ready at {TeiUrl} for model {Model}", _settings.TeiUrl, _settings.DenseEmbedModel);
+        _logger.LogInformation("TEI dense embedder ready at {TeiUrl} for model {Model}", _tei.Url, _embedding.DenseModel);
     }
 
+    /// <inheritdoc />
     public void Release() => _ready = false;
 
+    /// <inheritdoc />
     public Task<IReadOnlyList<IReadOnlyList<float>>> EmbedBatchAsync(
         IReadOnlyList<string> texts,
         CancellationToken cancellationToken = default) =>
         EmbedInternalAsync(texts, isQuery: false, cancellationToken);
 
+    /// <inheritdoc />
     public Task<IReadOnlyList<IReadOnlyList<float>>> EmbedQueryAsync(
         IReadOnlyList<string> texts,
         CancellationToken cancellationToken = default) =>
@@ -83,24 +103,45 @@ public sealed class TeiDenseEmbedder : IDenseEmbedder
         }
 
         var results = new List<IReadOnlyList<float>>(texts.Count);
-        var batchSize = Math.Max(1, _settings.TeiEmbedBatchSize);
+        var batchSize = Math.Max(1, _tei.EmbedBatchSize);
 
         for (var offset = 0; offset < texts.Count; offset += batchSize)
         {
-            var batch = texts.Skip(offset).Take(batchSize)
-                .Select(text => isQuery ? ApplyQueryInstruction(text) : Truncate(text))
-                .ToArray();
-            var response = await _api.CreateEmbeddingsAsync(
-                new EmbeddingsRequest(_settings.DenseEmbedModel, batch, _settings.MrlDimensions),
-                cancellationToken).ConfigureAwait(false);
-
-            var ordered = response.Data.OrderBy(d => d.Index).Select(d => Normalize(d.Embedding)).ToArray();
-            if (ordered.Length != batch.Length)
+            var count = Math.Min(batchSize, texts.Count - offset);
+            var batch = new string[count];
+            for (var i = 0; i < count; i++)
             {
-                throw new EmbeddingException($"TEI returned {ordered.Length} embeddings for {batch.Length} inputs.");
+                var text = texts[offset + i];
+                batch[i] = isQuery ? ApplyQueryInstruction(text) : Truncate(text);
             }
 
-            results.AddRange(ordered);
+            var response = await _api.CreateEmbeddingsAsync(
+                new EmbeddingsRequest(_embedding.DenseModel, batch, _tei.MrlDimensions),
+                cancellationToken).ConfigureAwait(false);
+
+            var ordered = new IReadOnlyList<float>[count];
+            foreach (var item in response.Data)
+            {
+                if ((uint)item.Index >= (uint)count)
+                {
+                    throw new EmbeddingException($"TEI returned out-of-range embedding index {item.Index}.");
+                }
+
+                ordered[item.Index] = Normalize(item.Embedding);
+            }
+
+            for (var i = 0; i < count; i++)
+            {
+                if (ordered[i] is null)
+                {
+                    throw new EmbeddingException($"TEI returned incomplete embeddings for {count} inputs.");
+                }
+            }
+
+            for (var i = 0; i < count; i++)
+            {
+                results.Add(ordered[i]!);
+            }
         }
 
         return results;
@@ -113,7 +154,7 @@ public sealed class TeiDenseEmbedder : IDenseEmbedder
             return;
         }
 
-        var modelId = _settings.DenseEmbedModel;
+        var modelId = _embedding.DenseModel;
         _tokenizer = DenseTokenizerLoader.LoadDenseTokenizer(modelId, _logger);
         if (_tokenizer is null)
         {
@@ -139,21 +180,34 @@ public sealed class TeiDenseEmbedder : IDenseEmbedder
     }
 
     private string ApplyQueryInstruction(string text) =>
-        string.IsNullOrEmpty(_settings.QueryInstruction) ? text : $"{_settings.QueryInstruction}{text}";
+        string.IsNullOrEmpty(_tei.QueryInstruction) ? text : $"{_tei.QueryInstruction}{text}";
 
     private IReadOnlyList<float> Normalize(IReadOnlyList<float> vector)
     {
-        if (!_settings.NormalizeOutput || vector.Count == 0)
+        if (!_tei.NormalizeOutput || vector.Count == 0)
         {
             return vector;
         }
 
-        var norm = Math.Sqrt(vector.Sum(v => v * v));
+        var norm = 0d;
+        for (var i = 0; i < vector.Count; i++)
+        {
+            var value = vector[i];
+            norm += value * value;
+        }
+
+        norm = Math.Sqrt(norm);
         if (norm <= 0)
         {
             return vector;
         }
 
-        return vector.Select(v => (float)(v / norm)).ToArray();
+        var normalized = new float[vector.Count];
+        for (var i = 0; i < vector.Count; i++)
+        {
+            normalized[i] = (float)(vector[i] / norm);
+        }
+
+        return normalized;
     }
 }

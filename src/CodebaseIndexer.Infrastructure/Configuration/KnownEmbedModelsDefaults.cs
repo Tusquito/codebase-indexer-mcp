@@ -1,10 +1,8 @@
-using System.Collections.Frozen;
+namespace CodebaseIndexer.Infrastructure.Configuration;
 
-namespace CodebaseIndexer.Infrastructure.Embedding;
-
-internal static class KnownEmbedModels
+internal static class KnownEmbedModelsDefaults
 {
-    public static FrozenDictionary<string, int> MaxTokens { get; } = new Dictionary<string, int>
+    public static IReadOnlyDictionary<string, int> MaxTokens { get; } = new Dictionary<string, int>(StringComparer.Ordinal)
     {
         ["nomic-ai/nomic-embed-text-v1.5"] = 8192,
         ["BAAI/bge-base-en-v1.5"] = 512,
@@ -17,5 +15,5 @@ internal static class KnownEmbedModels
         ["ibm-granite/granite-embedding-311m-multilingual-r2"] = 32768,
         ["ibm-granite/granite-embedding-97m-multilingual-r2"] = 32768,
         ["infly/inf-retriever-v1-1.5b"] = 32768,
-    }.ToFrozenDictionary(StringComparer.Ordinal);
+    };
 }

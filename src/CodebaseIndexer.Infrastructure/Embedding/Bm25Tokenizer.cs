@@ -1,29 +1,76 @@
 using System.Globalization;
-using System.Text.RegularExpressions;
+using System.Text;
 
 namespace CodebaseIndexer.Infrastructure.Embedding;
 
-internal static partial class Bm25Tokenizer
+internal static class Bm25Tokenizer
 {
-    [GeneratedRegex(@"[^\w]", RegexOptions.CultureInvariant)]
-    private static partial Regex NonWordRegex();
-
-    [GeneratedRegex(@"\s+", RegexOptions.CultureInvariant)]
-    private static partial Regex WhitespaceRegex();
-
     public static string RemoveNonAlphanumeric(string text) =>
-        Regex.Replace(text, @"[^\w\s]", " ", RegexOptions.CultureInvariant);
+        RemoveNonAlphanumeric(text.AsSpan());
 
-    public static IReadOnlyList<string> Tokenize(string text)
+    public static string RemoveNonAlphanumeric(ReadOnlySpan<char> text)
     {
-        text = NonWordRegex().Replace(text.ToLowerInvariant(), " ");
-        text = WhitespaceRegex().Replace(text, " ");
-        text = text.Trim();
-        if (text.Length == 0)
+        if (text.IsEmpty)
+        {
+            return string.Empty;
+        }
+
+        var buffer = new char[text.Length];
+        var length = 0;
+        foreach (var ch in text)
+        {
+            if (IsTokenChar(ch))
+            {
+                buffer[length++] = char.ToLowerInvariant(ch);
+            }
+            else if (length > 0 && buffer[length - 1] != ' ')
+            {
+                buffer[length++] = ' ';
+            }
+        }
+
+        while (length > 0 && buffer[length - 1] == ' ')
+        {
+            length--;
+        }
+
+        return length == 0 ? string.Empty : new string(buffer, 0, length);
+    }
+
+    public static IReadOnlyList<string> Tokenize(string text) =>
+        Tokenize(text.AsSpan());
+
+    public static IReadOnlyList<string> Tokenize(ReadOnlySpan<char> text)
+    {
+        if (text.IsEmpty)
         {
             return Array.Empty<string>();
         }
 
-        return text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var tokens = new List<string>();
+        Span<char> buffer = stackalloc char[text.Length];
+        var length = 0;
+        foreach (var ch in text)
+        {
+            if (IsTokenChar(ch))
+            {
+                buffer[length++] = char.ToLowerInvariant(ch);
+            }
+            else if (length > 0)
+            {
+                tokens.Add(new string(buffer[..length]));
+                length = 0;
+            }
+        }
+
+        if (length > 0)
+        {
+            tokens.Add(new string(buffer[..length]));
+        }
+
+        return tokens;
     }
+
+    private static bool IsTokenChar(char ch) =>
+        char.IsLetterOrDigit(ch) || ch is '_' or '$';
 }
