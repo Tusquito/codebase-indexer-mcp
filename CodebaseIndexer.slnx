@@ -1,0 +1,22 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/src/">
+    <Project Path="src/CodebaseIndexer.AppHost/CodebaseIndexer.AppHost.csproj" />
+    <Project Path="src/CodebaseIndexer.Application/CodebaseIndexer.Application.csproj" />
+    <Project Path="src/CodebaseIndexer.Domain/CodebaseIndexer.Domain.csproj" />
+    <Project Path="src/CodebaseIndexer.Host/CodebaseIndexer.Host.csproj" />
+    <Project Path="src/CodebaseIndexer.Infrastructure/CodebaseIndexer.Infrastructure.csproj" />
+    <Project Path="src/CodebaseIndexer.ServiceDefaults/CodebaseIndexer.ServiceDefaults.csproj" />
+  </Folder>
+  <Folder Name="/test/">
+    <Project Path="test/CodebaseIndexer.AppHost.Tests/CodebaseIndexer.AppHost.Tests.csproj" />
+    <Project Path="test/CodebaseIndexer.Application.Tests/CodebaseIndexer.Application.Tests.csproj" />
+    <Project Path="test/CodebaseIndexer.Domain.Tests/CodebaseIndexer.Domain.Tests.csproj" />
+    <Project Path="test/CodebaseIndexer.Host.Tests/CodebaseIndexer.Host.Tests.csproj" />
+    <Project Path="test/CodebaseIndexer.Infrastructure.Tests/CodebaseIndexer.Infrastructure.Tests.csproj" />
+  </Folder>
+</Solution>

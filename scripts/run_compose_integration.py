@@ -216,7 +216,7 @@ def deploy_aspire_stack() -> tuple[bool, str]:
 
 
 def run_dotnet_smoke() -> tuple[bool, str]:
-    proc = _run(["dotnet", "test", "CodebaseIndexer.sln", "--nologo"])
+    proc = _run(["dotnet", "test", "CodebaseIndexer.slnx", "--nologo"])
     if proc.returncode != 0:
         return False, (proc.stderr or proc.stdout or "dotnet test failed")[-4000:]
     return True, "dotnet test passed"

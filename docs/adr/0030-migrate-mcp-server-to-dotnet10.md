@@ -571,7 +571,7 @@ Phases 1–3 deliver a **usable search stack**; phases 4–6 reach **full parity
 ### New artifacts
 
 ```
-CodebaseIndexer.sln
+CodebaseIndexer.slnx
 src/
   CodebaseIndexer.AppHost/
   CodebaseIndexer.ServiceDefaults/

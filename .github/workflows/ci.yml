@@ -59,7 +59,7 @@ jobs:
           global-json-file: global.json
 
       - name: Restore and test .NET solution (ADR 0030)
-        run: dotnet test CodebaseIndexer.sln
+        run: dotnet test CodebaseIndexer.slnx
 
   benchmark:
     # Non-blocking: surfaces performance numbers as an artifact without gating

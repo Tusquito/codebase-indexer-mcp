@@ -23,7 +23,7 @@ A fully self-hosted, Docker-based MCP server that indexes your codebase into a l
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Dev setup (Python 3.12, uv; .NET 10 SDK for ADR 0030), CI lint/type-check/test workflow, conventional commits |
 | [CHANGELOG.md](CHANGELOG.md) | Release history (Keep a Changelog format) |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Per-component responsibilities, indexing pipeline, embedding layer, hybrid search |
-| [CodebaseIndexer.sln](CodebaseIndexer.sln) | .NET 10 migration scaffold (ADR 0030 Phase 1+) — Python remains production default until Phase 7 |
+| [CodebaseIndexer.slnx](CodebaseIndexer.slnx) | .NET 10 migration scaffold (ADR 0030 Phase 1+) — Python remains production default until Phase 7 |
 | [docs/adr/](docs/adr/) | Architecture Decision Records — see [0025](docs/adr/0025-huggingface-tei-dense-embedding.md) (TEI dense), [0021](docs/adr/0021-revert-jina-production-default-retire-qwen3.md) (Jina production default), [0016](docs/adr/0016-qwen3-embedding-default-dense-model.md) (Qwen3 experimental preset — historical), [0012](docs/adr/0012-retrieval-only-rag-split.md) (retrieval-only RAG), [0008](docs/adr/0008-optional-colbert-reranking.md) (ColBERT rerank), [0014](docs/adr/0014-vector-discovery-and-ops-automation.md) (recommendation search), [0015](docs/adr/0015-colbert-http-sidecar.md) (ColBERT sidecar) |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | GPU-default TEI compose, explicit `ACCELERATOR=cpu` exception, Apple Silicon arm64 profile, GraphRAG overlay, metrics, memory/CPU tuning |
 | [docs/SEARCH_BEHAVIOR.md](docs/SEARCH_BEHAVIOR.md) | `search_codebase` / `search_symbols` caps, `min_score` vs RRF, `recommend_code`, `find_outlier_chunks`, ColBERT rerank |

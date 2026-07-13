@@ -1,6 +1,6 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
-COPY CodebaseIndexer.sln ./
+COPY CodebaseIndexer.slnx ./
 COPY global.json ./
 COPY Directory.Build.props ./
 COPY src/CodebaseIndexer.Domain/ src/CodebaseIndexer.Domain/

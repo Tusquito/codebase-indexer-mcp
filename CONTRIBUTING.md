@@ -46,11 +46,11 @@ Set `QDRANT_URL` when running tests against a local or containerized Qdrant inst
 
 ### .NET solution (ADR 0030 Phase 1+)
 
-The C# migration scaffold lives at the repository root (`CodebaseIndexer.sln`, `src/`, `test/`). Python remains the production Docker image until Phase 7.
+The C# migration scaffold lives at the repository root (`CodebaseIndexer.slnx`, `src/`, `test/`). Python remains the production Docker image until Phase 7.
 
 ```bash
 # From repository root
-dotnet test CodebaseIndexer.sln
+dotnet test CodebaseIndexer.slnx
 
 # Local Aspire dev stack (Qdrant + TEI + MCP host)
 dotnet run --project src/CodebaseIndexer.AppHost
