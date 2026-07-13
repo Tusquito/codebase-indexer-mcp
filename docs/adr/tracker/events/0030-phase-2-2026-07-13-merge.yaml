@@ -1,0 +1,21 @@
+adr_id: '0030'
+phase_key: phase-2
+phase_title: Phase 2 — Indexing pipeline
+event: merge
+date: '2026-07-13'
+tracker_status: merged
+choices: >-
+  squash merge `2bdd90f` via [PR #38](https://github.com/Tusquito/codebase-indexer-mcp/pull/38); ADR Accept phase 2 — Indexing pipeline; release skipped
+deviations: none
+code_evidence:
+  - 'merged via [PR #38](https://github.com/Tusquito/codebase-indexer-mcp/pull/38) (squash `2bdd90f`)'
+verify: >-
+  carried from verification — review rounds 2; dotnet test 32/32 pass; integration pass Python+aspire; plan compliance pass
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/38
+  commit: 2bdd90f
+  status: merged
+changelog:
+  update: false
+  reason: 'user-facing yes; invoker Changelog: no'
+user_facing: true

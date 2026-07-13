@@ -82,7 +82,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0029 | Phase 1 — Documentation | Accepted (phase 1 — Documentation) | phase-1 | `merged` | Docs-only single PR; host-native Metal TEI in `docs/DEPLOYMENT.md` (after Apple Silicon, before External TEI); `.env.example` Metal preset; four-surface sync (README, copilot-instructions, SKILL, DEPLOYMENT); bundled 0028 CPU TEI remains default; Metal opt-in via `TEI_URL` + empty `COMPOSE_PROFILES`; `--hostname 127.0.0.1` with upstream flag verification note. Defer Phase 2 `--external-tei` integration smoke and Phase 3 `metal_host_tei` benchmark. | 2026-07-12 |
 | 0029 | Phase 2 — Integration smoke | Accept skipped — unchanged (Accepted) | phase-2 | `merged` | Harness-only PR; `include_tei=False` via `compose_file_args`; force `ACCELERATOR=cpu`; M3 Pro Metal cgroup preset; host TEI preflight; `tei_container_absent` verdict gate; bundled path unchanged; quality/perf validation skipped. Defer live M3 Pro `--external-tei` full Docker integration before merge, Phase 3 `metal_host_tei` benchmark, and maintainer Metal log check on first embed. | 2026-07-12 |
 | 0030 | Phase 1 — Scaffold + storage + TEI | Accepted (phase 1 — Scaffold + storage + TEI) | phase-1 | `merged` | Accept ADR 0030; repo-root solution; hand-authored docker-compose.aspire.yml; arm64 cpu-arm64-latest TEI; accelerator defaults cpu; MCP stub get_health only; SearchAsync stub until Phase 3; tokenizer truncation Phase 2; Python production default until Phase 7 | 2026-07-13 |
-| 0030 | Phase 2 — Indexing pipeline | Accepted (phase 2 — Indexing pipeline) | phase-2 | `verified` | `WorkspaceScanner` (SHA-256 incremental scan, ignore files, `ArrayPool` hashing, channel worker fan-out DOP=1); `TreeSitterChunker` (port `chunker.py` via `TreeSitter.DotNet`, regex SQL fallback); `OnnxSparseEmbedder` (`Microsoft.ML.OnnxRuntime`, same `Qdrant/bm25` artifacts); model-accurate dense tokenizer truncation; `IndexPipeline` with `Channel<T>` stages in `IndexPipelineHostedService`; `IndexCodebaseService` + `IndexJobService`; MCP index tools (`index_codebase`, `index_status`, `stop_indexing`, `index_all`); chunk-ID golden parity fixture; `docker-compose.aspire.yml` workspace/cache wiring (fastembed at `/root/.cache/fastembed` with `fastembed_cache` volume); `--aspire-stack` integration smoke (manual M3 Pro pre-review, optional non-blocking CI); Python `run_compose_integration.py` remains green | 2026-07-13 |
+| 0030 | Phase 2 — Indexing pipeline | Accepted (phase 1; phase 2 — Indexing pipeline) | phase-2 | `merged` | `WorkspaceScanner` (SHA-256 incremental scan, ignore files, `ArrayPool` hashing, channel worker fan-out DOP=1); `TreeSitterChunker` (port `chunker.py` via `TreeSitter.DotNet`, regex SQL fallback); `OnnxSparseEmbedder` (`Microsoft.ML.OnnxRuntime`, same `Qdrant/bm25` artifacts); model-accurate dense tokenizer truncation; `IndexPipeline` with `Channel<T>` stages in `IndexPipelineHostedService`; `IndexCodebaseService` + `IndexJobService`; MCP index tools (`index_codebase`, `index_status`, `stop_indexing`, `index_all`); chunk-ID golden parity fixture; `docker-compose.aspire.yml` workspace/cache wiring (fastembed at `/root/.cache/fastembed` with `fastembed_cache` volume); `--aspire-stack` integration smoke (manual M3 Pro pre-review, optional non-blocking CI); Python `run_compose_integration.py` remains green | 2026-07-13 |
 <!-- END GENERATED:summary -->
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
@@ -90,7 +90,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 ## Active and upcoming work
 
 <!-- BEGIN GENERATED:active -->
-- **0030** Phase 2 — Indexing pipeline — `verified`
+_No active or upcoming phases._
 <!-- END GENERATED:active -->
 
 ### Partial acceptance
@@ -1877,6 +1877,16 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 - **Code evidence:** `merged via [PR #37](https://github.com/Tusquito/codebase-indexer-mcp/pull/37) (`adr/0030-phase-1-scaffold`; squash `55fc381`)`
 - **Verify:** carried from verification — review round 2 clean; dotnet test 13/13 pass; plan compliance pass; Docker integration pass (ACCELERATOR=cpu); R1–R3 bug fixes verified
 - **Git:** https://github.com/Tusquito/codebase-indexer-mcp/pull/37 — status: merged — commit: 55fc381
+- **Changelog:** no — user-facing yes; invoker Changelog: no
+
+#### 2026-07-13 — merge
+- **Phase:** Phase 2 — Indexing pipeline
+- **Tracker status:** `merged`
+- **Choices:** squash merge `2bdd90f` via [PR #38](https://github.com/Tusquito/codebase-indexer-mcp/pull/38); ADR Accept phase 2 — Indexing pipeline; release skipped
+- **Deviations:** none
+- **Code evidence:** `merged via [PR #38](https://github.com/Tusquito/codebase-indexer-mcp/pull/38) (squash `2bdd90f`)`
+- **Verify:** carried from verification — review rounds 2; dotnet test 32/32 pass; integration pass Python+aspire; plan compliance pass
+- **Git:** https://github.com/Tusquito/codebase-indexer-mcp/pull/38 — status: merged — commit: 2bdd90f
 - **Changelog:** no — user-facing yes; invoker Changelog: no
 
 #### 2026-07-13 — implementation
