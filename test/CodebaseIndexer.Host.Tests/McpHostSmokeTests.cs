@@ -1,18 +1,19 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.Configuration;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 
 namespace CodebaseIndexer.Host.Tests;
 
+/// <summary>End-to-end smoke tests for the MCP host HTTP and tool surface.</summary>
 public sealed class McpHostSmokeTests : IClassFixture<McpHostWebApplicationFactory>
 {
     private readonly McpHostWebApplicationFactory _factory;
 
+    /// <summary>Initializes tests with the shared web application factory.</summary>
     public McpHostSmokeTests(McpHostWebApplicationFactory factory) => _factory = factory;
 
+    /// <summary>Health endpoint returns ok status and dotnet runtime.</summary>
     [Fact]
     public async Task Health_endpoint_returns_ok()
     {
@@ -25,6 +26,7 @@ public sealed class McpHostSmokeTests : IClassFixture<McpHostWebApplicationFacto
         Assert.Equal("dotnet", payload.Runtime);
     }
 
+    /// <summary>MCP client lists the get_health tool.</summary>
     [Fact]
     public async Task McpClient_lists_get_health_tool()
     {
@@ -33,6 +35,7 @@ public sealed class McpHostSmokeTests : IClassFixture<McpHostWebApplicationFacto
         Assert.Contains(tools, tool => tool.Name == "get_health");
     }
 
+    /// <summary>MCP client invokes get_health and receives expected payload.</summary>
     [Fact]
     public async Task McpClient_calls_get_health()
     {
@@ -57,6 +60,7 @@ public sealed class McpHostSmokeTests : IClassFixture<McpHostWebApplicationFacto
         }
     }
 
+    /// <summary>MCP client lists all index-related tools.</summary>
     [Fact]
     public async Task McpClient_lists_index_tools()
     {
@@ -87,84 +91,4 @@ public sealed class McpHostSmokeTests : IClassFixture<McpHostWebApplicationFacto
     }
 
     private sealed record HealthPayload(string Status, string Runtime);
-}
-
-public sealed class McpHostWebApplicationFactory : WebApplicationFactory<Program>
-{
-    protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
-    {
-        builder.ConfigureAppConfiguration((_, config) =>
-        {
-            config.AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                [$"{Infrastructure.Configuration.Settings.SectionName}:QdrantUrl"] = "http://localhost:6333",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:QdrantTimeoutSeconds"] = "30",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:QdrantCollection"] = "codebase",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:HybridSearch"] = "true",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:DenseEmbedModel"] = "test-model",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:SparseEmbedModel"] = "Qdrant/bm25",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:DenseEmbedVectorSize"] = "768",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:TeiUrl"] = "http://localhost:8080",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:TeiEmbedBatchSize"] = "32",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:TeiTimeoutSeconds"] = "120",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:QueryInstruction"] = string.Empty,
-                [$"{Infrastructure.Configuration.Settings.SectionName}:NormalizeOutput"] = "false",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:RerankEnabled"] = "false",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:PayloadIndexes"] = "true",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:VectorsOnDisk"] = "false",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:SparseOnDisk"] = "false",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:WorkspacePath"] = "/workspace",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:MaxChunkLines"] = "150",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:ChunkOverlapLines"] = "20",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:BatchSize"] = "32",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:FlushEvery"] = "1500",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:UpsertBatch"] = "500",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:ReadaheadBuffer"] = "100",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:HashWorkerDop"] = "1",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:MaxDenseEmbedTokens"] = "0",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:MaxSparseEmbedTokens"] = "0",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:SparseThreads"] = "2",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:SequentialEmbed"] = "false",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:MemoryPressureWarnPct"] = "70",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:MemoryPressureHaltPct"] = "85",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:ReleaseModelsAfterIndex"] = "true",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:ModelIdleTimeoutSeconds"] = "300",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:PreloadModels"] = "false",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:FastembedCachePath"] = "/root/.cache/fastembed",
-                [$"{Infrastructure.Configuration.Settings.SectionName}:ExcludedDirs"] = "node_modules,.git",
-            });
-        });
-    }
-}
-
-public sealed class McpHostFactoryTests
-{
-    [Fact]
-    public void Host_starts_with_bound_configuration()
-    {
-        using var factory = new McpHostWebApplicationFactory();
-        var client = factory.CreateClient();
-        Assert.NotNull(client);
-    }
-}
-
-public sealed class SettingsValidateOnStartTests
-{
-    [Fact]
-    public void Host_fails_fast_when_required_settings_missing()
-    {
-        var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureAppConfiguration((_, config) =>
-            {
-                config.AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    [$"{Infrastructure.Configuration.Settings.SectionName}:QdrantUrl"] = string.Empty,
-                });
-            });
-        });
-
-        var ex = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
-        Assert.Contains("QdrantUrl", ex.ToString(), StringComparison.OrdinalIgnoreCase);
-    }
 }

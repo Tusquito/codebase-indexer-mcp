@@ -1,37 +1,45 @@
+using CodebaseIndexer.Application.Options;
 using CodebaseIndexer.Infrastructure.Configuration;
 using FluentValidation.TestHelper;
 
 namespace CodebaseIndexer.Infrastructure.Tests;
 
+/// <summary>Tests for options validators.</summary>
 public sealed class SettingsValidatorTests
 {
-    private readonly SettingsValidator _validator = new();
-
+    /// <summary>Valid Qdrant options pass validation.</summary>
     [Fact]
-    public void Valid_settings_pass()
+    public void Valid_qdrant_options_pass()
     {
-        var result = _validator.TestValidate(TestSettingsFactory.Create());
+        var validator = new QdrantOptionsValidator();
+        var result = validator.TestValidate(TestSettingsFactory.CreateQdrantOptions());
         result.ShouldNotHaveAnyValidationErrors();
     }
 
+    /// <summary>Empty Qdrant URL fails validation.</summary>
     [Fact]
-    public void QdrantUrl_fails_when_empty()
+    public void Qdrant_url_fails_when_empty()
     {
-        var result = _validator.TestValidate(TestSettingsFactory.Create(qdrantUrl: string.Empty));
-        result.ShouldHaveValidationErrorFor(x => x.QdrantUrl);
+        var validator = new QdrantOptionsValidator();
+        var result = validator.TestValidate(TestSettingsFactory.CreateQdrantOptions(url: string.Empty));
+        result.ShouldHaveValidationErrorFor(x => x.Url);
     }
 
+    /// <summary>Empty TEI URL fails validation.</summary>
     [Fact]
-    public void TeiUrl_fails_when_empty()
+    public void Tei_url_fails_when_empty()
     {
-        var result = _validator.TestValidate(TestSettingsFactory.Create(teiUrl: string.Empty));
-        result.ShouldHaveValidationErrorFor(x => x.TeiUrl);
+        var validator = new TeiOptionsValidator();
+        var result = validator.TestValidate(TestSettingsFactory.CreateTeiOptions(url: string.Empty));
+        result.ShouldHaveValidationErrorFor(x => x.Url);
     }
 
+    /// <summary>Dense vector size must be positive.</summary>
     [Fact]
-    public void DenseEmbedVectorSize_must_be_positive()
+    public void Dense_vector_size_must_be_positive()
     {
-        var result = _validator.TestValidate(TestSettingsFactory.Create(denseEmbedVectorSize: 0));
-        result.ShouldHaveValidationErrorFor(x => x.DenseEmbedVectorSize);
+        var validator = new EmbeddingOptionsValidator();
+        var result = validator.TestValidate(TestSettingsFactory.CreateEmbeddingOptions(denseVectorSize: 0));
+        result.ShouldHaveValidationErrorFor(x => x.DenseVectorSize);
     }
 }

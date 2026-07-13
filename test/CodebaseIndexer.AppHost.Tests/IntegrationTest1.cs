@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 
 namespace CodebaseIndexer.AppHost.Tests.Tests;
 
+/// <summary>Placeholder for Aspire distributed application integration tests.</summary>
 public class IntegrationTest1
 {
     private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(30);

@@ -4,8 +4,10 @@ using CodebaseIndexer.Infrastructure.Memory;
 
 namespace CodebaseIndexer.Infrastructure.Tests;
 
+/// <summary>Regression tests for core C# infrastructure patterns.</summary>
 public sealed class CsharpPatternTests
 {
+    /// <summary>ChunkId.FromPathAndLine produces deterministic values.</summary>
     [Fact]
     public void ChunkId_FromPathAndLine_is_deterministic()
     {
@@ -15,6 +17,7 @@ public sealed class CsharpPatternTests
         Assert.NotEqual(first, ChunkId.FromPathAndLine("src/foo.cs", 13));
     }
 
+    /// <summary>MemoryPressureResult reports halt severity at threshold.</summary>
     [Fact]
     public void MemoryPressureResult_reports_halt_at_threshold()
     {
@@ -23,6 +26,7 @@ public sealed class CsharpPatternTests
         Assert.Equal(91.2, result.Percent);
     }
 
+    /// <summary>EmbedTokenLimit honors environment override source.</summary>
     [Fact]
     public void EmbedTokenLimit_uses_env_override_source()
     {
@@ -38,6 +42,7 @@ public sealed class CsharpPatternTests
         Assert.Equal(TruncationSource.EnvOverride, limit.Source);
     }
 
+    /// <summary>TruncateBm25Text preserves input shorter than the token limit.</summary>
     [Fact]
     public void TruncatedText_preserves_short_input()
     {
@@ -46,6 +51,7 @@ public sealed class CsharpPatternTests
         Assert.Equal(3, truncated.TokenCount);
     }
 
+    /// <summary>CgroupMemoryGuard returns ok when memory is unmetered.</summary>
     [Fact]
     public void CgroupMemoryGuard_returns_ok_when_unmetered()
     {

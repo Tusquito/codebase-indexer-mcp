@@ -6,6 +6,7 @@ using CodebaseIndexer.Infrastructure.Indexing;
 
 namespace CodebaseIndexer.Infrastructure.Tests;
 
+/// <summary>Golden and regression tests for tree-sitter chunking.</summary>
 public sealed class ChunkerGoldenTests
 {
     private static readonly string PySample = """
@@ -18,11 +19,12 @@ public sealed class ChunkerGoldenTests
                 return 2
         """;
 
+    /// <summary>Chunk IDs are stable across repeated chunking of the same file.</summary>
     [Fact]
     public void Chunk_ids_are_deterministic_for_python_sample()
     {
         var chunker = new TreeSitterChunker(
-            Microsoft.Extensions.Options.Options.Create(TestSettingsFactory.Create()),
+            Microsoft.Extensions.Options.Options.Create(TestSettingsFactory.CreateChunkingOptions()),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<TreeSitterChunker>.Instance);
 
         var first = chunker.ChunkFile("sample.py", PySample, "python", "deadbeef");
@@ -34,11 +36,12 @@ public sealed class ChunkerGoldenTests
         Assert.Contains(first, c => c.SymbolName == "foo");
     }
 
+    /// <summary>Chunk IDs match the Python SHA-256 formula.</summary>
     [Fact]
     public void Chunk_id_matches_python_sha256_formula()
     {
         var chunker = new TreeSitterChunker(
-            Microsoft.Extensions.Options.Options.Create(TestSettingsFactory.Create()),
+            Microsoft.Extensions.Options.Options.Create(TestSettingsFactory.CreateChunkingOptions()),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<TreeSitterChunker>.Instance);
 
         var chunks = chunker.ChunkFile("sample.py", PySample, "python", "deadbeef");
@@ -51,6 +54,7 @@ public sealed class ChunkerGoldenTests
         }
     }
 
+    /// <summary>Chunk IDs match expected values from the golden fixture.</summary>
     [Fact]
     public void Golden_fixture_matches_expected_chunk_ids()
     {
@@ -61,7 +65,7 @@ public sealed class ChunkerGoldenTests
         Assert.True(document.RootElement.TryGetProperty("samples", out var samples));
 
         var chunker = new TreeSitterChunker(
-            Microsoft.Extensions.Options.Options.Create(TestSettingsFactory.Create()),
+            Microsoft.Extensions.Options.Options.Create(TestSettingsFactory.CreateChunkingOptions()),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<TreeSitterChunker>.Instance);
 
         foreach (var sample in samples.EnumerateArray())
@@ -80,6 +84,7 @@ public sealed class ChunkerGoldenTests
         }
     }
 
+    /// <summary>Golden fixture file exists and contains samples.</summary>
     [Fact]
     public void Golden_fixture_file_exists()
     {
@@ -89,6 +94,7 @@ public sealed class ChunkerGoldenTests
         Assert.True(document.RootElement.TryGetProperty("samples", out _));
     }
 
+    /// <summary>SQL procedure regex fallback extracts procedure symbol names.</summary>
     [Fact]
     public void Sql_procedure_regex_fallback_extracts_procedure()
     {
@@ -100,7 +106,7 @@ public sealed class ChunkerGoldenTests
             END
             """;
         var chunker = new TreeSitterChunker(
-            Microsoft.Extensions.Options.Options.Create(TestSettingsFactory.Create()),
+            Microsoft.Extensions.Options.Options.Create(TestSettingsFactory.CreateChunkingOptions()),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<TreeSitterChunker>.Instance);
         var chunks = chunker.ChunkFile("proc.sql", sql, "sql", "abc");
         Assert.Contains(chunks, c => c.SymbolName == "dbo.MyProc");

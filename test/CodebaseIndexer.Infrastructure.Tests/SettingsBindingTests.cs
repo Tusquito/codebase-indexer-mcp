@@ -1,3 +1,5 @@
+using CodebaseIndexer.Application;
+using CodebaseIndexer.Application.Options;
 using CodebaseIndexer.Infrastructure.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -5,127 +7,82 @@ using Microsoft.Extensions.Options;
 
 namespace CodebaseIndexer.Infrastructure.Tests;
 
+/// <summary>Tests for configuration binding and validate-on-start.</summary>
 public sealed class SettingsBindingTests
 {
+    /// <summary>Configuration binds split option sections correctly.</summary>
     [Fact]
-    public void BindConfiguration_uses_section_urls_when_connection_strings_absent()
+    public void BindConfiguration_binds_split_sections()
     {
-        var configuration = CreateConfiguration(
-            sectionQdrantUrl: "http://localhost:6333",
-            sectionTeiUrl: "http://localhost:8080");
+        var configuration = TestSettingsFactory.CreateConfiguration();
 
-        var settings = ResolveSettings(configuration);
+        var qdrant = ResolveOptions<QdrantOptions>(configuration);
+        var tei = ResolveOptions<TeiOptions>(configuration);
 
-        Assert.Equal("http://localhost:6333", settings.QdrantUrl);
-        Assert.Equal("http://localhost:8080", settings.TeiUrl);
-        Assert.Equal("codebase", settings.QdrantCollection);
-        Assert.Equal(1, settings.HashWorkerDop);
+        Assert.Equal("http://localhost:6333", qdrant.Url);
+        Assert.Equal("http://localhost:8080", tei.Url);
+        Assert.Equal("codebase", qdrant.Collection);
     }
 
+    /// <summary>Later configuration sources override section URLs.</summary>
     [Fact]
-    public void Connection_strings_override_section_service_urls()
+    public void Later_configuration_overrides_section_urls()
     {
-        var configuration = CreateConfiguration(
-            sectionQdrantUrl: "http://localhost:6333",
-            sectionTeiUrl: "http://localhost:8080",
-            connectionQdrantUrl: "http://qdrant:6333",
-            connectionTeiUrl: "http://tei:80");
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(TestSettingsFactory.CreateConfigurationValues())
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [$"{QdrantOptions.SectionName}:Url"] = "http://qdrant:6333",
+                [$"{TeiOptions.SectionName}:Url"] = "http://tei:80",
+            })
+            .Build();
 
-        var settings = ResolveSettings(configuration);
+        var qdrant = ResolveOptions<QdrantOptions>(configuration);
+        var tei = ResolveOptions<TeiOptions>(configuration);
 
-        Assert.Equal("http://qdrant:6333", settings.QdrantUrl);
-        Assert.Equal("http://tei:80", settings.TeiUrl);
+        Assert.Equal("http://qdrant:6333", qdrant.Url);
+        Assert.Equal("http://tei:80", tei.Url);
     }
 
+    /// <summary>Validate-on-start fails when required TEI URL is missing.</summary>
     [Fact]
-    public void ValidateOnStart_fails_when_required_section_fields_missing()
+    public void ValidateOnStart_fails_when_required_tei_url_missing()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                [$"{Settings.SectionName}:QdrantUrl"] = "http://localhost:6333",
+                [$"{QdrantOptions.SectionName}:Url"] = "http://localhost:6333",
+                [$"{QdrantOptions.SectionName}:TimeoutSeconds"] = "30",
+                [$"{QdrantOptions.SectionName}:Collection"] = "codebase",
+                [$"{EmbeddingOptions.SectionName}:DenseModel"] = "test-model",
+                [$"{EmbeddingOptions.SectionName}:SparseModel"] = "Qdrant/bm25",
+                [$"{EmbeddingOptions.SectionName}:DenseVectorSize"] = "768",
+                [$"{EmbeddingOptions.SectionName}:CachePath"] = "/cache",
             })
             .Build();
 
         var services = new ServiceCollection();
         services.AddSingleton<IConfiguration>(configuration);
         services.AddCodebaseIndexerSettings();
+        services.AddCodebaseIndexerApplication();
 
         using var provider = services.BuildServiceProvider(validateScopes: true);
 
         var exception = Assert.Throws<OptionsValidationException>(() =>
-            _ = provider.GetRequiredService<IOptions<Settings>>().Value);
+            _ = provider.GetRequiredService<IOptions<TeiOptions>>().Value);
 
-        Assert.Contains(nameof(Settings.TeiUrl), exception.Message, StringComparison.Ordinal);
+        Assert.Contains(nameof(TeiOptions.Url), exception.Message, StringComparison.Ordinal);
     }
 
-    private static Settings ResolveSettings(IConfiguration configuration)
+    private static TOptions ResolveOptions<TOptions>(IConfiguration configuration)
+        where TOptions : class
     {
         var services = new ServiceCollection();
         services.AddSingleton<IConfiguration>(configuration);
         services.AddCodebaseIndexerSettings();
+        services.AddCodebaseIndexerApplication();
 
         using var provider = services.BuildServiceProvider(validateScopes: true);
-        return provider.GetRequiredService<IOptions<Settings>>().Value;
-    }
-
-    private static IConfiguration CreateConfiguration(
-        string sectionQdrantUrl,
-        string sectionTeiUrl,
-        string? connectionQdrantUrl = null,
-        string? connectionTeiUrl = null)
-    {
-        var values = new Dictionary<string, string?>
-        {
-            [$"{Settings.SectionName}:QdrantUrl"] = sectionQdrantUrl,
-            [$"{Settings.SectionName}:QdrantTimeoutSeconds"] = "30",
-            [$"{Settings.SectionName}:QdrantCollection"] = "codebase",
-            [$"{Settings.SectionName}:HybridSearch"] = "true",
-            [$"{Settings.SectionName}:DenseEmbedModel"] = "test-model",
-            [$"{Settings.SectionName}:SparseEmbedModel"] = "Qdrant/bm25",
-            [$"{Settings.SectionName}:DenseEmbedVectorSize"] = "768",
-            [$"{Settings.SectionName}:TeiUrl"] = sectionTeiUrl,
-            [$"{Settings.SectionName}:TeiEmbedBatchSize"] = "32",
-            [$"{Settings.SectionName}:TeiTimeoutSeconds"] = "120",
-            [$"{Settings.SectionName}:QueryInstruction"] = string.Empty,
-            [$"{Settings.SectionName}:NormalizeOutput"] = "false",
-            [$"{Settings.SectionName}:RerankEnabled"] = "false",
-            [$"{Settings.SectionName}:PayloadIndexes"] = "true",
-            [$"{Settings.SectionName}:VectorsOnDisk"] = "false",
-            [$"{Settings.SectionName}:SparseOnDisk"] = "false",
-            [$"{Settings.SectionName}:WorkspacePath"] = "/workspace",
-            [$"{Settings.SectionName}:MaxChunkLines"] = "150",
-            [$"{Settings.SectionName}:ChunkOverlapLines"] = "20",
-            [$"{Settings.SectionName}:BatchSize"] = "32",
-            [$"{Settings.SectionName}:FlushEvery"] = "1500",
-            [$"{Settings.SectionName}:UpsertBatch"] = "500",
-            [$"{Settings.SectionName}:ReadaheadBuffer"] = "100",
-            [$"{Settings.SectionName}:HashWorkerDop"] = "1",
-            [$"{Settings.SectionName}:MaxDenseEmbedTokens"] = "0",
-            [$"{Settings.SectionName}:MaxSparseEmbedTokens"] = "0",
-            [$"{Settings.SectionName}:SparseThreads"] = "2",
-            [$"{Settings.SectionName}:SequentialEmbed"] = "false",
-            [$"{Settings.SectionName}:MemoryPressureWarnPct"] = "70",
-            [$"{Settings.SectionName}:MemoryPressureHaltPct"] = "85",
-            [$"{Settings.SectionName}:ReleaseModelsAfterIndex"] = "true",
-            [$"{Settings.SectionName}:ModelIdleTimeoutSeconds"] = "300",
-            [$"{Settings.SectionName}:PreloadModels"] = "true",
-            [$"{Settings.SectionName}:FastembedCachePath"] = "/root/.cache/fastembed",
-            [$"{Settings.SectionName}:ExcludedDirs"] = "node_modules,.git",
-        };
-
-        if (connectionQdrantUrl is not null)
-        {
-            values["ConnectionStrings:qdrant"] = connectionQdrantUrl;
-        }
-
-        if (connectionTeiUrl is not null)
-        {
-            values["ConnectionStrings:tei"] = connectionTeiUrl;
-        }
-
-        return new ConfigurationBuilder()
-            .AddInMemoryCollection(values)
-            .Build();
+        return provider.GetRequiredService<IOptions<TOptions>>().Value;
     }
 }

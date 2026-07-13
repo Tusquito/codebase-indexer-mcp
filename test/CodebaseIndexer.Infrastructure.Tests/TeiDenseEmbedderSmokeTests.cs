@@ -1,6 +1,4 @@
 using System.Net;
-using System.Text.Json;
-using CodebaseIndexer.Infrastructure.Configuration;
 using CodebaseIndexer.Infrastructure.Tei;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -8,39 +6,19 @@ using Refit;
 
 namespace CodebaseIndexer.Infrastructure.Tests;
 
-public sealed class TeiApiContractTests
-{
-    [Fact]
-    public void EmbeddingsRequest_serializes_openai_shape()
-    {
-        var json = JsonSerializer.Serialize(new EmbeddingsRequest("model", ["hello"], 768));
-        using var document = JsonDocument.Parse(json);
-        Assert.True(document.RootElement.TryGetProperty("model", out var model) || document.RootElement.TryGetProperty("Model", out model));
-        Assert.Equal("model", model.GetString());
-    }
-
-    [Fact]
-    public void Refit_client_registers_without_throwing()
-    {
-        var services = new ServiceCollection();
-        services.AddRefitClient<ITeiEmbeddingsApi>()
-            .ConfigureHttpClient(c => c.BaseAddress = new Uri("http://localhost:8080/"));
-
-        using var provider = services.BuildServiceProvider();
-        var api = provider.GetRequiredService<ITeiEmbeddingsApi>();
-        Assert.NotNull(api);
-    }
-}
-
+/// <summary>Smoke tests for TeiDenseEmbedder with a stub HTTP handler.</summary>
 public sealed class TeiDenseEmbedderSmokeTests
 {
+    /// <summary>EmbedBatchAsync returns empty for empty input.</summary>
     [Fact]
     public async Task EmbedBatch_returns_empty_for_empty_input()
     {
         var handler = new StubTeiHandler();
         var services = new ServiceCollection();
         services.AddSingleton(CreateTeiApi(handler));
-        services.AddSingleton(Options.Create(TestSettingsFactory.Create(denseEmbedVectorSize: 2)));
+        services.AddSingleton(Options.Create(TestSettingsFactory.CreateTeiOptions()));
+        services.AddSingleton(Options.Create(TestSettingsFactory.CreateEmbeddingOptions(denseVectorSize: 2)));
+        services.AddSingleton(TestSettingsFactory.CreateKnownEmbedModelsOptions());
         services.AddSingleton<TeiDenseEmbedder>();
         services.AddLogging();
 
@@ -50,13 +28,16 @@ public sealed class TeiDenseEmbedderSmokeTests
         Assert.Empty(result);
     }
 
+    /// <summary>PreloadAsync calls health and embeddings endpoints via Refit.</summary>
     [Fact]
     public async Task PreloadAsync_uses_refit_health_and_embeddings()
     {
         var handler = new StubTeiHandler();
         var services = new ServiceCollection();
         services.AddSingleton(CreateTeiApi(handler));
-        services.AddSingleton(Options.Create(TestSettingsFactory.Create(denseEmbedVectorSize: 2)));
+        services.AddSingleton(Options.Create(TestSettingsFactory.CreateTeiOptions()));
+        services.AddSingleton(Options.Create(TestSettingsFactory.CreateEmbeddingOptions(denseVectorSize: 2)));
+        services.AddSingleton(TestSettingsFactory.CreateKnownEmbedModelsOptions());
         services.AddSingleton<TeiDenseEmbedder>();
         services.AddLogging();
 

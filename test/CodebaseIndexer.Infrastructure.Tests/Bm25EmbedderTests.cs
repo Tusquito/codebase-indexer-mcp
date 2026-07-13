@@ -2,8 +2,10 @@ using CodebaseIndexer.Infrastructure.Embedding;
 
 namespace CodebaseIndexer.Infrastructure.Tests;
 
+/// <summary>Tests for BM25 sparse embedding tokenization and hashing.</summary>
 public sealed class Bm25EmbedderTests
 {
+    /// <summary>Murmur hash token IDs match Python mmh3 output.</summary>
     [Theory]
     [InlineData("hello", 613153351)]
     [InlineData("world", 74040069)]
@@ -15,6 +17,7 @@ public sealed class Bm25EmbedderTests
         Assert.Equal(expectedId, Bm25MurmurHash3.ComputeTokenId(token));
     }
 
+    /// <summary>Simple tokenizer output matches Python implementation.</summary>
     [Fact]
     public void Simple_tokenizer_matches_python()
     {
@@ -22,6 +25,7 @@ public sealed class Bm25EmbedderTests
         Assert.Equal(["hello", "world", "test"], tokens);
     }
 
+    /// <summary>English snowball stemmer output matches Python implementation.</summary>
     [Theory]
     [InlineData("running", "run")]
     [InlineData("connection", "connect")]
