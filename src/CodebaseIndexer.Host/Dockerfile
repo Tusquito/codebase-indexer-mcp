@@ -16,4 +16,5 @@ WORKDIR /app
 COPY --from=build /app/publish .
 EXPOSE 8000
 ENV ASPNETCORE_URLS=http://0.0.0.0:8000
+ENV ASPNETCORE_ENVIRONMENT=Docker
 ENTRYPOINT ["dotnet", "CodebaseIndexer.Host.dll"]

@@ -191,8 +191,8 @@ public sealed class QdrantVectorStore : IVectorStore
                 ["end_line"] = chunk.Chunk.EndLine,
                 ["language"] = chunk.Chunk.Language,
                 ["file_sha256"] = chunk.Chunk.FileSha256,
-                ["symbol_name"] = chunk.Chunk.SymbolName ?? "",
-                ["symbol_type"] = "",
+                ["symbol_name"] = chunk.Chunk.SymbolName ?? string.Empty,
+                ["symbol_type"] = string.Empty,
             },
         };
     }

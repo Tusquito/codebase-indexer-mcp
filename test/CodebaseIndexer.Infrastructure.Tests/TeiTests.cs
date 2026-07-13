@@ -45,9 +45,22 @@ public sealed class TeiDenseEmbedderSmokeTests
         services.AddSingleton<Microsoft.Extensions.Options.IOptions<Infrastructure.Configuration.Settings>>(
             _ => Microsoft.Extensions.Options.Options.Create(new Infrastructure.Configuration.Settings
             {
+                QdrantUrl = "http://localhost:6333",
+                QdrantTimeoutSeconds = 30,
+                QdrantCollection = "codebase",
+                HybridSearch = true,
                 DenseEmbedModel = "test-model",
+                SparseEmbedModel = "Qdrant/bm25",
                 DenseEmbedVectorSize = 2,
                 TeiUrl = "http://tei/",
+                TeiEmbedBatchSize = 32,
+                TeiTimeoutSeconds = 120,
+                QueryInstruction = string.Empty,
+                NormalizeOutput = false,
+                RerankEnabled = false,
+                PayloadIndexes = true,
+                VectorsOnDisk = false,
+                SparseOnDisk = false,
             }));
         services.AddSingleton<IHttpClientFactory>(_ => new StubHttpClientFactory(handler));
         services.AddSingleton<TeiDenseEmbedder>();

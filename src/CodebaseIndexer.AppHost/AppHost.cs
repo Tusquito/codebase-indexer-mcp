@@ -1,9 +1,8 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
-var accelerator = builder.AddParameter("accelerator", "cpu");
 var denseModel = builder.AddParameter("denseModel", "jinaai/jina-embeddings-v2-base-code");
 var denseVectorSize = builder.AddParameter("denseVectorSize", "768");
-var hfToken = builder.AddParameter("hfToken", "");
+var hfToken = builder.AddParameter("hfToken", string.Empty);
 var teiImageName = "ghcr.io/huggingface/text-embeddings-inference:cpu-arm64-latest";
 
 var qdrant = builder.AddContainer("qdrant", "qdrant/qdrant", "v1.18.2")
@@ -20,16 +19,15 @@ var tei = builder.AddContainer("tei", teiImageName)
     .WithHttpHealthCheck("/health");
 
 var mcp = builder.AddProject<Projects.CodebaseIndexer_Host>("mcp")
-    .WithEnvironment("QDRANT_URL", qdrant.GetEndpoint("http"))
-    .WithEnvironment("TEI_URL", tei.GetEndpoint("http"))
+    .WithEnvironment("CodebaseIndexer__QdrantUrl", qdrant.GetEndpoint("http"))
+    .WithEnvironment("CodebaseIndexer__TeiUrl", tei.GetEndpoint("http"))
     .WaitFor(qdrant)
     .WaitFor(tei)
     .WithHttpEndpoint(port: 8000, name: "mcp")
-    .WithEnvironment("ACCELERATOR", accelerator)
-    .WithEnvironment("DENSE_EMBED_MODEL", denseModel)
-    .WithEnvironment("DENSE_EMBED_VECTOR_SIZE", denseVectorSize)
-    .WithEnvironment("SPARSE_EMBED_MODEL", "Qdrant/bm25")
-    .WithEnvironment("HYBRID_SEARCH", "true");
+    .WithEnvironment("CodebaseIndexer__DenseEmbedModel", denseModel)
+    .WithEnvironment("CodebaseIndexer__DenseEmbedVectorSize", denseVectorSize)
+    .WithEnvironment("CodebaseIndexer__SparseEmbedModel", "Qdrant/bm25")
+    .WithEnvironment("CodebaseIndexer__HybridSearch", "true");
 
 builder.AddDockerComposeEnvironment("compose");
 
