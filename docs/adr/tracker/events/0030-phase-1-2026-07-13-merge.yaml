@@ -1,0 +1,21 @@
+adr_id: '0030'
+phase_key: phase-1
+phase_title: Phase 1 — Scaffold + storage + TEI
+event: merge
+date: '2026-07-13'
+tracker_status: merged
+choices: >-
+  squash merge `55fc381` on feature branch `adr/0030-phase-1-scaffold`; ADR Accept phase 1 — Scaffold + storage + TEI (`51cef13`); release skipped
+deviations: none
+code_evidence:
+  - 'merged via [PR #37](https://github.com/Tusquito/codebase-indexer-mcp/pull/37) (`adr/0030-phase-1-scaffold`; squash `55fc381`)'
+verify: >-
+  carried from verification — review round 2 clean; dotnet test 13/13 pass; plan compliance pass; Docker integration pass (ACCELERATOR=cpu); R1–R3 bug fixes verified
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/37
+  commit: 55fc381
+  status: merged
+changelog:
+  update: false
+  reason: 'user-facing yes; invoker Changelog: no'
+user_facing: true

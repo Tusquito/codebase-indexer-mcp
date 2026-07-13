@@ -1,8 +1,9 @@
 adr_id: '0030'
 phase_key: phase-1
 title: Phase 1 — Scaffold + storage + TEI
-tracker_status: verified
+tracker_status: merged
 chosen_scope: >-
   Accept ADR 0030; repo-root solution; hand-authored docker-compose.aspire.yml; arm64 cpu-arm64-latest TEI; accelerator defaults cpu; MCP stub get_health only; SearchAsync stub until Phase 3; tokenizer truncation Phase 2; Python production default until Phase 7
 last_updated: '2026-07-13'
+pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/37
 adr_status_note: Accepted (phase 1 — Scaffold + storage + TEI)
