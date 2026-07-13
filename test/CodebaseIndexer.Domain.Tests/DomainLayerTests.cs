@@ -2,8 +2,10 @@ using CodebaseIndexer.Domain.Models;
 
 namespace CodebaseIndexer.Domain.Tests;
 
+/// <summary>Verifies domain layer structure and model contracts.</summary>
 public sealed class DomainLayerTests
 {
+    /// <summary>Domain assembly must not reference infrastructure packages.</summary>
     [Fact]
     public void Domain_has_no_infrastructure_references()
     {
@@ -17,6 +19,7 @@ public sealed class DomainLayerTests
         Assert.DoesNotContain("Refit", referencedAssemblies);
     }
 
+    /// <summary><see cref="Chunk"/> is a sealed record with clone support.</summary>
     [Fact]
     public void Chunk_is_sealed_record()
     {
