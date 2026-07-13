@@ -146,6 +146,127 @@ public sealed class QdrantVectorStore : IVectorStore
             _settings.RerankEnabled);
     }
 
+    public async Task<IReadOnlyDictionary<string, FileMetadata>> GetFileMetadataAsync(
+        string collection,
+        CancellationToken cancellationToken = default)
+    {
+        var metadata = new Dictionary<string, FileMetadata>(StringComparer.Ordinal);
+        if (!await CollectionExistsAsync(collection, cancellationToken).ConfigureAwait(false))
+        {
+            return metadata;
+        }
+
+        PointId? offset = null;
+        while (true)
+        {
+            var result = await _client.Value.ScrollAsync(
+                collection,
+                limit: 10_000,
+                offset: offset,
+                payloadSelector: new WithPayloadSelector
+                {
+                    Include = new PayloadIncludeSelector
+                    {
+                        Fields = { "rel_path", "file_sha256", "file_mtime" },
+                    },
+                },
+                vectorsSelector: new WithVectorsSelector { Enable = false },
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+
+            foreach (var point in result.Result)
+            {
+                if (!point.Payload.TryGetValue("rel_path", out var relPathValue)
+                    || !point.Payload.TryGetValue("file_sha256", out var hashValue))
+                {
+                    continue;
+                }
+
+                var relPath = relPathValue.StringValue;
+                var hash = hashValue.StringValue;
+                if (string.IsNullOrEmpty(relPath) || string.IsNullOrEmpty(hash) || metadata.ContainsKey(relPath))
+                {
+                    continue;
+                }
+
+                double? mtime = null;
+                if (point.Payload.TryGetValue("file_mtime", out var mtimeValue)
+                    && mtimeValue.KindCase == Value.KindOneofCase.DoubleValue)
+                {
+                    mtime = mtimeValue.DoubleValue;
+                }
+
+                metadata[relPath] = new FileMetadata(hash, mtime);
+            }
+
+            if (result.NextPageOffset is null)
+            {
+                break;
+            }
+
+            offset = result.NextPageOffset;
+        }
+
+        return metadata;
+    }
+
+    public async Task DeleteByPathsAsync(
+        string collection,
+        IReadOnlyList<string> relPaths,
+        CancellationToken cancellationToken = default)
+    {
+        if (relPaths.Count == 0)
+        {
+            return;
+        }
+
+        const int batchSize = 100;
+        for (var offset = 0; offset < relPaths.Count; offset += batchSize)
+        {
+            var batch = relPaths.Skip(offset).Take(batchSize).ToArray();
+            var filter = new Filter
+            {
+                Should =
+                {
+                    batch.Select(path => new Condition
+                    {
+                        Field = new FieldCondition
+                        {
+                            Key = "rel_path",
+                            Match = new Match { Keyword = path },
+                        },
+                    }),
+                },
+            };
+
+            await _client.Value.DeleteAsync(collection, filter, cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
+
+    public async Task SetIndexingAsync(
+        string collection,
+        bool enabled,
+        CancellationToken cancellationToken = default)
+    {
+        if (!await CollectionExistsAsync(collection, cancellationToken).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        var threshold = enabled ? 20_000ul : 0ul;
+        try
+        {
+            await _client.Value.UpdateCollectionAsync(
+                collection,
+                optimizersConfig: new OptimizersConfigDiff { IndexingThreshold = threshold },
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "set_indexing_error collection={Collection} enabled={Enabled}", collection, enabled);
+        }
+    }
+
     private bool NeedsRecreate(CollectionInfo info)
     {
         var vectorsConfig = info.Config.Params.VectorsConfig;
@@ -191,6 +312,7 @@ public sealed class QdrantVectorStore : IVectorStore
                 ["end_line"] = chunk.Chunk.EndLine,
                 ["language"] = chunk.Chunk.Language,
                 ["file_sha256"] = chunk.Chunk.FileSha256,
+                ["file_mtime"] = 0.0,
                 ["symbol_name"] = chunk.Chunk.SymbolName ?? string.Empty,
                 ["symbol_type"] = string.Empty,
             },
