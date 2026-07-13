@@ -13,12 +13,18 @@ public static class SettingsRegistration
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<Settings>, FluentValidateOptions<Settings>>());
         services.AddSingleton<IValidator<Settings>, SettingsValidator>();
         services.AddOptionsWithValidateOnStart<Settings>()
-            .Configure<IConfiguration>((options, configuration) =>
+            .BindConfiguration(Settings.SectionName)
+            .PostConfigure<IConfiguration>((options, configuration) =>
             {
-                var bound = SettingsBinder.Bind(configuration);
-                foreach (var property in typeof(Settings).GetProperties())
+                // Aspire injects service URLs via ConnectionStrings; override section defaults when present.
+                if (configuration.GetConnectionString("qdrant") is { } qdrantUrl)
                 {
-                    property.SetValue(options, property.GetValue(bound));
+                    options.QdrantUrl = qdrantUrl;
+                }
+
+                if (configuration.GetConnectionString("tei") is { } teiUrl)
+                {
+                    options.TeiUrl = teiUrl;
                 }
             });
 
