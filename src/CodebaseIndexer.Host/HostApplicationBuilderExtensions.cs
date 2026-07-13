@@ -15,6 +15,7 @@ public static class HostApplicationBuilderExtensions
         builder.Services
             .AddCodebaseIndexerApplication()
             .AddCodebaseIndexerInfrastructure()
+            .AddIndexingServices()
             .AddHealthChecks()
             .AddCheck<McpHostHealthCheck>("codebase-indexer", tags: ["ready"])
             .Services
