@@ -2,8 +2,10 @@ using System.Net.Http.Json;
 using CodebaseIndexer.Domain.Exceptions;
 using CodebaseIndexer.Domain.Ports;
 using CodebaseIndexer.Infrastructure.Configuration;
+using CodebaseIndexer.Infrastructure.Embedding;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.ML.Tokenizers;
 
 namespace CodebaseIndexer.Infrastructure.Tei;
 
@@ -14,6 +16,8 @@ public sealed class TeiDenseEmbedder : IDenseEmbedder
     private readonly ILogger<TeiDenseEmbedder> _logger;
     private readonly HttpClient _httpClient;
     private bool _ready;
+    private int _maxTokens;
+    private Tokenizer? _tokenizer;
 
     public TeiDenseEmbedder(
         ITeiEmbeddingsApi api,
@@ -50,6 +54,14 @@ public sealed class TeiDenseEmbedder : IDenseEmbedder
         }
 
         _ready = true;
+        (_maxTokens, _) = EmbeddingTruncation.ResolveMaxEmbedTokens(
+            "dense",
+            _settings.DenseEmbedModel,
+            _settings.MaxDenseEmbedTokens,
+            modelDir: null,
+            KnownEmbedModels.MaxTokens,
+            _logger);
+        EnsureTruncation();
         _logger.LogInformation("TEI dense embedder ready at {TeiUrl} for model {Model}", _settings.TeiUrl, _settings.DenseEmbedModel);
     }
 
@@ -81,7 +93,7 @@ public sealed class TeiDenseEmbedder : IDenseEmbedder
         for (var offset = 0; offset < texts.Count; offset += batchSize)
         {
             var batch = texts.Skip(offset).Take(batchSize)
-                .Select(text => isQuery ? ApplyQueryInstruction(text) : text)
+                .Select(text => isQuery ? ApplyQueryInstruction(text) : Truncate(text))
                 .ToArray();
             var response = await _api.CreateEmbeddingsAsync(
                 new EmbeddingsRequest(_settings.DenseEmbedModel, batch, _settings.MrlDimensions),
@@ -97,6 +109,38 @@ public sealed class TeiDenseEmbedder : IDenseEmbedder
         }
 
         return results;
+    }
+
+    private void EnsureTruncation()
+    {
+        if (_tokenizer is not null)
+        {
+            return;
+        }
+
+        var modelId = _settings.DenseEmbedModel;
+        _tokenizer = DenseTokenizerLoader.LoadDenseTokenizer(modelId, _logger);
+        if (_tokenizer is null)
+        {
+            _logger.LogWarning(
+                "tei_dense_truncation_disabled model={Model} reason=tokenizer_unavailable",
+                modelId);
+        }
+        else
+        {
+            _logger.LogInformation("dense_tokenizer_loaded model={Model}", modelId);
+        }
+    }
+
+    private string Truncate(string text)
+    {
+        if (_maxTokens <= 0)
+        {
+            return text;
+        }
+
+        EnsureTruncation();
+        return EmbeddingTruncation.TruncateForEmbedding(text, _maxTokens, _tokenizer).Text;
     }
 
     private string ApplyQueryInstruction(string text) =>

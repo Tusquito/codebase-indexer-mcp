@@ -36,7 +36,7 @@ All **runtime MCP and indexing features** are achievable in C# with maintained l
 | MCP HTTP server | `ModelContextProtocol.AspNetCore` on **ASP.NET Core minimal hosting** (.NET 10) | ✅ Full — official SDK v1.4+; attribute/`[McpServerTool]` discovery |
 | MCP stdio proxy | `ModelContextProtocol` stdio transport + thin forwarder | ✅ Full |
 | Bearer auth + `/health` | ASP.NET Core middleware | ✅ Full |
-| Settings / env | `IOptions<Settings>` + `Microsoft.Extensions.Configuration` + source-generated validation | ✅ Full — replaces pydantic-settings |
+| Settings / config | `IOptions<Settings>` bound from **`appsettings.json`** (`CodebaseIndexer` section) + environment-specific files + Aspire `ConnectionStrings:*`; **FluentValidation** via `IValidateOptions<Settings>` + `ValidateOnStart()` — **no `.env` file loading** in .NET hosts | ✅ Full — replaces pydantic-settings + repo-root `.env` for C# runtime |
 | TEI dense HTTP | **Refit** `ITeiEmbeddingsApi` → OpenAI `/v1/embeddings` DTOs | ✅ Full |
 | Sparse BM25 ONNX | `Microsoft.ML.OnnxRuntime` loading **same fastembed ONNX artifacts** (`Qdrant/bm25`) | ✅ Full — reimplement fastembed wrapper; same vectors at index time |
 | Tokenizer truncation | `Microsoft.ML.Tokenizers` or `HuggingFace.Tokenizers` (.NET) | ✅ Full — replaces `tokenizers` Python crate |
@@ -59,7 +59,7 @@ All **runtime MCP and indexing features** are achievable in C# with maintained l
 
 ### Hard constraints
 
-1. **Retrieval semantics unchanged** — same chunk IDs (`sha256("{rel_path}:{start_line}")`), payload schema, hybrid RRF, tool signatures, and env var names unless explicitly aliased during a short transition window.
+1. **Retrieval semantics unchanged** — same chunk IDs (`sha256("{rel_path}:{start_line}")`), payload schema, hybrid RRF, and tool signatures. **.NET configuration** uses `appsettings.json` (`CodebaseIndexer` section) with optional ASP.NET Core env overrides (`CodebaseIndexer__PropertyName`); Python `.env` remains until Phase 7 cutover only for the legacy Python image.
 2. **Re-index required** — not because vectors change, but to validate parity; operators should run `index_all(force=true)` once after cutover.
 3. **Third-party data-plane images unchanged** — TEI, Qdrant, and Neo4j **container images and vector/graph semantics** stay as-is. **Orchestration changes:** Aspire AppHost replaces `scripts/compose_files.py` and hand-merged compose; `mcp_server` and `colbert_worker` images become .NET. The **`codeindexer_cron` container is removed** — scheduled reindex runs in-process in the MCP host.
 4. **Docker integration mandatory per phase** — each phase must pass `scripts/run_compose_integration.py` (ported to .NET or kept as orchestrator) before review.
@@ -131,11 +131,12 @@ Third-party images (TEI, Qdrant, Neo4j) are **`AddContainer()`** with `WithImage
 | Layering | `Domain` ← `Application`; `Domain` ← `Infrastructure`; `Host` / `ColbertWorker` wire both — **dependency rule enforced** (Application and Infrastructure are siblings; neither references the other) |
 | Immutable models | **`record`** preferred; when a `class` is required, properties use **`{ get; init; }` only** — never `{ get; set; }` on data-carrying types (see Records policy) |
 | Aspire AppHost | `DistributedApplication.CreateBuilder`; `AddProject<Projects.Host>()`; `AddContainer("qdrant")`, `AddContainer("tei")` with profiles; `WithReference()` + `WaitFor()`; `AddDockerComposeEnvironment()` for compose publishing |
-| Service defaults | `AddServiceDefaults()` extension on every .NET service project — health checks, OTel, `AddServiceDiscovery()`, standard resilience |
-| Hosting | `WebApplication.CreateBuilder` + `builder.AddServiceDefaults()` in Host/Worker; no `Startup` class |
-| MCP tools | Non-static `[McpServerToolType]` classes with constructor DI in **Host** — each tool method has `[McpServerTool]` + `[Description]`; every parameter has `[Description]`; async tools take `CancellationToken`; delegate to **Application** handlers/services; no Qdrant/Refit/ONNX imports in tool classes. HTTP: `app.MapMcp()` (Streamable HTTP at `/mcp`) + `app.MapGet("/health", …)` per [`mcp-csharp-create`](https://github.com/dotnet/skills/tree/main/plugins/mcp-csharp/skills/mcp-csharp-create) |
-| Configuration | `IOptions<Settings>` bound from env + Aspire-injected `ConnectionStrings:*`; `ValidateOnStart()` + `IValidateOptions<Settings>` |
-| Outbound HTTP | **Refit** typed clients — `AddRefitClient<ITeiEmbeddingsApi>()` and `AddRefitClient<IColbertEmbedApi>()` with `ConfigureHttpClient(c => c.BaseAddress = new Uri("https+http://tei"))` under Aspire; fall back to `TEI_URL` / `COLBERT_URL` env when running Host standalone in tests. Add `AddStandardResilienceHandler()` (timeouts, retry, circuit breaker) |
+| Service defaults | **`CodebaseIndexer.ServiceDefaults`** — **Aspire template defaults; do not modify**. Call `AddServiceDefaults()` from Host/Worker; project-specific OTel (`AddSource`/`AddMeter`), health checks, and MCP wiring live in **Host** / **ColbertWorker** extensions |
+| Hosting | **`WebApplication.CreateSlimBuilder`** + `builder.AddServiceDefaults()` in Host/Worker — no `Startup` class; no full `CreateBuilder` unless a feature requires it |
+| Health | ASP.NET Core **`AddHealthChecks()`** + custom **`IHealthCheck`** implementations (runtime, Qdrant, TEI, ColBERT); **`MapHealthChecks("/health")`** with custom JSON `ResponseWriter` — **not** ad-hoc `MapGet("/health")` |
+| MCP tools | Non-static `[McpServerToolType]` classes with constructor DI in **Host** — each tool method has `[McpServerTool]` + `[Description]`; every parameter has `[Description]`; async tools take `CancellationToken`; delegate to **Application** handlers/services; no Qdrant/Refit/ONNX imports in tool classes. HTTP: `app.MapMcp()` (Streamable HTTP at `/mcp`) per [`mcp-csharp-create`](https://github.com/dotnet/skills/tree/main/plugins/mcp-csharp/skills/mcp-csharp-create) |
+| Configuration | **`IOptions<Settings>`** bound from **`appsettings.json`** section `CodebaseIndexer` (+ `appsettings.{Environment}.json`, e.g. `Docker`); Aspire **`ConnectionStrings:*`** may override URLs; **FluentValidation** `AbstractValidator<Settings>` registered as **`IValidateOptions<Settings>`** with **`ValidateOnStart()`**; **no property defaults** on `Settings` — required fields enforced by validators; optional defaults live in JSON only; **no `.env` dotenv loading** in .NET projects |
+| Outbound HTTP | **Refit** typed clients — `AddRefitClient<ITeiEmbeddingsApi>()` and `AddRefitClient<IColbertEmbedApi>()` with `ConfigureHttpClient(c => c.BaseAddress = new Uri("https+http://tei"))` under Aspire; standalone Host/tests read `CodebaseIndexer:TeiUrl` from configuration. Add `AddStandardResilienceHandler()` (timeouts, retry, circuit breaker) |
 | Qdrant / Neo4j | **Not Refit** — `Qdrant.Client` gRPC and `Neo4j.Driver` are SDK-native; register as singletons with Aspire `WithReference` connection string injection |
 | CPU-bound work | **`Channel<T>`** pipeline stages + `async`/`await` only — **`Task.Run` is forbidden** (see Performance guidance) |
 | Async returns | **`ValueTask` / `ValueTask<T>`** on hot port paths that often complete synchronously; **`Task` / `Task<T>`** for I/O-bound work (HTTP, gRPC, ONNX, indexing batches) — see Performance guidance |
@@ -296,11 +297,16 @@ public sealed class IndexTools(IIndexJobService jobs)
         => await jobs.IndexAsync(new IndexCodebaseCommand(path, force), cancellationToken);
 }
 
-// Host Program.cs — HTTP transport
-builder.Services.AddMcpServer().WithHttpTransport().WithToolsFromAssembly();
+// Host Program.cs — HTTP transport + framework health checks
+builder.Services.AddHealthChecks()
+    .AddCheck<McpHostHealthCheck>("codebase-indexer", tags: ["ready"]);
 var app = builder.Build();
 app.MapMcp();
-app.MapGet("/health", () => Results.Ok("ok"));
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    Predicate = r => r.Tags.Contains("ready"),
+    ResponseWriter = HealthCheckJsonResponseWriter.WriteAsync,
+});
 ```
 
 **Stdio proxy** (`CodebaseIndexer.Proxy`): set `LogToStandardErrorThreshold = LogLevel.Trace` so MCP stdio transport logs to stderr only (stdout reserved for JSON-RPC).
@@ -350,7 +356,7 @@ flowchart TB
 | **`CodebaseIndexer.Host`** | MCP `[McpServerTool]` thin adapters, middleware, Quartz/BackgroundService, `Program.cs` DI composition root | `Application`, `Infrastructure`, `ServiceDefaults` |
 | **`CodebaseIndexer.ColbertWorker`** | ColBERT HTTP API host; ONNX adapter | `Infrastructure`, `ServiceDefaults` |
 | **`CodebaseIndexer.AppHost`** | Aspire orchestration only | Host/Worker project refs |
-| **`CodebaseIndexer.ServiceDefaults`** | Shared `AddServiceDefaults()` | BCL only |
+| **`CodebaseIndexer.ServiceDefaults`** | Aspire **`AddServiceDefaults()` template — immutable; no project-specific edits** | BCL + Aspire packages only |
 
 **What does not get a fourth layer:** MCP tool JSON shapes map 1:1 to Application command/query records — no separate "API layer" project. AppHost is orchestration, not business logic.
 
@@ -364,7 +370,7 @@ flowchart TB
 
 | Use `record` | Use `class` with `{ get; init; }` only |
 |--------------|----------------------------------------|
-| Domain models: `Chunk`, `SearchHit`, `SparseVector` | `Settings` / `IOptions<Settings>` bind model (init properties + `ValidateOnStart`) |
+| Domain models: `Chunk`, `SearchHit`, `SparseVector` | `Settings` / `IOptions<Settings>` bind model (`required` + `{ get; init; }`, **no C# property defaults** — defaults in `appsettings.json` only) |
 | Application commands/queries: `IndexCodebaseCommand`, `SearchCodebaseQuery` | Rare framework subclasses that cannot be records |
 | Refit/HTTP DTOs: `EmbeddingsRequest`, `ColbertEmbedResponse` | |
 | MCP tool result payloads | |
@@ -395,13 +401,28 @@ public sealed record IndexCodebaseCommand(
     bool Force = false,
     bool Wait = true);
 
-// Settings — class with init-only when IOptions binding needs it
+// Settings — class with init-only; no C# defaults; FluentValidation enforces required fields
 public sealed class Settings
 {
-    public string DenseEmbedModel { get; init; } = "";
-    public int DenseEmbedVectorSize { get; init; }
-    public bool HybridSearch { get; init; } = true;
-    // … all properties get; init; — no get; set;
+    public const string SectionName = "CodebaseIndexer";
+
+    public required string QdrantUrl { get; init; }
+    public required int QdrantTimeoutSeconds { get; init; }
+    public required string DenseEmbedModel { get; init; }
+    public required int DenseEmbedVectorSize { get; init; }
+    public required bool HybridSearch { get; init; }
+    // … all properties { get; init; } — no `= default` on class; optional empty strings use string.Empty in appsettings.json
+}
+
+// FluentValidation — registered as IValidateOptions<Settings> + ValidateOnStart()
+public sealed class SettingsValidator : AbstractValidator<Settings>
+{
+    public SettingsValidator()
+    {
+        RuleFor(x => x.QdrantUrl).NotEmpty();
+        RuleFor(x => x.DenseEmbedModel).NotEmpty();
+        RuleFor(x => x.DenseEmbedVectorSize).GreaterThan(0);
+    }
 }
 
 // Infrastructure/Refit — records
@@ -416,6 +437,7 @@ public sealed record EmbeddingsResponse(IReadOnlyList<EmbeddingData> Data);
 3. Use `IReadOnlyList<T>` / `IReadOnlyDictionary<K,V>` in records and init-only classes.
 4. `[McpServerTool]` methods accept and return `record` types (or init-only classes only when unavoidable).
 5. Enforce immutability in CI: **NetArchTest** layer rules + **[CA2227](https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca2227)** (`Collection properties should be read only`) on DTO paths — not IDE0025 (that rule is unrelated to `get; set;`).
+6. Use **`string.Empty`** for intentional empty strings in C# — never `""`.
 
 ### Refit API surface (Infrastructure project)
 
@@ -469,8 +491,8 @@ public interface IColbertEmbedApi
 
 ### Default behavior and configuration
 
-- **Default:** unchanged — same `.env` keys and compose profiles; Dockerfile base image changes only
-- **Configuration surface:** preserve existing env var names; .NET uses double-underscore nesting only where unavoidable (prefer flat env mapping via custom binder)
+- **Python (until Phase 7):** unchanged — repo-root `.env` keys and compose profiles for the legacy Python image
+- **.NET runtime (Phase 1+):** configuration lives in **`appsettings.json`** under the `CodebaseIndexer` section; environment-specific overrides in `appsettings.{Environment}.json` (e.g. `Docker` for container URLs); Aspire injects `ConnectionStrings:qdrant` / `ConnectionStrings:tei` where applicable. Container overrides use ASP.NET Core env syntax (`CodebaseIndexer__QdrantUrl`) — **not** flat `QDRANT_URL` / `.env` dotenv in .NET projects. Required fields have **no C# defaults**; **FluentValidation** fails fast at startup via `ValidateOnStart()`. Use **`string.Empty`** in C# for intentional empty strings — never `""`.
 
 ### Phased delivery
 
@@ -515,7 +537,7 @@ Phases 1–3 deliver a **usable search stack**; phases 4–6 reach **full parity
 - Lower process RSS vs CPython; no GIL for concurrent embed + I/O pipeline
 - **`ValueTask`** on sync-fast read paths avoids thread-pool allocation tax vs Python `asyncio` overhead on cache hits
 - **`FrozenDictionary`**, `ArrayPool`, and `Channel<T>` reduce GC pressure during bulk indexing
-- Strong typing and `ValidateOnStart` catch config errors at boot
+- Strong typing, **FluentValidation**, and `ValidateOnStart()` catch config errors at boot
 - **One fewer container** — scheduled reindex in-process; direct indexer calls (no MCP loopback)
 - **Single observability stack** — OpenTelemetry traces + metrics with OTLP export; aligns with [0018](0018-telemetry-observability-otel-prometheus.md) Phase 2+ intent
 - Single runtime for MCP host and ColBERT worker
@@ -572,7 +594,47 @@ test/
 Per [`migrate-dotnet9-to-dotnet10`](https://github.com/dotnet/skills/tree/main/plugins/dotnet-aspnetcore/skills/migrate-dotnet9-to-dotnet10) **extensions-hosting** breaking change: in .NET 10, **all** of `BackgroundService.ExecuteAsync` runs on a background thread (not only after the first `await`). Implications:
 
 - **`IndexPipelineHostedService`** and Quartz reindex jobs must not assume main-thread startup ordering inside `ExecuteAsync` — use `StartAsync` / `IHostedLifecycleService` for TEI health probe, ONNX `InferenceSession` preload (`PRELOAD_MODELS`), and `ValidateOnStart` ordering.
-- **`IOptions<Settings>` null-binding:** .NET 10 preserves JSON `null` in configuration — validate `Settings` with `IValidateOptions<Settings>` so init-only properties are not silently overwritten by `null` env values.
+- **`IOptions<Settings>` null-binding:** .NET 10 preserves JSON `null` in configuration — **FluentValidation** on `Settings` rejects null/missing required fields at startup (no silent overwrite of init-only properties).
+
+### Configuration files (.NET runtime)
+
+**`appsettings.json`** (repo defaults — not `.env`):
+
+```json
+{
+  "CodebaseIndexer": {
+    "QdrantUrl": "http://localhost:6333",
+    "QdrantTimeoutSeconds": 30,
+    "QdrantCollection": "codebase",
+    "HybridSearch": true,
+    "DenseEmbedModel": "jinaai/jina-embeddings-v2-base-code",
+    "SparseEmbedModel": "Qdrant/bm25",
+    "DenseEmbedVectorSize": 768,
+    "TeiUrl": "http://localhost:8080",
+    "TeiEmbedBatchSize": 32,
+    "TeiTimeoutSeconds": 120,
+    "QueryInstruction": "",
+    "NormalizeOutput": false,
+    "RerankEnabled": false,
+    "PayloadIndexes": true,
+    "VectorsOnDisk": false,
+    "SparseOnDisk": false
+  }
+}
+```
+
+**`appsettings.Docker.json`** (container URL overrides only):
+
+```json
+{
+  "CodebaseIndexer": {
+    "QdrantUrl": "http://qdrant:6333",
+    "TeiUrl": "http://tei:80"
+  }
+}
+```
+
+Docker Compose / Aspire overrides use ASP.NET Core env syntax, e.g. `CodebaseIndexer__DenseEmbedModel` — not flat `DENSE_EMBED_MODEL` on the .NET `mcp` service.
 
 ### Scheduled reindex configuration (new env vars)
 
@@ -607,6 +669,7 @@ Preserves existing `WORKSPACE_PATH`, `INDEX_TIMEOUT`, `GIT_TIMEOUT` semantics fr
 | `OpenTelemetry.Instrumentation.GrpcNetClient` | Qdrant gRPC client spans |
 | `OpenTelemetry.Exporter.OpenTelemetryProtocol` | OTLP export (wired by ServiceDefaults) |
 | `OpenTelemetry.Exporter.Prometheus.AspNetCore` | Optional Prometheus scrape when `METRICS_ENABLED=true` |
+| `FluentValidation` | **`IOptions<Settings>` validation** — `AbstractValidator<Settings>` + `IValidateOptions<Settings>` + `ValidateOnStart()` |
 | `Quartz.Extensions.Hosting` | Cron-expression scheduled reindex |
 | `LibGit2Sharp` | git pull + gitignore-aware scan |
 

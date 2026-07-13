@@ -57,4 +57,46 @@ public interface IVectorStore
     ValueTask<CollectionStats?> GetCollectionStatsAsync(
         string collection,
         CancellationToken cancellationToken = default);
+    Task<IReadOnlyDictionary<string, FileMetadata>> GetFileMetadataAsync(
+        string collection,
+        CancellationToken cancellationToken = default);
+    Task DeleteByPathsAsync(
+        string collection,
+        IReadOnlyList<string> relPaths,
+        CancellationToken cancellationToken = default);
+    Task SetIndexingAsync(
+        string collection,
+        bool enabled,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IWorkspaceScanner
+{
+    IAsyncEnumerable<FileRecord> ScanFilesAsync(
+        string workspacePath,
+        string subPath,
+        IReadOnlyDictionary<string, FileMetadata>? existingMetadata,
+        bool force,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IIndexPipeline
+{
+    Task<PipelineResult> RunAsync(
+        string collection,
+        string subPath,
+        bool force,
+        CancellationToken cancellationToken);
+}
+
+public enum MemoryPressureSeverity
+{
+    Ok,
+    Warn,
+    Halt,
+}
+
+public interface IMemoryPressureGuard
+{
+    (MemoryPressureSeverity Severity, double Percent) Check(int warnPct, int haltPct);
 }

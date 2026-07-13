@@ -1,0 +1,21 @@
+adr_id: '0030'
+phase_key: phase-2
+phase_title: Phase 2 — Indexing pipeline
+event: verification
+date: '2026-07-13'
+tracker_status: verified
+choices: —
+deviations: none
+code_evidence:
+  - WorkspaceScanner
+  - TreeSitterChunker
+  - Bm25EmbedderCore
+  - IndexCodebaseService
+  - IndexTools
+  - docker-compose.aspire.yml
+verify: >-
+  review rounds 2; dotnet test 32/32 pass; integration pass Python+aspire; plan compliance pass
+changelog:
+  update: false
+  reason: 'invoker Changelog: no; status verified'
+user_facing: true

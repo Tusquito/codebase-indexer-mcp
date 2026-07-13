@@ -82,6 +82,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0029 | Phase 1 — Documentation | Accepted (phase 1 — Documentation) | phase-1 | `merged` | Docs-only single PR; host-native Metal TEI in `docs/DEPLOYMENT.md` (after Apple Silicon, before External TEI); `.env.example` Metal preset; four-surface sync (README, copilot-instructions, SKILL, DEPLOYMENT); bundled 0028 CPU TEI remains default; Metal opt-in via `TEI_URL` + empty `COMPOSE_PROFILES`; `--hostname 127.0.0.1` with upstream flag verification note. Defer Phase 2 `--external-tei` integration smoke and Phase 3 `metal_host_tei` benchmark. | 2026-07-12 |
 | 0029 | Phase 2 — Integration smoke | Accept skipped — unchanged (Accepted) | phase-2 | `merged` | Harness-only PR; `include_tei=False` via `compose_file_args`; force `ACCELERATOR=cpu`; M3 Pro Metal cgroup preset; host TEI preflight; `tei_container_absent` verdict gate; bundled path unchanged; quality/perf validation skipped. Defer live M3 Pro `--external-tei` full Docker integration before merge, Phase 3 `metal_host_tei` benchmark, and maintainer Metal log check on first embed. | 2026-07-12 |
 | 0030 | Phase 1 — Scaffold + storage + TEI | Accepted (phase 1 — Scaffold + storage + TEI) | phase-1 | `merged` | Accept ADR 0030; repo-root solution; hand-authored docker-compose.aspire.yml; arm64 cpu-arm64-latest TEI; accelerator defaults cpu; MCP stub get_health only; SearchAsync stub until Phase 3; tokenizer truncation Phase 2; Python production default until Phase 7 | 2026-07-13 |
+| 0030 | Phase 2 — Indexing pipeline | Accepted (phase 2 — Indexing pipeline) | phase-2 | `verified` | `WorkspaceScanner` (SHA-256 incremental scan, ignore files, `ArrayPool` hashing, channel worker fan-out DOP=1); `TreeSitterChunker` (port `chunker.py` via `TreeSitter.DotNet`, regex SQL fallback); `OnnxSparseEmbedder` (`Microsoft.ML.OnnxRuntime`, same `Qdrant/bm25` artifacts); model-accurate dense tokenizer truncation; `IndexPipeline` with `Channel<T>` stages in `IndexPipelineHostedService`; `IndexCodebaseService` + `IndexJobService`; MCP index tools (`index_codebase`, `index_status`, `stop_indexing`, `index_all`); chunk-ID golden parity fixture; `docker-compose.aspire.yml` workspace/cache wiring (fastembed at `/root/.cache/fastembed` with `fastembed_cache` volume); `--aspire-stack` integration smoke (manual M3 Pro pre-review, optional non-blocking CI); Python `run_compose_integration.py` remains green | 2026-07-13 |
 <!-- END GENERATED:summary -->
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
@@ -89,7 +90,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 ## Active and upcoming work
 
 <!-- BEGIN GENERATED:active -->
-_No active or upcoming phases._
+- **0030** Phase 2 — Indexing pipeline — `verified`
 <!-- END GENERATED:active -->
 
 ### Partial acceptance
@@ -1830,6 +1831,15 @@ _No active or upcoming phases._
 - **Verify:** review round 2 clean; dotnet test 13/13 pass; plan compliance pass; Docker integration pass (ACCELERATOR=cpu); R1–R3 bug fixes verified
 - **Changelog:** yes — Add .NET 10 MCP scaffold (opt-in via docker-compose.aspire.yml): Aspire AppHost, Qdrant + TEI + stub get_health tool; Python runtime remains default until ADR 0030 Phase 7.
 
+#### 2026-07-13 — verification
+- **Phase:** Phase 2 — Indexing pipeline
+- **Tracker status:** `verified`
+- **Choices:** —
+- **Deviations:** none
+- **Code evidence:** `WorkspaceScanner`, `TreeSitterChunker`, `Bm25EmbedderCore`, `IndexCodebaseService`, `IndexTools`, `docker-compose.aspire.yml`
+- **Verify:** review rounds 2; dotnet test 32/32 pass; integration pass Python+aspire; plan compliance pass
+- **Changelog:** no — invoker Changelog: no; status verified
+
 #### 2026-07-13 — prioritization
 - **Phase:** Phase 1 — Scaffold + storage + TEI
 - **Tracker status:** `candidate`
@@ -1837,10 +1847,25 @@ _No active or upcoming phases._
 - **Deviations:** none
 - **Changelog:** no — user-facing unknown; invoker Changelog: no
 
+#### 2026-07-13 — prioritization
+- **Phase:** Phase 2 — Indexing pipeline
+- **Tracker status:** `candidate`
+- **Choices:** Prioritize 0030 Phase 2 over 0026 Phase 4 (higher raw benchmark score ~24.5 but NVIDIA-GPU-blocked on M3 Pro per tracker open decisions); over 0002 Phase 4 (optional Python GraphRAG cross-project; 0030 P5 will re-port); over 0027 Phase 1 (Proposed, Accept deferred this cycle); over 0023 Phase 3 (graph-enabled cleanup only); over 0017 Phase 2 (small observability slice); single phase per pipeline rule; no ADR Accept required (0030 already Accepted); pre-release: Phases 1–6 opt-in parallel .NET stack, Python production default until Phase 7; Docker integration mandatory per project-phase policy; no `*_SCHEMA_VERSION` env vars — re-index after pull. **Why now:** ADR 0030 Phase 1 merged 2026-07-13 (`docs/adr/tracker/phases/0030-phase-1.yaml`, PR #37): .NET scaffold (`CodebaseIndexer.sln`, Domain/Application/Infrastructure/Host/AppHost, `QdrantVectorStore`, `TeiDenseEmbedder`, `docker-compose.aspire.yml`, stub `get_health`) on disk; Phase 1 plan deferred tokenizer truncation and indexing to Phase 2; `SearchAsync` stubbed until Phase 3; grep confirms no `IndexPipeline`/`WorkspaceScanner`/`TreeSitter` in `src/`; tracker shows no active phases; Python runtime feature-complete (14 tools, GraphRAG P1–3, TEI/ColBERT arcs merged); 0026 Phase 4 GPU bake-off blocked on M3 Pro (no NVIDIA); ADR 0027 Proposed and deferred for Accept per tracker resolution. **Suggested scope:** one phase (= one PR). **Chosen scope:** Phase 2 — Indexing pipeline per `0030-migrate-mcp-server-to-dotnet10.md` §Phased delivery: `WorkspaceScanner` (SHA-256 incremental scan, ignore files); `TreeSitterChunker` (port `chunker.py` via `TreeSitter.DotNet`, regex SQL fallback); `OnnxSparseEmbedder` (`Microsoft.ML.OnnxRuntime`, same `Qdrant/bm25` artifacts); model-accurate dense tokenizer truncation (deferred from P1); `IndexPipeline` with `Channel<T>` stages in `IndexPipelineHostedService` (scan→parse→embed→upsert, no `Task.Run`); `IndexCodebaseService`; MCP index tools (`index_codebase`, `index_status`, `stop_indexing`, `index_all`); `ArrayPool` hashing and channel worker fan-out; exit: fixture incremental index with chunk IDs matching Python golden samples; Docker integration on `docker-compose.aspire.yml`; Python `run_compose_integration.py` remains green.
+- **Deviations:** none
+- **Code evidence:** ``docs/adr/tracker/phases/0030-phase-1.yaml` merged 2026-07-13 (PR #37)`, `grep confirms no `IndexPipeline`/`WorkspaceScanner`/`TreeSitter` in `src/``, ``SearchAsync` stubbed until Phase 3 per Phase 1 plan`
+- **Changelog:** no — user-facing unknown; invoker Changelog: no
+
 #### 2026-07-13 — plan
 - **Phase:** Phase 1 — Scaffold + storage + TEI
 - **Tracker status:** `planned`
 - **Choices:** Accept ADR 0030 before implementation; repo-root CodebaseIndexer.sln (not dotnet/ subdirectory); check in generated docker-compose.aspire.yml in Phase 1 (not CI-only / not deferred to Phase 6); arm64 M3 Pro AppHost validation first, NVIDIA amd64 GPU compose overrides deferred; accelerator AppHost parameter defaults cpu; tokenizer truncation deferred Phase 2; MCP stub tool(s) only (not 14-tool parity); Python run_compose_integration.py must remain green; quality validation skip; performance report skip
+- **Deviations:** none
+- **Changelog:** no — invoker Changelog: no; status planned
+
+#### 2026-07-13 — plan
+- **Phase:** Phase 2 — Indexing pipeline
+- **Tracker status:** `planned`
+- **Choices:** Single PR; regex SQL fallback; no `*_SCHEMA_VERSION`; quality eval Phase 3; Python default until Phase 7; DOP=1 for hash workers; fastembed cache /root/.cache/fastembed; CI aspire manual-only + optional non-blocking CI. Assumptions: Phase 1 merged PR #37; arm64 M3 Pro; SearchAsync stub until Phase 3.
 - **Deviations:** none
 - **Changelog:** no — invoker Changelog: no; status planned
 
@@ -1861,6 +1886,15 @@ _No active or upcoming phases._
 - **Deviations:** Aspire docker-compose publisher failed — compose file hand-authored; AppHost TEI image not parameterized; SearchAsync stub until Phase 3
 - **Code evidence:** `CodebaseIndexer.sln`, `src/CodebaseIndexer.Domain/`, `src/CodebaseIndexer.Infrastructure/Qdrant/QdrantVectorStore.cs`, `src/CodebaseIndexer.Infrastructure/Tei/TeiDenseEmbedder.cs`, `src/CodebaseIndexer.Host/Program.cs`, `src/CodebaseIndexer.AppHost/AppHost.cs`, `docker-compose.aspire.yml`, `test/CodebaseIndexer.Host.Tests/McpHostSmokeTests.cs`
 - **Test debt:** Qdrant Testcontainers integration; live TEI embed smoke; AppHost DistributedApplicationTestingBuilder; NetArchTest layer rules; arm64 AppHost manual validation on M3 Pro
+- **Changelog:** no — invoker Changelog: no; status implemented
+
+#### 2026-07-13 — implementation
+- **Phase:** Phase 2 — Indexing pipeline
+- **Tracker status:** `implemented`
+- **Choices:** DOP=1; fastembed /root/.cache/fastembed; regex SQL fallback; optional non-blocking CI aspire job
+- **Deviations:** Simplified ONNX sparse tokenization; TreeSitter chunker lacks full import-header logic; live Docker aspire smoke deferred to integration step
+- **Code evidence:** `WorkspaceScanner.cs`, `TreeSitterChunker.cs`, `OnnxSparseEmbedder.cs`, `IndexCodebaseService.cs`, `IndexJobService.cs`, `IndexTools.cs`, `docker-compose.aspire.yml`, `run_compose_integration.py --aspire-stack`
+- **Test debt:** Sparse parity; full chunker golden; Testcontainers E2E; aspire-stack Docker smoke
 - **Changelog:** no — invoker Changelog: no; status implemented
 <!-- END GENERATED:phase-logs -->
 
@@ -1909,6 +1943,14 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 - 0028 Phase 4 benchmark tier: 24 GiB vs 18 GiB Docker VM?
 - NVIDIA GPU host availability for 0026 Phase 4 bake-off?
 - confirm `text-embeddings-router --hostname` flag spelling at implementation
+- RESOLVED — (1) fastembed cache /root/.cache/fastembed with fastembed_cache volume
+- RESOLVED — (2) CI aspire manual-only on M3 Pro with optional non-blocking CI
+- RESOLVED — (3) DOP=1
+- RESOLVED — (1) Continue ADR 0030 Phase 2 as primary thread
+- RESOLVED — (2) Defer 0026 Phase 4 until NVIDIA GPU host available
+- RESOLVED — (3) Do not Accept ADR 0027 this cycle
+- RESOLVED — (4) Use 24 GiB Docker VM tier for 0028 Phase 4
+- RESOLVED — (5) Regex SQL fallback acceptable if TreeSitter.DotNet SQL grammar unavailable
 <!-- END GENERATED:open-decisions -->
 
 ---

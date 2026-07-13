@@ -1,0 +1,28 @@
+adr_id: '0030'
+phase_key: phase-2
+phase_title: Phase 2 — Indexing pipeline
+event: implementation
+date: '2026-07-13'
+tracker_status: implemented
+choices: >-
+  DOP=1; fastembed /root/.cache/fastembed; regex SQL fallback; optional non-blocking CI aspire job
+deviations: >-
+  Simplified ONNX sparse tokenization; TreeSitter chunker lacks full import-header logic; live Docker aspire smoke deferred to integration step
+code_evidence:
+  - WorkspaceScanner.cs
+  - TreeSitterChunker.cs
+  - OnnxSparseEmbedder.cs
+  - IndexCodebaseService.cs
+  - IndexJobService.cs
+  - IndexTools.cs
+  - docker-compose.aspire.yml
+  - run_compose_integration.py --aspire-stack
+test_debt:
+  - Sparse parity
+  - full chunker golden
+  - Testcontainers E2E
+  - aspire-stack Docker smoke
+changelog:
+  update: false
+  reason: 'invoker Changelog: no; status implemented'
+user_facing: true
