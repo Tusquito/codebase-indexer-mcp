@@ -1,58 +1,65 @@
 using CodebaseIndexer.Application.Options;
+using CodebaseIndexer.Domain.Embedding;
 using CodebaseIndexer.Domain.Exceptions;
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace CodebaseIndexer.Application.Services;
 
-public interface IIndexEmbeddingService
-{
-    Task PreloadAsync(CancellationToken cancellationToken = default);
-    void ReleaseModels();
-    Task<IReadOnlyList<EmbeddedChunk>> EmbedChunksAsync(
-        IReadOnlyList<Chunk> chunks,
-        CancellationToken cancellationToken = default);
-}
-
+/// <summary>Coordinates dense and sparse embedding with memory-pressure handling.</summary>
 public sealed class IndexEmbeddingService : IIndexEmbeddingService
 {
     private readonly IDenseEmbedder _dense;
     private readonly ISparseEmbedder _sparse;
     private readonly IMemoryPressureGuard _memoryGuard;
-    private readonly IndexingOptions _options;
+    private readonly EmbeddingOptions _embedding;
+    private readonly IndexingOptions _indexing;
     private readonly ILogger<IndexEmbeddingService> _logger;
 
+    /// <summary>Creates the embedding service.</summary>
+    /// <param name="dense">Dense embedder backend.</param>
+    /// <param name="sparse">Sparse embedder backend.</param>
+    /// <param name="memoryGuard">Memory pressure guard.</param>
+    /// <param name="embedding">Embedding model options.</param>
+    /// <param name="indexing">Indexing pipeline options.</param>
+    /// <param name="logger">Logger instance.</param>
     public IndexEmbeddingService(
-        IDenseEmbedder dense,
-        ISparseEmbedder sparse,
+        [FromKeyedServices(EmbedderBackendKeys.Dense.Tei)] IDenseEmbedder dense,
+        [FromKeyedServices(EmbedderBackendKeys.Sparse.Onnx)] ISparseEmbedder sparse,
         IMemoryPressureGuard memoryGuard,
-        IOptions<IndexingOptions> options,
+        IOptions<EmbeddingOptions> embedding,
+        IOptions<IndexingOptions> indexing,
         ILogger<IndexEmbeddingService> logger)
     {
         _dense = dense;
         _sparse = sparse;
         _memoryGuard = memoryGuard;
-        _options = options.Value;
+        _embedding = embedding.Value;
+        _indexing = indexing.Value;
         _logger = logger;
     }
 
+    /// <inheritdoc />
     public async Task PreloadAsync(CancellationToken cancellationToken = default)
     {
         await _dense.PreloadAsync(cancellationToken).ConfigureAwait(false);
-        if (_options.HybridSearch)
+        if (_embedding.HybridSearch)
         {
             await _sparse.PreloadAsync(cancellationToken).ConfigureAwait(false);
         }
     }
 
+    /// <inheritdoc />
     public void ReleaseModels()
     {
         _dense.Release();
         _sparse.Release();
     }
 
+    /// <inheritdoc />
     public async Task<IReadOnlyList<EmbeddedChunk>> EmbedChunksAsync(
         IReadOnlyList<Chunk> chunks,
         CancellationToken cancellationToken = default)
@@ -62,22 +69,27 @@ public sealed class IndexEmbeddingService : IIndexEmbeddingService
             return Array.Empty<EmbeddedChunk>();
         }
 
-        var texts = chunks.Select(c => c.Content).ToArray();
+        var texts = new string[chunks.Count];
+        for (var i = 0; i < chunks.Count; i++)
+        {
+            texts[i] = chunks[i].Content;
+        }
+
         var pressure = _memoryGuard.Check(
-            _options.MemoryPressureWarnPct,
-            _options.MemoryPressureHaltPct);
+            _indexing.MemoryPressureWarnPct,
+            _indexing.MemoryPressureHaltPct);
 
         if (pressure.Severity == MemoryPressureSeverity.Halt)
         {
             throw new EmbeddingException(
-                $"Memory pressure {pressure.Percent:F0}% exceeds halt threshold ({_options.MemoryPressureHaltPct}%).");
+                $"Memory pressure {pressure.Percent:F0}% exceeds halt threshold ({_indexing.MemoryPressureHaltPct}%).");
         }
 
-        var forceSequential = _options.SequentialEmbed || pressure.Severity == MemoryPressureSeverity.Warn;
+        var forceSequential = _indexing.SequentialEmbed || pressure.Severity == MemoryPressureSeverity.Warn;
         IReadOnlyList<IReadOnlyList<float>> denseVectors;
         IReadOnlyList<SparseVector>? sparseVectors = null;
 
-        if (_options.HybridSearch && !forceSequential)
+        if (_embedding.HybridSearch && !forceSequential)
         {
             var denseTask = _dense.EmbedBatchAsync(texts, cancellationToken);
             var sparseTask = _sparse.EmbedBatchAsync(texts, cancellationToken);
@@ -91,12 +103,12 @@ public sealed class IndexEmbeddingService : IIndexEmbeddingService
             {
                 _logger.LogInformation(
                     "embed_sequential_mode reason={Reason} pressure_pct={Pressure}",
-                    _options.SequentialEmbed ? "sequential_embed" : "memory_pressure",
+                    _indexing.SequentialEmbed ? "sequential_embed" : "memory_pressure",
                     pressure.Percent);
             }
 
             denseVectors = await _dense.EmbedBatchAsync(texts, cancellationToken).ConfigureAwait(false);
-            if (_options.HybridSearch)
+            if (_embedding.HybridSearch)
             {
                 sparseVectors = await _sparse.EmbedBatchAsync(texts, cancellationToken).ConfigureAwait(false);
             }
@@ -108,7 +120,7 @@ public sealed class IndexEmbeddingService : IIndexEmbeddingService
             embedded.Add(new EmbeddedChunk(
                 chunks[i],
                 denseVectors[i],
-                _options.HybridSearch ? sparseVectors![i] : null));
+                _embedding.HybridSearch ? sparseVectors![i] : null));
         }
 
         return embedded;

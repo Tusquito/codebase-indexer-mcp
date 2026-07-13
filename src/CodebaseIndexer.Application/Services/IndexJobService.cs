@@ -1,62 +1,11 @@
 using System.Collections.Concurrent;
 using CodebaseIndexer.Domain.Exceptions;
 using CodebaseIndexer.Domain.Models;
-using CodebaseIndexer.Domain.Ports;
 using Microsoft.Extensions.Logging;
 
 namespace CodebaseIndexer.Application.Services;
 
-public interface IIndexJobService
-{
-    ValueTask<bool> IsRunningAsync(string collection, CancellationToken cancellationToken = default);
-    ValueTask<IndexJobSnapshot?> GetJobAsync(string collection, CancellationToken cancellationToken = default);
-    ValueTask<IReadOnlyList<IndexJobSnapshot>> GetAllJobsAsync(CancellationToken cancellationToken = default);
-    Task<IndexJobSnapshot> StartAsync(IndexCodebaseCommand command, CancellationToken cancellationToken = default);
-    ValueTask<IndexJobSnapshot?> CancelAsync(string collection, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<IndexJobSnapshot>> IndexAllAsync(IndexAllCommand command, CancellationToken cancellationToken = default);
-}
-
-internal sealed class IndexJobState
-{
-    public required string Collection { get; init; }
-    public required string Path { get; init; }
-    public bool Force { get; init; }
-    public IndexJobStatus Status { get; set; } = IndexJobStatus.Queued;
-    public DateTimeOffset StartedAt { get; set; }
-    public DateTimeOffset? FinishedAt { get; set; }
-    public string ErrorMessage { get; set; } = string.Empty;
-    public PipelineResult? Result { get; set; }
-    public CancellationTokenSource Cancellation { get; } = new();
-    public Task? RunTask { get; set; }
-    public TaskCompletionSource Completed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-    public double ElapsedSeconds
-    {
-        get
-        {
-            if (StartedAt == default)
-            {
-                return 0;
-            }
-
-            var end = FinishedAt ?? DateTimeOffset.UtcNow;
-            return Math.Round((end - StartedAt).TotalSeconds, 2);
-        }
-    }
-
-    public IndexJobSnapshot ToSnapshot() => new(
-        Collection,
-        Path,
-        Status,
-        ElapsedSeconds,
-        Result?.TotalFiles ?? 0,
-        Result?.IndexedFiles ?? 0,
-        Result?.SkippedFiles ?? 0,
-        Result?.TotalChunks ?? 0,
-        Result?.Errors ?? Array.Empty<string>(),
-        ErrorMessage);
-}
-
+/// <summary>In-memory tracker and runner for background index jobs.</summary>
 public sealed class IndexJobService : IIndexJobService
 {
     private const int MaxJobs = 100;
@@ -64,12 +13,16 @@ public sealed class IndexJobService : IIndexJobService
     private readonly IIndexCodebaseService _indexer;
     private readonly ILogger<IndexJobService> _logger;
 
+    /// <summary>Creates the index job service.</summary>
+    /// <param name="indexer">Codebase indexing pipeline.</param>
+    /// <param name="logger">Logger instance.</param>
     public IndexJobService(IIndexCodebaseService indexer, ILogger<IndexJobService> logger)
     {
         _indexer = indexer;
         _logger = logger;
     }
 
+    /// <inheritdoc />
     public ValueTask<bool> IsRunningAsync(string collection, CancellationToken cancellationToken = default)
     {
         if (_jobs.TryGetValue(collection, out var job))
@@ -80,12 +33,15 @@ public sealed class IndexJobService : IIndexJobService
         return ValueTask.FromResult(false);
     }
 
+    /// <inheritdoc />
     public ValueTask<IndexJobSnapshot?> GetJobAsync(string collection, CancellationToken cancellationToken = default) =>
         ValueTask.FromResult(_jobs.TryGetValue(collection, out var job) ? job.ToSnapshot() : null);
 
+    /// <inheritdoc />
     public ValueTask<IReadOnlyList<IndexJobSnapshot>> GetAllJobsAsync(CancellationToken cancellationToken = default) =>
         ValueTask.FromResult<IReadOnlyList<IndexJobSnapshot>>(_jobs.Values.Select(j => j.ToSnapshot()).ToArray());
 
+    /// <inheritdoc />
     public async Task<IndexJobSnapshot> StartAsync(IndexCodebaseCommand command, CancellationToken cancellationToken = default)
     {
         if (await IsRunningAsync(command.Collection, cancellationToken).ConfigureAwait(false))
@@ -120,6 +76,7 @@ public sealed class IndexJobService : IIndexJobService
         return job.ToSnapshot();
     }
 
+    /// <inheritdoc />
     public ValueTask<IndexJobSnapshot?> CancelAsync(string collection, CancellationToken cancellationToken = default)
     {
         if (!_jobs.TryGetValue(collection, out var job))
@@ -136,6 +93,7 @@ public sealed class IndexJobService : IIndexJobService
         return ValueTask.FromResult<IndexJobSnapshot?>(job.ToSnapshot());
     }
 
+    /// <inheritdoc />
     public async Task<IReadOnlyList<IndexJobSnapshot>> IndexAllAsync(IndexAllCommand command, CancellationToken cancellationToken = default)
     {
         // Index-all discovers collections via job tracker + vector store list in tools layer.

@@ -1,14 +1,9 @@
 namespace CodebaseIndexer.Application.Services;
 
-public sealed record HealthStatus(string Status, string Runtime);
-
-public interface IHealthService
-{
-    ValueTask<HealthStatus> GetStatusAsync(CancellationToken cancellationToken = default);
-}
-
+/// <summary>Default health service implementation.</summary>
 public sealed class HealthService : IHealthService
 {
+    /// <inheritdoc />
     public ValueTask<HealthStatus> GetStatusAsync(CancellationToken cancellationToken = default) =>
         ValueTask.FromResult(new HealthStatus("ok", "dotnet"));
 }
