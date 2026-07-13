@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Text.RegularExpressions;
+using CodebaseIndexer.Application.Models;
 using CodebaseIndexer.Application.Services;
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
@@ -26,8 +27,8 @@ public sealed class IndexTools
         _settings = settings.Value;
     }
 
-    [McpServerTool, Description("Index a project folder into the vector store.")]
-    public async Task<object> IndexCodebase(
+    [McpServerTool(Name = "index_codebase"), Description("Index a project folder into the vector store.")]
+    public async Task<object> IndexCodebaseAsync(
         [Description("Project folder name under WORKSPACE_ROOT")] string path = "/",
         [Description("Optional collection override")] string? collection = null,
         [Description("Force full re-index even if file SHA unchanged")] bool force = false,
@@ -38,11 +39,9 @@ public sealed class IndexTools
         path = NormalizePath(path);
         if (path == "/")
         {
-            return new
-            {
-                error = "Please specify a project folder to index.",
-                hint = "Pass the project folder name as 'path'. For example: index_codebase(path='my-project').",
-            };
+            return new IndexPathRequiredResponse(
+                Error: "Please specify a project folder to index.",
+                Hint: "Pass the project folder name as 'path'. For example: index_codebase(path='my-project').");
         }
 
         collection ??= DeriveCollectionName(_settings.WorkspacePath, path);
@@ -56,11 +55,9 @@ public sealed class IndexTools
                     cancellationToken).ConfigureAwait(false);
             }
 
-            return new
-            {
-                message = $"Indexing already in progress for '{collection}'",
-                status = existing,
-            };
+            return new IndexAlreadyRunningResponse(
+                Message: $"Indexing already in progress for '{collection}'",
+                Status: existing!);
         }
 
         var snapshot = await _jobs.StartAsync(
@@ -69,20 +66,18 @@ public sealed class IndexTools
 
         if (!wait)
         {
-            return new
-            {
-                message = $"Indexing started for '{collection}' in the background.",
-                collection,
-                path,
-                hint = "Use index_status to check progress.",
-            };
+            return new IndexStartedResponse(
+                Message: $"Indexing started for '{collection}' in the background.",
+                Collection: collection,
+                Path: path,
+                Hint: "Use index_status to check progress.");
         }
 
         return snapshot;
     }
 
-    [McpServerTool, Description("Check indexing job status.")]
-    public async Task<object> IndexStatus(
+    [McpServerTool(Name = "index_status"), Description("Check indexing job status.")]
+    public async Task<object> IndexStatusAsync(
         [Description("Optional collection name")] string? collection = null,
         CancellationToken cancellationToken = default)
     {
@@ -90,18 +85,18 @@ public sealed class IndexTools
         {
             var job = await _jobs.GetJobAsync(collection, cancellationToken).ConfigureAwait(false);
             return job is null
-                ? new { error = $"No indexing job found for '{collection}'." }
+                ? new IndexJobNotFoundResponse(Error: $"No indexing job found for '{collection}'.")
                 : job;
         }
 
         var jobs = await _jobs.GetAllJobsAsync(cancellationToken).ConfigureAwait(false);
         return jobs.Count == 0
-            ? new { message = "No indexing jobs found. Use index_codebase to start one." }
+            ? new IndexStatusEmptyResponse(Message: "No indexing jobs found. Use index_codebase to start one.")
             : jobs;
     }
 
-    [McpServerTool, Description("Stop an ongoing indexing job.")]
-    public async Task<object> StopIndexing(
+    [McpServerTool(Name = "stop_indexing"), Description("Stop an ongoing indexing job.")]
+    public async Task<object> StopIndexingAsync(
         [Description("Collection name")] string collection,
         CancellationToken cancellationToken = default)
     {
@@ -110,20 +105,20 @@ public sealed class IndexTools
         {
             var existing = await _jobs.GetJobAsync(collection, cancellationToken).ConfigureAwait(false);
             return existing is null
-                ? new { error = $"No indexing job found for '{collection}'." }
-                : new { error = $"Job '{collection}' is not running (status: {existing.Status}).", status = existing };
+                ? new IndexJobNotFoundResponse(Error: $"No indexing job found for '{collection}'.")
+                : new IndexJobNotRunningResponse(
+                    Error: $"Job '{collection}' is not running (status: {existing.Status}).",
+                    Status: existing);
         }
 
-        return new
-        {
-            message = $"Cancellation requested for '{collection}'. The job will stop after the current batch.",
-            collection,
-            hint = "Use index_status to confirm it has stopped.",
-        };
+        return new IndexCancelledResponse(
+            Message: $"Cancellation requested for '{collection}'. The job will stop after the current batch.",
+            Collection: collection,
+            Hint: "Use index_status to confirm it has stopped.");
     }
 
-    [McpServerTool, Description("Re-index all existing collections sequentially.")]
-    public async Task<object> IndexAll(
+    [McpServerTool(Name = "index_all"), Description("Re-index all existing collections sequentially.")]
+    public async Task<object> IndexAllAsync(
         [Description("Force full re-index")] bool force = false,
         [Description("Block until all collections finish")] bool wait = true,
         [Description("Timeout per collection in seconds")] int timeout = 1800,
@@ -132,11 +127,9 @@ public sealed class IndexTools
         var collections = await _vectorStore.ListCollectionsAsync(cancellationToken).ConfigureAwait(false);
         if (collections.Count == 0)
         {
-            return new
-            {
-                error = "No indexed collections found.",
-                hint = "Use index_codebase to index a project first, then use index_all to re-index all.",
-            };
+            return new IndexAllEmptyResponse(
+                Error: "No indexed collections found.",
+                Hint: "Use index_codebase to index a project first, then use index_all to re-index all.");
         }
 
         var results = new List<IndexJobSnapshot>();
@@ -161,11 +154,9 @@ public sealed class IndexTools
         }
 
         var succeeded = results.Count(r => r.Status == IndexJobStatus.Done);
-        return new
-        {
-            message = $"Indexed {succeeded}/{collections.Count} collections",
-            results,
-        };
+        return new IndexAllCompletedResponse(
+            Message: $"Indexed {succeeded}/{collections.Count} collections",
+            Results: results);
     }
 
     internal static string NormalizePath(string rawPath)

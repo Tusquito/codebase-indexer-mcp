@@ -63,17 +63,17 @@ public sealed class IndexEmbeddingService : IIndexEmbeddingService
         }
 
         var texts = chunks.Select(c => c.Content).ToArray();
-        var (severity, pct) = _memoryGuard.Check(
+        var pressure = _memoryGuard.Check(
             _options.MemoryPressureWarnPct,
             _options.MemoryPressureHaltPct);
 
-        if (severity == MemoryPressureSeverity.Halt)
+        if (pressure.Severity == MemoryPressureSeverity.Halt)
         {
             throw new EmbeddingException(
-                $"Memory pressure {pct:F0}% exceeds halt threshold ({_options.MemoryPressureHaltPct}%).");
+                $"Memory pressure {pressure.Percent:F0}% exceeds halt threshold ({_options.MemoryPressureHaltPct}%).");
         }
 
-        var forceSequential = _options.SequentialEmbed || severity == MemoryPressureSeverity.Warn;
+        var forceSequential = _options.SequentialEmbed || pressure.Severity == MemoryPressureSeverity.Warn;
         IReadOnlyList<IReadOnlyList<float>> denseVectors;
         IReadOnlyList<SparseVector>? sparseVectors = null;
 
@@ -92,7 +92,7 @@ public sealed class IndexEmbeddingService : IIndexEmbeddingService
                 _logger.LogInformation(
                     "embed_sequential_mode reason={Reason} pressure_pct={Pressure}",
                     _options.SequentialEmbed ? "sequential_embed" : "memory_pressure",
-                    pct);
+                    pressure.Percent);
             }
 
             denseVectors = await _dense.EmbedBatchAsync(texts, cancellationToken).ConfigureAwait(false);

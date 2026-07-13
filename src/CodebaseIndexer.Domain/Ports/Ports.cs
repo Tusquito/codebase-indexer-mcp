@@ -89,14 +89,7 @@ public interface IIndexPipeline
         CancellationToken cancellationToken);
 }
 
-public enum MemoryPressureSeverity
-{
-    Ok,
-    Warn,
-    Halt,
-}
-
 public interface IMemoryPressureGuard
 {
-    (MemoryPressureSeverity Severity, double Percent) Check(int warnPct, int haltPct);
+    MemoryPressureResult Check(int warnPct, int haltPct);
 }

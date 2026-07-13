@@ -31,13 +31,15 @@ public sealed class OnnxSparseEmbedder : ISparseEmbedder, IDisposable
     {
         var modelDir = ResolveModelDirectory(_settings.FastembedCachePath, _settings.SparseEmbedModel);
         _ = GetSharedModel(modelDir);
-        (_maxTokens, _truncationSource) = EmbeddingTruncation.ResolveMaxEmbedTokens(
-            "sparse",
+        var tokenLimit = EmbeddingTruncation.ResolveMaxEmbedTokens(
+            EmbedRole.Sparse,
             _settings.SparseEmbedModel,
             _settings.MaxSparseEmbedTokens,
             modelDir,
             KnownEmbedModels.MaxTokens,
             _logger);
+        _maxTokens = tokenLimit.MaxTokens;
+        _truncationSource = tokenLimit.Source;
         _ready = true;
         _logger.LogInformation(
             "sparse_embed_ready model={Model} dir={Dir}",
@@ -83,8 +85,7 @@ public sealed class OnnxSparseEmbedder : ISparseEmbedder, IDisposable
             return text;
         }
 
-        var (truncated, _) = EmbeddingTruncation.TruncateBm25Text(text, _maxTokens);
-        return truncated;
+        return EmbeddingTruncation.TruncateBm25Text(text, _maxTokens).Text;
     }
 
     private Bm25EmbedderCore GetSharedModel(string modelDir) =>

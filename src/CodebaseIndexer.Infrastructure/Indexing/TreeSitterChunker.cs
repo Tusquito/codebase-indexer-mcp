@@ -129,7 +129,7 @@ public sealed class TreeSitterChunker : ICodeChunker
 
             var nodeContent = node.Text ?? string.Join('\n', lines.Skip(start).Take(end - start + 1));
             output.Add(new Chunk(
-                ChunkIdFactory.FromPathAndLine(relPath, start + 1),
+                ChunkId.FromPathAndLine(relPath, start + 1),
                 relPath,
                 nodeContent,
                 start + 1,

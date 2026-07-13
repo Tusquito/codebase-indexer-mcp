@@ -1,11 +1,6 @@
-namespace CodebaseIndexer.Infrastructure.Memory;
+using CodebaseIndexer.Domain.Models;
 
-public enum MemoryPressureSeverity
-{
-    Ok,
-    Warn,
-    Halt,
-}
+namespace CodebaseIndexer.Infrastructure.Memory;
 
 public static class CgroupMemoryGuard
 {
@@ -101,26 +96,24 @@ public static class CgroupMemoryGuard
         return Math.Round(usage.Value / (double)limit.Value * 100, 1);
     }
 
-    public static (MemoryPressureSeverity Severity, double Percent) CheckMemoryPressure(
-        int warnPct,
-        int haltPct)
+    public static MemoryPressureResult CheckMemoryPressure(int warnPct, int haltPct)
     {
-        var pct = MemoryPressurePercent();
-        if (pct <= 0)
+        var percent = MemoryPressurePercent();
+        if (percent <= 0)
         {
-            return (MemoryPressureSeverity.Ok, 0);
+            return new MemoryPressureResult(MemoryPressureSeverity.Ok, 0);
         }
 
-        if (pct >= haltPct)
+        if (percent >= haltPct)
         {
-            return (MemoryPressureSeverity.Halt, pct);
+            return new MemoryPressureResult(MemoryPressureSeverity.Halt, percent);
         }
 
-        if (pct >= warnPct)
+        if (percent >= warnPct)
         {
-            return (MemoryPressureSeverity.Warn, pct);
+            return new MemoryPressureResult(MemoryPressureSeverity.Warn, percent);
         }
 
-        return (MemoryPressureSeverity.Ok, pct);
+        return new MemoryPressureResult(MemoryPressureSeverity.Ok, percent);
     }
 }

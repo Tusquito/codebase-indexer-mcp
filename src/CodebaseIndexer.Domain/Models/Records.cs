@@ -9,9 +9,7 @@ public enum IndexJobStatus
     Cancelled,
 }
 
-public readonly record struct ChunkId(string Value);
-
-public static class ChunkIdFactory
+public readonly record struct ChunkId(string Value)
 {
     public static ChunkId FromPathAndLine(string relPath, int startLine) =>
         new(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(

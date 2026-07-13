@@ -54,13 +54,14 @@ public sealed class TeiDenseEmbedder : IDenseEmbedder
         }
 
         _ready = true;
-        (_maxTokens, _) = EmbeddingTruncation.ResolveMaxEmbedTokens(
-            "dense",
+        var tokenLimit = EmbeddingTruncation.ResolveMaxEmbedTokens(
+            EmbedRole.Dense,
             _settings.DenseEmbedModel,
             _settings.MaxDenseEmbedTokens,
             modelDir: null,
             KnownEmbedModels.MaxTokens,
             _logger);
+        _maxTokens = tokenLimit.MaxTokens;
         EnsureTruncation();
         _logger.LogInformation("TEI dense embedder ready at {TeiUrl} for model {Model}", _settings.TeiUrl, _settings.DenseEmbedModel);
     }

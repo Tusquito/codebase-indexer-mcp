@@ -15,10 +15,27 @@ public sealed class IndexCodebaseService : IIndexCodebaseService, IIndexPipeline
 {
     private sealed class PipelineProgress
     {
-        public int TotalFiles;
-        public int IndexedFiles;
-        public int SkippedFiles;
-        public int TotalChunks;
+        public int TotalFiles { get; private set; }
+        public int IndexedFiles { get; private set; }
+        public int SkippedFiles { get; private set; }
+        public int TotalChunks { get; private set; }
+
+        public void RecordScannedFile(bool indexed, bool skipped)
+        {
+            TotalFiles++;
+            if (skipped)
+            {
+                SkippedFiles++;
+                return;
+            }
+
+            if (indexed)
+            {
+                IndexedFiles++;
+            }
+        }
+
+        public void AddChunks(int count) => TotalChunks += count;
     }
 
     private readonly IWorkspaceScanner _scanner;
@@ -145,23 +162,22 @@ public sealed class IndexCodebaseService : IIndexCodebaseService, IIndexPipeline
                 cancellationToken).ConfigureAwait(false))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                progress.TotalFiles++;
                 scannedPaths.Add(file.RelPath);
 
                 if (file.MtimeSkipped)
                 {
-                    progress.SkippedFiles++;
+                    progress.RecordScannedFile(indexed: false, skipped: true);
                     continue;
                 }
 
                 if (!force && existingHashes.TryGetValue(file.RelPath, out var existingHash)
                     && existingHash == file.Sha256Hash)
                 {
-                    progress.SkippedFiles++;
+                    progress.RecordScannedFile(indexed: false, skipped: true);
                     continue;
                 }
 
-                progress.IndexedFiles++;
+                progress.RecordScannedFile(indexed: true, skipped: false);
                 if (existingHashes.ContainsKey(file.RelPath))
                 {
                     modifiedPaths.Add(file.RelPath);
@@ -228,7 +244,7 @@ public sealed class IndexCodebaseService : IIndexCodebaseService, IIndexPipeline
             try
             {
                 var embedded = await _embedder.EmbedChunksAsync(batch, cancellationToken).ConfigureAwait(false);
-                progress.TotalChunks += batch.Count;
+                progress.AddChunks(batch.Count);
                 inflightUpsert = UpsertBatchesAsync(collection, embedded, cancellationToken);
             }
             catch (Exception ex)

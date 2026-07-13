@@ -32,7 +32,7 @@ internal static class ChunkerCore
             chunkOverlapLines = Math.Min(chunkOverlapLines, 10);
         }
 
-        IReadOnlyList<(int StartLine, int EndLine, string Name)> procedureSpans = Array.Empty<(int, int, string)>();
+        IReadOnlyList<SqlProcedureSpan> procedureSpans = Array.Empty<SqlProcedureSpan>();
         IReadOnlyList<Chunk> procedureChunks = Array.Empty<Chunk>();
         if (language == "sql")
         {
@@ -108,7 +108,7 @@ internal static class ChunkerCore
             var chunkEnd = Math.Min(pos + maxLines - 1, end);
             var content = string.Join('\n', lines.Skip(pos).Take(chunkEnd - pos + 1));
             chunks.Add(new Chunk(
-                ChunkIdFactory.FromPathAndLine(relPath, pos + 1),
+                ChunkId.FromPathAndLine(relPath, pos + 1),
                 relPath,
                 content,
                 pos + 1,

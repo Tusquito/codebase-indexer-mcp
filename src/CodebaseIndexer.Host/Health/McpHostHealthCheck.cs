@@ -1,5 +1,7 @@
 using CodebaseIndexer.Application.Services;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using AspNetHealthStatus = Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus;
+using HostHealthStatus = CodebaseIndexer.Application.Services.HealthStatus;
 
 namespace CodebaseIndexer.Host.Health;
 
@@ -12,7 +14,7 @@ public sealed class McpHostHealthCheck(IHealthService health) : IHealthCheck
         var status = await health.GetStatusAsync(cancellationToken).ConfigureAwait(false);
         return HealthCheckResult.Healthy(
             status.Status,
-            new Dictionary<string, object> { ["runtime"] = status.Runtime });
+            new Dictionary<string, object> { [nameof(HostHealthStatus.Runtime)] = status.Runtime });
     }
 }
 
@@ -25,14 +27,14 @@ public static class HealthCheckJsonResponseWriter
         var runtime = "dotnet";
         foreach (var entry in report.Entries.Values)
         {
-            if (entry.Data.TryGetValue("runtime", out var value) && value is not null)
+            if (entry.Data.TryGetValue(nameof(HostHealthStatus.Runtime), out var value) && value is not null)
             {
                 runtime = value.ToString() ?? runtime;
                 break;
             }
         }
 
-        var status = report.Status == Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Healthy ? "ok" : "unhealthy";
-        return context.Response.WriteAsJsonAsync(new { status, runtime });
+        var status = report.Status == AspNetHealthStatus.Healthy ? "ok" : "unhealthy";
+        return context.Response.WriteAsJsonAsync(new HostHealthStatus(status, runtime));
     }
 }

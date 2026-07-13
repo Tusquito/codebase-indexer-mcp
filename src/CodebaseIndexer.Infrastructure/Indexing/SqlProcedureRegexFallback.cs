@@ -16,11 +16,11 @@ internal static partial class SqlProcedureRegexFallback
     [GeneratedRegex(@"^END\s*;?\s*$", RegexOptions.IgnoreCase)]
     private static partial Regex EndRegex();
 
-    internal static IReadOnlyList<(int StartLine, int EndLine, string Name)> FindProcedureSpans(IReadOnlyList<string> lines)
+    internal static IReadOnlyList<SqlProcedureSpan> FindProcedureSpans(IReadOnlyList<string> lines)
     {
         if (lines.Count == 0)
         {
-            return Array.Empty<(int, int, string)>();
+            return Array.Empty<SqlProcedureSpan>();
         }
 
         var starts = new List<(int Line, string Name)>();
@@ -36,10 +36,10 @@ internal static partial class SqlProcedureRegexFallback
 
         if (starts.Count == 0)
         {
-            return Array.Empty<(int, int, string)>();
+            return Array.Empty<SqlProcedureSpan>();
         }
 
-        var spans = new List<(int, int, string)>();
+        var spans = new List<SqlProcedureSpan>();
         for (var i = 0; i < starts.Count; i++)
         {
             var (startLine, name) = starts[i];
@@ -56,7 +56,7 @@ internal static partial class SqlProcedureRegexFallback
             }
 
             var endLine = Math.Max(startLine, endCandidates.Min());
-            spans.Add((startLine, endLine, name));
+            spans.Add(new SqlProcedureSpan(startLine, endLine, name));
         }
 
         return spans;
@@ -78,30 +78,33 @@ internal static partial class SqlProcedureRegexFallback
         }
 
         var chunks = new List<Chunk>();
-        foreach (var (startLine, endLine, name) in spans)
+        foreach (var span in spans)
         {
             chunks.AddRange(ChunkerCore.SlidingWindowRange(
                 lines,
-                startLine - 1,
-                endLine - 1,
+                span.StartLine - 1,
+                span.EndLine - 1,
                 relPath,
                 language,
                 fileSha256,
                 maxChunkLines,
                 chunkOverlapLines,
                 fileMtime,
-                name,
+                span.Name,
                 "procedure"));
         }
 
         return chunks;
     }
 
-    internal static bool LineRangeOverlapsSpans(int startLine, int endLine, IReadOnlyList<(int StartLine, int EndLine, string Name)> spans)
+    internal static bool LineRangeOverlapsSpans(
+        int startLine,
+        int endLine,
+        IReadOnlyList<SqlProcedureSpan> spans)
     {
-        foreach (var (start, end, _) in spans)
+        foreach (var span in spans)
         {
-            if (startLine <= end && start <= endLine)
+            if (startLine <= span.EndLine && span.StartLine <= endLine)
             {
                 return true;
             }
