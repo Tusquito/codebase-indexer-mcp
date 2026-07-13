@@ -36,7 +36,7 @@ All **runtime MCP and indexing features** are achievable in C# with maintained l
 | MCP HTTP server | `ModelContextProtocol.AspNetCore` on **ASP.NET Core minimal hosting** (.NET 10) | ✅ Full — official SDK v1.4+; attribute/`[McpServerTool]` discovery |
 | MCP stdio proxy | `ModelContextProtocol` stdio transport + thin forwarder | ✅ Full |
 | Bearer auth + `/health` | ASP.NET Core middleware | ✅ Full |
-| Settings / config | `IOptions<Settings>` via **`BindConfiguration`** (`CodebaseIndexer` section) + **`PostConfigure`** for Aspire `ConnectionStrings:*`; **FluentValidation** via `IValidateOptions<Settings>` + `ValidateOnStart()` — **no `.env` file loading** in .NET hosts | ✅ Full — replaces pydantic-settings + repo-root `.env` for C# runtime |
+| Settings / config | `IOptions<Settings>` via **`BindConfiguration`** (`CodebaseIndexer` section); **FluentValidation** via `IValidateOptions<Settings>` + `ValidateOnStart()` — **no `.env` file loading** in .NET hosts | ✅ Full — replaces pydantic-settings + repo-root `.env` for C# runtime |
 | TEI dense HTTP | **Refit** `ITeiEmbeddingsApi` → `GET /health` + OpenAI `/v1/embeddings` DTOs (single client) | ✅ Full |
 | Sparse BM25 ONNX | `Microsoft.ML.OnnxRuntime` + **`Lucene.Net.Analysis.Common`** Snowball English stemmer (parity with fastembed `py-rust-stemmers`); same fastembed ONNX artifacts (`Qdrant/bm25`) | ✅ Full — reimplement fastembed wrapper; same vectors at index time |
 | Tokenizer truncation | `Microsoft.ML.Tokenizers` or `HuggingFace.Tokenizers` (.NET) | ✅ Full — replaces `tokenizers` Python crate |
@@ -135,7 +135,7 @@ Third-party images (TEI, Qdrant, Neo4j) are **`AddContainer()`** with `WithImage
 | Hosting | **`WebApplication.CreateSlimBuilder`** + `builder.AddServiceDefaults()` in Host/Worker — no `Startup` class; no full `CreateBuilder` unless a feature requires it |
 | Health | ASP.NET Core **`AddHealthChecks()`** + custom **`IHealthCheck`** implementations (runtime, Qdrant, TEI, ColBERT); **`MapHealthChecks("/health")`** with custom JSON `ResponseWriter` — **not** ad-hoc `MapGet("/health")` |
 | MCP tools | Non-static `[McpServerToolType]` classes with constructor DI in **Host** — each tool method ends in `Async`, has `[McpServerTool(Name = "...")]` + `[Description]`; return **typed response records** (not anonymous objects or tuples); delegate to **Application** handlers/services |
-| Configuration | **`IOptions<Settings>`** via **`BindConfiguration("CodebaseIndexer")`** from **`appsettings.json`** (+ `appsettings.{Environment}.json`, e.g. `Docker`); **`PostConfigure<IConfiguration>`** applies Aspire **`ConnectionStrings:qdrant`** / **`ConnectionStrings:tei`** overrides when present; **FluentValidation** `AbstractValidator<Settings>` registered as **`IValidateOptions<Settings>`** with **`ValidateOnStart()`**; **no property defaults** on `Settings` — required fields enforced by validators; optional defaults live in JSON only; **no `.env` dotenv loading** in .NET projects |
+| Configuration | **`IOptions<Settings>`** via **`BindConfiguration("CodebaseIndexer")`** from **`appsettings.json`** (+ `appsettings.{Environment}.json`, e.g. `Docker`); Aspire / Compose override with **`CodebaseIndexer__*`** env vars; **FluentValidation** `AbstractValidator<Settings>` registered as **`IValidateOptions<Settings>`** with **`ValidateOnStart()`**; **no property defaults** on `Settings` — required fields enforced by validators; optional defaults live in JSON only; **no `.env` dotenv loading** in .NET projects |
 | Outbound HTTP | **Refit** typed clients — `AddRefitClient<ITeiEmbeddingsApi>()` and `AddRefitClient<IColbertEmbedApi>()` with `ConfigureHttpClient(c => c.BaseAddress = new Uri("https+http://tei"))` under Aspire; standalone Host/tests read `CodebaseIndexer:TeiUrl` from configuration. Add `AddStandardResilienceHandler()` (timeouts, retry, circuit breaker) |
 | Qdrant / Neo4j | **Not Refit** — `Qdrant.Client` gRPC and `Neo4j.Driver` are SDK-native; register as singletons with Aspire `WithReference` connection string injection |
 | CPU-bound work | **`Channel<T>`** pipeline stages + `async`/`await` only — **`Task.Run` is forbidden** (see Performance guidance) |
@@ -206,9 +206,9 @@ await foreach (var file in scannerChannel.Reader.ReadAllAsync(ct))
 
 | Pattern | Application |
 |---------|-------------|
-| **`FrozenDictionary` / `FrozenSet`** | Static lookup tables: language extensions, `KNOWN_EMBED_MODEL_*`, `EXCLUDED_DIRS`, build-dep manifest matchers |
-| **`ArrayPool<byte>.Shared`** | File hash buffers in `WorkspaceScanner` |
-| **`ReadOnlySpan<char>`** | Import-header filtering, path prefix checks in chunker (no substring chains in hot loops) |
+| **`FrozenDictionary` / `FrozenSet`** | Lookup tables built at startup: `KnownEmbedModelsOptions` (`IOptions`, merged from config + defaults), language extensions, `EXCLUDED_DIRS`, build-dep manifest matchers |
+| **`ReadOnlySpan<char>`** | Import-header symbol matching, BM25 tokenization, chunk line slicing via `LineIndex` (no per-chunk `Split`/`Join`) |
+| **`ArrayPool<byte>`** | File hash buffers in `WorkspaceScanner` |
 | **`LoggerMessage` source generators** | Hot paths: pipeline flush, embed batch, memory-pressure guard ([CA1848](https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1848)) |
 | **Avoid** | LINQ in chunker / per-chunk embed loops; closure captures in tight loops; allocating `string.Split` — use `Span`/`MemoryExtensions` |
 | **`IReadOnlyList<T>`** | Public APIs and records — prevent hidden multiple enumeration |
@@ -438,10 +438,11 @@ public sealed record EmbeddingsResponse(IReadOnlyList<EmbeddingData> Data);
 4. `[McpServerTool]` methods accept and return `record` types (or init-only classes only when unavoidable).
 5. Enforce immutability in CI: **NetArchTest** layer rules + **[CA2227](https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca2227)** (`Collection properties should be read only`) on DTO paths — not IDE0025 (that rule is unrelated to `get; set;`).
 6. Use **`string.Empty`** for intentional empty strings in C# — never `""`.
+7. **One type per file** — each `record`, `class`, `interface`, and `enum` gets its own `.cs` file named after the type (e.g. `Chunk.cs`, `IDenseEmbedder.cs`). Do not combine multiple types in barrel files like `Records.cs` or `Ports.cs`; nested private helpers may stay in their parent when not reused.
 
 ### Refit API surface (Infrastructure project)
 
-Refit interfaces and HTTP **`record`** DTOs live in **`CodebaseIndexer.Infrastructure`**. Application consumes **`IDenseEmbedder`** / **`IColbertEmbedder`** domain ports — not Refit types directly.
+Refit interfaces and HTTP **`record`** DTOs live in **`CodebaseIndexer.Infrastructure`**. Application consumes **`IDenseEmbedder`** / **`IColbertEmbedder`** domain ports — not Refit types directly. Register concrete embedders with **`AddKeyedSingleton`** and resolve via **`[FromKeyedServices(EmbedderBackendKeys.*)]`**; backend id strings live in **`EmbedderBackendKeys`** constants only (no `BackendName` on port interfaces).
 
 ```csharp
 // TEI OpenAI-compatible embeddings ([0025](0025-huggingface-tei-dense-embedding.md))
@@ -495,7 +496,7 @@ public interface IColbertEmbedApi
 ### Default behavior and configuration
 
 - **Python (until Phase 7):** unchanged — repo-root `.env` keys and compose profiles for the legacy Python image
-- **.NET runtime (Phase 1+):** configuration lives in **`appsettings.json`** under the `CodebaseIndexer` section; environment-specific overrides in `appsettings.{Environment}.json` (e.g. `Docker` for container URLs); Aspire injects `ConnectionStrings:qdrant` / `ConnectionStrings:tei` where applicable. Container overrides use ASP.NET Core env syntax (`CodebaseIndexer__QdrantUrl`) — **not** flat `QDRANT_URL` / `.env` dotenv in .NET projects. Required fields have **no C# defaults**; **FluentValidation** fails fast at startup via `ValidateOnStart()`. Use **`string.Empty`** in C# for intentional empty strings — never `""`.
+- **.NET runtime (Phase 1+):** configuration lives in **`appsettings.json`** under the `CodebaseIndexer` section; environment-specific overrides in `appsettings.{Environment}.json` (e.g. `Docker` for container URLs); Aspire / Compose inject **`CodebaseIndexer__*`** env vars (e.g. `CodebaseIndexer__QdrantUrl`) — **not** flat `QDRANT_URL` / `.env` dotenv in .NET projects. Required fields have **no C# defaults**; **FluentValidation** fails fast at startup via `ValidateOnStart()`. Use **`string.Empty`** in C# for intentional empty strings — never `""`.
 
 ### Phased delivery
 

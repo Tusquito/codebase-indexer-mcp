@@ -13,7 +13,7 @@ Docker Compose runs Qdrant, the MCP server, and the cron reindex job. **Dense em
 | `docker-compose.colbert-worker.yml` | Optional ColBERT HTTP sidecar when `RERANK_ENABLED=true` and `COLBERT_EMBED_BACKEND=remote` |
 | `docker-compose.colbert-worker.gpu.yml` | **Default stack** — NVIDIA GPU for ColBERT sidecar when remote sidecar + `ACCELERATOR=gpu` |
 | `docker-compose.neo4j.yml` | Optional Neo4j graph storage for GraphRAG ([ADR 0002](adr/0002-graphrag-neo4j-qdrant.md)) |
-| `docker-compose.aspire.yml` | **ADR 0030 Phase 1+** — .NET MCP scaffold: Qdrant + TEI + `codeindexer_mcp_dotnet` (arm64 CPU). Settings via `appsettings.json` + `CodebaseIndexer__*` env overrides — not repo-root `.env` |
+| `docker-compose.aspire.yml` | **ADR 0030 Phase 1+** — .NET MCP scaffold: Qdrant + TEI + `codeindexer_mcp_dotnet` (arm64 CPU). Split `appsettings` sections + `Section__Property` env overrides — not repo-root `.env` |
 
 ### Docker Compose env passthrough
 
