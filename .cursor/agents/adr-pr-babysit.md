@@ -68,7 +68,7 @@ Do **not** emit Tracker append. Do **not** invoke other subagents. Do **not** me
 |-----|---------|
 | … | `type(scope): …` |
 
-### CI status
+### CI status *(required checks only — omit optional/informational runs)*
 | Check | Before | After |
 |-------|--------|-------|
 | test | fail | pass |
@@ -98,8 +98,8 @@ Do **not** emit Tracker append. Do **not** invoke other subagents. Do **not** me
 3. Conflicts      → merge/rebase main if mergeable=false; resolve in-scope
 4. Comments       → unresolved threads only; fix valid feedback
 5. Code fixes     → PR review Issues (P IDs) + valid comments; minimal diff
-6. CI             → reproduce failures locally; fix in-scope; push
-7. Wait/poll      → required checks green or report pending
+6. CI             → reproduce **required** check failures locally; fix in-scope; push
+7. Wait/poll      → `gh pr checks <ref> --required` green or report pending (never poll optional checks)
 8. Report         → PR babysit report
 ```
 
@@ -133,7 +133,7 @@ When fetching GitHub comments:
 |----|--------|
 | Fix failures caused by this PR's code | Modify CI config to hide failures |
 | Merge latest `main` if failures may be upstream | Unrelated refactors |
-| Re-run / poll checks after push | Skip hooks unless invoker asks |
+| Re-run / poll **required** checks after push (`gh pr checks --required`; `--watch` only with `--required`) | Poll or gate on optional/non-required checks; skip hooks unless invoker asks |
 
 If failure is unrelated and merging `main` does not help → `blocked` with explanation.
 
@@ -145,7 +145,7 @@ Unlike read-only reviewers, you **may** commit and push on the PR branch:
 |---------|-----------|
 | `git checkout`, `git pull`, `git merge`/`rebase` main | `git push --force` to main |
 | `git add`, `git commit`, `git push` to feature branch | Merge PR (unless invoker asks) |
-| `gh pr view`, `gh pr checks`, `gh api` for comments | Close PR without invoker |
+| `gh pr view`, `gh pr checks --required`, `gh api` for comments | `gh pr checks` without `--required`; close PR without invoker |
 
 Commit on **existing PR branch** — do not recreate branch unless missing.
 

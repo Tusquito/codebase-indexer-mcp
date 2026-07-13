@@ -191,6 +191,26 @@ Steps that can run long — `adr-developer` on a non-trivial phase, `adr-integra
 
 **Exception — do not background steps that finish quickly by default** (`adr-prioritizer`, `adr-planner`, `adr-code-reviewer` re-reviews, `adr-git-operator`, `adr-finisher`, `adr-tracker`): just call `Task` normally and let it block in the foreground. Forcing every step to `run_in_background: true` "to be safe" adds notification-handling overhead for steps that would have simply returned in time anyway.
 
+## GitHub CI checks (mandatory)
+
+PR CI is inspected only by step agents (`adr-pr-review`, `adr-pr-babysit`, `adr-finisher`) — **never** by the orchestrator itself.
+
+**Required checks only.** Branch-protection **required** checks gate merge readiness. Optional, informational, experimental, or duplicate workflow runs must be **ignored** for verdicts, babysit completion, finisher gates, and acceptance — do not poll them, wait on them, or fail because of them.
+
+**Command (required checks only):**
+
+```bash
+gh pr checks <ref> --required [--json name,state,bucket]
+```
+
+Use `--watch` only inside `adr-pr-babysit` after a push, and **always** with `--required`. Do **not** use bare `gh pr checks` (all checks) or `gh pr view --json statusCheckRollup` alone for gating — those include non-required runs.
+
+**Orchestrator must not:**
+
+- Run `gh pr checks` or sleep/poll loops for CI between PR-loop rounds
+- Treat optional-check failures in babysit/PR-review reports as acceptance failures when **Required checks** are green or legitimately pending
+- Re-poll CI after babysit returns `complete` with required checks green
+
 ## Pipeline map
 
 **Default:** steps 1 → 6 in order. **Resume:** start at `Start step` (see Input) after bootstrap.
@@ -555,7 +575,7 @@ Task(
 - [ ] `Status` is `complete` or `partial` (not `blocked` without STOP)
 - [ ] **Fixes applied** maps P IDs and/or comments to paths
 - [ ] **Commits pushed** lists SHAs on PR branch (or none if only conflict/CI wait)
-- [ ] **CI status** — required checks green, or `pending` with poll note
+- [ ] **CI status** — **required** checks green (`gh pr checks --required`), or `pending` with poll note; optional/non-required check failures ignored
 - [ ] **Mergeable:** yes, or clear reason in Blockers
 - [ ] If `blocked` → orchestrator STOP
 

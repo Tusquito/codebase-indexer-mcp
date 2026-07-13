@@ -105,11 +105,18 @@ You **review** — never fix code or merge.
 
 | Allowed | Forbidden |
 |---------|-----------|
-| `gh pr view`, `gh pr diff`, `gh pr checks` | `gh pr merge`, `gh pr close` |
+| `gh pr view`, `gh pr diff`, `gh pr checks --required` | `gh pr checks` without `--required`; `gh pr merge`, `gh pr close` |
 | `git fetch`, `git diff main...branch` (read) | `git commit`, `git push`, `git merge` |
 | `git log` on PR commits | Any write git operation |
 
-Prefer `gh pr diff` and `gh pr view` when PR reference is given.
+Prefer `gh pr diff` and `gh pr view` when PR reference is given. For CI, always use `gh pr checks --required` — never gate on the full check list.
+
+### CI policy
+
+| Do | Do not |
+|----|--------|
+| Report **required** check failures as `test_failure` / blockers | Fail or `request_changes` because optional/informational checks failed |
+| Note optional-check failures as informational suggestions only | Poll or `--watch` checks (read-only reviewer — single snapshot) |
 
 ### Other tools
 
@@ -135,8 +142,8 @@ Prefer `gh pr diff` and `gh pr view` when PR reference is given.
 4. Map diff      → files changed vs plan paths; flag scope creep
 5. Cross-check   → PR description sections vs actual diff and plan
 6. Read code     → spot-check critical paths in the diff
-7. Test          → run plan test command + targeted tests on PR state (skip re-run if merged and CI was green — note in findings)
-8. CI            → gh pr checks if available; note failures
+7. Test          → run plan test command + targeted tests on PR state (skip re-run if merged and **required** CI was green — note in findings)
+8. CI            → `gh pr checks <ref> --required` if available; note **required** failures only (ignore optional checks)
 9. Emit          → ADR PR review + PR review findings
 ```
 
@@ -188,7 +195,7 @@ Validate PR body against git-operator template sections (when present):
 - **Title:** …
 - **Commits:** N
 - **Files changed:** N
-- **CI checks:** pass / fail / pending / n/a
+- **Required CI checks:** pass / fail / pending / n/a *(optional checks ignored)*
 
 ### Description vs diff
 …

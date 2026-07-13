@@ -79,7 +79,8 @@ Do **not** invoke other subagents. Do **not** edit `IMPLEMENTATION_TRACKER.md` �
 ### Step 1 — Gates
 
 ```bash
-gh pr view <ref> --json state,mergeable,mergeStateStatus,statusCheckRollup,url,number,headRefName,mergedAt
+gh pr view <ref> --json state,mergeable,mergeStateStatus,url,number,headRefName,mergedAt
+gh pr checks <ref> --required --json name,state,bucket
 ```
 
 | Gate | Rule |
@@ -87,7 +88,7 @@ gh pr view <ref> --json state,mergeable,mergeStateStatus,statusCheckRollup,url,n
 | PR review | `Verdict: approve` in input |
 | State | `OPEN` (merge path) **or** `MERGED` (already merged / resume path) |
 | Mergeable | `MERGEABLE` when `OPEN` (not `CONFLICTING` / `UNKNOWN`) |
-| CI | Required checks success when `OPEN` (or invoker waived — report waiver) |
+| CI | **Required** checks only (`gh pr checks --required`) — all `pass`/`success` when `OPEN`; ignore optional/informational failures (or invoker waived — report waiver) |
 | Ready to merge | `yes` in PR review findings when `OPEN` |
 
 **Already merged path:** when `Already merged: yes` or `state == MERGED`, skip OPEN-only gates; verify `MERGED` via `gh pr view`; proceed to step 3.
@@ -182,7 +183,7 @@ Produce **`## ADR finish report`** and **`## Tracker append`** when merge is con
 |-------|--------|
 | PR review approve | pass / fail |
 | Mergeable | yes / no |
-| CI / required checks | pass / fail / pending |
+| CI / required checks (`gh pr checks --required`) | pass / fail / pending |
 | Ready to merge | yes / no |
 
 ### Merge
