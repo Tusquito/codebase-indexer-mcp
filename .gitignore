@@ -16,6 +16,13 @@ skill-workspace/
 .cursor/debug-*.log
 .idea
 
+# .NET (ADR 0030)
+**/bin/
+**/obj/
+*.user
+*.suo
+.DS_Store
+
 # Offline Qwen3 fine-tuning outputs (ADR 0020)
 mcp_server/benchmarks/train/outputs/
 
