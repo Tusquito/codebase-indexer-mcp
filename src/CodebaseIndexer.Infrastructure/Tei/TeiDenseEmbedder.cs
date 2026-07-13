@@ -1,4 +1,3 @@
-using System.Net.Http.Json;
 using CodebaseIndexer.Domain.Exceptions;
 using CodebaseIndexer.Domain.Ports;
 using CodebaseIndexer.Infrastructure.Configuration;
@@ -14,7 +13,6 @@ public sealed class TeiDenseEmbedder : IDenseEmbedder
     private readonly ITeiEmbeddingsApi _api;
     private readonly Settings _settings;
     private readonly ILogger<TeiDenseEmbedder> _logger;
-    private readonly HttpClient _httpClient;
     private bool _ready;
     private int _maxTokens;
     private Tokenizer? _tokenizer;
@@ -22,15 +20,11 @@ public sealed class TeiDenseEmbedder : IDenseEmbedder
     public TeiDenseEmbedder(
         ITeiEmbeddingsApi api,
         IOptions<Settings> settings,
-        IHttpClientFactory httpClientFactory,
         ILogger<TeiDenseEmbedder> logger)
     {
         _api = api;
         _settings = settings.Value;
         _logger = logger;
-        _httpClient = httpClientFactory.CreateClient(nameof(TeiDenseEmbedder));
-        _httpClient.BaseAddress = new Uri(_settings.TeiUrl.TrimEnd('/') + "/");
-        _httpClient.Timeout = TimeSpan.FromSeconds(_settings.TeiTimeoutSeconds);
     }
 
     public string BackendName => "tei";
@@ -39,7 +33,7 @@ public sealed class TeiDenseEmbedder : IDenseEmbedder
 
     public async Task PreloadAsync(CancellationToken cancellationToken = default)
     {
-        using var healthResponse = await _httpClient.GetAsync("/health", cancellationToken).ConfigureAwait(false);
+        using var healthResponse = await _api.GetHealthAsync(cancellationToken).ConfigureAwait(false);
         healthResponse.EnsureSuccessStatusCode();
 
         var probe = await _api.CreateEmbeddingsAsync(

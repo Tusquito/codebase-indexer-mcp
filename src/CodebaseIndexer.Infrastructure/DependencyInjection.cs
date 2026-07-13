@@ -34,8 +34,6 @@ public static class DependencyInjection
             })
             .AddStandardResilienceHandler();
 
-        services.AddHttpClient(nameof(TeiDenseEmbedder));
-
         return services;
     }
 }

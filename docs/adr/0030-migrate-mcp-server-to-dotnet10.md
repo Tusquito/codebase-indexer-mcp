@@ -37,7 +37,7 @@ All **runtime MCP and indexing features** are achievable in C# with maintained l
 | MCP stdio proxy | `ModelContextProtocol` stdio transport + thin forwarder | ✅ Full |
 | Bearer auth + `/health` | ASP.NET Core middleware | ✅ Full |
 | Settings / config | `IOptions<Settings>` via **`BindConfiguration`** (`CodebaseIndexer` section) + **`PostConfigure`** for Aspire `ConnectionStrings:*`; **FluentValidation** via `IValidateOptions<Settings>` + `ValidateOnStart()` — **no `.env` file loading** in .NET hosts | ✅ Full — replaces pydantic-settings + repo-root `.env` for C# runtime |
-| TEI dense HTTP | **Refit** `ITeiEmbeddingsApi` → OpenAI `/v1/embeddings` DTOs | ✅ Full |
+| TEI dense HTTP | **Refit** `ITeiEmbeddingsApi` → `GET /health` + OpenAI `/v1/embeddings` DTOs (single client) | ✅ Full |
 | Sparse BM25 ONNX | `Microsoft.ML.OnnxRuntime` loading **same fastembed ONNX artifacts** (`Qdrant/bm25`) | ✅ Full — reimplement fastembed wrapper; same vectors at index time |
 | Tokenizer truncation | `Microsoft.ML.Tokenizers` or `HuggingFace.Tokenizers` (.NET) | ✅ Full — replaces `tokenizers` Python crate |
 | Qdrant hybrid RRF | `Qdrant.Client` `QueryAsync` + `Fusion.Rrf` prefetch | ✅ Full — official SDK 1.18.x |
@@ -447,6 +447,9 @@ Refit interfaces and HTTP **`record`** DTOs live in **`CodebaseIndexer.Infrastru
 // TEI OpenAI-compatible embeddings ([0025](0025-huggingface-tei-dense-embedding.md))
 public interface ITeiEmbeddingsApi
 {
+    [Get("/health")]
+    Task<HttpResponseMessage> GetHealthAsync(CancellationToken ct = default);
+
     [Post("/v1/embeddings")]
     Task<EmbeddingsResponse> CreateEmbeddingsAsync(
         [Body] EmbeddingsRequest request, CancellationToken ct = default);
