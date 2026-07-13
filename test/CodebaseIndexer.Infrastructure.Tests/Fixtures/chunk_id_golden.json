@@ -1,0 +1,14 @@
+{
+  "samples": [
+    {
+      "rel_path": "sample.py",
+      "language": "python",
+      "file_sha256": "deadbeef",
+      "content": "def foo():\n    return 1\n\n\nclass Bar:\n    def baz(self):\n        return 2\n",
+      "expected_chunk_ids": [
+        "f3791711a476f9ce370d58605e354b193054026f92cb412e63938a429547ee4f",
+        "16ca50508dd9714562b1944daccd94dc0c9ac1ab6f22c4cab934446635271da6"
+      ]
+    }
+  ]
+}

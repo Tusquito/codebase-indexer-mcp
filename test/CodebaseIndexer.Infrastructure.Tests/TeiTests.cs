@@ -42,26 +42,48 @@ public sealed class TeiDenseEmbedderSmokeTests
             var client = new HttpClient(handler) { BaseAddress = new Uri("http://tei/") };
             return RestService.For<ITeiEmbeddingsApi>(client);
         });
+        var settings = TestSettingsFactory.Create(denseEmbedVectorSize: 2);
+        settings = new Infrastructure.Configuration.Settings
+        {
+            QdrantUrl = settings.QdrantUrl,
+            QdrantTimeoutSeconds = settings.QdrantTimeoutSeconds,
+            QdrantCollection = settings.QdrantCollection,
+            HybridSearch = settings.HybridSearch,
+            DenseEmbedModel = settings.DenseEmbedModel,
+            SparseEmbedModel = settings.SparseEmbedModel,
+            DenseEmbedVectorSize = settings.DenseEmbedVectorSize,
+            TeiUrl = "http://tei/",
+            TeiEmbedBatchSize = settings.TeiEmbedBatchSize,
+            TeiTimeoutSeconds = settings.TeiTimeoutSeconds,
+            MrlDimensions = settings.MrlDimensions,
+            QueryInstruction = settings.QueryInstruction,
+            NormalizeOutput = settings.NormalizeOutput,
+            RerankEnabled = settings.RerankEnabled,
+            PayloadIndexes = settings.PayloadIndexes,
+            VectorsOnDisk = settings.VectorsOnDisk,
+            SparseOnDisk = settings.SparseOnDisk,
+            WorkspacePath = settings.WorkspacePath,
+            MaxChunkLines = settings.MaxChunkLines,
+            ChunkOverlapLines = settings.ChunkOverlapLines,
+            BatchSize = settings.BatchSize,
+            FlushEvery = settings.FlushEvery,
+            UpsertBatch = settings.UpsertBatch,
+            ReadaheadBuffer = settings.ReadaheadBuffer,
+            HashWorkerDop = settings.HashWorkerDop,
+            MaxDenseEmbedTokens = settings.MaxDenseEmbedTokens,
+            MaxSparseEmbedTokens = settings.MaxSparseEmbedTokens,
+            SparseThreads = settings.SparseThreads,
+            SequentialEmbed = settings.SequentialEmbed,
+            MemoryPressureWarnPct = settings.MemoryPressureWarnPct,
+            MemoryPressureHaltPct = settings.MemoryPressureHaltPct,
+            ReleaseModelsAfterIndex = settings.ReleaseModelsAfterIndex,
+            ModelIdleTimeoutSeconds = settings.ModelIdleTimeoutSeconds,
+            PreloadModels = settings.PreloadModels,
+            FastembedCachePath = settings.FastembedCachePath,
+            ExcludedDirs = settings.ExcludedDirs,
+        };
         services.AddSingleton<Microsoft.Extensions.Options.IOptions<Infrastructure.Configuration.Settings>>(
-            _ => Microsoft.Extensions.Options.Options.Create(new Infrastructure.Configuration.Settings
-            {
-                QdrantUrl = "http://localhost:6333",
-                QdrantTimeoutSeconds = 30,
-                QdrantCollection = "codebase",
-                HybridSearch = true,
-                DenseEmbedModel = "test-model",
-                SparseEmbedModel = "Qdrant/bm25",
-                DenseEmbedVectorSize = 2,
-                TeiUrl = "http://tei/",
-                TeiEmbedBatchSize = 32,
-                TeiTimeoutSeconds = 120,
-                QueryInstruction = string.Empty,
-                NormalizeOutput = false,
-                RerankEnabled = false,
-                PayloadIndexes = true,
-                VectorsOnDisk = false,
-                SparseOnDisk = false,
-            }));
+            _ => Microsoft.Extensions.Options.Options.Create(settings));
         services.AddSingleton<IHttpClientFactory>(_ => new StubHttpClientFactory(handler));
         services.AddSingleton<TeiDenseEmbedder>();
         services.AddLogging();

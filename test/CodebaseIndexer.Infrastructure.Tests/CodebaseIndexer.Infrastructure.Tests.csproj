@@ -22,4 +22,10 @@
     <ProjectReference Include="..\..\src\CodebaseIndexer.Infrastructure\CodebaseIndexer.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="Fixtures\chunk_id_golden.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>

@@ -10,51 +10,28 @@ public sealed class SettingsValidatorTests
     [Fact]
     public void Valid_settings_pass()
     {
-        var result = _validator.TestValidate(CreateValidSettings());
+        var result = _validator.TestValidate(TestSettingsFactory.Create());
         result.ShouldNotHaveAnyValidationErrors();
     }
 
     [Fact]
     public void QdrantUrl_fails_when_empty()
     {
-        var result = _validator.TestValidate(CreateValidSettings(qdrantUrl: string.Empty));
+        var result = _validator.TestValidate(TestSettingsFactory.Create(qdrantUrl: string.Empty));
         result.ShouldHaveValidationErrorFor(x => x.QdrantUrl);
     }
 
     [Fact]
     public void TeiUrl_fails_when_empty()
     {
-        var result = _validator.TestValidate(CreateValidSettings(teiUrl: string.Empty));
+        var result = _validator.TestValidate(TestSettingsFactory.Create(teiUrl: string.Empty));
         result.ShouldHaveValidationErrorFor(x => x.TeiUrl);
     }
 
     [Fact]
     public void DenseEmbedVectorSize_must_be_positive()
     {
-        var result = _validator.TestValidate(CreateValidSettings(denseEmbedVectorSize: 0));
+        var result = _validator.TestValidate(TestSettingsFactory.Create(denseEmbedVectorSize: 0));
         result.ShouldHaveValidationErrorFor(x => x.DenseEmbedVectorSize);
     }
-
-    private static Settings CreateValidSettings(
-        string? qdrantUrl = null,
-        string? teiUrl = null,
-        int? denseEmbedVectorSize = null) => new()
-    {
-        QdrantUrl = qdrantUrl ?? "http://localhost:6333",
-        QdrantTimeoutSeconds = 30,
-        QdrantCollection = "codebase",
-        HybridSearch = true,
-        DenseEmbedModel = "test-model",
-        SparseEmbedModel = "Qdrant/bm25",
-        DenseEmbedVectorSize = denseEmbedVectorSize ?? 768,
-        TeiUrl = teiUrl ?? "http://localhost:8080",
-        TeiEmbedBatchSize = 32,
-        TeiTimeoutSeconds = 120,
-        QueryInstruction = string.Empty,
-        NormalizeOutput = false,
-        RerankEnabled = false,
-        PayloadIndexes = true,
-        VectorsOnDisk = false,
-        SparseOnDisk = false,
-    };
 }

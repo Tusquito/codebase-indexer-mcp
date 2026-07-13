@@ -57,6 +57,17 @@ public sealed class McpHostSmokeTests : IClassFixture<McpHostWebApplicationFacto
         }
     }
 
+    [Fact]
+    public async Task McpClient_lists_index_tools()
+    {
+        await using var mcpClient = await CreateMcpClientAsync();
+        var tools = await mcpClient.ListToolsAsync();
+        foreach (var name in new[] { "index_codebase", "index_status", "stop_indexing", "index_all" })
+        {
+            Assert.Contains(tools, tool => tool.Name == name);
+        }
+    }
+
     private async Task<McpClient> CreateMcpClientAsync()
     {
         var httpClient = new HttpClient(_factory.Server.CreateHandler())
@@ -102,6 +113,25 @@ public sealed class McpHostWebApplicationFactory : WebApplicationFactory<Program
                 [$"{Infrastructure.Configuration.Settings.SectionName}:PayloadIndexes"] = "true",
                 [$"{Infrastructure.Configuration.Settings.SectionName}:VectorsOnDisk"] = "false",
                 [$"{Infrastructure.Configuration.Settings.SectionName}:SparseOnDisk"] = "false",
+                [$"{Infrastructure.Configuration.Settings.SectionName}:WorkspacePath"] = "/workspace",
+                [$"{Infrastructure.Configuration.Settings.SectionName}:MaxChunkLines"] = "150",
+                [$"{Infrastructure.Configuration.Settings.SectionName}:ChunkOverlapLines"] = "20",
+                [$"{Infrastructure.Configuration.Settings.SectionName}:BatchSize"] = "32",
+                [$"{Infrastructure.Configuration.Settings.SectionName}:FlushEvery"] = "1500",
+                [$"{Infrastructure.Configuration.Settings.SectionName}:UpsertBatch"] = "500",
+                [$"{Infrastructure.Configuration.Settings.SectionName}:ReadaheadBuffer"] = "100",
+                [$"{Infrastructure.Configuration.Settings.SectionName}:HashWorkerDop"] = "1",
+                [$"{Infrastructure.Configuration.Settings.SectionName}:MaxDenseEmbedTokens"] = "0",
+                [$"{Infrastructure.Configuration.Settings.SectionName}:MaxSparseEmbedTokens"] = "0",
+                [$"{Infrastructure.Configuration.Settings.SectionName}:SparseThreads"] = "2",
+                [$"{Infrastructure.Configuration.Settings.SectionName}:SequentialEmbed"] = "false",
+                [$"{Infrastructure.Configuration.Settings.SectionName}:MemoryPressureWarnPct"] = "70",
+                [$"{Infrastructure.Configuration.Settings.SectionName}:MemoryPressureHaltPct"] = "85",
+                [$"{Infrastructure.Configuration.Settings.SectionName}:ReleaseModelsAfterIndex"] = "true",
+                [$"{Infrastructure.Configuration.Settings.SectionName}:ModelIdleTimeoutSeconds"] = "300",
+                [$"{Infrastructure.Configuration.Settings.SectionName}:PreloadModels"] = "false",
+                [$"{Infrastructure.Configuration.Settings.SectionName}:FastembedCachePath"] = "/root/.cache/fastembed",
+                [$"{Infrastructure.Configuration.Settings.SectionName}:ExcludedDirs"] = "node_modules,.git",
             });
         });
     }
