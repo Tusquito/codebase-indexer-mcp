@@ -48,6 +48,19 @@ jobs:
       - name: Validate ADR tracker render (blocking, ADR 0019 Phase 2)
         run: uv run python ../scripts/render_adr_tracker.py --check
 
+  dotnet-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore and test .NET solution (ADR 0030)
+        run: dotnet test CodebaseIndexer.sln
+
   benchmark:
     # Non-blocking: surfaces performance numbers as an artifact without gating
     # merges on runner-dependent latency. Strict thresholds stay off in CI.
