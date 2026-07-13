@@ -1,7 +1,6 @@
 using System.Collections.Frozen;
 using System.Globalization;
 using CodebaseIndexer.Domain.Models;
-using Iveonik.Stemmers;
 
 namespace CodebaseIndexer.Infrastructure.Embedding;
 
@@ -15,19 +14,19 @@ internal sealed class Bm25EmbedderCore
     private static readonly FrozenSet<string> Punctuation = BuildPunctuationSet();
 
     private readonly HashSet<string> _stopwords;
-    private readonly EnglishStemmer _stemmer;
+    private readonly EnglishSnowballStemmer _stemmer;
 
     public Bm25EmbedderCore(string modelDir, bool disableStemmer = false)
     {
         if (disableStemmer)
         {
             _stopwords = new HashSet<string>(StringComparer.Ordinal);
-            _stemmer = new EnglishStemmer();
+            _stemmer = new EnglishSnowballStemmer();
         }
         else
         {
             _stopwords = LoadStopwords(modelDir, "english");
-            _stemmer = new EnglishStemmer();
+            _stemmer = new EnglishSnowballStemmer();
         }
     }
 

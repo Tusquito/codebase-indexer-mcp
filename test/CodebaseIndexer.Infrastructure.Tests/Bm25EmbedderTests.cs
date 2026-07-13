@@ -21,4 +21,18 @@ public sealed class Bm25EmbedderTests
         var tokens = Bm25Tokenizer.Tokenize("Hello, World!  test");
         Assert.Equal(["hello", "world", "test"], tokens);
     }
+
+    [Theory]
+    [InlineData("running", "run")]
+    [InlineData("connection", "connect")]
+    [InlineData("indexed", "index")]
+    [InlineData("testing", "test")]
+    [InlineData("return", "return")]
+    [InlineData("files", "file")]
+    [InlineData("stemming", "stem")]
+    public void English_snowball_stemmer_matches_python(string token, string expected)
+    {
+        var stemmer = new EnglishSnowballStemmer();
+        Assert.Equal(expected, stemmer.Stem(token));
+    }
 }

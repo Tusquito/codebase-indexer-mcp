@@ -38,7 +38,7 @@ All **runtime MCP and indexing features** are achievable in C# with maintained l
 | Bearer auth + `/health` | ASP.NET Core middleware | ✅ Full |
 | Settings / config | `IOptions<Settings>` via **`BindConfiguration`** (`CodebaseIndexer` section) + **`PostConfigure`** for Aspire `ConnectionStrings:*`; **FluentValidation** via `IValidateOptions<Settings>` + `ValidateOnStart()` — **no `.env` file loading** in .NET hosts | ✅ Full — replaces pydantic-settings + repo-root `.env` for C# runtime |
 | TEI dense HTTP | **Refit** `ITeiEmbeddingsApi` → `GET /health` + OpenAI `/v1/embeddings` DTOs (single client) | ✅ Full |
-| Sparse BM25 ONNX | `Microsoft.ML.OnnxRuntime` loading **same fastembed ONNX artifacts** (`Qdrant/bm25`) | ✅ Full — reimplement fastembed wrapper; same vectors at index time |
+| Sparse BM25 ONNX | `Microsoft.ML.OnnxRuntime` + **`Lucene.Net.Analysis.Common`** Snowball English stemmer (parity with fastembed `py-rust-stemmers`); same fastembed ONNX artifacts (`Qdrant/bm25`) | ✅ Full — reimplement fastembed wrapper; same vectors at index time |
 | Tokenizer truncation | `Microsoft.ML.Tokenizers` or `HuggingFace.Tokenizers` (.NET) | ✅ Full — replaces `tokenizers` Python crate |
 | Qdrant hybrid RRF | `Qdrant.Client` `QueryAsync` + `Fusion.Rrf` prefetch | ✅ Full — official SDK 1.18.x |
 | Qdrant recommend / outliers | `QueryAsync` recommend strategies | ✅ Full |
@@ -665,6 +665,7 @@ Preserves existing `WORKSPACE_PATH`, `INDEX_TIMEOUT`, `GIT_TIMEOUT` semantics fr
 | `ModelContextProtocol.AspNetCore` | MCP HTTP server |
 | `Qdrant.Client` | Vector storage + hybrid RRF + recommend (gRPC — not Refit) |
 | `Microsoft.ML.OnnxRuntime` (+ GPU EP package) | Sparse BM25 + optional ColBERT |
+| `Lucene.Net.Analysis.Common` | English Snowball stemming for BM25 sparse (Apache Lucene.NET) |
 | `Microsoft.ML.Tokenizers` or `HuggingFace.Tokenizers` | Dense/sparse truncation |
 | `TreeSitter.DotNet` | AST chunking |
 | `Neo4j.Driver` | GraphRAG (Bolt — not Refit) |
