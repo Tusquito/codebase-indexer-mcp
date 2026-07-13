@@ -1,0 +1,65 @@
+# Generated from CodebaseIndexer.AppHost (ADR 0030 Phase 1).
+# arm64 CPU profile — TEI cpu-arm64-latest, accelerator=cpu.
+# NVIDIA amd64 GPU overrides deferred to a later phase.
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.18.2
+    container_name: codeindexer_qdrant
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/6333'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  tei:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-arm64-latest
+    container_name: codeindexer_tei
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:80"
+    volumes:
+      - tei_data:/data
+    environment:
+      MODEL_ID: ${DENSE_EMBED_MODEL:-jinaai/jina-embeddings-v2-base-code}
+      HF_TOKEN: ${HF_TOKEN:-}
+    command: --model-id ${DENSE_EMBED_MODEL:-jinaai/jina-embeddings-v2-base-code} --port 80 --max-batch-tokens 1024
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:80/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 24
+      start_period: 480s
+
+  mcp:
+    build:
+      context: .
+      dockerfile: src/CodebaseIndexer.Host/Dockerfile
+    container_name: codeindexer_mcp_dotnet
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      tei:
+        condition: service_healthy
+    environment:
+      ACCELERATOR: ${ACCELERATOR:-cpu}
+      QDRANT_URL: http://qdrant:6333
+      TEI_URL: http://tei:80
+      DENSE_EMBED_MODEL: ${DENSE_EMBED_MODEL:-jinaai/jina-embeddings-v2-base-code}
+      DENSE_EMBED_VECTOR_SIZE: ${DENSE_EMBED_VECTOR_SIZE:-768}
+      SPARSE_EMBED_MODEL: ${SPARSE_EMBED_MODEL:-Qdrant/bm25}
+      HYBRID_SEARCH: ${HYBRID_SEARCH:-true}
+      MCP_PORT: "8000"
+      ASPNETCORE_URLS: http://0.0.0.0:8000
+
+volumes:
+  qdrant_data:
+  tei_data:

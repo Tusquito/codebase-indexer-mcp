@@ -41,6 +41,8 @@ All config is env-var driven via `.env` (copy from `.env.example`). **Required i
 
 All Python code lives in `mcp_server/`. The package manager is `uv`.
 
+**ADR 0030 (.NET 10 migration):** A C# scaffold at the repo root (`CodebaseIndexer.sln`, `src/`, `test/`) implements Phase 1 (AppHost, Qdrant, TEI via Refit, MCP stub). Python remains the production Docker image until Phase 7. Run `dotnet test CodebaseIndexer.sln` or `dotnet run --project src/CodebaseIndexer.AppHost` from the repository root.
+
 ```bash
 cd mcp_server
 

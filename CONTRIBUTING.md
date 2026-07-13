@@ -6,6 +6,7 @@ Thank you for contributing to the codebase-indexer MCP server. This guide covers
 
 - **Python 3.12** (matches CI and Docker images)
 - **[uv](https://docs.astral.sh/uv/)** package manager
+- **.NET SDK 10** (for ADR 0030 C# scaffold — see `global.json`)
 - A running **Qdrant** instance for integration tests (CI uses `http://localhost:6333`)
 
 ## Development setup
@@ -42,6 +43,21 @@ uv run pytest -q
 ```
 
 Set `QDRANT_URL` when running tests against a local or containerized Qdrant instance.
+
+### .NET solution (ADR 0030 Phase 1+)
+
+The C# migration scaffold lives at the repository root (`CodebaseIndexer.sln`, `src/`, `test/`). Python remains the production Docker image until Phase 7.
+
+```bash
+# From repository root
+dotnet test CodebaseIndexer.sln
+
+# Local Aspire dev stack (Qdrant + TEI + MCP host)
+dotnet run --project src/CodebaseIndexer.AppHost
+
+# Optional: .NET compose stack (arm64 CPU profile)
+docker compose -f docker-compose.aspire.yml up -d --build
+```
 
 ### Docker Compose integration (ADR pipeline)
 

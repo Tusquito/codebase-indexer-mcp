@@ -81,6 +81,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0028 | Phase 2 — Arch-aware compose defaults | Accepted (phase 2 — Arch-aware compose defaults) | phase-2 | `merged` | `TEI_IMAGE_CPU_ARM64_DEFAULT` + `container_arch()` (Docker server arch → `platform.machine()` fallback) in `scripts/compose_files.py`; arch-aware `tei_image_default()`; darwin `sysctl hw.memsize` + `DEFAULT_RESERVE_GIB=4.0` in `scripts/tune_alloc.py`; MKL compose fix or arm64 gate in `docker-compose.tei.yml`; arch-aware `TEI_IMAGE` in `scripts/run_compose_integration.py`; unit tests per ADR 0028 Validation; Docker integration. Defer Phase 3 ColBERT-on-Mac doc and Phase 4 `macos_m3pro_matrix.json`. | 2026-07-12 |
 | 0029 | Phase 1 — Documentation | Accepted (phase 1 — Documentation) | phase-1 | `merged` | Docs-only single PR; host-native Metal TEI in `docs/DEPLOYMENT.md` (after Apple Silicon, before External TEI); `.env.example` Metal preset; four-surface sync (README, copilot-instructions, SKILL, DEPLOYMENT); bundled 0028 CPU TEI remains default; Metal opt-in via `TEI_URL` + empty `COMPOSE_PROFILES`; `--hostname 127.0.0.1` with upstream flag verification note. Defer Phase 2 `--external-tei` integration smoke and Phase 3 `metal_host_tei` benchmark. | 2026-07-12 |
 | 0029 | Phase 2 — Integration smoke | Accept skipped — unchanged (Accepted) | phase-2 | `merged` | Harness-only PR; `include_tei=False` via `compose_file_args`; force `ACCELERATOR=cpu`; M3 Pro Metal cgroup preset; host TEI preflight; `tei_container_absent` verdict gate; bundled path unchanged; quality/perf validation skipped. Defer live M3 Pro `--external-tei` full Docker integration before merge, Phase 3 `metal_host_tei` benchmark, and maintainer Metal log check on first embed. | 2026-07-12 |
+| 0030 | Phase 1 — Scaffold + storage + TEI | Accepted (phase 1 — Scaffold + storage + TEI) | phase-1 | `verified` | Accept ADR 0030; repo-root solution; hand-authored docker-compose.aspire.yml; arm64 cpu-arm64-latest TEI; accelerator defaults cpu; MCP stub get_health only; SearchAsync stub until Phase 3; tokenizer truncation Phase 2; Python production default until Phase 7 | 2026-07-13 |
 <!-- END GENERATED:summary -->
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
@@ -88,7 +89,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 ## Active and upcoming work
 
 <!-- BEGIN GENERATED:active -->
-_No active or upcoming phases._
+- **0030** Phase 1 — Scaffold + storage + TEI — `verified`
 <!-- END GENERATED:active -->
 
 ### Partial acceptance
@@ -1816,6 +1817,41 @@ _No active or upcoming phases._
 - **Code evidence:** `scripts/run_compose_integration.py`, `mcp_server/tests/test_run_compose_integration_gpu.py`, `docs/adr/0029-macos-host-native-tei-metal-acceleration.md`, `docs/DEPLOYMENT.md`, `CONTRIBUTING.md`, `.cursor/agents/adr-integration-tester.md`
 - **Test debt:** Live M3 Pro `--external-tei` Docker integration (integration-tester); Phase 3 `metal_host_tei` benchmark; maintainer Metal log check on first embed
 - **Changelog:** no — user-facing yes; invoker Changelog: no
+
+### ADR 0030 — Phase 1 — Scaffold + storage + TEI
+
+#### 2026-07-13 — verification
+- **Phase:** Phase 1 — Scaffold + storage + TEI
+- **Tracker status:** `verified`
+- **Choices:** Accept ADR 0030; repo-root solution; hand-authored docker-compose.aspire.yml; arm64 cpu-arm64-latest TEI; accelerator defaults cpu; MCP stub get_health only; SearchAsync stub until Phase 3; tokenizer truncation Phase 2; Python production default until Phase 7
+- **Deviations:** none
+- **Code evidence:** `CodebaseIndexer.sln`, `src/CodebaseIndexer.Infrastructure/Qdrant/QdrantVectorStore.cs`, `src/CodebaseIndexer.Infrastructure/Tei/TeiDenseEmbedder.cs`, `src/CodebaseIndexer.Host/Program.cs`, `src/CodebaseIndexer.AppHost/AppHost.cs`, `docker-compose.aspire.yml`, `test/CodebaseIndexer.Infrastructure.Tests/QdrantChunkIdTests.cs`, `test/CodebaseIndexer.Host.Tests/McpHostSmokeTests.cs`
+- **Test debt:** Qdrant Testcontainers integration; live TEI embed smoke; AppHost DistributedApplicationTestingBuilder; NetArchTest layer rules; EmbedQueryAsync query-instruction regression test; arm64 AppHost manual validation on M3 Pro
+- **Verify:** review round 2 clean; dotnet test 13/13 pass; plan compliance pass; Docker integration pass (ACCELERATOR=cpu); R1–R3 bug fixes verified
+- **Changelog:** yes — Add .NET 10 MCP scaffold (opt-in via docker-compose.aspire.yml): Aspire AppHost, Qdrant + TEI + stub get_health tool; Python runtime remains default until ADR 0030 Phase 7.
+
+#### 2026-07-13 — prioritization
+- **Phase:** Phase 1 — Scaffold + storage + TEI
+- **Tracker status:** `candidate`
+- **Choices:** Prioritize 0030 Phase 1 over 0026 Phase 4 (higher raw benchmark score but NVIDIA-GPU-blocked on M3 Pro); over 0028 Phase 3 (Accepted docs-only alternative); over 0027 Phase 1 (Proposed, tracker resolved defer Accept); over 0002 Phase 4 (higher scope GraphRAG); single phase per pipeline rule; requires formal Accept of Proposed ADR 0030 before dev; pre-release: Phases 1–6 opt-in parallel stack, no Python removal until Phase 7. **Why now:** Python runtime feature-complete (14 MCP tools, GraphRAG P1–3, TEI/ColBERT arcs merged); Mac deployment arc (0028/0029 P1–2) merged 2026-07-12; zero .NET code on disk; ADR cites maintainer C# expertise and pre-1.0 migration window; 0026 Phase 4 GPU bake-off blocked on M3 Pro without NVIDIA. **Suggested scope:** one phase (= one PR). **Chosen scope:** Accept ADR 0030 (prerequisite), then Phase 1 — AppHost + ServiceDefaults; Domain/Application/Infrastructure/Host projects; port interfaces + Chunk records; QdrantVectorStore; TeiDenseEmbedder via Refit; Host MCP stub with [McpServerTool] + MapMcp(); OTel via ServiceDefaults; AppHost boots Qdrant + TEI; Domain unit tests (zero infra refs); Refit TEI embed smoke; Host.Tests McpClient lists tools. Python image remains default until Phase 7.
+- **Deviations:** none
+- **Changelog:** no — user-facing unknown; invoker Changelog: no
+
+#### 2026-07-13 — plan
+- **Phase:** Phase 1 — Scaffold + storage + TEI
+- **Tracker status:** `planned`
+- **Choices:** Accept ADR 0030 before implementation; repo-root CodebaseIndexer.sln (not dotnet/ subdirectory); check in generated docker-compose.aspire.yml in Phase 1 (not CI-only / not deferred to Phase 6); arm64 M3 Pro AppHost validation first, NVIDIA amd64 GPU compose overrides deferred; accelerator AppHost parameter defaults cpu; tokenizer truncation deferred Phase 2; MCP stub tool(s) only (not 14-tool parity); Python run_compose_integration.py must remain green; quality validation skip; performance report skip
+- **Deviations:** none
+- **Changelog:** no — invoker Changelog: no; status planned
+
+#### 2026-07-13 — implementation
+- **Phase:** Phase 1 — Scaffold + storage + TEI
+- **Tracker status:** `implemented`
+- **Choices:** Accept ADR 0030; repo-root CodebaseIndexer.sln; checked-in docker-compose.aspire.yml in Phase 1; arm64 cpu-arm64-latest TEI default; accelerator parameter defaults cpu; MCP stub get_health only; tokenizer truncation deferred Phase 2; Python production default until Phase 7
+- **Deviations:** Aspire docker-compose publisher failed — compose file hand-authored; AppHost TEI image not parameterized; SearchAsync stub until Phase 3
+- **Code evidence:** `CodebaseIndexer.sln`, `src/CodebaseIndexer.Domain/`, `src/CodebaseIndexer.Infrastructure/Qdrant/QdrantVectorStore.cs`, `src/CodebaseIndexer.Infrastructure/Tei/TeiDenseEmbedder.cs`, `src/CodebaseIndexer.Host/Program.cs`, `src/CodebaseIndexer.AppHost/AppHost.cs`, `docker-compose.aspire.yml`, `test/CodebaseIndexer.Host.Tests/McpHostSmokeTests.cs`
+- **Test debt:** Qdrant Testcontainers integration; live TEI embed smoke; AppHost DistributedApplicationTestingBuilder; NetArchTest layer rules; arm64 AppHost manual validation on M3 Pro
+- **Changelog:** no — invoker Changelog: no; status implemented
 <!-- END GENERATED:phase-logs -->
 
 ---

@@ -1,0 +1,14 @@
+adr_id: '0030'
+phase_key: phase-1
+phase_title: Phase 1 — Scaffold + storage + TEI
+event: plan
+date: '2026-07-13'
+tracker_status: planned
+choices: >-
+  Accept ADR 0030 before implementation; repo-root CodebaseIndexer.sln (not dotnet/ subdirectory); check in generated docker-compose.aspire.yml in Phase 1 (not CI-only / not deferred to Phase 6); arm64 M3 Pro AppHost validation first, NVIDIA amd64 GPU compose overrides deferred; accelerator AppHost parameter defaults cpu; tokenizer truncation deferred Phase 2; MCP stub tool(s) only (not 14-tool parity); Python run_compose_integration.py must remain green; quality validation skip; performance report skip
+deviations: none
+changelog:
+  update: false
+  reason: 'invoker Changelog: no; status planned'
+user_facing: true
+open_decisions: []
