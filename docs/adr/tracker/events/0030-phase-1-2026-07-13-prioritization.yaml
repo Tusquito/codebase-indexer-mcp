@@ -1,0 +1,13 @@
+adr_id: '0030'
+phase_key: phase-1
+phase_title: Phase 1 — Scaffold + storage + TEI
+event: prioritization
+date: '2026-07-13'
+tracker_status: candidate
+choices: >-
+  Prioritize 0030 Phase 1 over 0026 Phase 4 (higher raw benchmark score but NVIDIA-GPU-blocked on M3 Pro); over 0028 Phase 3 (Accepted docs-only alternative); over 0027 Phase 1 (Proposed, tracker resolved defer Accept); over 0002 Phase 4 (higher scope GraphRAG); single phase per pipeline rule; requires formal Accept of Proposed ADR 0030 before dev; pre-release: Phases 1–6 opt-in parallel stack, no Python removal until Phase 7. **Why now:** Python runtime feature-complete (14 MCP tools, GraphRAG P1–3, TEI/ColBERT arcs merged); Mac deployment arc (0028/0029 P1–2) merged 2026-07-12; zero .NET code on disk; ADR cites maintainer C# expertise and pre-1.0 migration window; 0026 Phase 4 GPU bake-off blocked on M3 Pro without NVIDIA. **Suggested scope:** one phase (= one PR). **Chosen scope:** Accept ADR 0030 (prerequisite), then Phase 1 — AppHost + ServiceDefaults; Domain/Application/Infrastructure/Host projects; port interfaces + Chunk records; QdrantVectorStore; TeiDenseEmbedder via Refit; Host MCP stub with [McpServerTool] + MapMcp(); OTel via ServiceDefaults; AppHost boots Qdrant + TEI; Domain unit tests (zero infra refs); Refit TEI embed smoke; Host.Tests McpClient lists tools. Python image remains default until Phase 7.
+deviations: none
+changelog:
+  update: false
+  reason: 'user-facing unknown; invoker Changelog: no'
+user_facing: false
