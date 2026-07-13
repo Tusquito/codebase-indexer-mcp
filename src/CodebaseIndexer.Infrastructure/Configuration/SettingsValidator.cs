@@ -41,5 +41,21 @@ public sealed class SettingsValidator : AbstractValidator<Settings>
         RuleFor(x => x.TeiEmbedBatchSize)
             .GreaterThan(0)
             .WithMessage($"{nameof(Settings.TeiEmbedBatchSize)} must be positive.");
+
+        RuleFor(x => x.WorkspacePath)
+            .NotEmpty()
+            .WithMessage($"{nameof(Settings.WorkspacePath)} is required.");
+
+        RuleFor(x => x.HashWorkerDop)
+            .GreaterThan(0)
+            .WithMessage($"{nameof(Settings.HashWorkerDop)} must be positive.");
+
+        RuleFor(x => x.FlushEvery)
+            .GreaterThan(0)
+            .WithMessage($"{nameof(Settings.FlushEvery)} must be positive.");
+
+        RuleFor(x => x.UpsertBatch)
+            .GreaterThan(0)
+            .WithMessage($"{nameof(Settings.UpsertBatch)} must be positive.");
     }
 }
