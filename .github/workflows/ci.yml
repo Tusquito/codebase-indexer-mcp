@@ -183,6 +183,23 @@ jobs:
       - name: Build ColBERT GPU sidecar image
         run: docker build -f colbert_worker/Dockerfile.gpu -t colbert-worker-gpu ./mcp_server
 
+  aspire-integration:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 45
+    env:
+      ACCELERATOR: cpu
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Run aspire-stack integration smoke
+        run: python scripts/run_compose_integration.py --json --aspire-stack
+
   compose-integration:
     # Non-blocking: full Docker Compose stack on CPU (ADR 0022 — sole CI CPU
     # exception). Mandatory in the local ADR pipeline (adr-integration-tester

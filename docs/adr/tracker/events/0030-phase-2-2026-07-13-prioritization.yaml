@@ -1,0 +1,23 @@
+adr_id: '0030'
+phase_key: phase-2
+phase_title: Phase 2 — Indexing pipeline
+event: prioritization
+date: '2026-07-13'
+tracker_status: candidate
+choices: >-
+  Prioritize 0030 Phase 2 over 0026 Phase 4 (higher raw benchmark score ~24.5 but NVIDIA-GPU-blocked on M3 Pro per tracker open decisions); over 0002 Phase 4 (optional Python GraphRAG cross-project; 0030 P5 will re-port); over 0027 Phase 1 (Proposed, Accept deferred this cycle); over 0023 Phase 3 (graph-enabled cleanup only); over 0017 Phase 2 (small observability slice); single phase per pipeline rule; no ADR Accept required (0030 already Accepted); pre-release: Phases 1–6 opt-in parallel .NET stack, Python production default until Phase 7; Docker integration mandatory per project-phase policy; no `*_SCHEMA_VERSION` env vars — re-index after pull. **Why now:** ADR 0030 Phase 1 merged 2026-07-13 (`docs/adr/tracker/phases/0030-phase-1.yaml`, PR #37): .NET scaffold (`CodebaseIndexer.sln`, Domain/Application/Infrastructure/Host/AppHost, `QdrantVectorStore`, `TeiDenseEmbedder`, `docker-compose.aspire.yml`, stub `get_health`) on disk; Phase 1 plan deferred tokenizer truncation and indexing to Phase 2; `SearchAsync` stubbed until Phase 3; grep confirms no `IndexPipeline`/`WorkspaceScanner`/`TreeSitter` in `src/`; tracker shows no active phases; Python runtime feature-complete (14 tools, GraphRAG P1–3, TEI/ColBERT arcs merged); 0026 Phase 4 GPU bake-off blocked on M3 Pro (no NVIDIA); ADR 0027 Proposed and deferred for Accept per tracker resolution. **Suggested scope:** one phase (= one PR). **Chosen scope:** Phase 2 — Indexing pipeline per `0030-migrate-mcp-server-to-dotnet10.md` §Phased delivery: `WorkspaceScanner` (SHA-256 incremental scan, ignore files); `TreeSitterChunker` (port `chunker.py` via `TreeSitter.DotNet`, regex SQL fallback); `OnnxSparseEmbedder` (`Microsoft.ML.OnnxRuntime`, same `Qdrant/bm25` artifacts); model-accurate dense tokenizer truncation (deferred from P1); `IndexPipeline` with `Channel<T>` stages in `IndexPipelineHostedService` (scan→parse→embed→upsert, no `Task.Run`); `IndexCodebaseService`; MCP index tools (`index_codebase`, `index_status`, `stop_indexing`, `index_all`); `ArrayPool` hashing and channel worker fan-out; exit: fixture incremental index with chunk IDs matching Python golden samples; Docker integration on `docker-compose.aspire.yml`; Python `run_compose_integration.py` remains green.
+deviations: none
+code_evidence:
+  - '`docs/adr/tracker/phases/0030-phase-1.yaml` merged 2026-07-13 (PR #37)'
+  - 'grep confirms no `IndexPipeline`/`WorkspaceScanner`/`TreeSitter` in `src/`'
+  - '`SearchAsync` stubbed until Phase 3 per Phase 1 plan'
+changelog:
+  update: false
+  reason: 'user-facing unknown; invoker Changelog: no'
+user_facing: false
+open_decisions:
+  - 'RESOLVED — (1) Continue ADR 0030 Phase 2 as primary thread'
+  - 'RESOLVED — (2) Defer 0026 Phase 4 until NVIDIA GPU host available'
+  - 'RESOLVED — (3) Do not Accept ADR 0027 this cycle'
+  - 'RESOLVED — (4) Use 24 GiB Docker VM tier for 0028 Phase 4'
+  - 'RESOLVED — (5) Regex SQL fallback acceptable if TreeSitter.DotNet SQL grammar unavailable'

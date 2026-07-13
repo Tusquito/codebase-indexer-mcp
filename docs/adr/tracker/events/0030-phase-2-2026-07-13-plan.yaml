@@ -1,0 +1,17 @@
+adr_id: '0030'
+phase_key: phase-2
+phase_title: Phase 2 — Indexing pipeline
+event: plan
+date: '2026-07-13'
+tracker_status: planned
+choices: >-
+  Single PR; regex SQL fallback; no `*_SCHEMA_VERSION`; quality eval Phase 3; Python default until Phase 7; DOP=1 for hash workers; fastembed cache /root/.cache/fastembed; CI aspire manual-only + optional non-blocking CI. Assumptions: Phase 1 merged PR #37; arm64 M3 Pro; SearchAsync stub until Phase 3.
+deviations: none
+changelog:
+  update: false
+  reason: 'invoker Changelog: no; status planned'
+user_facing: true
+open_decisions:
+  - 'RESOLVED — (1) fastembed cache /root/.cache/fastembed with fastembed_cache volume'
+  - 'RESOLVED — (2) CI aspire manual-only on M3 Pro with optional non-blocking CI'
+  - 'RESOLVED — (3) DOP=1'

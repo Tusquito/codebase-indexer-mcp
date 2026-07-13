@@ -1,0 +1,8 @@
+adr_id: '0030'
+phase_key: phase-2
+title: Phase 2 — Indexing pipeline
+tracker_status: verified
+chosen_scope: >-
+  `WorkspaceScanner` (SHA-256 incremental scan, ignore files, `ArrayPool` hashing, channel worker fan-out DOP=1); `TreeSitterChunker` (port `chunker.py` via `TreeSitter.DotNet`, regex SQL fallback); `OnnxSparseEmbedder` (`Microsoft.ML.OnnxRuntime`, same `Qdrant/bm25` artifacts); model-accurate dense tokenizer truncation; `IndexPipeline` with `Channel<T>` stages in `IndexPipelineHostedService`; `IndexCodebaseService` + `IndexJobService`; MCP index tools (`index_codebase`, `index_status`, `stop_indexing`, `index_all`); chunk-ID golden parity fixture; `docker-compose.aspire.yml` workspace/cache wiring (fastembed at `/root/.cache/fastembed` with `fastembed_cache` volume); `--aspire-stack` integration smoke (manual M3 Pro pre-review, optional non-blocking CI); Python `run_compose_integration.py` remains green
+last_updated: '2026-07-13'
+adr_status_note: Accepted (phase 2 — Indexing pipeline)

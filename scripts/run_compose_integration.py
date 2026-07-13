@@ -11,6 +11,7 @@ From repository root:
     python scripts/run_compose_integration.py --json --quality-validation
     python scripts/run_compose_integration.py --json --quality-validation --quality-rerank --quality-threshold 5
     python scripts/run_compose_integration.py --json --performance-report
+    python scripts/run_compose_integration.py --json --aspire-stack
     ACCELERATOR=cpu python scripts/run_compose_integration.py --json --external-tei
 
 Exits 0 when required checks pass, 1 on failure, 2 when Docker unavailable (skip).
@@ -44,6 +45,8 @@ EVAL_BASELINE = MCP_SERVER / "benchmarks" / "fixtures" / "eval_baseline.json"
 BENCH_BASELINE = MCP_SERVER / "benchmarks" / "baseline.json"
 REINDEX_SCRIPT = REPO_ROOT / "scripts" / "reindex_graphrag.py"
 COMPOSE_BASE = ["docker", "compose", "--env-file", str(ENV_FILE)]
+ASPIRE_COMPOSE_FILE = REPO_ROOT / "docker-compose.aspire.yml"
+ASPIRE_SERVICES = ("qdrant", "tei", "mcp")
 COMPOSE_PROFILE = "bundled-tei"
 SERVICES = ("qdrant", "tei", "mcp_server")
 EXTERNAL_SERVICES = ("qdrant", "mcp_server")
@@ -190,7 +193,36 @@ RERANK_ENABLED=false
     ENV_FILE.write_text(content, encoding="utf-8")
 
 
-def compose_cmd(*args: str, external_tei: bool = False) -> list[str]:
+def aspire_compose_cmd(*args: str) -> list[str]:
+    return [
+        "docker",
+        "compose",
+        "--env-file",
+        str(ENV_FILE),
+        "-f",
+        str(ASPIRE_COMPOSE_FILE),
+        *args,
+    ]
+
+
+def deploy_aspire_stack() -> tuple[bool, str]:
+    build = _run(aspire_compose_cmd("build", "mcp"))
+    if build.returncode != 0:
+        return False, build.stderr or build.stdout or "aspire compose build failed"
+    up = _run(aspire_compose_cmd("up", "-d", "--wait", *ASPIRE_SERVICES))
+    if up.returncode != 0:
+        return False, up.stderr or up.stdout or "aspire compose up failed"
+    return True, "aspire stack deployed"
+
+
+def run_dotnet_smoke() -> tuple[bool, str]:
+    proc = _run(["dotnet", "test", "CodebaseIndexer.sln", "--nologo"])
+    if proc.returncode != 0:
+        return False, (proc.stderr or proc.stdout or "dotnet test failed")[-4000:]
+    return True, "dotnet test passed"
+
+
+def compose_cmd(*args: str, external_tei: bool = False, aspire_stack: bool = False) -> list[str]:
     env = dict(os.environ)
     if ENV_FILE.is_file():
         for line in ENV_FILE.read_text(encoding="utf-8").splitlines():
@@ -615,6 +647,11 @@ def main() -> int:
         "tei service; maintainer Mac smoke only",
     )
     parser.add_argument(
+        "--aspire-stack",
+        action="store_true",
+        help="Deploy docker-compose.aspire.yml (.NET MCP) and run dotnet test smoke (ADR 0030 Phase 2)",
+    )
+    parser.add_argument(
         "--bench-compare",
         type=Path,
         default=BENCH_BASELINE,
@@ -623,6 +660,7 @@ def main() -> int:
     args = parser.parse_args()
 
     report: dict = {
+        "aspire_stack": args.aspire_stack,
         "external_tei": args.external_tei,
         "deploy": {"status": "pending", "detail": ""},
         "host_tei_preflight": {"status": "pending", "detail": ""},
@@ -632,6 +670,7 @@ def main() -> int:
         "tei_embed_smoke": {"status": "pending", "detail": ""},
         "tei_gpu_visible": {"status": "pending", "detail": ""},
         "tei_container_absent": {"status": "pending", "detail": ""},
+        "dotnet_smoke": {"status": "pending", "detail": ""},
         "pytest_integration": {"status": "pending", "detail": ""},
         "smoke_recommend": {"status": "pending", "detail": ""},
         "quality_validation": {"required": args.quality_validation, "status": "skipped", "checks": {}},
@@ -651,6 +690,46 @@ def main() -> int:
 
     if args.external_tei:
         os.environ["ACCELERATOR"] = "cpu"
+
+    if args.aspire_stack:
+        os.environ["ACCELERATOR"] = "cpu"
+        write_integration_env(REPO_ROOT, graph=False, external_tei=False)
+        if args.skip_deploy:
+            report["deploy"] = {"status": "skipped", "detail": "--skip-deploy"}
+        else:
+            ok, detail = deploy_aspire_stack()
+            report["deploy"] = {"status": "pass" if ok else "fail", "detail": detail}
+            if not ok:
+                report["verdict"] = "fail"
+                if args.json:
+                    print(json.dumps(report, indent=2))
+                else:
+                    print(f"FAIL: aspire deploy — {detail}")
+                return 1
+
+        ok, detail = http_ok(MCP_HEALTH_URL)
+        report["mcp_health"] = {"status": "pass" if ok else "fail", "detail": detail}
+        ok, detail = http_ok(f"{QDRANT_URL}/healthz")
+        report["qdrant_health"] = {"status": "pass" if ok else "fail", "detail": detail}
+        ok, detail = http_ok(f"{TEI_URL}/health")
+        report["tei_health"] = {"status": "pass" if ok else "fail", "detail": detail}
+
+        ok, detail = run_dotnet_smoke()
+        report["dotnet_smoke"] = {"status": "pass" if ok else "fail", "detail": detail}
+
+        required = ("deploy", "mcp_health", "qdrant_health", "tei_health", "dotnet_smoke")
+        report["verdict"] = (
+            "pass"
+            if all(report[k]["status"] in ("pass", "skipped") for k in required)
+            else "fail"
+        )
+        if args.json:
+            print(json.dumps(report, indent=2))
+        else:
+            print(f"Verdict: {report['verdict']}")
+        if not args.keep and not args.skip_deploy:
+            _run(aspire_compose_cmd("down", "--remove-orphans"))
+        return 0 if report["verdict"] == "pass" else 1
 
     write_integration_env(
         REPO_ROOT.parent, graph=args.graph, external_tei=args.external_tei
