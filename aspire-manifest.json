@@ -1,0 +1,39 @@
+{
+  "resources": {
+    "accelerator": {
+      "type": "parameter.v0",
+      "value": "{accelerator.inputs.value}",
+      "inputs": {
+        "value": {
+          "type": "string"
+        }
+      }
+    },
+    "denseModel": {
+      "type": "parameter.v0",
+      "value": "{denseModel.inputs.value}",
+      "inputs": {
+        "value": {
+          "type": "string"
+        }
+      }
+    },
+    "denseVectorSize": {
+      "type": "parameter.v0",
+      "value": "{denseVectorSize.inputs.value}",
+      "inputs": {
+        "value": {
+          "type": "string"
+        }
+      }
+    },
+    "hfToken": {
+      "type": "parameter.v0",
+      "value": "{hfToken.inputs.value}",
+      "inputs": {
+        "value": {
+          "type": "string"
+        }
+      }
+    },
+    "qdrant": {
