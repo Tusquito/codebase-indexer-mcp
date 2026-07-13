@@ -4,29 +4,43 @@ using CodebaseIndexer.Application.Models;
 using CodebaseIndexer.Application.Services;
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
+using CodebaseIndexer.Application.Options;
 using CodebaseIndexer.Infrastructure.Configuration;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
 
 namespace CodebaseIndexer.Host.Tools;
 
+/// <summary>MCP tools for codebase indexing operations.</summary>
 [McpServerToolType]
 public sealed class IndexTools
 {
     private readonly IIndexJobService _jobs;
     private readonly IVectorStore _vectorStore;
-    private readonly Settings _settings;
+    private readonly WorkspaceOptions _workspace;
 
+    /// <summary>Initializes a new instance of the <see cref="IndexTools"/> class.</summary>
+    /// <param name="jobs">Indexing job orchestration service.</param>
+    /// <param name="vectorStore">Vector store for collection discovery.</param>
+    /// <param name="workspace">Workspace root configuration.</param>
     public IndexTools(
         IIndexJobService jobs,
         IVectorStore vectorStore,
-        IOptions<Settings> settings)
+        IOptions<WorkspaceOptions> workspace)
     {
         _jobs = jobs;
         _vectorStore = vectorStore;
-        _settings = settings.Value;
+        _workspace = workspace.Value;
     }
 
+    /// <summary>Indexes a project folder into the vector store.</summary>
+    /// <param name="path">Project folder name under WORKSPACE_ROOT.</param>
+    /// <param name="collection">Optional collection override.</param>
+    /// <param name="force">Force full re-index even if file SHA unchanged.</param>
+    /// <param name="wait">Block until indexing completes.</param>
+    /// <param name="timeout">Timeout in seconds when <paramref name="wait"/> is true.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Job snapshot, status response, or error payload.</returns>
     [McpServerTool(Name = "index_codebase"), Description("Index a project folder into the vector store.")]
     public async Task<object> IndexCodebaseAsync(
         [Description("Project folder name under WORKSPACE_ROOT")] string path = "/",
@@ -44,7 +58,7 @@ public sealed class IndexTools
                 Hint: "Pass the project folder name as 'path'. For example: index_codebase(path='my-project').");
         }
 
-        collection ??= DeriveCollectionName(_settings.WorkspacePath, path);
+        collection ??= DeriveCollectionName(_workspace.Path, path);
         if (await _jobs.IsRunningAsync(collection, cancellationToken).ConfigureAwait(false))
         {
             var existing = await _jobs.GetJobAsync(collection, cancellationToken).ConfigureAwait(false);
@@ -76,6 +90,10 @@ public sealed class IndexTools
         return snapshot;
     }
 
+    /// <summary>Checks indexing job status for one or all collections.</summary>
+    /// <param name="collection">Optional collection name; omit to list all jobs.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Job snapshot, job list, or error payload.</returns>
     [McpServerTool(Name = "index_status"), Description("Check indexing job status.")]
     public async Task<object> IndexStatusAsync(
         [Description("Optional collection name")] string? collection = null,
@@ -95,6 +113,10 @@ public sealed class IndexTools
             : jobs;
     }
 
+    /// <summary>Requests cancellation of an ongoing indexing job.</summary>
+    /// <param name="collection">Collection name.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Cancellation confirmation or error payload.</returns>
     [McpServerTool(Name = "stop_indexing"), Description("Stop an ongoing indexing job.")]
     public async Task<object> StopIndexingAsync(
         [Description("Collection name")] string collection,
@@ -117,6 +139,12 @@ public sealed class IndexTools
             Hint: "Use index_status to confirm it has stopped.");
     }
 
+    /// <summary>Re-indexes all existing collections sequentially.</summary>
+    /// <param name="force">Force full re-index.</param>
+    /// <param name="wait">Block until all collections finish.</param>
+    /// <param name="timeout">Timeout per collection in seconds.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Summary of indexing results or error payload.</returns>
     [McpServerTool(Name = "index_all"), Description("Re-index all existing collections sequentially.")]
     public async Task<object> IndexAllAsync(
         [Description("Force full re-index")] bool force = false,

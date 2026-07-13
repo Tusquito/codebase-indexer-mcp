@@ -5,8 +5,10 @@ using HostHealthStatus = CodebaseIndexer.Application.Services.HealthStatus;
 
 namespace CodebaseIndexer.Host.Health;
 
+/// <summary>ASP.NET Core health check backed by <see cref="IHealthService"/>.</summary>
 public sealed class McpHostHealthCheck(IHealthService health) : IHealthCheck
 {
+    /// <inheritdoc />
     public async Task<HealthCheckResult> CheckHealthAsync(
         HealthCheckContext context,
         CancellationToken cancellationToken = default)
@@ -18,8 +20,13 @@ public sealed class McpHostHealthCheck(IHealthService health) : IHealthCheck
     }
 }
 
+/// <summary>Writes health check results as JSON matching the MCP health schema.</summary>
 public static class HealthCheckJsonResponseWriter
 {
+    /// <summary>Serializes the health report to JSON on the HTTP response.</summary>
+    /// <param name="context">The current HTTP context.</param>
+    /// <param name="report">The aggregated health report.</param>
+    /// <returns>A task that completes when the response is written.</returns>
     public static Task WriteAsync(HttpContext context, HealthReport report)
     {
         context.Response.ContentType = "application/json";

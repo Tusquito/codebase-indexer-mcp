@@ -55,16 +55,16 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Docker
       ASPNETCORE_URLS: http://0.0.0.0:8000
-      CodebaseIndexer__QdrantUrl: http://qdrant:6333
-      CodebaseIndexer__TeiUrl: http://tei:80
-      CodebaseIndexer__WorkspacePath: /workspace
-      CodebaseIndexer__FastembedCachePath: /root/.cache/fastembed
-      CodebaseIndexer__DenseEmbedModel: ${DENSE_EMBED_MODEL:-jinaai/jina-embeddings-v2-base-code}
-      CodebaseIndexer__DenseEmbedVectorSize: ${DENSE_EMBED_VECTOR_SIZE:-768}
-      CodebaseIndexer__SparseEmbedModel: ${SPARSE_EMBED_MODEL:-Qdrant/bm25}
-      CodebaseIndexer__HybridSearch: ${HYBRID_SEARCH:-true}
-      CodebaseIndexer__HashWorkerDop: "1"
-      CodebaseIndexer__PreloadModels: ${PRELOAD_MODELS:-true}
+      Qdrant__Url: http://qdrant:6333
+      Tei__Url: http://tei:80
+      Workspace__Path: /workspace
+      Embedding__CachePath: /root/.cache/fastembed
+      Embedding__DenseModel: ${DENSE_EMBED_MODEL:-jinaai/jina-embeddings-v2-base-code}
+      Embedding__DenseVectorSize: ${DENSE_EMBED_VECTOR_SIZE:-768}
+      Embedding__SparseModel: ${SPARSE_EMBED_MODEL:-Qdrant/bm25}
+      Embedding__HybridSearch: ${HYBRID_SEARCH:-true}
+      Workspace__HashWorkerDop: "1"
+      Indexing__PreloadModels: ${PRELOAD_MODELS:-true}
 
 volumes:
   qdrant_data:

@@ -7,8 +7,12 @@ using ModelContextProtocol.Server;
 
 namespace CodebaseIndexer.Host;
 
+/// <summary>Registers MCP host services, health checks, and infrastructure.</summary>
 public static class HostApplicationBuilderExtensions
 {
+    /// <summary>Configures the codebase indexer MCP host application.</summary>
+    /// <param name="builder">The web application builder.</param>
+    /// <returns>The same builder for chaining.</returns>
     public static WebApplicationBuilder AddCodebaseIndexerHost(this WebApplicationBuilder builder)
     {
         builder.AddServiceDefaults();

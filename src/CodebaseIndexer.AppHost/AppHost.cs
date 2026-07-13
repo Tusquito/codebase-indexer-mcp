@@ -19,15 +19,15 @@ var tei = builder.AddContainer("tei", teiImageName)
     .WithHttpHealthCheck("/health");
 
 var mcp = builder.AddProject<Projects.CodebaseIndexer_Host>("mcp")
-    .WithEnvironment("CodebaseIndexer__QdrantUrl", qdrant.GetEndpoint("http"))
-    .WithEnvironment("CodebaseIndexer__TeiUrl", tei.GetEndpoint("http"))
+    .WithEnvironment("Qdrant__Url", qdrant.GetEndpoint("http"))
+    .WithEnvironment("Tei__Url", tei.GetEndpoint("http"))
     .WaitFor(qdrant)
     .WaitFor(tei)
     .WithHttpEndpoint(port: 8000, name: "mcp")
-    .WithEnvironment("CodebaseIndexer__DenseEmbedModel", denseModel)
-    .WithEnvironment("CodebaseIndexer__DenseEmbedVectorSize", denseVectorSize)
-    .WithEnvironment("CodebaseIndexer__SparseEmbedModel", "Qdrant/bm25")
-    .WithEnvironment("CodebaseIndexer__HybridSearch", "true");
+    .WithEnvironment("Embedding__DenseModel", denseModel)
+    .WithEnvironment("Embedding__DenseVectorSize", denseVectorSize)
+    .WithEnvironment("Embedding__SparseModel", "Qdrant/bm25")
+    .WithEnvironment("Embedding__HybridSearch", "true");
 
 builder.AddDockerComposeEnvironment("compose");
 

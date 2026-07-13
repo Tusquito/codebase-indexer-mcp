@@ -3,8 +3,12 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 namespace CodebaseIndexer.Host;
 
+/// <summary>Maps HTTP endpoints exposed by the MCP host.</summary>
 public static class EndpointRouteBuilderExtensions
 {
+    /// <summary>Maps health checks and the MCP HTTP transport endpoint.</summary>
+    /// <param name="app">The web application.</param>
+    /// <returns>The same application for chaining.</returns>
     public static WebApplication MapCodebaseIndexerEndpoints(this WebApplication app)
     {
         app.MapHealthChecks("/health", new HealthCheckOptions
