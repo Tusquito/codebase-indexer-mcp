@@ -16,7 +16,7 @@ Skip ADRs for routine bug fixes, refactors with no design change, or dependency 
 ## How to add an ADR
 
 1. Copy [`template.md`](template.md) to a new file: `NNNN-short-kebab-title.md`
-2. Use the next available four-digit number (see index below — currently **0035**)
+2. Use the next available four-digit number (see index below — currently **0034**)
 3. Fill in all sections; leave **Status** as `Proposed` until reviewed
 4. Add a row to the index table below
 5. Link the ADR from related docs (e.g. [`ARCHITECTURE.md`](../ARCHITECTURE.md)) when relevant
@@ -86,7 +86,6 @@ Invoke the full pipeline with **`adr-orchestrator`**; resume a phase with `Resum
 | [0031](0031-mcp-liveness-vs-readiness.md) | Split MCP liveness from dependency readiness | Proposed | 2026-07-21 |
 | [0032](0032-replace-magic-strings-with-enums.md) | Replace closed-set magic strings with domain enums | Proposed | 2026-07-21 |
 | [0033](0033-adopt-result-pattern.md) | Adopt Result pattern for expected failures | Proposed | 2026-07-21 |
-| [0034](0034-containerized-self-hosted-gpu-runner.md) | Containerized self-hosted GitHub Actions runner for GPU CI | Proposed | 2026-07-21 |
 
 ## Qdrant Build Prototypes & Improve Search map
 
