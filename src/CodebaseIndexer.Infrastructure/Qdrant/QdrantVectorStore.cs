@@ -30,23 +30,39 @@ public sealed class QdrantVectorStore : IVectorStore
 
     private readonly QdrantOptions _qdrant;
     private readonly EmbeddingOptions _embedding;
+    private readonly ColbertOptions _colbert;
     private readonly DiscoveryOptions _discovery;
     private readonly ILogger<QdrantVectorStore> _logger;
     private readonly Lazy<QdrantClient> _client;
+    private readonly AdaptiveRerankStats _adaptiveStats = new();
 
     /// <summary>Creates a vector store client from Qdrant and embedding options.</summary>
     public QdrantVectorStore(
         IOptions<QdrantOptions> qdrant,
         IOptions<EmbeddingOptions> embedding,
+        IOptions<ColbertOptions> colbert,
         IOptions<DiscoveryOptions> discovery,
         ILogger<QdrantVectorStore> logger)
     {
         _qdrant = qdrant.Value;
         _embedding = embedding.Value;
+        _colbert = colbert.Value;
         _discovery = discovery.Value;
         _logger = logger;
         _client = new Lazy<QdrantClient>(() => CreateClient(_qdrant));
     }
+
+    /// <summary>Adaptive ColBERT skip/rerank counters (test surface).</summary>
+    public AdaptiveRerankStats AdaptiveRerankStats => _adaptiveStats;
+
+    /// <summary>Resets adaptive ColBERT counters.</summary>
+    public void ResetAdaptiveStats() => _adaptiveStats.Reset();
+
+    private int ColbertTokenSize =>
+        KnownColbertModels.ResolveTokenDimension(
+            string.IsNullOrWhiteSpace(_colbert.EmbedModel)
+                ? _embedding.ColbertEmbedModel
+                : _colbert.EmbedModel);
 
     /// <inheritdoc />
     public async ValueTask<bool> CollectionExistsAsync(string collection, CancellationToken cancellationToken = default)
@@ -106,6 +122,21 @@ public sealed class QdrantVectorStore : IVectorStore
                         Index = new SparseIndexConfig { OnDisk = _qdrant.SparseOnDisk },
                     },
                 },
+            };
+        }
+
+        if (_embedding.RerankEnabled)
+        {
+            vectorsConfig.Map["colbert"] = new VectorParams
+            {
+                Size = (ulong)ColbertTokenSize,
+                Distance = Distance.Cosine,
+                MultivectorConfig = new MultiVectorConfig
+                {
+                    Comparator = MultiVectorComparator.MaxSim,
+                },
+                HnswConfig = new HnswConfigDiff { M = 0 },
+                OnDisk = _qdrant.VectorsOnDisk,
             };
         }
 
@@ -239,6 +270,7 @@ public sealed class QdrantVectorStore : IVectorStore
         int topK,
         string? language = null,
         float minScore = 0.5f,
+        IReadOnlyList<IReadOnlyList<float>>? colbertVector = null,
         CancellationToken cancellationToken = default)
     {
         if (!await CollectionExistsAsync(collection, cancellationToken).ConfigureAwait(false))
@@ -249,18 +281,54 @@ public sealed class QdrantVectorStore : IVectorStore
         var queryFilter = BuildLanguageFilter(language);
         var denseParams = BuildDenseSearchParams();
         var usedHybrid = sparseVector is not null && _embedding.HybridSearch;
-        var prefetchLimit = (ulong)(topK * Math.Max(1, _embedding.PrefetchMultiplier));
-        var scoreThreshold = usedHybrid ? 0f : minScore;
+        var usedRerank = _embedding.RerankEnabled && colbertVector is not null && usedHybrid;
+        var usedAdaptive = usedRerank && _embedding.RerankAdaptiveEnabled;
+        var prefetchLimit = ResolveSearchPrefetchLimit(
+            usedRerank,
+            _embedding.RerankPrefetch,
+            topK,
+            _embedding.PrefetchMultiplier);
+        var scoreThreshold = usedHybrid || usedRerank ? 0f : minScore;
         var denseArray = denseVector as float[] ?? denseVector.ToArray();
 
+        if (usedAdaptive)
+        {
+            var probeLimit = Math.Max(topK, 2);
+            var probe = await HybridRrfQueryAsync(
+                collection,
+                denseArray,
+                sparseVector!,
+                probeLimit,
+                prefetchLimit,
+                queryFilter,
+                denseParams,
+                cancellationToken).ConfigureAwait(false);
+            _adaptiveStats.Total++;
+            if (ShouldSkipColbertAfterProbe(probe, _embedding.RerankAdaptiveGap))
+            {
+                var gap = probe[0].Score - probe[1].Score;
+                _adaptiveStats.Skipped++;
+                _logger.LogDebug(
+                    "adaptive_rerank_skip collection={Collection} gap={Gap} threshold={Threshold}",
+                    collection,
+                    gap,
+                    _embedding.RerankAdaptiveGap);
+                return MapPointsToHits(probe.Take(topK).ToArray(), collection, scoreThreshold);
+            }
+
+            _adaptiveStats.Reranked++;
+        }
+
         IReadOnlyList<ScoredPoint> points;
-        if (usedHybrid)
+        if (usedRerank)
         {
             var sparseIndices = sparseVector!.Indices.Select(i => (uint)i).ToArray();
             var sparseValues = sparseVector.Values as float[] ?? sparseVector.Values.ToArray();
+            var colbertQuery = ToMultiVector(colbertVector!);
             points = await _client.Value.QueryAsync(
                 collection,
-                query: Fusion.Rrf,
+                query: colbertQuery,
+                usingVector: "colbert",
                 prefetch:
                 [
                     new PrefetchQuery
@@ -285,6 +353,18 @@ public sealed class QdrantVectorStore : IVectorStore
                 vectorsSelector: new WithVectorsSelector { Enable = false },
                 cancellationToken: cancellationToken).ConfigureAwait(false);
         }
+        else if (usedHybrid)
+        {
+            points = await HybridRrfQueryAsync(
+                collection,
+                denseArray,
+                sparseVector!,
+                topK,
+                prefetchLimit,
+                queryFilter,
+                denseParams,
+                cancellationToken).ConfigureAwait(false);
+        }
         else
         {
             points = await _client.Value.QueryAsync(
@@ -300,6 +380,57 @@ public sealed class QdrantVectorStore : IVectorStore
         }
 
         return MapPointsToHits(points, collection, scoreThreshold);
+    }
+
+    private async Task<IReadOnlyList<ScoredPoint>> HybridRrfQueryAsync(
+        string collection,
+        float[] denseArray,
+        DomainSparseVector sparseVector,
+        int limit,
+        ulong prefetchLimit,
+        Filter? queryFilter,
+        SearchParams denseParams,
+        CancellationToken cancellationToken)
+    {
+        var sparseIndices = sparseVector.Indices.Select(i => (uint)i).ToArray();
+        var sparseValues = sparseVector.Values as float[] ?? sparseVector.Values.ToArray();
+        return await _client.Value.QueryAsync(
+            collection,
+            query: Fusion.Rrf,
+            prefetch:
+            [
+                new PrefetchQuery
+                {
+                    Query = denseArray,
+                    Using = "dense",
+                    Limit = prefetchLimit,
+                    Params = denseParams,
+                    Filter = queryFilter,
+                },
+                new PrefetchQuery
+                {
+                    Query = (sparseValues, sparseIndices),
+                    Using = "sparse",
+                    Limit = prefetchLimit,
+                    Filter = queryFilter,
+                },
+            ],
+            filter: queryFilter,
+            limit: (ulong)limit,
+            payloadSelector: new WithPayloadSelector { Enable = true },
+            vectorsSelector: new WithVectorsSelector { Enable = false },
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
+
+    private static float[][] ToMultiVector(IReadOnlyList<IReadOnlyList<float>> colbertVector)
+    {
+        var jagged = new float[colbertVector.Count][];
+        for (var i = 0; i < colbertVector.Count; i++)
+        {
+            jagged[i] = colbertVector[i] as float[] ?? colbertVector[i].ToArray();
+        }
+
+        return jagged;
     }
 
     /// <inheritdoc />
@@ -1068,25 +1199,112 @@ public sealed class QdrantVectorStore : IVectorStore
             return true;
         }
 
-        if ((int)dense.Size != _embedding.DenseVectorSize)
-        {
-            return true;
-        }
-
         var hasSparse = info.Config.Params.SparseVectorsConfig.Map.ContainsKey("sparse");
-        if (hasSparse != _embedding.HybridSearch)
+        var hasColbert = vectorsConfig.ParamsMap.Map.ContainsKey("colbert");
+        var colbertSize = 0;
+        if (hasColbert && vectorsConfig.ParamsMap.Map.TryGetValue("colbert", out var colbert))
         {
-            return true;
+            colbertSize = (int)colbert.Size;
         }
 
         var hasQuant = info.Config.QuantizationConfig?.QuantizationCase
             == QuantizationConfig.QuantizationOneofCase.Scalar;
-        if (hasQuant != _qdrant.Quantization)
+
+        var decision = EvaluateCollectionSchema(
+            denseSize: (int)dense.Size,
+            hasSparse: hasSparse,
+            hasColbert: hasColbert,
+            colbertSize: colbertSize,
+            hasQuantization: hasQuant,
+            expectedDenseSize: _embedding.DenseVectorSize,
+            hybridSearch: _embedding.HybridSearch,
+            rerankEnabled: _embedding.RerankEnabled,
+            expectedColbertTokenSize: ColbertTokenSize,
+            quantizationEnabled: _qdrant.Quantization);
+
+        if (decision.ColbertMismatch)
         {
-            return true;
+            _logger.LogWarning(
+                "Qdrant collection colbert mismatch (has_colbert={Has} rerank_enabled={Rerank}). Re-index after pull.",
+                hasColbert,
+                _embedding.RerankEnabled);
         }
 
-        return false;
+        if (decision.ColbertDimMismatch)
+        {
+            _logger.LogWarning(
+                "Qdrant colbert dim mismatch (collection={Have} want={Want}). Re-index after pull.",
+                colbertSize,
+                ColbertTokenSize);
+        }
+
+        return decision.NeedsRecreate;
+    }
+
+    /// <summary>
+    /// Hybrid prefetch limit: <see cref="EmbeddingOptions.RerankPrefetch"/> when ColBERT
+    /// rerank is active, otherwise <c>top_k * PrefetchMultiplier</c>.
+    /// </summary>
+    internal static ulong ResolveSearchPrefetchLimit(
+        bool usedRerank,
+        int rerankPrefetch,
+        int topK,
+        int prefetchMultiplier) =>
+        (ulong)(usedRerank
+            ? Math.Max(1, rerankPrefetch)
+            : topK * Math.Max(1, prefetchMultiplier));
+
+    /// <summary>
+    /// Adaptive ColBERT skip when hybrid probe has ≥2 hits and top-1 vs top-2 RRF gap
+    /// meets the threshold (Python <c>test_adaptive_rerank_*</c> parity).
+    /// </summary>
+    internal static bool ShouldSkipColbertAfterProbe(
+        IReadOnlyList<ScoredPoint> probe,
+        float gapThreshold) =>
+        probe.Count >= 2 && probe[0].Score - probe[1].Score >= gapThreshold;
+
+    /// <summary>
+    /// Schema recreate decision for dense/sparse/colbert/quantization parity
+    /// (Python <c>ensure_collection</c> mismatch cases).
+    /// </summary>
+    internal static CollectionSchemaDecision EvaluateCollectionSchema(
+        int denseSize,
+        bool hasSparse,
+        bool hasColbert,
+        int colbertSize,
+        bool hasQuantization,
+        int expectedDenseSize,
+        bool hybridSearch,
+        bool rerankEnabled,
+        int expectedColbertTokenSize,
+        bool quantizationEnabled)
+    {
+        if (denseSize != expectedDenseSize)
+        {
+            return new CollectionSchemaDecision(NeedsRecreate: true);
+        }
+
+        if (hasSparse != hybridSearch)
+        {
+            return new CollectionSchemaDecision(NeedsRecreate: true);
+        }
+
+        if (hasColbert != rerankEnabled)
+        {
+            return new CollectionSchemaDecision(NeedsRecreate: true, ColbertMismatch: true);
+        }
+
+        if (hasColbert && colbertSize != expectedColbertTokenSize)
+        {
+            return new CollectionSchemaDecision(NeedsRecreate: true, ColbertDimMismatch: true);
+        }
+
+        if (hasQuantization != quantizationEnabled)
+        {
+            return new CollectionSchemaDecision(NeedsRecreate: true);
+        }
+
+        return new CollectionSchemaDecision(NeedsRecreate: false);
     }
 
     private SearchParams BuildDenseSearchParams()
@@ -1226,6 +1444,11 @@ public sealed class QdrantVectorStore : IVectorStore
             namedVectors["sparse"] = (
                 chunk.SparseVector.Values.ToArray(),
                 chunk.SparseVector.Indices.Select(i => i).ToArray());
+        }
+
+        if (chunk.ColbertVector is { Count: > 0 })
+        {
+            namedVectors["colbert"] = ToMultiVector(chunk.ColbertVector);
         }
 
         var payload = new Dictionary<string, Value>
