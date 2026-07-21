@@ -14,6 +14,18 @@ if (string.IsNullOrWhiteSpace(teiImageName))
         : "ghcr.io/huggingface/text-embeddings-inference:cpu-1.9";
 }
 
+var accelerator = Environment.GetEnvironmentVariable("ACCELERATOR") ?? "gpu";
+var rerankEnabledEnv = Environment.GetEnvironmentVariable("Embedding__RerankEnabled")
+    ?? Environment.GetEnvironmentVariable("RERANK_ENABLED")
+    ?? "false";
+var rerankEnabled = string.Equals(rerankEnabledEnv, "true", StringComparison.OrdinalIgnoreCase)
+    || string.Equals(rerankEnabledEnv, "1", StringComparison.OrdinalIgnoreCase);
+var colbertBackend = Environment.GetEnvironmentVariable("Colbert__EmbedBackend")
+    ?? Environment.GetEnvironmentVariable("COLBERT_EMBED_BACKEND")
+    ?? (rerankEnabled ? "remote" : "onnx");
+// Always publish ColBERT in Aspire compose (opt-in via Embedding__RerankEnabled).
+var includeColbert = true;
+
 // REST :6333 for health/metrics; gRPC :6334 for Qdrant.Client (PROTOCOL_ERROR if REST used as gRPC).
 var qdrant = builder.AddContainer("qdrant", "qdrant/qdrant", "v1.18.2")
     .WithHttpEndpoint(port: 6333, targetPort: 6333, name: "http")
@@ -52,6 +64,19 @@ if (graphEnabled)
         .WithHttpHealthCheck("/");
 }
 
+IResourceBuilder<ProjectResource>? colbert = null;
+if (includeColbert)
+{
+    colbert = builder.AddProject<Projects.CodebaseIndexer_ColbertWorker>("colbert")
+        .WithHttpEndpoint(port: 8082, name: "http")
+        .WithEnvironment("Embedding__CachePath", "/root/.cache/fastembed")
+        .WithEnvironment("Colbert__EmbedModel", "colbert-ir/colbertv2.0")
+        .WithEnvironment("Colbert__EmbedBackend", "onnx")
+        .WithEnvironment(
+            "Colbert__UseCuda",
+            string.Equals(accelerator, "gpu", StringComparison.OrdinalIgnoreCase) ? "true" : "false");
+}
+
 var mcp = builder.AddProject<Projects.CodebaseIndexer_Host>("mcp")
     .WithEnvironment("Qdrant__Url", qdrant.GetEndpoint("grpc"))
     .WithEnvironment("Tei__Url", tei.GetEndpoint("http"))
@@ -61,7 +86,16 @@ var mcp = builder.AddProject<Projects.CodebaseIndexer_Host>("mcp")
     .WithEnvironment("Embedding__DenseModel", denseModel)
     .WithEnvironment("Embedding__DenseVectorSize", denseVectorSize)
     .WithEnvironment("Embedding__SparseModel", "Qdrant/bm25")
-    .WithEnvironment("Embedding__HybridSearch", "true");
+    .WithEnvironment("Embedding__HybridSearch", "true")
+    .WithEnvironment("Embedding__RerankEnabled", rerankEnabled ? "true" : "false")
+    .WithEnvironment("Colbert__EmbedBackend", colbertBackend);
+
+if (colbert is not null)
+{
+    mcp = mcp
+        .WithEnvironment("Colbert__Url", colbert.GetEndpoint("http"))
+        .WaitFor(colbert);
+}
 
 if (neo4j is not null)
 {

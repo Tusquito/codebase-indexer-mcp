@@ -47,9 +47,12 @@ REINDEX_SCRIPT = REPO_ROOT / "scripts" / "reindex_graphrag.py"
 COMPOSE_BASE = ["docker", "compose", "--env-file", str(ENV_FILE)]
 ASPIRE_COMPOSE_FILE = REPO_ROOT / "docker-compose.aspire.yml"
 ASPIRE_NEO4J_COMPOSE_FILE = REPO_ROOT / "docker-compose.aspire.neo4j.yml"
+ASPIRE_COLBERT_GPU_COMPOSE_FILE = REPO_ROOT / "docker-compose.aspire.colbert.gpu.yml"
 ASPIRE_FASTEMBED_CACHE = REPO_ROOT / ".aspire-fastembed-cache"
-ASPIRE_SERVICES = ("qdrant", "tei", "mcp")
+ASPIRE_SERVICES = ("qdrant", "tei", "colbert", "mcp")
 ASPIRE_MCP_CONTAINER = "codeindexer_mcp_dotnet"
+COLBERT_HEALTH_URL = "http://127.0.0.1:8082/health"
+COLBERT_EMBED_MODEL = "colbert-ir/colbertv2.0"
 MCP_CONTAINER_DOTNET = ASPIRE_MCP_CONTAINER
 # Same SDK image family as src/CodebaseIndexer.Host/Dockerfile (Aspire MCP build).
 DOTNET_SDK_IMAGE = os.environ.get("DOTNET_SDK_IMAGE", "mcr.microsoft.com/dotnet/sdk:10.0")
@@ -102,7 +105,11 @@ def docker_available() -> bool:
 
 
 def write_integration_env(
-    workspace_root: Path, *, graph: bool = False, external_tei: bool = False
+    workspace_root: Path,
+    *,
+    graph: bool = False,
+    external_tei: bool = False,
+    quality_rerank: bool = False,
 ) -> None:
     """Minimal compose env for integration — does not touch developer .env."""
     workspace = workspace_root.resolve()
@@ -191,9 +198,12 @@ TEI_EMBED_BATCH_SIZE=16
 TEI_MEM_LIMIT={tei_mem_limit}
 TEI_CPUS={tei_cpus}
 {tei_batch_tokens_line}{mkl_line}FLUSH_EVERY=128
-UPSERT_BATCH=64
+UPSERT_BATCH={"25" if quality_rerank else "64"}
 INDEX_BATCH_SIZE=16
-RERANK_ENABLED=false
+RERANK_ENABLED={"true" if quality_rerank else "false"}
+COLBERT_EMBED_BACKEND=remote
+COLBERT_EMBED_MODEL={COLBERT_EMBED_MODEL}
+COLBERT_TIMEOUT=300
 """
     if graph:
         content += (
@@ -208,7 +218,7 @@ RERANK_ENABLED=false
     ENV_FILE.write_text(content, encoding="utf-8")
 
 
-def aspire_compose_cmd(*args: str, graph: bool = False) -> list[str]:
+def aspire_compose_cmd(*args: str, graph: bool = False, gpu_colbert: bool = False) -> list[str]:
     cmd = [
         "docker",
         "compose",
@@ -219,6 +229,8 @@ def aspire_compose_cmd(*args: str, graph: bool = False) -> list[str]:
     ]
     if graph:
         cmd.extend(["-f", str(ASPIRE_NEO4J_COMPOSE_FILE)])
+    if gpu_colbert:
+        cmd.extend(["-f", str(ASPIRE_COLBERT_GPU_COMPOSE_FILE)])
     cmd.extend(args)
     return cmd
 
@@ -247,25 +259,71 @@ def seed_aspire_sparse_cache() -> tuple[bool, str]:
     return True, f"seeded BM25 at {cache}"
 
 
-def deploy_aspire_stack(*, graph: bool = False) -> tuple[bool, str]:
+def seed_aspire_colbert_cache() -> tuple[bool, str]:
+    """Download ColBERT ONNX artifacts into ASPIRE_FASTEMBED_CACHE for ColbertWorker."""
+    ASPIRE_FASTEMBED_CACHE.mkdir(parents=True, exist_ok=True)
+    cache = str(ASPIRE_FASTEMBED_CACHE.resolve())
+    proc = _run(
+        [
+            "uv",
+            "run",
+            "python",
+            "-c",
+            (
+                "from fastembed.late_interaction import LateInteractionTextEmbedding; "
+                f"LateInteractionTextEmbedding(model_name='{COLBERT_EMBED_MODEL}', "
+                f"cache_dir=r'{cache}')"
+            ),
+        ],
+        cwd=MCP_SERVER,
+    )
+    detail = ((proc.stdout or "") + (proc.stderr or "")).strip()[-1500:]
+    if proc.returncode != 0:
+        return False, detail or "colbert model seed failed"
+    return True, f"seeded ColBERT at {cache}"
+
+
+def _nvidia_available() -> bool:
+    return _run(["nvidia-smi"]).returncode == 0
+
+
+def deploy_aspire_stack(*, graph: bool = False, quality_rerank: bool = False) -> tuple[bool, str]:
     seeded, seed_detail = seed_aspire_sparse_cache()
     if not seeded:
         return False, f"aspire sparse cache seed failed — {seed_detail}"
+    colbert_seeded, colbert_detail = seed_aspire_colbert_cache()
+    if not colbert_seeded:
+        return False, f"aspire ColBERT cache seed failed — {colbert_detail}"
+    seed_detail = f"{seed_detail}; {colbert_detail}"
+
+    accelerator = get_accelerator()
+    gpu_colbert = accelerator == "gpu"
+    if gpu_colbert and not _nvidia_available():
+        return False, "ACCELERATOR=gpu but nvidia-smi failed (no NVIDIA GPU / driver)"
+
     if graph:
         # Wipe neo4j_data before up — Neo4j locks NEO4J_AUTH into the volume on
         # first boot; a stale volume + new env password yields Unauthorized on
         # schema init (Aspire+graph smoke).
-        _run(aspire_compose_cmd("down", "--remove-orphans", "-v", graph=True))
-    build = _run(aspire_compose_cmd("build", "mcp", graph=graph))
+        _run(aspire_compose_cmd("down", "--remove-orphans", "-v", graph=True, gpu_colbert=gpu_colbert))
+    build = _run(
+        aspire_compose_cmd("build", "mcp", "colbert", graph=graph, gpu_colbert=gpu_colbert)
+    )
     if build.returncode != 0:
         return False, build.stderr or build.stdout or "aspire compose build failed"
     services = ASPIRE_SERVICES + (("neo4j",) if graph else ())
-    up = _run(aspire_compose_cmd("up", "-d", "--wait", *services, graph=graph))
+    up = _run(
+        aspire_compose_cmd("up", "-d", "--wait", *services, graph=graph, gpu_colbert=gpu_colbert)
+    )
     if up.returncode != 0:
         return False, up.stderr or up.stdout or "aspire compose up failed"
     detail = f"aspire stack deployed ({seed_detail})"
     if graph:
         detail += " with neo4j graph overlay"
+    if gpu_colbert:
+        detail += " with GPU ColBERT overlay"
+    if quality_rerank:
+        detail += " with RERANK_ENABLED=true"
     return True, detail
 
 
@@ -861,6 +919,7 @@ def main() -> int:
         "qdrant_health": {"status": "pending", "detail": ""},
         "mcp_health": {"status": "pending", "detail": ""},
         "tei_health": {"status": "pending", "detail": ""},
+        "colbert_health": {"status": "pending", "detail": ""},
         "tei_embed_smoke": {"status": "pending", "detail": ""},
         "tei_gpu_visible": {"status": "pending", "detail": ""},
         "tei_container_absent": {"status": "pending", "detail": ""},
@@ -887,16 +946,23 @@ def main() -> int:
         os.environ["ACCELERATOR"] = "cpu"
 
     if args.aspire_stack:
-        os.environ["ACCELERATOR"] = "cpu"
+        # Keep host ACCELERATOR when set (gpu smoke); default cpu for CI.
+        if not os.environ.get("ACCELERATOR"):
+            os.environ["ACCELERATOR"] = "cpu"
         # Parent of the repo so index_codebase(path="codebase-indexer-mcp") sees
         # /workspace/<repo-folder> — same layout as the Python compose harness.
         write_integration_env(
-            REPO_ROOT.parent, graph=args.graph, external_tei=False
+            REPO_ROOT.parent,
+            graph=args.graph,
+            external_tei=False,
+            quality_rerank=args.quality_rerank,
         )
         if args.skip_deploy:
             report["deploy"] = {"status": "skipped", "detail": "--skip-deploy"}
         else:
-            ok, detail = deploy_aspire_stack(graph=args.graph)
+            ok, detail = deploy_aspire_stack(
+                graph=args.graph, quality_rerank=args.quality_rerank
+            )
             report["deploy"] = {"status": "pass" if ok else "fail", "detail": detail}
             if not ok:
                 report["verdict"] = "fail"
@@ -912,6 +978,25 @@ def main() -> int:
         report["qdrant_health"] = {"status": "pass" if ok else "fail", "detail": detail}
         ok, detail = http_ok(f"{TEI_URL}/health")
         report["tei_health"] = {"status": "pass" if ok else "fail", "detail": detail}
+        ok, detail = wait_http(COLBERT_HEALTH_URL, attempts=30, interval=2.0)
+        report["colbert_health"] = {"status": "pass" if ok else "fail", "detail": detail}
+        if ok and get_accelerator() == "gpu":
+            # Fail-fast GPU smoke: health must advertise cuda when ACCELERATOR=gpu.
+            import urllib.request
+
+            try:
+                with urllib.request.urlopen(COLBERT_HEALTH_URL, timeout=10) as resp:
+                    body = resp.read().decode("utf-8", errors="replace")
+                if '"device":"cuda"' not in body and '"device": "cuda"' not in body:
+                    report["colbert_health"] = {
+                        "status": "fail",
+                        "detail": f"ACCELERATOR=gpu but ColBERT health device != cuda: {body[:500]}",
+                    }
+            except Exception as exc:  # noqa: BLE001
+                report["colbert_health"] = {
+                    "status": "fail",
+                    "detail": f"ColBERT GPU health parse failed: {exc}",
+                }
 
         ok, detail = run_dotnet_smoke()
         report["dotnet_smoke"] = {"status": "pass" if ok else "fail", "detail": detail}
@@ -961,6 +1046,7 @@ def main() -> int:
             "mcp_health",
             "qdrant_health",
             "tei_health",
+            "colbert_health",
             "dotnet_smoke",
             "aspire_service_map_smoke",
         )
@@ -978,11 +1064,20 @@ def main() -> int:
             down_args = ["down", "--remove-orphans"]
             if args.graph:
                 down_args.append("-v")
-            _run(aspire_compose_cmd(*down_args, graph=args.graph))
+            _run(
+                aspire_compose_cmd(
+                    *down_args,
+                    graph=args.graph,
+                    gpu_colbert=get_accelerator() == "gpu",
+                )
+            )
         return 0 if report["verdict"] == "pass" else 1
 
     write_integration_env(
-        REPO_ROOT.parent, graph=args.graph, external_tei=args.external_tei
+        REPO_ROOT.parent,
+        graph=args.graph,
+        external_tei=args.external_tei,
+        quality_rerank=args.quality_rerank,
     )
 
     try:

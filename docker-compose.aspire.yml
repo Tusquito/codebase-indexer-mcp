@@ -1,10 +1,14 @@
-# Generated from CodebaseIndexer.AppHost (ADR 0030 Phase 2).
+# Generated from CodebaseIndexer.AppHost (ADR 0030 Phase 6).
 # CPU Aspire stack — TEI image via TEI_IMAGE (arch-aware; see scripts/compose_files.py
 # tei_image_default / ADR 0028). Default is amd64 cpu-1.9; arm64 hosts/harness set
-# cpu-arm64-latest. fastembed sparse cache at /root/.cache/fastembed.
-# Neo4j is off by default — merge docker-compose.aspire.neo4j.yml for GraphRAG
-# (ADR 0030 Phase 5). Do not use docker-compose.neo4j.yml with this stack
-# (that overlay targets Python mcp_server).
+# cpu-arm64-latest. fastembed sparse + ColBERT cache at /root/.cache/fastembed.
+# ColBERT worker is always present; enable via Embedding__RerankEnabled=true
+# (defaults remote Colbert__EmbedBackend). GPU: merge docker-compose.aspire.colbert.gpu.yml
+# when ACCELERATOR=gpu. Neo4j is off by default — merge docker-compose.aspire.neo4j.yml
+# for GraphRAG (ADR 0030 Phase 5).
+#
+# Re-index after pull when enabling ColBERT (collections recreate for multivector shape;
+# no schema-version env).
 
 services:
   qdrant:
@@ -43,6 +47,32 @@ services:
       retries: 24
       start_period: 480s
 
+  colbert:
+    build:
+      context: .
+      dockerfile: src/CodebaseIndexer.ColbertWorker/Dockerfile
+    container_name: codeindexer_colbert
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8082:8082"
+    volumes:
+      - ${ASPIRE_FASTEMBED_CACHE:-fastembed_cache}:/root/.cache/fastembed
+    environment:
+      ASPNETCORE_URLS: http://0.0.0.0:8082
+      Embedding__CachePath: /root/.cache/fastembed
+      Embedding__ColbertEmbedModel: ${COLBERT_EMBED_MODEL:-colbert-ir/colbertv2.0}
+      Colbert__EmbedModel: ${COLBERT_EMBED_MODEL:-colbert-ir/colbertv2.0}
+      Colbert__EmbedBackend: onnx
+      Colbert__UseCuda: "false"
+      Colbert__EmbedBatchSize: ${COLBERT_EMBED_BATCH_SIZE:-16}
+      METRICS_ENABLED: ${METRICS_ENABLED:-false}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8082/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 12
+      start_period: 180s
+
   mcp:
     build:
       context: .
@@ -55,6 +85,8 @@ services:
       qdrant:
         condition: service_healthy
       tei:
+        condition: service_healthy
+      colbert:
         condition: service_healthy
     volumes:
       - ${WORKSPACE_PATH:-.}:/workspace:ro
@@ -75,6 +107,19 @@ services:
       Embedding__DenseVectorSize: ${DENSE_EMBED_VECTOR_SIZE:-768}
       Embedding__SparseModel: ${SPARSE_EMBED_MODEL:-Qdrant/bm25}
       Embedding__HybridSearch: ${HYBRID_SEARCH:-true}
+      Embedding__RerankEnabled: ${RERANK_ENABLED:-false}
+      Embedding__ColbertEmbedModel: ${COLBERT_EMBED_MODEL:-colbert-ir/colbertv2.0}
+      Embedding__RerankPrefetch: ${RERANK_PREFETCH:-100}
+      Embedding__RerankAdaptiveEnabled: ${RERANK_ADAPTIVE_ENABLED:-true}
+      Embedding__RerankAdaptiveGap: ${RERANK_ADAPTIVE_GAP:-0.02}
+      Colbert__EmbedBackend: ${COLBERT_EMBED_BACKEND:-remote}
+      Colbert__Url: http://colbert:8082
+      Colbert__TimeoutSeconds: ${COLBERT_TIMEOUT:-300}
+      Colbert__EmbedBatchSize: ${COLBERT_EMBED_BATCH_SIZE:-16}
+      Colbert__EmbedModel: ${COLBERT_EMBED_MODEL:-colbert-ir/colbertv2.0}
+      Reindex__Enabled: ${REINDEX_ENABLED:-true}
+      Reindex__Cron: ${REINDEX_CRON:-0 3 * * *}
+      Reindex__GitPull: ${REINDEX_GIT_PULL:-true}
       Workspace__HashWorkerDop: "1"
       Indexing__PreloadModels: ${PRELOAD_MODELS:-true}
       Indexing__FlushEvery: ${FLUSH_EVERY:-128}

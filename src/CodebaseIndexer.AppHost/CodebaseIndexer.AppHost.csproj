@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\CodebaseIndexer.Host\CodebaseIndexer.Host.csproj" />
+    <ProjectReference Include="..\CodebaseIndexer.ColbertWorker\CodebaseIndexer.ColbertWorker.csproj" />
   </ItemGroup>
 
   <ItemGroup>

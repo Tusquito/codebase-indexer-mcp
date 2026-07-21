@@ -1,0 +1,29 @@
+# GPU overlay for Aspire ColBERT worker — merge when ACCELERATOR=gpu.
+# Requires NVIDIA driver + Container Toolkit.
+# Verify: curl http://localhost:8082/health → device=cuda when CUDA EP is available.
+#
+#   docker compose -f docker-compose.aspire.yml -f docker-compose.aspire.colbert.gpu.yml up -d
+
+services:
+  colbert:
+    build:
+      dockerfile: src/CodebaseIndexer.ColbertWorker/Dockerfile.gpu
+    environment:
+      Colbert__UseCuda: "true"
+      Colbert__DeviceIds: ${COLBERT_DEVICE_IDS:-}
+      # Default 2 GiB — shared-GPU headroom with TEI/other CUDA workloads (0 = ORT uncapped).
+      Colbert__GpuMemLimitBytes: ${COLBERT_GPU_MEM_LIMIT_BYTES:-2147483648}
+    # aspnet runtime image has no curl; GPU Dockerfile installs curl for this check.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8082/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 12
+      start_period: 180s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: ${COLBERT_GPU_COUNT:-1}
+              capabilities: [gpu]
