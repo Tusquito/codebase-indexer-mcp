@@ -1,0 +1,35 @@
+adr_id: "0030"
+phase_key: phase-5
+phase_title: Phase 5 — GraphRAG
+event: verification
+date: "2026-07-21"
+tracker_status: verified
+choices: >-
+  Aspire-specific neo4j overlay; NullGraphStore when disabled; no
+  `GRAPH_SCHEMA_VERSION` (re-index after pull); quality/perf skip; host tool
+  gating via early config read
+deviations: none
+code_evidence:
+  - Neo4jGraphStore.cs
+  - GraphWriter.cs
+  - IndexCodebaseService.cs
+  - ExpandSearchContextService.cs
+  - ExpandSearchContextTools.cs
+  - docker-compose.aspire.neo4j.yml
+  - scripts/run_compose_integration.py
+  - IndexCodebaseServiceTests.cs
+test_debt:
+  - RecommendEnabled disable-path early-config test
+  - optional env-var gating smoke
+verify: >-
+  `dotnet test CodebaseIndexer.slnx` 131 passed; Aspire+graph Docker
+  `run_compose_integration.py --json --aspire-stack --graph` pass (Bolt
+  auth+write + expand_search_context); plan compliance pass; R1–R4 closed
+  (review rounds: 3)
+changelog:
+  update: true
+  bullet: >-
+    Opt-in .NET GraphRAG: Neo4j writer, Path D CALLS routing, and
+    `expand_search_context` behind `Graph:Enabled` with Aspire neo4j overlay
+    (re-index after pull; no schema-version env).
+user_facing: true

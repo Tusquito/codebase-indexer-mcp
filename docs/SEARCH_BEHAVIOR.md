@@ -2,7 +2,7 @@
 
 **Summary:** `search_codebase` caps `top_k` at **20**; `search_symbols` caps `top_k` at **30**. When `HYBRID_SEARCH` is enabled (default), results are ranked by reciprocal rank fusion (RRF) of dense and sparse lists — `min_score` is ignored because RRF scores are not on the cosine [0,1] scale. When `HYBRID_SEARCH` is disabled, only dense cosine search runs and `min_score` filters results by similarity threshold.
 
-**.NET Aspire stack (ADR 0030 Phase 3):** The same six core tools (`search_codebase`, `search_symbols`, `get_chunk`, `get_file_outline`, `get_collection_summary`, `list_collections`) are exposed by `CodebaseIndexer.Host` on `docker-compose.aspire.yml`. Hybrid RRF lives in `QdrantVectorStore.SearchAsync`; cross-collection fuse in `CrossCollectionRrf`. ColBERT rerank remains Phase 6 (`rerank` arg accepted, no-op while `RerankEnabled=false`). After pull, **re-index** collections so quantization/HNSW/`symbol_type` payload match (no schema-version env).
+**.NET Aspire stack (ADR 0030 Phase 3–5):** Core tools (`search_codebase`, `search_symbols`, `get_chunk`, `get_file_outline`, `get_collection_summary`, `list_collections`, `find_cross_references`, `map_service_dependencies`, recommend/outlier when gated) are exposed by `CodebaseIndexer.Host` on `docker-compose.aspire.yml`. Hybrid RRF lives in `QdrantVectorStore.SearchAsync`; cross-collection fuse in `CrossCollectionRrf`. **GraphRAG** (`expand_search_context`, Neo4j Path D) is opt-in via `Graph:Enabled` + `docker-compose.aspire.neo4j.yml` — absent when disabled. ColBERT rerank remains Phase 6 (`rerank` arg accepted, no-op while `RerankEnabled=false`). After pull (or when enabling graph / changing the writer), **re-index** collections (no `*_SCHEMA_VERSION` env).
 
 ## `search_codebase`
 
@@ -192,7 +192,7 @@ flowchart TD
     Q --> Struct{Structural edge?}
     Struct -->|imports calls HTTP endpoints| Chain[Tool chain]
     Struct -->|prose config narrative| Decomp[Client decomposition]
-    Struct -->|graph enabled| Graph[expand_search_context proposed]
+    Struct -->|graph enabled| Graph[expand_search_context]
     Chain --> Xref[find_cross_references]
     Chain --> Map[map_service_dependencies]
     Chain --> Sym[search_symbols then get_chunk]
@@ -210,7 +210,7 @@ flowchart TD
 |----------|-------------|---------------|----------------|
 | **Tool chaining** | Known relation types (symbol, xref, service map) | `search_symbols` → `get_chunk`; `find_cross_references`; `map_service_dependencies` | 0–1 embed per hop |
 | **Query decomposition** | Facts not linked in graph (config prose, comments, docs) | Repeated `search_codebase` with client-drafted sub-questions | 1 embed per `search_codebase` hop |
-| **Graph expansion** | Call/import/HTTP paths when graph layer enabled ([0002](adr/0002-graphrag-neo4j-qdrant.md)) | `expand_search_context` (proposed) | One search + graph query |
+| **Graph expansion** | Call/import/HTTP paths when `Graph:Enabled` / `GRAPH_ENABLED` ([0002](adr/0002-graphrag-neo4j-qdrant.md), [0030](adr/0030-migrate-mcp-server-to-dotnet10.md) Phase 5) | `expand_search_context` (registered only when graph on) | One search + graph query |
 
 Reranking or a wider single-pass `top_k` **cannot recover evidence that was never retrieved** — add hops when bridging chunks are missing from hop 1.
 

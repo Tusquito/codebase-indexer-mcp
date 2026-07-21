@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Opt-in .NET GraphRAG** ([ADR 0030](docs/adr/0030-migrate-mcp-server-to-dotnet10.md)) — Neo4j writer, Path D CALLS routing, and `expand_search_context` behind `Graph:Enabled` with Aspire neo4j overlay (re-index after pull; no schema-version env)
 - **.NET MCP discovery tools** ([ADR 0030](docs/adr/0030-migrate-mcp-server-to-dotnet10.md)) — `find_cross_references`, `map_service_dependencies`, `recommend_code`, `find_outlier_chunks`, plus build-deps matching in summaries/service-map and Qdrant Path D `callees` call-site lookup; re-index after pull
 - **Aspire/.NET MCP hybrid search and core read tools** ([ADR 0030](docs/adr/0030-migrate-mcp-server-to-dotnet10.md)) — hybrid dense+sparse RRF search and core read tools (`search_codebase`, `search_symbols`, `get_chunk`, `get_file_outline`, `get_collection_summary`, `list_collections`); re-index after pull for quantization/HNSW/`symbol_type` parity
 - **.NET 10 MCP scaffold (opt-in)** ([ADR 0030](docs/adr/0030-migrate-mcp-server-to-dotnet10.md)) — `docker-compose.aspire.yml` adds Aspire AppHost, Qdrant + TEI, and stub `get_health` MCP tool; Python runtime remains default until ADR 0030 Phase 7

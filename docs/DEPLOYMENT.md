@@ -12,8 +12,9 @@ Docker Compose runs Qdrant, the MCP server, and the cron reindex job. **Dense em
 | `docker-compose.tei.amd64-mkl.yml` | amd64 CPU only — injects `MKL_ENABLE_INSTRUCTIONS` for bundled TEI; omitted on arm64 ([ADR 0028](adr/0028-apple-silicon-arm64-cpu-deployment.md)) |
 | `docker-compose.colbert-worker.yml` | Optional ColBERT HTTP sidecar when `RERANK_ENABLED=true` and `COLBERT_EMBED_BACKEND=remote` |
 | `docker-compose.colbert-worker.gpu.yml` | **Default stack** — NVIDIA GPU for ColBERT sidecar when remote sidecar + `ACCELERATOR=gpu` |
-| `docker-compose.neo4j.yml` | Optional Neo4j graph storage for GraphRAG ([ADR 0002](adr/0002-graphrag-neo4j-qdrant.md)) |
-| `docker-compose.aspire.yml` | **ADR 0030 Phase 1+** — .NET MCP scaffold: Qdrant (REST `:6333` + gRPC `:6334`) + TEI + `codeindexer_mcp_dotnet`. `Qdrant__Url=http://qdrant:6334` for `Qdrant.Client` gRPC. Split `appsettings` sections + `Section__Property` env overrides — not repo-root `.env` |
+| `docker-compose.neo4j.yml` | Optional Neo4j for **Python** `mcp_server` GraphRAG ([ADR 0002](adr/0002-graphrag-neo4j-qdrant.md)) |
+| `docker-compose.aspire.yml` | **ADR 0030 Phase 1+** — .NET MCP: Qdrant (REST `:6333` + gRPC `:6334`) + TEI + `codeindexer_mcp_dotnet`. `Qdrant__Url=http://qdrant:6334` for `Qdrant.Client` gRPC. Split `appsettings` sections + `Section__Property` env overrides — not repo-root `.env` |
+| `docker-compose.aspire.neo4j.yml` | Optional Neo4j overlay for the **Aspire/.NET** stack ([ADR 0030](adr/0030-migrate-mcp-server-to-dotnet10.md) Phase 5). Sets `Graph__*` on `mcp` — do **not** reuse `docker-compose.neo4j.yml` (targets `mcp_server`) |
 
 ### Docker Compose env passthrough
 
@@ -23,7 +24,8 @@ Compose reads your host `.env` at `docker compose up` time and injects variables
 |---------|--------|-------|
 | `mcp_server` | `docker-compose.yml` | Core application `Settings` env vars (embedding, search, ColBERT config, `METRICS_ENABLED`, etc.) |
 | `mcp_server` | `docker-compose.tei.yml` | Overrides `TEI_*` when bundled/external TEI profile is used |
-| `mcp_server` | `docker-compose.neo4j.yml` | GraphRAG vars: `GRAPH_ENABLED`, `NEO4J_*`, `GRAPH_WRITER_BATCH`, `GRAPH_MAX_HOPS`, `GRAPH_MAX_NODES` |
+| `mcp_server` | `docker-compose.neo4j.yml` | Python GraphRAG vars: `GRAPH_ENABLED`, `NEO4J_*`, `GRAPH_WRITER_BATCH`, `GRAPH_MAX_HOPS`, `GRAPH_MAX_NODES` |
+| `mcp` | `docker-compose.aspire.neo4j.yml` | .NET GraphRAG: `Graph__Enabled`, `Graph__Neo4jUri`, `Graph__Neo4jUser`, `Graph__Neo4jPassword`, `Graph__Neo4jDatabase`, `Graph__WriterBatch`, `Graph__MaxHops`, `Graph__MaxNodes` |
 | `mcp_server` | `docker-compose.colbert-worker.yml` | ColBERT remote vars when rerank sidecar is active |
 | `colbert_worker` | `docker-compose.colbert-worker.yml` | Sidecar env including `METRICS_ENABLED` |
 | `cron` | `docker-compose.yml` | `INDEX_TIMEOUT`, `MCP_HTTP_TIMEOUT`, `GIT_TIMEOUT`, `MCP_URL` |
@@ -518,11 +520,11 @@ See [README.md](../README.md) for full env reference and tuning presets.
 
 ## Optional GraphRAG (Neo4j overlay)
 
-Index-time code graph alongside Qdrant ([ADR 0002](adr/0002-graphrag-neo4j-qdrant.md), [ADR 0023](adr/0023-neo4j-primary-call-site-lookup.md)). **Disabled by default** — omit the overlay and leave `GRAPH_ENABLED=false` for the standard stack.
+Index-time code graph alongside Qdrant ([ADR 0002](adr/0002-graphrag-neo4j-qdrant.md), [ADR 0023](adr/0023-neo4j-primary-call-site-lookup.md), [ADR 0030](adr/0030-migrate-mcp-server-to-dotnet10.md) Phase 5). **Disabled by default** — omit the overlay and leave graph off for the standard stack.
 
-When the Neo4j overlay is merged, `docker-compose.neo4j.yml` defaults `GRAPH_ENABLED` to `true` (intentional — the overlay implies graph mode). Set `GRAPH_ENABLED=false` in `.env` only if you need Neo4j running without graph indexing.
+There is **no** `GRAPH_SCHEMA_VERSION` / `Graph:SchemaVersion` env. After pull (or when enabling graph / changing the writer ontology), **re-index** collections (`index_codebase` / `index_all` with `force=true`).
 
-`.env`:
+### Aspire / .NET stack (preferred)
 
 ```env
 GRAPH_ENABLED=true
@@ -531,22 +533,32 @@ NEO4J_MEM_LIMIT=2g
 ```
 
 ```bash
+docker compose -f docker-compose.aspire.yml -f docker-compose.aspire.neo4j.yml up -d --build
+# harness:
+python scripts/run_compose_integration.py --json --aspire-stack --graph
+```
+
+| Variable | .NET config | Default (overlay) | Role |
+|----------|-------------|-------------------|------|
+| `GRAPH_ENABLED` | `Graph:Enabled` | `true` when aspire neo4j overlay merged | Enable writer + `expand_search_context` + Neo4j Path D |
+| `NEO4J_URI` | `Graph:Neo4jUri` | `bolt://neo4j:7687` | Bolt URI |
+| `NEO4J_USER` | `Graph:Neo4jUser` | `neo4j` | Auth user |
+| `NEO4J_PASSWORD` | `Graph:Neo4jPassword` | *(required)* | Compose fails fast if missing |
+| `NEO4J_DATABASE` | `Graph:Neo4jDatabase` | `neo4j` | DB name |
+| `GRAPH_WRITER_BATCH` | `Graph:WriterBatch` | `500` | Cypher UNWIND batch |
+| `GRAPH_MAX_HOPS` / `GRAPH_MAX_NODES` | `Graph:MaxHops` / `Graph:MaxNodes` | `2` / `200` | `expand_search_context` caps |
+
+Host logs `graph_enabled` / `graph_disabled` at startup (harness signal). With graph on, indexing omits Qdrant `callees`, stamps `graph_call_sites` + `graph_enabled` collection metadata, and writes Neo4j; `find_cross_references` Path D uses Neo4j for graph-ready collections (Qdrant fallback otherwise).
+
+### Python stack (legacy until Phase 7)
+
+```bash
 docker compose -f docker-compose.yml -f docker-compose.neo4j.yml up -d --build
 ```
 
-**Full re-index required** when enabling graph on existing collections (`index_codebase(..., force=True)`). With `GRAPH_ENABLED=true`, indexing omits `callees` from Qdrant payloads and stamps `graph_call_sites: true` collection metadata; `find_cross_references` uses Neo4j for graph-ready collections.
+Same env names as above (`GRAPH_ENABLED`, `NEO4J_*`). Overlay targets `mcp_server`, not Aspire `mcp`.
 
-| Variable | Default (overlay) | Role |
-|----------|-------------------|------|
-| `GRAPH_ENABLED` | `true` when neo4j overlay merged | Enable index-time graph writer + Neo4j call-site routing |
-| `NEO4J_URI` | `bolt://neo4j:7687` | Bolt URI for MCP → Neo4j |
-| `NEO4J_USER` | `neo4j` | Database user |
-| `NEO4J_PASSWORD` | *(required)* | Set in `.env`; compose fails fast if missing |
-| `NEO4J_DATABASE` | `neo4j` | Target database |
-| `GRAPH_WRITER_BATCH` | `500` | Batch size for graph upserts during indexing |
-| `GRAPH_MAX_HOPS` / `GRAPH_MAX_NODES` | `2` / `200` | Reserved for future graph expansion MCP tools |
-
-See [ARCHITECTURE.md](ARCHITECTURE.md#graphrag-optional-phase-1-shipped) for ontology and Path D routing details.
+See [ARCHITECTURE.md](ARCHITECTURE.md#graphrag-optional-phase-1-shipped) and [SEARCH_BEHAVIOR.md](SEARCH_BEHAVIOR.md) for ontology and Path D routing.
 
 ## Retrieval quality (ANN recall)
 
