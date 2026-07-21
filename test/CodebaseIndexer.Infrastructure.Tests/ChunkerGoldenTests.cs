@@ -111,4 +111,25 @@ public sealed class ChunkerGoldenTests
         var chunks = chunker.ChunkFile("proc.sql", sql, "sql", "abc");
         Assert.Contains(chunks, c => c.SymbolName == "dbo.MyProc");
     }
+
+    /// <summary>C# files use TreeSitter.DotNet language id C# (c-sharp native lib).</summary>
+    [Fact]
+    public void Csharp_sample_produces_class_and_method_chunks()
+    {
+        const string csharp = """
+            using System;
+
+            namespace Demo;
+
+            public sealed class Widget
+            {
+                public int Add(int left, int right) => left + right;
+            }
+            """;
+        var chunker = new TreeSitterChunker(
+            Microsoft.Extensions.Options.Options.Create(TestSettingsFactory.CreateChunkingOptions()),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<TreeSitterChunker>.Instance);
+        var chunks = chunker.ChunkFile("Widget.cs", csharp, "csharp", "abc");
+        Assert.Contains(chunks, c => c.SymbolName == "Widget" && c.SymbolType == "class");
+    }
 }

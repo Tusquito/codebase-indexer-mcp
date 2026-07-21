@@ -57,6 +57,7 @@ internal class NoOpVectorStore : IVectorStore
         int topK,
         string? language = null,
         float minScore = 0.5f,
+        IReadOnlyList<IReadOnlyList<float>>? colbertVector = null,
         CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<SearchHit>>([]);
 
