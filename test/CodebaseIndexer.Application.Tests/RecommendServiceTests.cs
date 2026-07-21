@@ -119,7 +119,7 @@ public sealed class RecommendServiceTests
             EmbedBatchAsync(texts, cancellationToken);
     }
 
-    private sealed class FakeStore : IVectorStore
+    private sealed class FakeStore : NoOpVectorStore
     {
         public IReadOnlyList<string>? VerifiedIds { get; private set; }
         public int LastRecommendLimit { get; private set; }
@@ -127,41 +127,25 @@ public sealed class RecommendServiceTests
         public int LastNegativeCount { get; private set; }
         public IReadOnlyList<SearchHit> RecommendHits { get; init; } = [];
 
-        public ValueTask<bool> CollectionExistsAsync(string collection, CancellationToken cancellationToken = default) => ValueTask.FromResult(true);
-        public Task EnsureCollectionAsync(string collection, bool force = false, CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task UpsertChunksAsync(string collection, IReadOnlyList<EmbeddedChunk> chunks, CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task<IReadOnlyList<SearchHit>> SearchAsync(string collection, IReadOnlyList<float> denseVector, SparseVector? sparseVector, int topK, string? language = null, float minScore = 0.5f, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<SearchHit>>([]);
-        public Task<ChunkPayload?> GetChunkByIdAsync(string collection, string chunkId, CancellationToken cancellationToken = default) => Task.FromResult<ChunkPayload?>(null);
-        public Task<ChunkPayload?> FindChunkByIdAsync(string chunkId, string? collection = null, CancellationToken cancellationToken = default) => Task.FromResult<ChunkPayload?>(null);
-        public Task<IReadOnlyList<FileSymbol>> ScrollFileSymbolsAsync(string collection, string relPath, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<FileSymbol>>([]);
-        public Task<IReadOnlyList<PayloadRow>> ScrollAllPayloadsAsync(string collection, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<PayloadRow>>([]);
-        public Task<IReadOnlyList<CollectionStats>> ListCollectionStatsAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<CollectionStats>>([]);
-        public Task<IReadOnlyList<SearchHit>> FindSymbolInCollectionsAsync(string symbolName, IReadOnlyList<string> collections, int limitPerCollection = 10, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<SearchHit>>([]);
-        public Task<IReadOnlyList<string>> ListCollectionsAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<string>>([]);
-        public ValueTask<CollectionStats?> GetCollectionStatsAsync(string collection, CancellationToken cancellationToken = default) => ValueTask.FromResult<CollectionStats?>(null);
-        public Task<IReadOnlyDictionary<string, FileMetadata>> GetFileMetadataAsync(string collection, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyDictionary<string, FileMetadata>>(new Dictionary<string, FileMetadata>());
-        public Task DeleteByPathsAsync(string collection, IReadOnlyList<string> relPaths, CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task SetIndexingAsync(string collection, bool enabled, CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task VerifyChunkIdsExistAsync(string collection, IReadOnlyList<string> chunkIds, CancellationToken cancellationToken = default)
+        public override Task VerifyChunkIdsExistAsync(string collection, IReadOnlyList<string> chunkIds, CancellationToken cancellationToken = default)
         {
             VerifiedIds = chunkIds.ToArray();
             return Task.CompletedTask;
         }
-        public Task<IReadOnlyList<SearchHit>> RecommendAsync(string collection, IReadOnlyList<RecommendExample> positive, IReadOnlyList<RecommendExample>? negative = null, int limit = 5, string? language = null, string? pathGlob = null, CancellationToken cancellationToken = default)
+
+        public override Task<IReadOnlyList<SearchHit>> RecommendAsync(
+            string collection,
+            IReadOnlyList<RecommendExample> positive,
+            IReadOnlyList<RecommendExample>? negative = null,
+            int limit = 5,
+            string? language = null,
+            string? pathGlob = null,
+            CancellationToken cancellationToken = default)
         {
             LastRecommendLimit = limit;
             LastPositiveCount = positive.Count;
             LastNegativeCount = negative?.Count ?? 0;
             return Task.FromResult(RecommendHits);
         }
-        public Task<IReadOnlyList<SearchHit>> FindOutlierChunksAsync(string collection, IReadOnlyList<string>? contextChunkIds = null, int limit = 5, string? language = null, string? pathGlob = null, float? maxSimilarity = null, int? maxContextSamples = null, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<SearchHit>>([]);
-        public Task<IReadOnlyList<SearchHit>> FindCallersInCollectionsAsync(string method, IReadOnlyList<string> collections, string? receiver = null, int limitPerCollection = 10, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<SearchHit>>([]);
-        public Task<IReadOnlyList<IReadOnlyDictionary<string, string>>> ScrollChunksByPathsAsync(string collection, IReadOnlyList<string> relPaths, IReadOnlyList<string>? payloadFields = null, int limit = 500, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<IReadOnlyDictionary<string, string>>>([]);
     }
 }
