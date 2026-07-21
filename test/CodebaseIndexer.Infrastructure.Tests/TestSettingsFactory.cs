@@ -80,6 +80,16 @@ internal static class TestSettingsFactory
         ModelIdleTimeoutSeconds = 300,
     };
 
+    public static DiscoveryOptions CreateDiscoveryOptions() => new()
+    {
+        RecommendEnabled = true,
+        RecommendMaxExamples = 10,
+        OutlierMaxContextSamples = 200,
+        OutlierMaxSimilarity = 0.55f,
+        ServiceUrlKeywords = DiscoveryOptions.DefaultServiceUrlKeywords,
+        ServiceDiscoveryExtraQueries = "",
+    };
+
     public static Dictionary<string, string?> CreateConfigurationValues(
         string? qdrantUrl = null,
         string? teiUrl = null,
@@ -90,7 +100,8 @@ internal static class TestSettingsFactory
             CreateTeiOptions(teiUrl),
             CreateWorkspaceOptions(),
             CreateChunkingOptions(),
-            CreateIndexingOptions());
+            CreateIndexingOptions(),
+            CreateDiscoveryOptions());
 
     public static IConfiguration CreateConfiguration(
         string? qdrantUrl = null,
@@ -106,7 +117,8 @@ internal static class TestSettingsFactory
         TeiOptions tei,
         WorkspaceOptions workspace,
         ChunkingOptions chunking,
-        IndexingOptions indexing)
+        IndexingOptions indexing,
+        DiscoveryOptions discovery)
     {
         return new Dictionary<string, string?>
         {
@@ -153,6 +165,12 @@ internal static class TestSettingsFactory
             [$"{IndexingOptions.SectionName}:BatchSize"] = indexing.BatchSize.ToString(),
             [$"{IndexingOptions.SectionName}:PreloadModels"] = indexing.PreloadModels.ToString().ToLowerInvariant(),
             [$"{IndexingOptions.SectionName}:ModelIdleTimeoutSeconds"] = indexing.ModelIdleTimeoutSeconds.ToString(),
+            [$"{DiscoveryOptions.SectionName}:RecommendEnabled"] = discovery.RecommendEnabled.ToString().ToLowerInvariant(),
+            [$"{DiscoveryOptions.SectionName}:RecommendMaxExamples"] = discovery.RecommendMaxExamples.ToString(),
+            [$"{DiscoveryOptions.SectionName}:OutlierMaxContextSamples"] = discovery.OutlierMaxContextSamples.ToString(),
+            [$"{DiscoveryOptions.SectionName}:OutlierMaxSimilarity"] = discovery.OutlierMaxSimilarity.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            [$"{DiscoveryOptions.SectionName}:ServiceUrlKeywords"] = discovery.ServiceUrlKeywords,
+            [$"{DiscoveryOptions.SectionName}:ServiceDiscoveryExtraQueries"] = discovery.ServiceDiscoveryExtraQueries,
         };
     }
 }

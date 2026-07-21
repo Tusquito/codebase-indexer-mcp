@@ -58,6 +58,12 @@ public sealed class McpHostWebApplicationFactory : WebApplicationFactory<Program
                 [$"{IndexingOptions.SectionName}:BatchSize"] = "32",
                 [$"{IndexingOptions.SectionName}:PreloadModels"] = "false",
                 [$"{IndexingOptions.SectionName}:ModelIdleTimeoutSeconds"] = "300",
+                [$"{DiscoveryOptions.SectionName}:RecommendEnabled"] = "true",
+                [$"{DiscoveryOptions.SectionName}:RecommendMaxExamples"] = "10",
+                [$"{DiscoveryOptions.SectionName}:OutlierMaxContextSamples"] = "200",
+                [$"{DiscoveryOptions.SectionName}:OutlierMaxSimilarity"] = "0.55",
+                [$"{DiscoveryOptions.SectionName}:ServiceUrlKeywords"] = DiscoveryOptions.DefaultServiceUrlKeywords,
+                [$"{DiscoveryOptions.SectionName}:ServiceDiscoveryExtraQueries"] = "",
             });
         });
     }
