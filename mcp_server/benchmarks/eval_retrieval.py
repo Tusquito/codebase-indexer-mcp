@@ -157,6 +157,208 @@ def build_run_dict(
     }
 
 
+def build_run_dict_from_chunk_ids(chunk_ids: list[str], *, top_k: int) -> dict[str, float]:
+    """Build ranx run dict from ordered chunk ids (MCP search_codebase path)."""
+    return {
+        cid: score_for_ranx(rank, top_k)
+        for rank, cid in enumerate(chunk_ids[:top_k])
+    }
+
+
+class _McpHttpClient:
+    """Minimal streamable-HTTP MCP client (same pattern as scripts/smoke_mcp_tools.py)."""
+
+    def __init__(self, url: str, timeout: int = 120) -> None:
+        self._url = url.rstrip("/")
+        self._timeout = timeout
+        self._session_id: str | None = None
+        self._rid = 0
+
+    def _headers(self) -> dict[str, str]:
+        h = {
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+        }
+        if self._session_id:
+            h["Mcp-Session-Id"] = self._session_id
+        return h
+
+    def post(self, payload: dict) -> dict:
+        import urllib.error
+        import urllib.request
+
+        self._rid += 1
+        payload["id"] = self._rid
+        req = urllib.request.Request(
+            self._url,
+            data=json.dumps(payload).encode(),
+            headers=self._headers(),
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=self._timeout) as resp:
+            if resp.headers.get("Mcp-Session-Id"):
+                self._session_id = resp.headers.get("Mcp-Session-Id")
+            if "text/event-stream" in resp.headers.get("Content-Type", ""):
+                last: dict = {}
+                for raw in resp:
+                    line = raw.decode().rstrip()
+                    if line.startswith("data: "):
+                        msg = json.loads(line[6:])
+                        if "id" in msg:
+                            last = msg
+                return last
+            raw = resp.read().decode().strip()
+            return json.loads(raw) if raw else {}
+
+    def initialize(self) -> None:
+        import urllib.error
+        import urllib.request
+
+        r = self.post(
+            {
+                "jsonrpc": "2.0",
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {},
+                    "clientInfo": {"name": "eval-retrieval-mcp", "version": "1"},
+                },
+            }
+        )
+        if "error" in r:
+            raise RuntimeError(r["error"])
+        notif = urllib.request.Request(
+            self._url,
+            data=json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}).encode(),
+            headers=self._headers(),
+            method="POST",
+        )
+        try:
+            urllib.request.urlopen(notif, timeout=30)
+        except urllib.error.HTTPError:
+            pass
+
+    def call_tool(self, name: str, arguments: dict) -> dict:
+        r = self.post(
+            {
+                "jsonrpc": "2.0",
+                "method": "tools/call",
+                "params": {"name": name, "arguments": arguments},
+            }
+        )
+        if "error" in r:
+            raise RuntimeError(r["error"])
+        result = r.get("result", {})
+        if result.get("isError"):
+            text = result.get("content", [{}])[0].get("text", "")
+            raise RuntimeError(text)
+        structured = result.get("structuredContent")
+        if structured is not None:
+            return structured
+        text = result.get("content", [{}])[0].get("text", "{}")
+        return json.loads(text)
+
+
+async def run_evaluation_via_mcp(
+    *,
+    mcp_url: str,
+    qdrant_url: str,
+    golden_path: Path,
+    top_k: int,
+    collection_override: str | None,
+) -> dict[str, Any]:
+    """Evaluate retrieval by calling Aspire/Host search_codebase over MCP HTTP."""
+    entries = load_golden(golden_path)
+    client = _McpHttpClient(mcp_url)
+    client.initialize()
+
+    settings = _settings(qdrant_url=qdrant_url)
+    storage = QdrantStorage(settings)
+    qdrant_client = await storage._get_client()
+    index_cache: dict[str, PointIndex] = {}
+
+    async def _index_for(collection: str) -> PointIndex:
+        if collection not in index_cache:
+            index_cache[collection] = await load_point_index(qdrant_client, collection)
+        return index_cache[collection]
+
+    run: dict[str, dict[str, float]] = {}
+    qrels: dict[str, dict[str, int]] = {}
+    per_query: list[dict[str, Any]] = []
+    drift_total = {"drifted": 0, "unresolved": 0}
+
+    for entry in entries:
+        collection = collection_override or entry.collection
+        if entry.anchors:
+            index = await _index_for(collection)
+            labels, drift = resolve_entry_labels(entry, index)
+            if drift is not None:
+                drift_total["drifted"] += drift["drifted"]
+                drift_total["unresolved"] += drift["unresolved"]
+        else:
+            labels = resolve_labels(entry)
+        qrels[entry.query_id] = labels
+
+        payload = client.call_tool(
+            "search_codebase",
+            {
+                "query": entry.query_text,
+                "collection": collection,
+                "top_k": top_k,
+            },
+        )
+        results = payload.get("results", []) if isinstance(payload, dict) else []
+        chunk_ids = [str(r.get("chunk_id", "")) for r in results if isinstance(r, dict)]
+        run[entry.query_id] = build_run_dict_from_chunk_ids(chunk_ids, top_k=top_k)
+
+        hit_ids = set(chunk_ids[:top_k])
+        relevant = set(labels.keys())
+        top_hit = chunk_ids[0] if chunk_ids else None
+        per_query.append(
+            {
+                "query_id": entry.query_id,
+                "collection": collection,
+                "tags": entry.tags,
+                "retrieved": len(chunk_ids),
+                "hits_in_top_k": len(hit_ids & relevant),
+                "labels": len(relevant),
+                "top_hit_in_labels": top_hit in relevant if top_hit else False,
+            }
+        )
+
+    try:
+        from ranx import evaluate
+    except ImportError as exc:
+        raise SystemExit(
+            "ranx is required for eval_retrieval. Install with: uv sync --extra benchmark"
+        ) from exc
+
+    metrics_raw = evaluate(qrels, run, DEFAULT_METRICS)
+    if isinstance(metrics_raw, dict):
+        metrics = {name: round(float(metrics_raw[name]), 6) for name in DEFAULT_METRICS}
+    else:
+        metrics = {DEFAULT_METRICS[0]: round(float(metrics_raw), 6)}
+
+    metrics_by_tag = compute_tag_metrics(entries, qrels, run)
+    return {
+        "schema": 1,
+        "params": {
+            "golden": str(golden_path),
+            "hybrid_search": True,
+            "rerank_enabled": False,
+            "top_k": top_k,
+            "mcp_url": mcp_url,
+            "qdrant_url": qdrant_url,
+            "search_path": "dotnet_mcp_search_codebase",
+        },
+        "metrics": metrics,
+        "metrics_by_tag": metrics_by_tag,
+        "per_query": per_query,
+        "n_queries": len(entries),
+        "label_drift": drift_total,
+    }
+
+
 def compute_tag_metrics(
     entries: list[GoldenEntry],
     qrels: dict[str, dict[str, int]],
@@ -463,6 +665,11 @@ def main() -> int:
         help="Check labeled chunk_ids exist in Qdrant; skip search.",
     )
     parser.add_argument("--output", help="Write results JSON to this path.")
+    parser.add_argument(
+        "--mcp-url",
+        default=os.environ.get("EVAL_MCP_URL"),
+        help="When set, call Aspire/Host search_codebase over MCP HTTP instead of Python run_search.",
+    )
     parser.add_argument("--compare", help="Baseline JSON to compare against.")
     parser.add_argument(
         "--threshold",
@@ -496,21 +703,32 @@ def main() -> int:
             return 1
         return 0
 
-    if not tei_reachable(args.tei_url):
-        print(f"SKIP: TEI not reachable at {args.tei_url}", file=sys.stderr)
-        return 0
-
-    result = asyncio.run(
-        run_evaluation(
-            qdrant_url=args.qdrant_url,
-            tei_url=args.tei_url,
-            golden_path=args.golden,
-            hybrid_search=not args.no_hybrid,
-            rerank_enabled=args.rerank,
-            top_k=args.top_k,
-            collection_override=args.collection,
+    if args.mcp_url:
+        result = asyncio.run(
+            run_evaluation_via_mcp(
+                mcp_url=args.mcp_url,
+                qdrant_url=args.qdrant_url,
+                golden_path=args.golden,
+                top_k=args.top_k,
+                collection_override=args.collection,
+            )
         )
-    )
+    else:
+        if not tei_reachable(args.tei_url):
+            print(f"SKIP: TEI not reachable at {args.tei_url}", file=sys.stderr)
+            return 0
+
+        result = asyncio.run(
+            run_evaluation(
+                qdrant_url=args.qdrant_url,
+                tei_url=args.tei_url,
+                golden_path=args.golden,
+                hybrid_search=not args.no_hybrid,
+                rerank_enabled=args.rerank,
+                top_k=args.top_k,
+                collection_override=args.collection,
+            )
+        )
 
     print(render_table(result))
 

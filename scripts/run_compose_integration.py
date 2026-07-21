@@ -47,6 +47,8 @@ REINDEX_SCRIPT = REPO_ROOT / "scripts" / "reindex_graphrag.py"
 COMPOSE_BASE = ["docker", "compose", "--env-file", str(ENV_FILE)]
 ASPIRE_COMPOSE_FILE = REPO_ROOT / "docker-compose.aspire.yml"
 ASPIRE_SERVICES = ("qdrant", "tei", "mcp")
+# Same SDK image family as src/CodebaseIndexer.Host/Dockerfile (Aspire MCP build).
+DOTNET_SDK_IMAGE = os.environ.get("DOTNET_SDK_IMAGE", "mcr.microsoft.com/dotnet/sdk:10.0")
 COMPOSE_PROFILE = "bundled-tei"
 SERVICES = ("qdrant", "tei", "mcp_server")
 EXTERNAL_SERVICES = ("qdrant", "mcp_server")
@@ -215,11 +217,62 @@ def deploy_aspire_stack() -> tuple[bool, str]:
     return True, "aspire stack deployed"
 
 
+def _dotnet_sdk_resolution_failed(output: str) -> bool:
+    """True when host ``dotnet`` cannot resolve global.json SDK (missing pin)."""
+    lower = output.lower()
+    return (
+        "a compatible .net sdk was not found" in lower
+        or "sdk resolution" in lower
+        or "install the [" in lower
+        or "requested sdk version" in lower
+    )
+
+
+def _run_dotnet_test_in_sdk_container() -> subprocess.CompletedProcess:
+    """Run ``dotnet test`` in the Aspire Host build SDK image (global.json satisfied)."""
+    # Docker Desktop on Windows needs a POSIX-style bind for Linux containers.
+    mount = str(REPO_ROOT).replace("\\", "/")
+    return _run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "-v",
+            f"{mount}:/src",
+            "-w",
+            "/src",
+            DOTNET_SDK_IMAGE,
+            "dotnet",
+            "test",
+            "CodebaseIndexer.slnx",
+            "--nologo",
+        ]
+    )
+
+
 def run_dotnet_smoke() -> tuple[bool, str]:
-    proc = _run(["dotnet", "test", "CodebaseIndexer.slnx", "--nologo"])
-    if proc.returncode != 0:
-        return False, (proc.stderr or proc.stdout or "dotnet test failed")[-4000:]
-    return True, "dotnet test passed"
+    """Run solution tests on host SDK when compatible; else inside DOTNET_SDK_IMAGE."""
+    try:
+        proc = _run(["dotnet", "test", "CodebaseIndexer.slnx", "--nologo"])
+    except FileNotFoundError:
+        proc = None
+        detail = "dotnet executable not found on host"
+    else:
+        if proc.returncode == 0:
+            return True, "dotnet test passed (host)"
+        detail = proc.stderr or proc.stdout or "dotnet test failed"
+        if not _dotnet_sdk_resolution_failed(detail):
+            return False, detail[-4000:]
+
+    container = _run_dotnet_test_in_sdk_container()
+    if container.returncode != 0:
+        cdetail = container.stderr or container.stdout or "dotnet test failed in SDK container"
+        first = detail.splitlines()[0] if detail else "unknown"
+        return False, (
+            f"host SDK unavailable ({first}); "
+            f"container fallback failed:\n{cdetail[-3500:]}"
+        )
+    return True, f"dotnet test passed (container {DOTNET_SDK_IMAGE})"
 
 
 def compose_cmd(*args: str, external_tei: bool = False, aspire_stack: bool = False) -> list[str]:
@@ -458,6 +511,7 @@ def run_quality_eval(
     compare: Path,
     threshold: float,
     rerank: bool,
+    mcp_url: str | None = None,
 ) -> tuple[str, str]:
     """Return (status, detail) — pass / fail / skip."""
     cmd = [
@@ -475,6 +529,8 @@ def run_quality_eval(
     ]
     if rerank:
         cmd.append("--rerank")
+    if mcp_url:
+        cmd.extend(["--mcp-url", mcp_url])
     proc = _run(cmd, cwd=MCP_SERVER, env=_host_test_env())
     out = (proc.stdout or "") + (proc.stderr or "")
     if "SKIP:" in out:
@@ -512,11 +568,24 @@ def run_performance_report(*, compare: Path) -> tuple[str, str]:
     return "warn", out.strip()[-2000:]
 
 
+def run_index_golden_via_mcp(mcp_url: str = "http://127.0.0.1:8000/mcp") -> tuple[bool, str]:
+    """Force-index the golden fixture collection through Aspire/Host MCP."""
+    script = REPO_ROOT / "scripts" / "reindex_graphrag.py"
+    if not script.is_file():
+        return False, f"missing {script}"
+    env = _host_test_env()
+    env["MCP_URL"] = mcp_url
+    proc = _run([sys.executable, str(script)], cwd=REPO_ROOT, env=env)
+    out = (proc.stdout or "") + (proc.stderr or "")
+    return proc.returncode == 0, out.strip()[-2000:]
+
+
 def run_quality_validation(
     *,
     compare: Path,
     threshold: float,
     rerank: bool,
+    mcp_url: str | None = None,
 ) -> dict[str, dict[str, str]]:
     """Validate labels, index golden collection if needed, run eval_retrieval."""
     rows: dict[str, dict[str, str]] = {}
@@ -527,7 +596,10 @@ def run_quality_validation(
         "detail": detail,
     }
     if not ok:
-        indexed, index_detail = run_index_golden_collection()
+        if mcp_url:
+            indexed, index_detail = run_index_golden_via_mcp(mcp_url)
+        else:
+            indexed, index_detail = run_index_golden_collection()
         rows["index_golden"] = {
             "status": "pass" if indexed else "fail",
             "detail": index_detail,
@@ -550,6 +622,7 @@ def run_quality_validation(
         compare=compare,
         threshold=threshold,
         rerank=rerank,
+        mcp_url=mcp_url,
     )
     rows["eval_retrieval"] = {"status": status, "detail": detail}
     return rows
@@ -649,7 +722,8 @@ def main() -> int:
     parser.add_argument(
         "--aspire-stack",
         action="store_true",
-        help="Deploy docker-compose.aspire.yml (.NET MCP) and run dotnet test smoke (ADR 0030 Phase 2)",
+        help="Deploy docker-compose.aspire.yml (.NET MCP); with --quality-validation "
+        "indexes golden via .NET MCP and evals search_codebase (ADR 0030 Phase 3)",
     )
     parser.add_argument(
         "--bench-compare",
@@ -707,7 +781,7 @@ def main() -> int:
                     print(f"FAIL: aspire deploy — {detail}")
                 return 1
 
-        ok, detail = http_ok(MCP_HEALTH_URL)
+        ok, detail = wait_http(MCP_HEALTH_URL, attempts=15, interval=1.0)
         report["mcp_health"] = {"status": "pass" if ok else "fail", "detail": detail}
         ok, detail = http_ok(f"{QDRANT_URL}/healthz")
         report["qdrant_health"] = {"status": "pass" if ok else "fail", "detail": detail}
@@ -717,12 +791,37 @@ def main() -> int:
         ok, detail = run_dotnet_smoke()
         report["dotnet_smoke"] = {"status": "pass" if ok else "fail", "detail": detail}
 
+        if args.quality_validation:
+            quality_rows = run_quality_validation(
+                compare=args.quality_compare,
+                threshold=args.quality_threshold if args.quality_threshold else 2,
+                rerank=args.quality_rerank,
+                mcp_url="http://127.0.0.1:8000/mcp",
+            )
+            report["quality_validation"] = {
+                "required": True,
+                "status": "pass" if quality_validation_passed(quality_rows) else "fail",
+                "threshold": args.quality_threshold if args.quality_threshold else 2,
+                "rerank": args.quality_rerank,
+                "compare": str(args.quality_compare),
+                "mcp_url": "http://127.0.0.1:8000/mcp",
+                "checks": quality_rows,
+            }
+
+        if args.performance_report:
+            perf_status, perf_detail = run_performance_report(compare=args.bench_compare)
+            report["performance_report"] = {
+                "requested": True,
+                "status": perf_status,
+                "detail": perf_detail,
+                "compare": str(args.bench_compare),
+            }
+
         required = ("deploy", "mcp_health", "qdrant_health", "tei_health", "dotnet_smoke")
-        report["verdict"] = (
-            "pass"
-            if all(report[k]["status"] in ("pass", "skipped") for k in required)
-            else "fail"
-        )
+        required_ok = all(report[k]["status"] in ("pass", "skipped") for k in required)
+        if args.quality_validation:
+            required_ok = required_ok and report["quality_validation"]["status"] == "pass"
+        report["verdict"] = "pass" if required_ok else "fail"
         if args.json:
             print(json.dumps(report, indent=2))
         else:

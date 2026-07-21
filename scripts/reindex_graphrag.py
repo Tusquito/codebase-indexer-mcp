@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """Trigger force re-index via MCP HTTP."""
 import json
+import os
 import sys
 import urllib.error
 import urllib.request
 
-MCP_URL = "http://127.0.0.1:8000/mcp"
+MCP_URL = os.environ.get("MCP_URL", "http://127.0.0.1:8000/mcp")
 TIMEOUT = 3600
 
 
 class McpClient:
-    def __init__(self) -> None:
+    def __init__(self, url: str = MCP_URL) -> None:
+        self._url = url
         self._session_id = None
         self._rid = 0
 
@@ -27,7 +29,7 @@ class McpClient:
         self._rid += 1
         payload["id"] = self._rid
         req = urllib.request.Request(
-            MCP_URL,
+            self._url,
             data=json.dumps(payload).encode(),
             headers=self._headers(),
             method="POST",
@@ -62,7 +64,7 @@ class McpClient:
         if "error" in r:
             raise RuntimeError(r["error"])
         notif = urllib.request.Request(
-            MCP_URL,
+            self._url,
             data=json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}).encode(),
             headers=self._headers(),
             method="POST",
