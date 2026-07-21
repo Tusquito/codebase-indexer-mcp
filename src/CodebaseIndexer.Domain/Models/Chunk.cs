@@ -47,4 +47,10 @@ public sealed record Chunk(
 
     /// <summary>Kind of symbol containing the chunk.</summary>
     public string SymbolType { get; init; } = string.IsNullOrEmpty(SymbolType) ? "other" : SymbolType;
+
+    /// <summary>
+    /// Call-expression tokens extracted from chunk source (before import headers).
+    /// Used for Path D <c>member</c>/<c>receiver</c> caller lookup. Empty until re-index after pull.
+    /// </summary>
+    public IReadOnlyList<string> Callees { get; init; } = Array.Empty<string>();
 }
