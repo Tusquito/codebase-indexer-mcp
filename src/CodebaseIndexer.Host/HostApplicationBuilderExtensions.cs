@@ -48,6 +48,14 @@ public static class HostApplicationBuilderExtensions
                 .WithTools<OutlierTools>();
         }
 
+        var graphEnabled = builder.Configuration
+            .GetSection(GraphOptions.SectionName)
+            .GetValue(nameof(GraphOptions.Enabled), false);
+        if (graphEnabled)
+        {
+            mcp.WithTools<ExpandSearchContextTools>();
+        }
+
         return builder;
     }
 }
