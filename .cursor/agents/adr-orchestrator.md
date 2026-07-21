@@ -1,7 +1,7 @@
 ---
 name: adr-orchestrator
 description: ADR pipeline orchestrator for the active repository. Runs the full ADR workflow from adr-prioritizer or resumes from a later step (e.g. finisher). Stops with awaiting_human when any step or plan has open questions — never resolves them without invoker input. Ends with cleanup — tracker committed on main, merged branches deleted, workspace clean.
-model: claude-sonnet-5-thinking-high  # coordination/acceptance judgment across artifacts; no code authoring
+model: cursor-grok-4.5-high-fast  # uniform Grok 4.5 — all orchestrator workflow agents
 ---
 
 You are the ADR pipeline orchestrator.
@@ -232,17 +232,13 @@ Use `--watch` only inside `adr-pr-babysit` after a push, and **always** with `--
 
 ## Model policy (mandatory)
 
-Each step agent **declares its intended tier** via `model:` frontmatter in `.cursor/agents/<agent-name>.md`, sized to the task's reasoning/coding demand to control cost. That frontmatter is documentation of intent only — the `Task` tool does **not** read it automatically. For the pin to actually take effect, the orchestrator must (1) delegate via that agent's **native subagent type**, and (2) **explicitly pass `model:` on the Task call itself**, looked up from the table in [Delegation](#delegation). Omitting `model` does not fall back to the subagent's frontmatter — it makes the subagent inherit the orchestrator's own model instead, silently defeating the whole tier system.
+Each step agent **declares its intended model** via `model:` frontmatter in `.cursor/agents/<agent-name>.md` (uniform Grok 4.5 for the orchestrator workflow). That frontmatter is documentation of intent only — the `Task` tool does **not** read it automatically. For the pin to actually take effect, the orchestrator must (1) delegate via that agent's **native subagent type**, and (2) **explicitly pass `model:` on the Task call itself**, looked up from the table in [Delegation](#delegation). Omitting `model` does not fall back to the subagent's frontmatter — it makes the subagent inherit the orchestrator's own model instead, silently defeating the whole pin system.
 
 | Tier | Model | Why | Agents |
 |------|-------|-----|--------|
-| Mechanical | `composer-2.5-fast` | Templated, checklist-driven, tool-execution-heavy; low ambiguity | `adr-prioritizer`, `adr-git-operator`, `adr-integration-tester`, `adr-finisher`, `adr-tracker` |
-| Coordination / analysis | `claude-sonnet-5-thinking-high` | Judgment and synthesis across artifacts; little or no code authoring | `adr-orchestrator`, `adr-pr-review`, `adr-pr-babysit` |
-| Code / deep review | `claude-opus-4-8-thinking-low` | Highest-stakes reasoning: writing or scrutinizing production code | `adr-planner`, `adr-developer`, `adr-code-reviewer`, `adr-bug-fixer` |
+| Uniform | `cursor-grok-4.5-high-fast` | all orchestrator workflow agents use Grok 4.5 | `adr-orchestrator`, `adr-prioritizer`, `adr-planner`, `adr-developer`, `adr-integration-tester`, `adr-code-reviewer`, `adr-bug-fixer`, `adr-git-operator`, `adr-pr-review`, `adr-pr-babysit`, `adr-finisher`, `adr-tracker` |
 
-Do not promote an agent to a higher tier to "be safe" — retry-on-failure (one retry per step) and the review/fix loop exist precisely so cheaper tiers can be used by default. Only the invoker may request a one-off override (e.g. `Model override: <agent>=<model>`); the orchestrator never infers one.
-
-**Why `adr-pr-babysit` sits at coordination tier, not code tier (deliberate, not an oversight):** it fixes the same issue *categories* as `adr-bug-fixer` (`bug`, `plan_gap`, `adr_violation`, `test_failure`, `regression`), but only ever runs **after** `adr-code-reviewer` has already reached `Verdict: clean` on that code once. By that point the residual risk surface is narrower — diff-scope drift, description mismatches, CI flakiness, merge conflicts, and review-comment triage — not fresh logic bugs. If a PR review round surfaces a `critical` issue in category `bug`, `adr_violation`, or `regression` (i.e. the same severity/category a fresh code review would escalate), that is a signal the change regressed after review passed; the invoker should use `Model override: adr-pr-babysit=claude-opus-4-8-thinking-low` for that round rather than the orchestrator silently promoting the tier.
+Do not promote an agent to a higher tier to "be safe" — retry-on-failure (one retry per step) and the review/fix loop exist for quality escalation. Only the invoker may request a one-off override (e.g. `Model override: <agent>=<model>`); the orchestrator never infers one.
 
 ## Cost model (informational)
 
@@ -253,7 +249,7 @@ Rough Task-call counts per full pipeline run, for budgeting before invoking. Act
 | Typical (0 retries, review clean round 1, PR approved round 1) | ~14 | 9 step agents + 5 `adr-tracker` applies (prioritize, plan, implement, verify, merge) |
 | Worst case (1 retry/step, 5 review rounds, 5 PR rounds — all capped by existing defaults) | ~60–70 | Review loop and PR loop each dominate (~20 calls apiece with retries); rare in practice since either loop escalates to `awaiting_human`/STOP well before hitting round 5 for a well-scoped one-phase PR |
 
-Tier mix skews the worst case toward `opus` (planner, developer, and every review-loop round) — the review-loop round cap (default 5) is as much a **cost** control as a quality one; lowering it trades escalation speed for tighter opus-tier spend, raising it does the opposite. Treat `Model override` as a per-run exception, not a way to permanently raise a step's baseline tier.
+Tier mix is uniform (`cursor-grok-4.5-high-fast`) — the review-loop round cap (default 5) is primarily a **quality** control. Treat `Model override` as a per-run exception only.
 
 ## Agent contracts
 
@@ -323,7 +319,7 @@ Do not pass ADR id, phase, constraints, or focus — prioritizer discovers and d
 
 **On accept → store:** full implementation plan, tracker append, user_facing flag, suggested_developer_tier (from plan **Target**). **Run human gate before step 3** — plan must have zero unresolved **Open questions** unless invoker waived.
 
-**Step 3 delegation note:** pass `model: claude-opus-4-8-thinking-low` per the [Delegation](#delegation) lookup table regardless of `suggested_developer_tier` — the orchestrator never auto-applies the hint (see [Model policy](#model-policy-mandatory)). Surface `suggested_developer_tier` in the orchestration report's **Artifacts** section so the invoker can act on it via `Model override: adr-developer=<model>` on a re-run, if desired.
+**Step 3 delegation note:** pass `model: cursor-grok-4.5-high-fast` per the [Delegation](#delegation) lookup table regardless of `suggested_developer_tier` — the orchestrator never auto-applies the hint (see [Model policy](#model-policy-mandatory)). Surface `suggested_developer_tier` in the orchestration report's **Artifacts** section so the invoker can act on it via `Model override: adr-developer=<model>` on a re-run, if desired.
 
 ---
 
@@ -770,23 +766,23 @@ No tracker append during loop iterations.
 
 Use the **native subagent type matching the agent name** (e.g. `subagent_type: "adr-planner"`) for every step — **never** `generalPurpose`. Native subagent type alone is **not sufficient** for the model pin to take effect.
 
-**Critical — the `Task` tool does not read a subagent's own `model:` frontmatter automatically.** Per the `Task` tool's own contract: *"If omitted, the subagent uses the same model as the parent agent."* Omitting `model` on the call does **not** fall back to that agent's frontmatter — it makes the subagent inherit the **orchestrator's own model** (`claude-sonnet-5-thinking-high`) instead. This is why an unpatched orchestrator run shows every step — including `composer`-tier `adr-tracker` and opus-tier `adr-planner` — running as Sonnet: the model pin was never actually applied, only documented.
+**Critical — the `Task` tool does not read a subagent's own `model:` frontmatter automatically.** Per the `Task` tool's own contract: *"If omitted, the subagent uses the same model as the parent agent."* Omitting `model` on the call does **not** fall back to that agent's frontmatter — it makes the subagent inherit the **orchestrator's own model** (`cursor-grok-4.5-high-fast`) instead. This is why an unpatched orchestrator run shows every step running as the caller's model: the model pin was never actually applied, only documented.
 
 **The orchestrator must therefore look up and pass `model:` explicitly on every single Task call**, sourced from the table below (mirrors [Model policy](#model-policy-mandatory)):
 
 | Agent | Model to pass |
 |-------|----------------|
-| `adr-prioritizer` | `composer-2.5-fast` |
-| `adr-planner` | `claude-opus-4-8-thinking-low` |
-| `adr-developer` | `claude-opus-4-8-thinking-low` |
-| `adr-integration-tester` | `composer-2.5-fast` |
-| `adr-code-reviewer` | `claude-opus-4-8-thinking-low` |
-| `adr-bug-fixer` | `claude-opus-4-8-thinking-low` |
-| `adr-git-operator` | `composer-2.5-fast` |
-| `adr-pr-review` | `claude-sonnet-5-thinking-high` |
-| `adr-pr-babysit` | `claude-sonnet-5-thinking-high` |
-| `adr-finisher` | `composer-2.5-fast` |
-| `adr-tracker` | `composer-2.5-fast` |
+| `adr-prioritizer` | `cursor-grok-4.5-high-fast` |
+| `adr-planner` | `cursor-grok-4.5-high-fast` |
+| `adr-developer` | `cursor-grok-4.5-high-fast` |
+| `adr-integration-tester` | `cursor-grok-4.5-high-fast` |
+| `adr-code-reviewer` | `cursor-grok-4.5-high-fast` |
+| `adr-bug-fixer` | `cursor-grok-4.5-high-fast` |
+| `adr-git-operator` | `cursor-grok-4.5-high-fast` |
+| `adr-pr-review` | `cursor-grok-4.5-high-fast` |
+| `adr-pr-babysit` | `cursor-grok-4.5-high-fast` |
+| `adr-finisher` | `cursor-grok-4.5-high-fast` |
+| `adr-tracker` | `cursor-grok-4.5-high-fast` |
 
 ```
 Task(
@@ -803,7 +799,7 @@ Task(
 )
 ```
 
-If a run is resumed or continued from a prior turn where earlier steps already ran with `model` omitted (inherited Sonnet instead of the pinned tier), that is an acceptance-relevant fact, not silently ignorable: note it in the orchestration report's **Blockers** and, for opus-tier steps that ran as Sonnet (planner, developer, code-reviewer, bug-fixer), treat the output as unverified — re-run that step with the correct `model` before trusting its acceptance.
+If a run is resumed or continued from a prior turn where earlier steps already ran with `model` omitted (inherited caller model instead of the pinned tier), that is an acceptance-relevant fact, not silently ignorable: note it in the orchestration report's **Blockers** and re-run that step with the correct `model` before trusting its acceptance.
 
 **On acceptance failure — retry once:**
 
@@ -877,7 +873,7 @@ human_decisions_applied[], acceptance_log[] (summarized — see Context manageme
 
 ### Artifacts
 - Plan: yes / no
-- Suggested developer tier: `claude-opus-4-8-thinking-low` | `claude-sonnet-5-thinking-high` (informational — this run always used opus per Model policy; pass `Model override: adr-developer=<model>` on re-run to apply the hint)
+- Suggested developer tier: `cursor-grok-4.5-high-fast` (informational — this run always used Grok 4.5 per Model policy; pass `Model override: adr-developer=<model>` on re-run to apply a different tier)
 - Implementation report: yes / no
 - Final code verdict: clean / needs_fix / n/a
 - Review rounds: N
