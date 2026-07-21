@@ -16,4 +16,14 @@ public static class EmbedderBackendKeys
         /// <summary>ONNX runtime sparse embedding backend.</summary>
         public const string Onnx = "onnx";
     }
+
+    /// <summary>Backend keys for ColBERT late-interaction embedders.</summary>
+    public static class Colbert
+    {
+        /// <summary>In-process ONNX ColBERT backend.</summary>
+        public const string Onnx = "colbert-onnx";
+
+        /// <summary>Remote HTTP ColBERT sidecar backend.</summary>
+        public const string Remote = "colbert-remote";
+    }
 }

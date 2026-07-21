@@ -17,4 +17,7 @@ public sealed record EmbeddedChunk(
 
     /// <summary>Optional sparse embedding vector for hybrid search.</summary>
     public SparseVector? SparseVector { get; init; } = SparseVector;
+
+    /// <summary>Optional ColBERT token multivector for late-interaction rerank.</summary>
+    public IReadOnlyList<IReadOnlyList<float>>? ColbertVector { get; init; }
 }

@@ -53,6 +53,7 @@ public interface IVectorStore
     /// <param name="topK">Maximum hits to return.</param>
     /// <param name="language">Optional language payload filter.</param>
     /// <param name="minScore">Cosine score floor when not hybrid; ignored for RRF.</param>
+    /// <param name="colbertVector">Optional ColBERT query multivector for MAX_SIM rerank.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task<IReadOnlyList<SearchHit>> SearchAsync(
         string collection,
@@ -61,6 +62,7 @@ public interface IVectorStore
         int topK,
         string? language = null,
         float minScore = 0.5f,
+        IReadOnlyList<IReadOnlyList<float>>? colbertVector = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>Retrieves a chunk payload by id within one collection.</summary>
