@@ -22,6 +22,9 @@ public sealed class QdrantVectorStore : IVectorStore
 {
     private static readonly Guid ChunkNamespace = Guid.Parse("6ba7b811-9dad-11d1-80b4-00c04fd430c8");
 
+    private const string GraphCallSitesMetadataKey = "graph_call_sites";
+    private const string GraphEnabledMetadataKey = "graph_enabled";
+
     private static readonly string[] IndexedPayloadFields =
         ["rel_path", "chunk_id", "symbol_name", "language", "callees"];
 
@@ -145,6 +148,8 @@ public sealed class QdrantVectorStore : IVectorStore
     public async Task UpsertChunksAsync(
         string collection,
         IReadOnlyList<EmbeddedChunk> chunks,
+        bool omitCallees = false,
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? graphNodeIdsByChunk = null,
         CancellationToken cancellationToken = default)
     {
         if (chunks.Count == 0)
@@ -152,8 +157,78 @@ public sealed class QdrantVectorStore : IVectorStore
             return;
         }
 
-        var points = chunks.Select(ToPoint).ToList();
+        var points = chunks
+            .Select(c => ToPoint(
+                c,
+                omitCallees,
+                graphNodeIdsByChunk is not null
+                && graphNodeIdsByChunk.TryGetValue(c.Chunk.Id.Value, out var ids)
+                    ? ids
+                    : null))
+            .ToList();
         await _client.Value.UpsertAsync(collection, points, cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task SetCollectionGraphCallSitesAsync(
+        string collection,
+        bool enabled = true,
+        CancellationToken cancellationToken = default)
+    {
+        await SetCollectionMetadataFlagAsync(collection, GraphCallSitesMetadataKey, enabled, cancellationToken)
+            .ConfigureAwait(false);
+        _logger.LogInformation(
+            "collection_graph_call_sites_set collection={Collection} enabled={Enabled}",
+            collection,
+            enabled);
+    }
+
+    /// <inheritdoc />
+    public async Task SetCollectionGraphEnabledAsync(
+        string collection,
+        bool enabled = true,
+        CancellationToken cancellationToken = default)
+    {
+        await SetCollectionMetadataFlagAsync(collection, GraphEnabledMetadataKey, enabled, cancellationToken)
+            .ConfigureAwait(false);
+        _logger.LogInformation(
+            "collection_graph_enabled_set collection={Collection} enabled={Enabled}",
+            collection,
+            enabled);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<bool> CollectionHasGraphCallSitesAsync(
+        string collection,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await ReadCollectionMetadataFlagAsync(collection, GraphCallSitesMetadataKey, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "collection_graph_call_sites_read_error collection={Collection}", collection);
+            return false;
+        }
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<bool> CollectionHasGraphEnabledAsync(
+        string collection,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await ReadCollectionMetadataFlagAsync(collection, GraphEnabledMetadataKey, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "collection_graph_enabled_read_error collection={Collection}", collection);
+            return false;
+        }
     }
 
     /// <inheritdoc />
@@ -521,6 +596,9 @@ public sealed class QdrantVectorStore : IVectorStore
         var info = await _client.Value.GetCollectionInfoAsync(collection, cancellationToken: cancellationToken)
             .ConfigureAwait(false);
 
+        var graphCallSites = MetadataFlagTrue(info.Config?.Metadata, GraphCallSitesMetadataKey);
+        var graphEnabled = MetadataFlagTrue(info.Config?.Metadata, GraphEnabledMetadataKey);
+
         return new CollectionStats(
             collection,
             (long)info.PointsCount,
@@ -529,7 +607,9 @@ public sealed class QdrantVectorStore : IVectorStore
             _embedding.SparseModel,
             EmbedderBackendKeys.Dense.Tei,
             _embedding.HybridSearch,
-            _embedding.RerankEnabled);
+            _embedding.RerankEnabled,
+            GraphCallSites: graphCallSites,
+            GraphEnabled: graphEnabled);
     }
 
     /// <inheritdoc />
@@ -1131,7 +1211,10 @@ public sealed class QdrantVectorStore : IVectorStore
         };
     }
 
-    private static PointStruct ToPoint(EmbeddedChunk chunk)
+    private static PointStruct ToPoint(
+        EmbeddedChunk chunk,
+        bool omitCallees = false,
+        IReadOnlyList<string>? graphNodeIds = null)
     {
         var namedVectors = new Dictionary<string, Vector>
         {
@@ -1145,28 +1228,99 @@ public sealed class QdrantVectorStore : IVectorStore
                 chunk.SparseVector.Indices.Select(i => i).ToArray());
         }
 
-        var callees = chunk.Chunk.Callees.Count == 0
-            ? Array.Empty<Value>()
-            : chunk.Chunk.Callees.Select(c => (Value)c).ToArray();
+        var payload = new Dictionary<string, Value>
+        {
+            ["chunk_id"] = chunk.Chunk.Id.Value,
+            ["rel_path"] = chunk.Chunk.RelPath,
+            ["content"] = chunk.Chunk.Content,
+            ["start_line"] = chunk.Chunk.StartLine,
+            ["end_line"] = chunk.Chunk.EndLine,
+            ["language"] = chunk.Chunk.Language,
+            ["file_sha256"] = chunk.Chunk.FileSha256,
+            ["file_mtime"] = 0.0,
+            ["symbol_name"] = chunk.Chunk.SymbolName ?? string.Empty,
+            ["symbol_type"] = string.IsNullOrEmpty(chunk.Chunk.SymbolType) ? "other" : chunk.Chunk.SymbolType,
+        };
 
-        return new PointStruct
+        if (!omitCallees)
+        {
+            var callees = chunk.Chunk.Callees.Count == 0
+                ? Array.Empty<Value>()
+                : chunk.Chunk.Callees.Select(c => (Value)c).ToArray();
+            payload["callees"] = callees;
+        }
+
+        if (graphNodeIds is not null)
+        {
+            payload["graph_node_ids"] = graphNodeIds.Count == 0
+                ? Array.Empty<Value>()
+                : graphNodeIds.Select(id => (Value)id).ToArray();
+        }
+
+        var point = new PointStruct
         {
             Id = new PointId { Uuid = ChunkIdToPointUuid(chunk.Chunk.Id.Value) },
             Vectors = namedVectors,
-            Payload =
-            {
-                ["chunk_id"] = chunk.Chunk.Id.Value,
-                ["rel_path"] = chunk.Chunk.RelPath,
-                ["content"] = chunk.Chunk.Content,
-                ["start_line"] = chunk.Chunk.StartLine,
-                ["end_line"] = chunk.Chunk.EndLine,
-                ["language"] = chunk.Chunk.Language,
-                ["file_sha256"] = chunk.Chunk.FileSha256,
-                ["file_mtime"] = 0.0,
-                ["symbol_name"] = chunk.Chunk.SymbolName ?? string.Empty,
-                ["symbol_type"] = string.IsNullOrEmpty(chunk.Chunk.SymbolType) ? "other" : chunk.Chunk.SymbolType,
-                ["callees"] = callees,
-            },
+        };
+        foreach (var (k, v) in payload)
+        {
+            point.Payload[k] = v;
+        }
+
+        return point;
+    }
+
+    private async Task SetCollectionMetadataFlagAsync(
+        string collection,
+        string key,
+        bool enabled,
+        CancellationToken cancellationToken)
+    {
+        if (!await CollectionExistsAsync(collection, cancellationToken).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        var metadata = new Dictionary<string, Value>
+        {
+            [key] = enabled,
+        };
+        await _client.Value.UpdateCollectionAsync(
+            collection,
+            metadata: metadata,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<bool> ReadCollectionMetadataFlagAsync(
+        string collection,
+        string key,
+        CancellationToken cancellationToken)
+    {
+        if (!await CollectionExistsAsync(collection, cancellationToken).ConfigureAwait(false))
+        {
+            return false;
+        }
+
+        var info = await _client.Value.GetCollectionInfoAsync(collection, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        return MetadataFlagTrue(info.Config?.Metadata, key);
+    }
+
+    private static bool MetadataFlagTrue(
+        IReadOnlyDictionary<string, Value>? metadata,
+        string key)
+    {
+        if (metadata is null || !metadata.TryGetValue(key, out var value))
+        {
+            return false;
+        }
+
+        return value.KindCase switch
+        {
+            Value.KindOneofCase.BoolValue => value.BoolValue,
+            Value.KindOneofCase.StringValue => string.Equals(value.StringValue, "true", StringComparison.OrdinalIgnoreCase),
+            Value.KindOneofCase.IntegerValue => value.IntegerValue != 0,
+            _ => false,
         };
     }
 
