@@ -55,7 +55,9 @@ services:
         condition: service_healthy
     volumes:
       - ${WORKSPACE_PATH:-.}:/workspace:ro
-      - fastembed_cache:/root/.cache/fastembed
+      # Default named volume; integration harness sets ASPIRE_FASTEMBED_CACHE to a
+      # host path seeded with Qdrant/bm25 (OnnxSparseEmbedder does not download).
+      - ${ASPIRE_FASTEMBED_CACHE:-fastembed_cache}:/root/.cache/fastembed
     environment:
       ASPNETCORE_ENVIRONMENT: Docker
       ASPNETCORE_URLS: http://0.0.0.0:8000

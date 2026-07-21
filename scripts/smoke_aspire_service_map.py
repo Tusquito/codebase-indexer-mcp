@@ -119,12 +119,48 @@ def _write_fixtures(root: Path) -> tuple[str, str]:
     b = root / "smoke-svc-b"
     a.mkdir(parents=True, exist_ok=True)
     b.mkdir(parents=True, exist_ok=True)
+    # Substantive enough for TreeSitter to emit chunks (tiny one-liners yield 0).
     (a / "Client.cs").write_text(
-        'public class Client { public void Call() { _ = "/api/users/list"; } }\n',
+        "\n".join(
+            [
+                "using System.Net.Http;",
+                "",
+                "namespace SmokeSvcA;",
+                "",
+                "public class UsersClient",
+                "{",
+                "    private readonly HttpClient _http = new();",
+                "",
+                "    public void CallUsersList()",
+                "    {",
+                '        var path = "/api/users/list";',
+                "        _ = _http.GetAsync(path);",
+                "    }",
+                "}",
+                "",
+            ]
+        ),
         encoding="utf-8",
     )
     (b / "UsersController.cs").write_text(
-        '[HttpGet("api/users/list")]\npublic class UsersController { }\n',
+        "\n".join(
+            [
+                "using Microsoft.AspNetCore.Mvc;",
+                "",
+                "namespace SmokeSvcB;",
+                "",
+                '[Route("api/users")]',
+                "public class UsersController : ControllerBase",
+                "{",
+                '    [HttpGet("list")]',
+                "    public IActionResult List()",
+                "    {",
+                '        return Ok("users");',
+                "    }",
+                "}",
+                "",
+            ]
+        ),
         encoding="utf-8",
     )
     return a.name, b.name

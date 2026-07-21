@@ -34,3 +34,6 @@ tmp*.txt
 # Aspire service-map smoke fixtures (scripts/smoke_aspire_service_map.py)
 /smoke-svc-a/
 /smoke-svc-b/
+
+# Host-seeded BM25 cache for Aspire integration harness
+.aspire-fastembed-cache/
