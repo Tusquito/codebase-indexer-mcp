@@ -62,7 +62,10 @@ services:
       ASPNETCORE_ENVIRONMENT: Docker
       ASPNETCORE_URLS: http://0.0.0.0:8000
       Qdrant__Url: http://qdrant:6334
+      Qdrant__TimeoutSeconds: ${QDRANT_TIMEOUT:-120}
       Tei__Url: http://tei:80
+      Tei__TimeoutSeconds: ${TEI_TIMEOUT:-600}
+      Tei__EmbedBatchSize: ${TEI_EMBED_BATCH_SIZE:-16}
       Workspace__Path: /workspace
       Embedding__CachePath: /root/.cache/fastembed
       Embedding__DenseModel: ${DENSE_EMBED_MODEL:-jinaai/jina-embeddings-v2-base-code}
@@ -71,6 +74,9 @@ services:
       Embedding__HybridSearch: ${HYBRID_SEARCH:-true}
       Workspace__HashWorkerDop: "1"
       Indexing__PreloadModels: ${PRELOAD_MODELS:-true}
+      Indexing__FlushEvery: ${FLUSH_EVERY:-128}
+      Indexing__UpsertBatch: ${UPSERT_BATCH:-64}
+      Indexing__BatchSize: ${INDEX_BATCH_SIZE:-16}
 
 volumes:
   qdrant_data:
