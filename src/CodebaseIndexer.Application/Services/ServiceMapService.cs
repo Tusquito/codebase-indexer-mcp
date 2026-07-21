@@ -37,6 +37,7 @@ public sealed class ServiceMapService : IServiceMapService
     private readonly IVectorStore _store;
     private readonly IDenseEmbedder _dense;
     private readonly ISparseEmbedder _sparse;
+    private readonly IColbertEmbedder _colbert;
     private readonly EmbeddingOptions _embedding;
     private readonly DiscoveryOptions _discovery;
     private readonly UrlExtractors _extractors;
@@ -46,6 +47,7 @@ public sealed class ServiceMapService : IServiceMapService
         IVectorStore store,
         [FromKeyedServices(EmbedderBackendKeys.Dense.Tei)] IDenseEmbedder dense,
         [FromKeyedServices(EmbedderBackendKeys.Sparse.Onnx)] ISparseEmbedder sparse,
+        IColbertEmbedder colbert,
         IOptions<EmbeddingOptions> embedding,
         IOptions<DiscoveryOptions> discovery,
         UrlExtractors extractors)
@@ -53,6 +55,7 @@ public sealed class ServiceMapService : IServiceMapService
         _store = store;
         _dense = dense;
         _sparse = sparse;
+        _colbert = colbert;
         _embedding = embedding.Value;
         _discovery = discovery.Value;
         _extractors = extractors;
@@ -65,7 +68,7 @@ public sealed class ServiceMapService : IServiceMapService
         bool? rerank = null,
         CancellationToken cancellationToken = default)
     {
-        _ = rerank;
+        var useRerank = SearchService.ShouldUseRerank(_embedding.RerankEnabled, rerank);
         IReadOnlyList<string> targetCollections;
         if (collections is { Count: > 0 })
         {
@@ -94,6 +97,12 @@ public sealed class ServiceMapService : IServiceMapService
             sparseVectors = await _sparse.EmbedBatchAsync(queries, cancellationToken).ConfigureAwait(false);
         }
 
+        IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>? colbertVectors = null;
+        if (useRerank)
+        {
+            colbertVectors = await _colbert.EmbedBatchAsync(queries, cancellationToken).ConfigureAwait(false);
+        }
+
         var endpointsByColl = new Dictionary<string, List<ServiceMapChunk>>(StringComparer.Ordinal);
         var callersByColl = new Dictionary<string, List<ServiceMapChunk>>(StringComparer.Ordinal);
         var configsByColl = new Dictionary<string, List<ServiceMapChunk>>(StringComparer.Ordinal);
@@ -104,8 +113,9 @@ public sealed class ServiceMapService : IServiceMapService
         {
             var dense = denseVectors[i];
             SparseVector? sparse = sparseVectors is not null ? sparseVectors[i] : null;
+            IReadOnlyList<IReadOnlyList<float>>? colbert = colbertVectors is not null ? colbertVectors[i] : null;
             var tasks = targetCollections.Select(coll =>
-                _store.SearchAsync(coll, dense, sparse, topK, language: null, minScore: 0.25f, cancellationToken));
+                _store.SearchAsync(coll, dense, sparse, topK, language: null, minScore: 0.25f, colbert, cancellationToken));
             var batches = await Task.WhenAll(tasks).ConfigureAwait(false);
             var hits = batches.SelectMany(b => b).ToArray();
             if (targetCollections.Count > 1)

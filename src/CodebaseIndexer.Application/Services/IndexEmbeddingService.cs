@@ -9,26 +9,22 @@ using Microsoft.Extensions.Options;
 
 namespace CodebaseIndexer.Application.Services;
 
-/// <summary>Coordinates dense and sparse embedding with memory-pressure handling.</summary>
+/// <summary>Coordinates dense, sparse, and optional ColBERT embedding with memory-pressure handling.</summary>
 public sealed class IndexEmbeddingService : IIndexEmbeddingService
 {
     private readonly IDenseEmbedder _dense;
     private readonly ISparseEmbedder _sparse;
+    private readonly IColbertEmbedder _colbert;
     private readonly IMemoryPressureGuard _memoryGuard;
     private readonly EmbeddingOptions _embedding;
     private readonly IndexingOptions _indexing;
     private readonly ILogger<IndexEmbeddingService> _logger;
 
     /// <summary>Creates the embedding service.</summary>
-    /// <param name="dense">Dense embedder backend.</param>
-    /// <param name="sparse">Sparse embedder backend.</param>
-    /// <param name="memoryGuard">Memory pressure guard.</param>
-    /// <param name="embedding">Embedding model options.</param>
-    /// <param name="indexing">Indexing pipeline options.</param>
-    /// <param name="logger">Logger instance.</param>
     public IndexEmbeddingService(
         [FromKeyedServices(EmbedderBackendKeys.Dense.Tei)] IDenseEmbedder dense,
         [FromKeyedServices(EmbedderBackendKeys.Sparse.Onnx)] ISparseEmbedder sparse,
+        IColbertEmbedder colbert,
         IMemoryPressureGuard memoryGuard,
         IOptions<EmbeddingOptions> embedding,
         IOptions<IndexingOptions> indexing,
@@ -36,6 +32,7 @@ public sealed class IndexEmbeddingService : IIndexEmbeddingService
     {
         _dense = dense;
         _sparse = sparse;
+        _colbert = colbert;
         _memoryGuard = memoryGuard;
         _embedding = embedding.Value;
         _indexing = indexing.Value;
@@ -50,6 +47,11 @@ public sealed class IndexEmbeddingService : IIndexEmbeddingService
         {
             await _sparse.PreloadAsync(cancellationToken).ConfigureAwait(false);
         }
+
+        if (_embedding.RerankEnabled)
+        {
+            await _colbert.PreloadAsync(cancellationToken).ConfigureAwait(false);
+        }
     }
 
     /// <inheritdoc />
@@ -57,6 +59,10 @@ public sealed class IndexEmbeddingService : IIndexEmbeddingService
     {
         _dense.Release();
         _sparse.Release();
+        if (_embedding.RerankEnabled)
+        {
+            _colbert.Release();
+        }
     }
 
     /// <inheritdoc />
@@ -114,13 +120,23 @@ public sealed class IndexEmbeddingService : IIndexEmbeddingService
             }
         }
 
+        IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>? colbertVectors = null;
+        if (_embedding.RerankEnabled)
+        {
+            // Third sequential pass — ColBERT multivectors are large; avoid parallel with dense/sparse.
+            colbertVectors = await _colbert.EmbedBatchAsync(texts, cancellationToken).ConfigureAwait(false);
+        }
+
         var embedded = new List<EmbeddedChunk>(chunks.Count);
         for (var i = 0; i < chunks.Count; i++)
         {
             embedded.Add(new EmbeddedChunk(
                 chunks[i],
                 denseVectors[i],
-                _embedding.HybridSearch ? sparseVectors![i] : null));
+                _embedding.HybridSearch ? sparseVectors![i] : null)
+            {
+                ColbertVector = colbertVectors?[i],
+            });
         }
 
         return embedded;
