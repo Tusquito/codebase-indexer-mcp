@@ -11,7 +11,8 @@
 
 services:
   neo4j:
-    image: neo4j:5-community
+    # Pin patch version for reproducible GraphRAG overlays (mirror Qdrant pin style).
+    image: neo4j:5.26.28-community
     container_name: codeindexer_neo4j
     restart: unless-stopped
     ports:
