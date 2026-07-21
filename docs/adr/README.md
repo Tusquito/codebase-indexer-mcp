@@ -16,7 +16,7 @@ Skip ADRs for routine bug fixes, refactors with no design change, or dependency 
 ## How to add an ADR
 
 1. Copy [`template.md`](template.md) to a new file: `NNNN-short-kebab-title.md`
-2. Use the next available four-digit number (see index below — currently **0034**)
+2. Use the next available four-digit number (see index below — currently **0032**)
 3. Fill in all sections; leave **Status** as `Proposed` until reviewed
 4. Add a row to the index table below
 5. Link the ADR from related docs (e.g. [`ARCHITECTURE.md`](../ARCHITECTURE.md)) when relevant
@@ -84,8 +84,6 @@ Invoke the full pipeline with **`adr-orchestrator`**; resume a phase with `Resum
 | [0029](0029-macos-host-native-tei-metal-acceleration.md) | macOS host-native TEI with Metal for dense embedding acceleration | Accepted | 2026-07-12 |
 | [0030](0030-migrate-mcp-server-to-dotnet10.md) | Migrate MCP server runtime from Python to C# .NET 10 | Accepted (phase 1; phase 2 — Indexing pipeline) | 2026-07-12 |
 | [0031](0031-mcp-liveness-vs-readiness.md) | Split MCP liveness from dependency readiness | Proposed | 2026-07-21 |
-| [0032](0032-replace-magic-strings-with-enums.md) | Replace closed-set magic strings with domain enums | Proposed | 2026-07-21 |
-| [0033](0033-adopt-result-pattern.md) | Adopt Result pattern for expected failures | Proposed | 2026-07-21 |
 
 ## Qdrant Build Prototypes & Improve Search map
 
