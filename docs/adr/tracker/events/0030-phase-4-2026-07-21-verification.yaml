@@ -1,0 +1,41 @@
+adr_id: "0030"
+phase_key: phase-4
+phase_title: Phase 4 — Cross-ref + discovery
+event: verification
+date: "2026-07-21"
+tracker_status: verified
+choices: >-
+  Qdrant-only Path D (`callees` scroll); `Discovery:RecommendEnabled` gating;
+  `UrlExtractors` supersedes Phase 3 minimal classifier; quality report-only
+  (`threshold 0`); no schema-version env (re-index after pull)
+deviations: none
+code_evidence:
+  - src/CodebaseIndexer.Host/Tools/CrossReferenceTools.cs
+  - src/CodebaseIndexer.Host/Tools/ServiceMapTools.cs
+  - src/CodebaseIndexer.Host/Tools/RecommendTools.cs
+  - src/CodebaseIndexer.Host/Tools/OutlierTools.cs
+  - src/CodebaseIndexer.Application/Services/CrossReferenceService.cs
+  - src/CodebaseIndexer.Application/Services/ServiceMapService.cs
+  - src/CodebaseIndexer.Application/Services/RecommendService.cs
+  - src/CodebaseIndexer.Application/Services/CollectionQueryService.cs
+  - src/CodebaseIndexer.Application/BuildDeps/
+  - src/CodebaseIndexer.Infrastructure/Indexing/CalleeExtractor.cs
+  - src/CodebaseIndexer.Infrastructure/Qdrant/QdrantVectorStore.cs
+  - scripts/run_compose_integration.py
+  - scripts/smoke_aspire_service_map.py
+  - test/CodebaseIndexer.Application.Tests/BuildDeps/BuildDepCollectionMatcherTests.cs
+test_debt:
+  - live Qdrant recommend/outlier/callers e2e
+  - stronger aspire service-map edge assertions (R4)
+  - DiscoveryResponseModels one-type-per-file cleanup (R3)
+verify: >-
+  review rounds 2; `dotnet test CodebaseIndexer.slnx` 108 passed; plan compliance
+  pass; Docker integration Verdict pass (prior) + R1 harness fix verified in source
+changelog:
+  update: true
+  bullet: >-
+    Add .NET MCP discovery tools (`find_cross_references`,
+    `map_service_dependencies`, `recommend_code`, `find_outlier_chunks`),
+    build-deps matching in summaries/service-map, and Qdrant Path D `callees`
+    call-site lookup (re-index after pull).
+user_facing: true

@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using CodebaseIndexer.Application.Options;
 using CodebaseIndexer.Domain.Embedding;
 using CodebaseIndexer.Domain.Exceptions;
@@ -12,6 +13,7 @@ using Microsoft.Extensions.Options;
 using Qdrant.Client;
 using Qdrant.Client.Grpc;
 using DomainSparseVector = CodebaseIndexer.Domain.Models.SparseVector;
+using GrpcMatch = Qdrant.Client.Grpc.Match;
 
 namespace CodebaseIndexer.Infrastructure.Qdrant;
 
@@ -25,6 +27,7 @@ public sealed class QdrantVectorStore : IVectorStore
 
     private readonly QdrantOptions _qdrant;
     private readonly EmbeddingOptions _embedding;
+    private readonly DiscoveryOptions _discovery;
     private readonly ILogger<QdrantVectorStore> _logger;
     private readonly Lazy<QdrantClient> _client;
 
@@ -32,10 +35,12 @@ public sealed class QdrantVectorStore : IVectorStore
     public QdrantVectorStore(
         IOptions<QdrantOptions> qdrant,
         IOptions<EmbeddingOptions> embedding,
+        IOptions<DiscoveryOptions> discovery,
         ILogger<QdrantVectorStore> logger)
     {
         _qdrant = qdrant.Value;
         _embedding = embedding.Value;
+        _discovery = discovery.Value;
         _logger = logger;
         _client = new Lazy<QdrantClient>(() => CreateClient(_qdrant));
     }
@@ -244,7 +249,7 @@ public sealed class QdrantVectorStore : IVectorStore
                         Field = new FieldCondition
                         {
                             Key = "chunk_id",
-                            Match = new Match { Keyword = chunkId },
+                            Match = new GrpcMatch { Keyword = chunkId },
                         },
                     },
                 },
@@ -310,7 +315,7 @@ public sealed class QdrantVectorStore : IVectorStore
                                 Field = new FieldCondition
                                 {
                                     Key = "rel_path",
-                                    Match = new Match { Keyword = relPath },
+                                    Match = new GrpcMatch { Keyword = relPath },
                                 },
                             },
                         },
@@ -458,7 +463,7 @@ public sealed class QdrantVectorStore : IVectorStore
                                 Field = new FieldCondition
                                 {
                                     Key = "symbol_name",
-                                    Match = new Match { Keyword = symbolName },
+                                    Match = new GrpcMatch { Keyword = symbolName },
                                 },
                             },
                         },
@@ -615,7 +620,7 @@ public sealed class QdrantVectorStore : IVectorStore
                         Field = new FieldCondition
                         {
                             Key = "rel_path",
-                            Match = new Match { Keyword = path },
+                            Match = new GrpcMatch { Keyword = path },
                         },
                     }),
                 },
@@ -648,6 +653,310 @@ public sealed class QdrantVectorStore : IVectorStore
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "set_indexing_error collection={Collection} enabled={Enabled}", collection, enabled);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task VerifyChunkIdsExistAsync(
+        string collection,
+        IReadOnlyList<string> chunkIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (chunkIds.Count == 0)
+        {
+            return;
+        }
+
+        var pointIds = chunkIds
+            .Select(id => new PointId { Uuid = ChunkIdToPointUuid(id) })
+            .ToArray();
+        var records = await _client.Value.RetrieveAsync(
+            collection,
+            pointIds,
+            withPayload: false,
+            withVectors: false,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+        var found = records.Select(r => r.Id.Uuid).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var unknown = chunkIds
+            .Where((cid, i) => !found.Contains(pointIds[i].Uuid))
+            .ToArray();
+        if (unknown.Length > 0)
+        {
+            throw new ArgumentException(
+                $"Unknown chunk_id(s) in collection '{collection}': {string.Join(", ", unknown)}");
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<SearchHit>> RecommendAsync(
+        string collection,
+        IReadOnlyList<RecommendExample> positive,
+        IReadOnlyList<RecommendExample>? negative = null,
+        int limit = 5,
+        string? language = null,
+        string? pathGlob = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!await CollectionExistsAsync(collection, cancellationToken).ConfigureAwait(false))
+        {
+            return Array.Empty<SearchHit>();
+        }
+
+        var input = new RecommendInput { Strategy = RecommendStrategy.AverageVector };
+        AddRecommendExamples(input.Positive, positive);
+        if (negative is { Count: > 0 })
+        {
+            AddRecommendExamples(input.Negative, negative);
+        }
+
+        var fetchLimit = string.IsNullOrEmpty(pathGlob) ? limit : limit * 3;
+        var points = await _client.Value.QueryAsync(
+            collection,
+            query: input,
+            usingVector: "dense",
+            filter: BuildLanguageFilter(language),
+            searchParams: BuildDenseSearchParams(),
+            limit: (ulong)fetchLimit,
+            payloadSelector: new WithPayloadSelector { Enable = true },
+            vectorsSelector: new WithVectorsSelector { Enable = false },
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        var hits = MapPointsToHits(points, collection, scoreThreshold: 0f);
+        if (!string.IsNullOrEmpty(pathGlob))
+        {
+            hits = hits.Where(h => MatchPathGlob(h.RelPath, pathGlob)).Take(limit).ToArray();
+        }
+        else
+        {
+            hits = hits.Take(limit).ToArray();
+        }
+
+        return hits;
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<SearchHit>> FindOutlierChunksAsync(
+        string collection,
+        IReadOnlyList<string>? contextChunkIds = null,
+        int limit = 5,
+        string? language = null,
+        string? pathGlob = null,
+        float? maxSimilarity = null,
+        int? maxContextSamples = null,
+        CancellationToken cancellationToken = default)
+    {
+        var maxSim = maxSimilarity ?? _discovery.OutlierMaxSimilarity;
+        var maxCtx = maxContextSamples ?? _discovery.OutlierMaxContextSamples;
+        var contextSamples = await SampleContextDenseVectorsAsync(
+            collection, contextChunkIds, pathGlob, maxCtx, cancellationToken).ConfigureAwait(false);
+        if (contextSamples.Count == 0)
+        {
+            throw new ArgumentException(
+                $"No context vectors found in collection '{collection}'. " +
+                "Provide context_chunk_ids and/or ensure the collection has indexed chunks.");
+        }
+
+        var contextChunkIdSet = contextSamples.Select(s => s.ChunkId).ToHashSet(StringComparer.Ordinal);
+        var centroid = ComputeCentroid(contextSamples.Select(s => s.Dense).ToArray());
+        var negativeIds = contextSamples
+            .Select(s => new PointId { Uuid = s.PointId })
+            .ToArray();
+
+        var input = new RecommendInput { Strategy = RecommendStrategy.BestScore };
+        foreach (var id in negativeIds)
+        {
+            input.Negative.Add(id);
+        }
+
+        var fetchLimit = string.IsNullOrEmpty(pathGlob) ? limit * 2 : limit * 3;
+        var points = await _client.Value.QueryAsync(
+            collection,
+            query: input,
+            usingVector: "dense",
+            filter: BuildLanguageFilter(language),
+            searchParams: BuildDenseSearchParams(),
+            limit: (ulong)fetchLimit,
+            payloadSelector: new WithPayloadSelector { Enable = true },
+            vectorsSelector: (WithVectorsSelector)new[] { "dense" },
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        var candidates = new List<SearchHit>();
+        foreach (var point in points)
+        {
+            var payload = point.Payload;
+            var chunkId = GetString(payload, "chunk_id");
+            if (string.IsNullOrEmpty(chunkId) || contextChunkIdSet.Contains(chunkId))
+            {
+                continue;
+            }
+
+            var dense = ExtractDenseVector(point.Vectors);
+            var similarity = CosineSimilarity(dense, centroid);
+            if (similarity > maxSim)
+            {
+                continue;
+            }
+
+            candidates.Add(new SearchHit(
+                new ChunkId(chunkId),
+                similarity,
+                GetString(payload, "rel_path"),
+                GetString(payload, "language"),
+                GetInt(payload, "start_line"),
+                GetInt(payload, "end_line"),
+                GetOptionalString(payload, "symbol_name"),
+                GetString(payload, "symbol_type", "other"),
+                GetString(payload, "content"),
+                collection));
+        }
+
+        candidates.Sort(static (a, b) => a.Score.CompareTo(b.Score));
+        if (!string.IsNullOrEmpty(pathGlob))
+        {
+            candidates = candidates.Where(c => MatchPathGlob(c.RelPath, pathGlob)).ToList();
+        }
+
+        return candidates.Take(limit).ToArray();
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<SearchHit>> FindCallersInCollectionsAsync(
+        string method,
+        IReadOnlyList<string> collections,
+        string? receiver = null,
+        int limitPerCollection = 10,
+        CancellationToken cancellationToken = default)
+    {
+        var token = string.IsNullOrEmpty(receiver) ? method : $"{receiver}.{method}";
+        var tasks = collections.Select(async coll =>
+        {
+            try
+            {
+                if (!await CollectionExistsAsync(coll, cancellationToken).ConfigureAwait(false))
+                {
+                    return (IReadOnlyList<SearchHit>)Array.Empty<SearchHit>();
+                }
+
+                var result = await _client.Value.ScrollAsync(
+                    coll,
+                    filter: new Filter
+                    {
+                        Must =
+                        {
+                            new Condition
+                            {
+                                Field = new FieldCondition
+                                {
+                                    Key = "callees",
+                                    Match = new GrpcMatch { Keyword = token },
+                                },
+                            },
+                        },
+                    },
+                    limit: (uint)limitPerCollection,
+                    payloadSelector: new WithPayloadSelector { Enable = true },
+                    vectorsSelector: new WithVectorsSelector { Enable = false },
+                    cancellationToken: cancellationToken).ConfigureAwait(false);
+
+                return result.Result
+                    .Select(p => new SearchHit(
+                        new ChunkId(GetString(p.Payload, "chunk_id")),
+                        0.0,
+                        GetString(p.Payload, "rel_path"),
+                        GetString(p.Payload, "language"),
+                        GetInt(p.Payload, "start_line"),
+                        GetInt(p.Payload, "end_line"),
+                        GetOptionalString(p.Payload, "symbol_name"),
+                        GetString(p.Payload, "symbol_type", "other"),
+                        GetString(p.Payload, "content"),
+                        coll))
+                    .Where(h => !string.IsNullOrEmpty(h.Id.Value))
+                    .ToArray();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "callers_scroll_error collection={Collection}", coll);
+                return Array.Empty<SearchHit>();
+            }
+        });
+
+        var batches = await Task.WhenAll(tasks).ConfigureAwait(false);
+        return batches.SelectMany(b => b).ToArray();
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<IReadOnlyDictionary<string, string>>> ScrollChunksByPathsAsync(
+        string collection,
+        IReadOnlyList<string> relPaths,
+        IReadOnlyList<string>? payloadFields = null,
+        int limit = 500,
+        CancellationToken cancellationToken = default)
+    {
+        if (relPaths.Count == 0
+            || !await CollectionExistsAsync(collection, cancellationToken).ConfigureAwait(false))
+        {
+            return Array.Empty<IReadOnlyDictionary<string, string>>();
+        }
+
+        WithPayloadSelector payloadSelector = payloadFields is { Count: > 0 }
+            ? new WithPayloadSelector
+            {
+                Include = new PayloadIncludeSelector { Fields = { payloadFields } },
+            }
+            : new WithPayloadSelector { Enable = true };
+
+        try
+        {
+            var result = await _client.Value.ScrollAsync(
+                collection,
+                filter: new Filter
+                {
+                    Should =
+                    {
+                        relPaths.Select(path => new Condition
+                        {
+                            Field = new FieldCondition
+                            {
+                                Key = "rel_path",
+                                Match = new GrpcMatch { Keyword = path },
+                            },
+                        }),
+                    },
+                },
+                limit: (uint)limit,
+                payloadSelector: payloadSelector,
+                vectorsSelector: new WithVectorsSelector { Enable = false },
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+
+            var rows = new List<IReadOnlyDictionary<string, string>>(result.Result.Count);
+            foreach (var point in result.Result)
+            {
+                var dict = new Dictionary<string, string>(StringComparer.Ordinal);
+                foreach (var kv in point.Payload)
+                {
+                    if (kv.Value.KindCase == Value.KindOneofCase.StringValue)
+                    {
+                        dict[kv.Key] = kv.Value.StringValue;
+                    }
+                    else if (kv.Value.KindCase == Value.KindOneofCase.IntegerValue)
+                    {
+                        dict[kv.Key] = kv.Value.IntegerValue.ToString();
+                    }
+                }
+
+                rows.Add(dict);
+            }
+
+            return rows;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "scroll_chunks_by_paths_error collection={Collection} n_paths={Count}",
+                collection,
+                relPaths.Count);
+            return Array.Empty<IReadOnlyDictionary<string, string>>();
         }
     }
 
@@ -731,7 +1040,7 @@ public sealed class QdrantVectorStore : IVectorStore
                     Field = new FieldCondition
                     {
                         Key = "language",
-                        Match = new Match { Keyword = language },
+                        Match = new GrpcMatch { Keyword = language },
                     },
                 },
             },
@@ -836,6 +1145,10 @@ public sealed class QdrantVectorStore : IVectorStore
                 chunk.SparseVector.Indices.Select(i => i).ToArray());
         }
 
+        var callees = chunk.Chunk.Callees.Count == 0
+            ? Array.Empty<Value>()
+            : chunk.Chunk.Callees.Select(c => (Value)c).ToArray();
+
         return new PointStruct
         {
             Id = new PointId { Uuid = ChunkIdToPointUuid(chunk.Chunk.Id.Value) },
@@ -852,9 +1165,232 @@ public sealed class QdrantVectorStore : IVectorStore
                 ["file_mtime"] = 0.0,
                 ["symbol_name"] = chunk.Chunk.SymbolName ?? string.Empty,
                 ["symbol_type"] = string.IsNullOrEmpty(chunk.Chunk.SymbolType) ? "other" : chunk.Chunk.SymbolType,
+                ["callees"] = callees,
             },
         };
     }
+
+    private async Task<IReadOnlyList<ContextDenseSample>> SampleContextDenseVectorsAsync(
+        string collection,
+        IReadOnlyList<string>? contextChunkIds,
+        string? pathGlob,
+        int maxSamples,
+        CancellationToken cancellationToken)
+    {
+        var samples = new List<ContextDenseSample>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var chunkIds = contextChunkIds ?? Array.Empty<string>();
+
+        if (chunkIds.Count > 0)
+        {
+            var pointIds = chunkIds
+                .Select(id => new PointId { Uuid = ChunkIdToPointUuid(id) })
+                .ToArray();
+            var records = await _client.Value.RetrieveAsync(
+                collection,
+                pointIds,
+                new WithPayloadSelector { Enable = true },
+                (WithVectorsSelector)new[] { "dense" },
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+            var byId = records.ToDictionary(r => r.Id.Uuid, StringComparer.OrdinalIgnoreCase);
+            for (var i = 0; i < chunkIds.Count; i++)
+            {
+                if (!byId.TryGetValue(pointIds[i].Uuid, out var record))
+                {
+                    continue;
+                }
+
+                var dense = ExtractDenseVector(record.Vectors);
+                if (dense.Count == 0)
+                {
+                    continue;
+                }
+
+                samples.Add(new ContextDenseSample(chunkIds[i], pointIds[i].Uuid, dense));
+                seen.Add(chunkIds[i]);
+                if (samples.Count >= maxSamples)
+                {
+                    return samples;
+                }
+            }
+        }
+
+        var remaining = maxSamples - samples.Count;
+        if (remaining <= 0 || (chunkIds.Count > 0 && string.IsNullOrEmpty(pathGlob)))
+        {
+            return samples;
+        }
+
+        PointId? offset = null;
+        while (remaining > 0)
+        {
+            var result = await _client.Value.ScrollAsync(
+                collection,
+                limit: (uint)Math.Min(remaining * 2, 256),
+                offset: offset,
+                payloadSelector: new WithPayloadSelector { Enable = true },
+                vectorsSelector: (WithVectorsSelector)new[] { "dense" },
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+
+            if (result.Result.Count == 0)
+            {
+                break;
+            }
+
+            foreach (var point in result.Result)
+            {
+                var cid = GetString(point.Payload, "chunk_id");
+                if (string.IsNullOrEmpty(cid) || !seen.Add(cid))
+                {
+                    continue;
+                }
+
+                var relPath = GetString(point.Payload, "rel_path");
+                if (!string.IsNullOrEmpty(pathGlob) && !MatchPathGlob(relPath, pathGlob))
+                {
+                    continue;
+                }
+
+                var dense = ExtractDenseVector(point.Vectors);
+                if (dense.Count == 0)
+                {
+                    continue;
+                }
+
+                samples.Add(new ContextDenseSample(cid, point.Id.Uuid, dense));
+                remaining--;
+                if (remaining <= 0)
+                {
+                    break;
+                }
+            }
+
+            if (result.NextPageOffset is null)
+            {
+                break;
+            }
+
+            offset = result.NextPageOffset;
+        }
+
+        return samples;
+    }
+
+    private static void AddRecommendExamples(
+        Google.Protobuf.Collections.RepeatedField<VectorInput> target,
+        IReadOnlyList<RecommendExample> examples)
+    {
+        foreach (var example in examples)
+        {
+            if (example.DenseVector is not null)
+            {
+                target.Add(example.DenseVector as float[] ?? example.DenseVector.ToArray());
+            }
+            else if (!string.IsNullOrEmpty(example.ChunkId))
+            {
+                target.Add(new PointId { Uuid = ChunkIdToPointUuid(example.ChunkId) });
+            }
+        }
+    }
+
+    private static IReadOnlyList<float> ExtractDenseVector(VectorsOutput? vectors)
+    {
+        if (vectors is null)
+        {
+            return Array.Empty<float>();
+        }
+
+        if (vectors.VectorsOptionsCase == VectorsOutput.VectorsOptionsOneofCase.Vectors)
+        {
+            if (vectors.Vectors.Vectors.TryGetValue("dense", out var dense))
+            {
+                return DenseFloats(dense);
+            }
+        }
+        else if (vectors.VectorsOptionsCase == VectorsOutput.VectorsOptionsOneofCase.Vector)
+        {
+            return DenseFloats(vectors.Vector);
+        }
+
+        return Array.Empty<float>();
+    }
+
+    private static IReadOnlyList<float> DenseFloats(VectorOutput vector)
+    {
+        if (vector.Dense?.Data is { Count: > 0 } denseData)
+        {
+            return denseData.ToArray();
+        }
+
+#pragma warning disable CS0612 // Data obsolete but still populated by some server versions
+        if (vector.Data.Count > 0)
+        {
+            return vector.Data.ToArray();
+        }
+#pragma warning restore CS0612
+
+        return Array.Empty<float>();
+    }
+
+    private static IReadOnlyList<float> ComputeCentroid(IReadOnlyList<IReadOnlyList<float>> vectors)
+    {
+        if (vectors.Count == 0)
+        {
+            return Array.Empty<float>();
+        }
+
+        var dim = vectors[0].Count;
+        var centroid = new float[dim];
+        foreach (var vec in vectors)
+        {
+            for (var i = 0; i < dim; i++)
+            {
+                centroid[i] += vec[i];
+            }
+        }
+
+        var n = (float)vectors.Count;
+        for (var i = 0; i < dim; i++)
+        {
+            centroid[i] /= n;
+        }
+
+        return centroid;
+    }
+
+    private static double CosineSimilarity(IReadOnlyList<float> a, IReadOnlyList<float> b)
+    {
+        if (a.Count == 0 || b.Count == 0 || a.Count != b.Count)
+        {
+            return 0.0;
+        }
+
+        double dot = 0, normA = 0, normB = 0;
+        for (var i = 0; i < a.Count; i++)
+        {
+            dot += a[i] * b[i];
+            normA += a[i] * a[i];
+            normB += b[i] * b[i];
+        }
+
+        if (normA == 0 || normB == 0)
+        {
+            return 0.0;
+        }
+
+        return dot / (Math.Sqrt(normA) * Math.Sqrt(normB));
+    }
+
+    private static bool MatchPathGlob(string relPath, string pattern)
+    {
+        // fnmatch-style: * and ? only (Python fnmatch parity for recommend/outlier path_glob).
+        var regex = "^" + Regex.Escape(pattern)
+            .Replace("\\*", ".*", StringComparison.Ordinal)
+            .Replace("\\?", ".", StringComparison.Ordinal) + "$";
+        return Regex.IsMatch(relPath, regex, RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+    }
+
+    private sealed record ContextDenseSample(string ChunkId, string PointId, IReadOnlyList<float> Dense);
 
     internal static string ChunkIdToPointUuid(string chunkId)
     {
@@ -881,7 +1417,14 @@ public sealed class QdrantVectorStore : IVectorStore
         try
         {
             var (host, port, https) = QdrantGrpcEndpoint.Parse(options.Url);
-            return new QdrantClient(host: host, port: port, https: https);
+            var grpcTimeout = options.TimeoutSeconds > 0
+                ? TimeSpan.FromSeconds(options.TimeoutSeconds)
+                : TimeSpan.FromSeconds(120);
+            return new QdrantClient(
+                host: host,
+                port: port,
+                https: https,
+                grpcTimeout: grpcTimeout);
         }
         catch (Exception ex) when (ex is ArgumentException or UriFormatException or RpcException)
         {

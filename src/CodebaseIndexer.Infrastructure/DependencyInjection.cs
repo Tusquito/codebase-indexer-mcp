@@ -35,9 +35,11 @@ public static class DependencyInjection
             {
                 var tei = sp.GetRequiredService<IOptions<TeiOptions>>().Value;
                 client.BaseAddress = new Uri(tei.Url.TrimEnd('/') + "/");
-                client.Timeout = TimeSpan.FromSeconds(tei.TimeoutSeconds);
-            })
-            .AddStandardResilienceHandler();
+                // Standard resilience TotalRequestTimeout defaults to 30s and would
+                // win over HttpClient.Timeout — disable it for slow CPU TEI embeds.
+                var seconds = tei.TimeoutSeconds > 0 ? tei.TimeoutSeconds : 600;
+                client.Timeout = TimeSpan.FromSeconds(seconds);
+            });
 
         return services;
     }

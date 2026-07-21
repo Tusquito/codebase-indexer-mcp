@@ -92,6 +92,58 @@ public sealed class McpHostSmokeTests : IClassFixture<McpHostWebApplicationFacto
         }
     }
 
+    /// <summary>MCP client lists Phase 4 cross-ref + discovery tools.</summary>
+    [Fact]
+    public async Task McpClient_lists_discovery_tools()
+    {
+        await using var mcpClient = await CreateMcpClientAsync();
+        var tools = await mcpClient.ListToolsAsync();
+        foreach (var name in new[]
+                 {
+                     "find_cross_references",
+                     "map_service_dependencies",
+                     "recommend_code",
+                     "find_outlier_chunks",
+                 })
+        {
+            Assert.Contains(tools, tool => tool.Name == name);
+        }
+    }
+
+    /// <summary>find_cross_references error-path contract (no query/symbol/member).</summary>
+    [Fact]
+    public async Task McpClient_find_cross_references_error_without_inputs()
+    {
+        await using var mcpClient = await CreateMcpClientAsync();
+        var result = await mcpClient.CallToolAsync(
+            "find_cross_references",
+            new Dictionary<string, object?>());
+
+        var text = result.StructuredContent is { } structured
+            ? JsonSerializer.Serialize(structured)
+            : result.Content.OfType<TextContentBlock>().FirstOrDefault()?.Text;
+        Assert.False(string.IsNullOrWhiteSpace(text));
+        using var document = JsonDocument.Parse(text!);
+        Assert.True(document.RootElement.TryGetProperty("error", out _));
+    }
+
+    /// <summary>map_service_dependencies error-path when fewer than 2 collections.</summary>
+    [Fact]
+    public async Task McpClient_map_service_dependencies_error_with_one_collection()
+    {
+        await using var mcpClient = await CreateMcpClientAsync();
+        var result = await mcpClient.CallToolAsync(
+            "map_service_dependencies",
+            new Dictionary<string, object?> { ["collections"] = new[] { "only-one" } });
+
+        var text = result.StructuredContent is { } structured
+            ? JsonSerializer.Serialize(structured)
+            : result.Content.OfType<TextContentBlock>().FirstOrDefault()?.Text;
+        Assert.False(string.IsNullOrWhiteSpace(text));
+        using var document = JsonDocument.Parse(text!);
+        Assert.True(document.RootElement.TryGetProperty("error", out _));
+    }
+
     /// <summary>list_collections CallTool is wired (Qdrant may be down in unit host).</summary>
     [Fact]
     public async Task McpClient_calls_list_collections()

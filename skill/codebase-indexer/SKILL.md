@@ -110,7 +110,8 @@ find_cross_references(collections=["project"], member="<method>", receiver="<fie
 # Optional: symbol_name adds call sites plus links[] to the type definition
 find_cross_references(collections=["project"], symbol_name="<TypeOrService>", member="<method>", receiver="<field>")
 
-# Reindex if collection predates callees payload: index_codebase(path="project", force=True)
+# Re-index after pull if collection predates callees payload (Path D / .NET Phase 4):
+# index_codebase(path="project", force=True)
 
 search_symbols(query="<method> call invocation", collection="project")   <- fallback only
 search_codebase(query="<method>(", collection="project", max_content_chars=200)   <- semantic fallback

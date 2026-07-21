@@ -120,7 +120,10 @@ internal static class ChunkerCore
                 symbolName,
                 language,
                 fileSha256,
-                symbolType));
+                symbolType)
+            {
+                Callees = CalleeExtractor.Extract(chunkContent),
+            });
 
             if (chunkEnd >= end)
             {

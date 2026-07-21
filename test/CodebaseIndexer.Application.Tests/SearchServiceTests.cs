@@ -160,5 +160,45 @@ public sealed class SearchServiceTests
 
         public Task SetIndexingAsync(string collection, bool enabled, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
+
+        public Task VerifyChunkIdsExistAsync(string collection, IReadOnlyList<string> chunkIds, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task<IReadOnlyList<SearchHit>> RecommendAsync(
+            string collection,
+            IReadOnlyList<RecommendExample> positive,
+            IReadOnlyList<RecommendExample>? negative = null,
+            int limit = 5,
+            string? language = null,
+            string? pathGlob = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<SearchHit>>([]);
+
+        public Task<IReadOnlyList<SearchHit>> FindOutlierChunksAsync(
+            string collection,
+            IReadOnlyList<string>? contextChunkIds = null,
+            int limit = 5,
+            string? language = null,
+            string? pathGlob = null,
+            float? maxSimilarity = null,
+            int? maxContextSamples = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<SearchHit>>([]);
+
+        public Task<IReadOnlyList<SearchHit>> FindCallersInCollectionsAsync(
+            string method,
+            IReadOnlyList<string> collections,
+            string? receiver = null,
+            int limitPerCollection = 10,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<SearchHit>>([]);
+
+        public Task<IReadOnlyList<IReadOnlyDictionary<string, string>>> ScrollChunksByPathsAsync(
+            string collection,
+            IReadOnlyList<string> relPaths,
+            IReadOnlyList<string>? payloadFields = null,
+            int limit = 500,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<IReadOnlyDictionary<string, string>>>([]);
     }
 }

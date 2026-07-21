@@ -1,4 +1,5 @@
 using CodebaseIndexer.Application.Options;
+using CodebaseIndexer.Application.Search;
 using CodebaseIndexer.Application.Services;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -14,12 +15,16 @@ public static class DependencyInjection
     {
         services.AddMemoryCache();
         services.AddCodebaseIndexerIndexingOptions();
+        services.AddSingleton<UrlExtractors>();
         services.AddSingleton<IHealthService, HealthService>();
         services.AddSingleton<IIndexEmbeddingService, IndexEmbeddingService>();
         services.AddSingleton<IIndexCodebaseService, IndexCodebaseService>();
         services.AddSingleton<IIndexJobService, IndexJobService>();
         services.AddSingleton<ISearchService, SearchService>();
         services.AddSingleton<ICollectionQueryService, CollectionQueryService>();
+        services.AddSingleton<ICrossReferenceService, CrossReferenceService>();
+        services.AddSingleton<IServiceMapService, ServiceMapService>();
+        services.AddSingleton<IRecommendService, RecommendService>();
         return services;
     }
 }

@@ -92,4 +92,47 @@ public interface IVectorStore
         string collection,
         bool enabled,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Raises when any chunk id is missing from the collection.</summary>
+    Task VerifyChunkIdsExistAsync(
+        string collection,
+        IReadOnlyList<string> chunkIds,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Qdrant Recommend (dense AVERAGE_VECTOR) with optional path_glob post-filter.</summary>
+    Task<IReadOnlyList<SearchHit>> RecommendAsync(
+        string collection,
+        IReadOnlyList<RecommendExample> positive,
+        IReadOnlyList<RecommendExample>? negative = null,
+        int limit = 5,
+        string? language = null,
+        string? pathGlob = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Find chunks distant from a context centroid (BEST_SCORE negative-only).</summary>
+    Task<IReadOnlyList<SearchHit>> FindOutlierChunksAsync(
+        string collection,
+        IReadOnlyList<string>? contextChunkIds = null,
+        int limit = 5,
+        string? language = null,
+        string? pathGlob = null,
+        float? maxSimilarity = null,
+        int? maxContextSamples = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Scroll chunks whose callees payload matches member or receiver.member.</summary>
+    Task<IReadOnlyList<SearchHit>> FindCallersInCollectionsAsync(
+        string method,
+        IReadOnlyList<string> collections,
+        string? receiver = null,
+        int limitPerCollection = 10,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Scroll chunk payloads for specific rel_path values.</summary>
+    Task<IReadOnlyList<IReadOnlyDictionary<string, string>>> ScrollChunksByPathsAsync(
+        string collection,
+        IReadOnlyList<string> relPaths,
+        IReadOnlyList<string>? payloadFields = null,
+        int limit = 500,
+        CancellationToken cancellationToken = default);
 }

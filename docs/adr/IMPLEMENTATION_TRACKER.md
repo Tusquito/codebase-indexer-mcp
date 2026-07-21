@@ -84,6 +84,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0030 | Phase 1 — Scaffold + storage + TEI | Accepted (phase 1 — Scaffold + storage + TEI) | phase-1 | `merged` | Accept ADR 0030; repo-root solution; hand-authored docker-compose.aspire.yml; arm64 cpu-arm64-latest TEI; accelerator defaults cpu; MCP stub get_health only; SearchAsync stub until Phase 3; tokenizer truncation Phase 2; Python production default until Phase 7 | 2026-07-13 |
 | 0030 | Phase 2 — Indexing pipeline | Accepted (phase 1; phase 2 — Indexing pipeline) | phase-2 | `merged` | `WorkspaceScanner` (SHA-256 incremental scan, ignore files, `ArrayPool` hashing, channel worker fan-out DOP=1); `TreeSitterChunker` (port `chunker.py` via `TreeSitter.DotNet`, regex SQL fallback); `OnnxSparseEmbedder` (`Microsoft.ML.OnnxRuntime`, same `Qdrant/bm25` artifacts); model-accurate dense tokenizer truncation; `IndexPipeline` with `Channel<T>` stages in `IndexPipelineHostedService`; `IndexCodebaseService` + `IndexJobService`; MCP index tools (`index_codebase`, `index_status`, `stop_indexing`, `index_all`); chunk-ID golden parity fixture; `docker-compose.aspire.yml` workspace/cache wiring (fastembed at `/root/.cache/fastembed` with `fastembed_cache` volume); `--aspire-stack` integration smoke (manual M3 Pro pre-review, optional non-blocking CI); Python `run_compose_integration.py` remains green | 2026-07-13 |
 | 0030 | Phase 3 — Core search tools | Accepted (phases 1–3) | phase-3 | `merged` | Hybrid RRF via Qdrant QueryAsync + client CrossCollectionRrf; Embedding PrefetchMultiplier/RrfK; Qdrant create parity (int8/HNSW/memmap/payload indexes); Host resolves default collection; six MCP tools; summary without build_dependencies; ColBERT no-op; Aspire gRPC :6334 + TEI arch image + SDK-container test fallback; quality via --mcp-url | 2026-07-21 |
+| 0030 | Phase 4 — Cross-ref + discovery | Accepted (phases 1–3; Phase 4 verified) | phase-4 | `verified` | Qdrant-only Path D (`callees` scroll); `Discovery:RecommendEnabled` gating; `UrlExtractors` supersedes Phase 3 minimal classifier; quality report-only (`threshold 0`); no schema-version env (re-index after pull) | 2026-07-21 |
 <!-- END GENERATED:summary -->
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
@@ -91,7 +92,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 ## Active and upcoming work
 
 <!-- BEGIN GENERATED:active -->
-_No active or upcoming phases._
+- **0030** Phase 4 — Cross-ref + discovery — `verified`
 <!-- END GENERATED:active -->
 
 ### Partial acceptance
@@ -1835,6 +1836,16 @@ _No active or upcoming phases._
 - **Verify:** review rounds 1; dotnet test in SDK container (70 pass); integration Verdict pass; quality recall@10 +38.1% vs baseline (threshold 2); plan compliance pass
 - **Changelog:** yes — Aspire/.NET MCP now exposes hybrid dense+sparse RRF search and core read tools (`search_codebase`, `search_symbols`, `get_chunk`, `get_file_outline`, `get_collection_summary`, `list_collections`); re-index after pull for quantization/HNSW/`symbol_type` parity.
 
+#### 2026-07-21 — verification
+- **Phase:** Phase 4 — Cross-ref + discovery
+- **Tracker status:** `verified`
+- **Choices:** Qdrant-only Path D (`callees` scroll); `Discovery:RecommendEnabled` gating; `UrlExtractors` supersedes Phase 3 minimal classifier; quality report-only (`threshold 0`); no schema-version env (re-index after pull)
+- **Deviations:** none
+- **Code evidence:** `src/CodebaseIndexer.Host/Tools/CrossReferenceTools.cs`, `src/CodebaseIndexer.Host/Tools/ServiceMapTools.cs`, `src/CodebaseIndexer.Host/Tools/RecommendTools.cs`, `src/CodebaseIndexer.Host/Tools/OutlierTools.cs`, `src/CodebaseIndexer.Application/Services/CrossReferenceService.cs`, `src/CodebaseIndexer.Application/Services/ServiceMapService.cs`, `src/CodebaseIndexer.Application/Services/RecommendService.cs`, `src/CodebaseIndexer.Application/Services/CollectionQueryService.cs`, `src/CodebaseIndexer.Application/BuildDeps/`, `src/CodebaseIndexer.Infrastructure/Indexing/CalleeExtractor.cs`, `src/CodebaseIndexer.Infrastructure/Qdrant/QdrantVectorStore.cs`, `scripts/run_compose_integration.py`, `scripts/smoke_aspire_service_map.py`, `test/CodebaseIndexer.Application.Tests/BuildDeps/BuildDepCollectionMatcherTests.cs`
+- **Test debt:** live Qdrant recommend/outlier/callers e2e; stronger aspire service-map edge assertions (R4); DiscoveryResponseModels one-type-per-file cleanup (R3)
+- **Verify:** review rounds 2; `dotnet test CodebaseIndexer.slnx` 108 passed; plan compliance pass; Docker integration Verdict pass (prior) + R1 harness fix verified in source
+- **Changelog:** yes — Add .NET MCP discovery tools (`find_cross_references`, `map_service_dependencies`, `recommend_code`, `find_outlier_chunks`), build-deps matching in summaries/service-map, and Qdrant Path D `callees` call-site lookup (re-index after pull).
+
 #### 2026-07-21 — prioritization
 - **Phase:** Phase 3 — Core search tools
 - **Tracker status:** `candidate`
@@ -1842,10 +1853,24 @@ _No active or upcoming phases._
 - **Deviations:** none
 - **Changelog:** no — user-facing unknown; invoker Changelog: no
 
+#### 2026-07-21 — prioritization
+- **Phase:** Phase 4 — Cross-ref + discovery
+- **Tracker status:** `candidate`
+- **Choices:** Selected over 0026 Phase 4 (GPU bake-off — ties on score, loses tie-break: larger scope + secondary to 0030 thread); over 0032/0033 Phase 1 (Proposed — need Accept; strong intercalation option); over 0027/0031 (Accept deferred / Python-scoped); over 0023 Phase 3 (Python debt). Single phase per pipeline rule; no ADR Accept required (0030 already Accepted). Human decisions applied 2026-07-21: (1) continue with 0030 Phase 4 — do not intercalate 0032/0033; (2) keep 0026 Phase 4 deferred behind 0030; (3) ADR 0027 — no action this cycle; (4) ADR 0031 — re-scope to .NET Host probe URLs before any Accept (do not Accept 0031 now). **Why now:** Phases 1–3 merged; ADR delivery order next is cross-ref + discovery; Host has index + six search tools only; no xref/recommend/outlier tools in `src/`; 0030 remains primary migration thread per tracker open decisions / Phase 3 prioritization; Proposed 0032/0033 need Accept if intercalated. **Suggested scope:** one phase (= one PR). **Chosen scope:** Implement .NET `find_cross_references`, `map_service_dependencies`, `recommend_code`, `find_outlier_chunks` + build-deps parsers; tool-contract tests; multi-collection service-map smoke; Docker integration via `scripts/run_compose_integration.py`; defer Phases 5–7 and Proposed ADR Accept unless invoker redirects to 0032 Phase 1.
+- **Deviations:** none
+- **Changelog:** no — user-facing unknown; invoker Changelog: no
+
 #### 2026-07-21 — plan
 - **Phase:** Phase 3 — Core search tools
 - **Tracker status:** `planned`
 - **Choices:** Expand `IVectorStore` to vector-based hybrid search (Application embeds); align collection create with Python quantization/HNSW/payload indexes; add `Chunk.SymbolType`; omit summary `build_dependencies` and full cross-ref tools until Phase 4; quality eval must hit .NET search (MCP `--mcp-url` or equivalent), not Python `run_search` alone; ColBERT no-op until Phase 6. Assumptions: Phases 1–2 merged artifacts are the edit base; Python remains production default; golden fixtures + `eval_baseline.json` unchanged; Aspire TEI/Qdrant available for gates. Pre-release: no backward-compat requirement unless ADR documents one; Docker integration always required; no schema migration version env vars — document re-index after pull.
+- **Deviations:** none
+- **Changelog:** no — invoker Changelog: no; status planned
+
+#### 2026-07-21 — plan
+- **Phase:** Phase 4 — Cross-ref + discovery
+- **Tracker status:** `planned`
+- **Choices:** Qdrant-only Path D in Phase 4 (Neo4j callers in Phase 5); Discovery options section mirroring Python recommend/outlier/service-map knobs; `RecommendEnabled` gates tool registration; quality eval report-only (`threshold 0`); no ColBERT rerank until Phase 6; re-index after pull for `callees` (no schema-version env). Assumptions: Phases 1–3 .NET merge is baseline; Python tool modules are behavioral source of truth; `IndexedPayloadFields` already lists `callees` but upsert/chunker must be completed this phase. Pre-release: no backward-compat requirement unless ADR documents one; Docker integration always required; no schema migration version env vars.
 - **Deviations:** none
 - **Changelog:** no — invoker Changelog: no; status planned
 
@@ -1884,6 +1909,15 @@ _No active or upcoming phases._
 - **Deviations:** Application does not reference Infrastructure QdrantOptions (Host binds default collection); Host CallTool smoke allows Qdrant-unavailable error
 - **Code evidence:** `src/CodebaseIndexer.Infrastructure/Qdrant/QdrantVectorStore.cs`, `src/CodebaseIndexer.Application/Services/SearchService.cs`, `src/CodebaseIndexer.Application/Search/CrossCollectionRrf.cs`, `src/CodebaseIndexer.Host/Tools/SearchTools.cs`, `src/CodebaseIndexer.Host/Tools/ChunkTools.cs`, `src/CodebaseIndexer.Host/Tools/OutlineTools.cs`, `src/CodebaseIndexer.Host/Tools/SummaryTools.cs`, `src/CodebaseIndexer.Host/Tools/CollectionsTools.cs`, `mcp_server/benchmarks/eval_retrieval.py`, `scripts/run_compose_integration.py`
 - **Test debt:** Testcontainers hybrid query; recreate/quantization asserts; Aspire golden recall@10 gate; SymbolType chunker goldens
+- **Changelog:** no — invoker Changelog: no; status implemented
+
+#### 2026-07-21 — implementation
+- **Phase:** Phase 4 — Cross-ref + discovery
+- **Tracker status:** `implemented`
+- **Choices:** Qdrant-only Path D (`callees` scroll); explicit MCP tool registration with `Discovery:RecommendEnabled` gating; `UrlExtractors` supersedes Phase 3 minimal classifier; no schema-version env (re-index after pull)
+- **Deviations:** none
+- **Code evidence:** `src/CodebaseIndexer.Host/Tools/CrossReferenceTools.cs`, `src/CodebaseIndexer.Host/Tools/ServiceMapTools.cs`, `src/CodebaseIndexer.Host/Tools/RecommendTools.cs`, `src/CodebaseIndexer.Host/Tools/OutlierTools.cs`, `src/CodebaseIndexer.Application/Services/CrossReferenceService.cs`, `src/CodebaseIndexer.Application/Services/ServiceMapService.cs`, `src/CodebaseIndexer.Application/Services/RecommendService.cs`, `src/CodebaseIndexer.Infrastructure/Qdrant/QdrantVectorStore.cs`, `src/CodebaseIndexer.Infrastructure/Indexing/CalleeExtractor.cs`, `src/CodebaseIndexer.Application/BuildDeps/`, `scripts/smoke_aspire_service_map.py`
+- **Test debt:** live Qdrant recommend/outlier/callers e2e; Docker aspire service-map + quality report-only harness
 - **Changelog:** no — invoker Changelog: no; status implemented
 
 #### 2026-07-13 — verification
@@ -2026,6 +2060,11 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 - RESOLVED — (3) Do not Accept ADR 0027 this cycle
 - RESOLVED — (4) Use 24 GiB Docker VM tier for 0028 Phase 4
 - RESOLVED — (5) Regex SQL fallback acceptable if TreeSitter.DotNet SQL grammar unavailable
+- Future only (out of scope): re-scope Proposed 0031 to .NET Host probe URLs before Accept — do not Accept 0031 this cycle
+- RESOLVED — (1) continue 0030 Phase 4; do not intercalate 0032/0033
+- RESOLVED — (2) keep 0026 Phase 4 deferred behind 0030
+- RESOLVED — (3) ADR 0027 — no action this cycle
+- (4) open — re-scope ADR 0031 to .NET Host probe URLs before Accept (do not Accept now)
 <!-- END GENERATED:open-decisions -->
 
 ---
