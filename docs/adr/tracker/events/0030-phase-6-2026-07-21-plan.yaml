@@ -1,0 +1,22 @@
+adr_id: "0030"
+phase_key: phase-6
+phase_title: Phase 6 — ColBERT + ops
+event: plan
+date: "2026-07-21"
+tracker_status: planned
+choices: >-
+  One PR (ADR default); check in generated Aspire compose; separate Proxy
+  project; GPU smoke this cycle; Refit path `/v1/embed/colbert` (Python parity);
+  default remote ColBERT when rerank enabled; adaptive rerank ported;
+  `compose_files.py` retained until Phase 7 for Python default path.
+  Assumptions: Phases 1–5 code evidence present; ServiceDefaults immutable; no
+  schema-version env (re-index after pull); Python `docker-compose.yml` remains
+  until Phase 7 except cron removal. Pre-release: no backward-compat requirement
+  unless ADR documents one; Docker integration always required; document
+  re-index after pull instead of schema migration version env vars.
+deviations: none
+changelog:
+  update: false
+  reason: "invoker Changelog: no; status planned"
+user_facing: true
+open_decisions: []

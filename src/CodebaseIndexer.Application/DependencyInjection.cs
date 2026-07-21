@@ -28,6 +28,7 @@ public static class DependencyInjection
         services.AddSingleton<IServiceMapService, ServiceMapService>();
         services.AddSingleton<IRecommendService, RecommendService>();
         services.AddSingleton<IExpandSearchContextService, ExpandSearchContextService>();
+        services.AddSingleton<IScheduledReindexRunner, ScheduledReindexRunner>();
         return services;
     }
 }

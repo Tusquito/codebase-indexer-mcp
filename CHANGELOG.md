@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **.NET ColBERT rerank + Aspire ops** ([ADR 0030](docs/adr/0030-migrate-mcp-server-to-dotnet10.md)) — remote GPU worker default (in-process ONNX available), Aspire compose with ColBERT, stdio Proxy, and in-process scheduled reindex (cron sidecar removed); re-index after pull when enabling ColBERT
 - **Opt-in .NET GraphRAG** ([ADR 0030](docs/adr/0030-migrate-mcp-server-to-dotnet10.md)) — Neo4j writer, Path D CALLS routing, and `expand_search_context` behind `Graph:Enabled` with Aspire neo4j overlay (re-index after pull; no schema-version env)
 - **.NET MCP discovery tools** ([ADR 0030](docs/adr/0030-migrate-mcp-server-to-dotnet10.md)) — `find_cross_references`, `map_service_dependencies`, `recommend_code`, `find_outlier_chunks`, plus build-deps matching in summaries/service-map and Qdrant Path D `callees` call-site lookup; re-index after pull
 - **Aspire/.NET MCP hybrid search and core read tools** ([ADR 0030](docs/adr/0030-migrate-mcp-server-to-dotnet10.md)) — hybrid dense+sparse RRF search and core read tools (`search_codebase`, `search_symbols`, `get_chunk`, `get_file_outline`, `get_collection_summary`, `list_collections`); re-index after pull for quantization/HNSW/`symbol_type` parity

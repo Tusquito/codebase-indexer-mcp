@@ -31,13 +31,21 @@ public class McpHostWebApplicationFactory : WebApplicationFactory<Program>
     /// <inheritdoc />
     protected override IHost CreateHost(IHostBuilder builder)
     {
-        if (_earlySettings.Count > 0)
+        // Host configuration must include Reindex:Enabled=false before Program runs
+        // AddCodebaseIndexerHost (Quartz registers from builder.Configuration at startup).
+        builder.ConfigureHostConfiguration(config =>
         {
-            builder.ConfigureHostConfiguration(config =>
+            var hostDefaults = new Dictionary<string, string?>(StringComparer.Ordinal)
             {
-                config.AddInMemoryCollection(_earlySettings);
-            });
-        }
+                [$"{ReindexOptions.SectionName}:Enabled"] = "false",
+            };
+            foreach (var (key, value) in _earlySettings)
+            {
+                hostDefaults[key] = value;
+            }
+
+            config.AddInMemoryCollection(hostDefaults);
+        });
 
         return base.CreateHost(builder);
     }
@@ -77,12 +85,29 @@ public class McpHostWebApplicationFactory : WebApplicationFactory<Program>
             [$"{EmbeddingOptions.SectionName}:SparseModel"] = "Qdrant/bm25",
             [$"{EmbeddingOptions.SectionName}:DenseVectorSize"] = "768",
             [$"{EmbeddingOptions.SectionName}:RerankEnabled"] = "false",
+            [$"{EmbeddingOptions.SectionName}:ColbertEmbedModel"] = "colbert-ir/colbertv2.0",
+            [$"{EmbeddingOptions.SectionName}:RerankPrefetch"] = "100",
+            [$"{EmbeddingOptions.SectionName}:RerankMaxQueryTokens"] = "0",
+            [$"{EmbeddingOptions.SectionName}:RerankAdaptiveEnabled"] = "false",
+            [$"{EmbeddingOptions.SectionName}:RerankAdaptiveGap"] = "0.02",
             [$"{EmbeddingOptions.SectionName}:MaxDenseTokens"] = "0",
             [$"{EmbeddingOptions.SectionName}:MaxSparseTokens"] = "0",
             [$"{EmbeddingOptions.SectionName}:CachePath"] = "/root/.cache/fastembed",
             [$"{EmbeddingOptions.SectionName}:SparseThreads"] = "2",
             [$"{EmbeddingOptions.SectionName}:PrefetchMultiplier"] = "5",
             [$"{EmbeddingOptions.SectionName}:RrfK"] = "60",
+            [$"{ColbertOptions.SectionName}:EmbedModel"] = "colbert-ir/colbertv2.0",
+            [$"{ColbertOptions.SectionName}:EmbedBackend"] = "onnx",
+            [$"{ColbertOptions.SectionName}:Url"] = "http://localhost:8082",
+            [$"{ColbertOptions.SectionName}:TimeoutSeconds"] = "300",
+            [$"{ColbertOptions.SectionName}:EmbedBatchSize"] = "16",
+            [$"{ColbertOptions.SectionName}:UseCuda"] = "false",
+            [$"{ReindexOptions.SectionName}:Enabled"] = "false",
+            [$"{ReindexOptions.SectionName}:Cron"] = "0 3 * * *",
+            [$"{ReindexOptions.SectionName}:Interval"] = "",
+            [$"{ReindexOptions.SectionName}:GitPull"] = "false",
+            [$"{ReindexOptions.SectionName}:IndexTimeoutSeconds"] = "1800",
+            [$"{ReindexOptions.SectionName}:GitTimeoutSeconds"] = "120",
             [$"{TeiOptions.SectionName}:Url"] = "http://localhost:8080",
             [$"{TeiOptions.SectionName}:EmbedBatchSize"] = "32",
             [$"{TeiOptions.SectionName}:TimeoutSeconds"] = "120",

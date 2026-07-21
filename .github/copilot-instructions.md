@@ -67,7 +67,7 @@ uv run python -m codebase_indexer.main
 Three Docker services:
 - **Qdrant** (`codeindexer_qdrant`, port 6333/6334) — vector database, persistent via `qdrant_data` volume
 - **MCP server** (`codeindexer_mcp`, port 8000) — FastMCP server, the only service with business logic
-- **Cron** (`codeindexer_cron`) — scheduled git pull + incremental re-index via `cron/reindex.py`; no host ports
+- **Cron** — removed (ADR 0030 Phase 6); .NET Host `Reindex:*` Quartz/interval + LibGit2Sharp; Aspire compose includes `colbert` worker; stdio forwarder is `src/CodebaseIndexer.Proxy`
 
 `WORKSPACE_ROOT` on the host is mounted read-only into the container at `/workspace`. Each direct subdirectory of `/workspace` is one **collection** (indexed project). The collection name is always the folder basename.
 

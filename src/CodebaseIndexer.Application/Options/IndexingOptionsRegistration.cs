@@ -1,5 +1,6 @@
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace CodebaseIndexer.Application.Options;
 
@@ -18,7 +19,15 @@ public static class IndexingOptionsRegistration
         services.AddOptionsWithFluentValidation<IndexingOptions>(IndexingOptions.SectionName);
         services.AddOptionsWithFluentValidation<DiscoveryOptions>(DiscoveryOptions.SectionName);
         services.AddOptionsWithFluentValidation<GraphOptions>(GraphOptions.SectionName);
+        services.AddOptionsWithFluentValidation<ColbertOptions>(ColbertOptions.SectionName);
+        services.AddOptionsWithFluentValidation<ReindexOptions>(ReindexOptions.SectionName);
+
+        services.AddSingleton<IPostConfigureOptions<ColbertOptions>, ColbertBackendPostConfigure>();
+        services.AddSingleton<IPostConfigureOptions<EmbeddingOptions>, EmbeddingAdaptivePostConfigure>();
+        services.AddSingleton<IValidateOptions<ColbertOptions>, ColbertRemoteUrlValidateOptions>();
+        services.AddSingleton<IValidateOptions<IndexingOptions>, IndexingUpsertBatchValidateOptions>();
 
         return services;
     }
 }
+

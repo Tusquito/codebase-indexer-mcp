@@ -1,0 +1,39 @@
+adr_id: "0030"
+phase_key: phase-6
+phase_title: Phase 6 — ColBERT + ops
+event: implementation
+date: "2026-07-21"
+tracker_status: implemented
+choices: >-
+  One PR; checked-in Aspire compose; separate Proxy project; GPU smoke this
+  cycle; Refit `/v1/embed/colbert`; remote ColBERT default when rerank on;
+  adaptive rerank; `compose_files.py` until Phase 7; CUDA Option A = ORT Gpu
+  1.22.0 + CUDA 12.x + cuDNN 9; `OrtCUDAProviderOptions` + post-session
+  `GetAvailableProviders()` fail-fast; default `GpuMemLimitBytes` 2 GiB; no
+  schema-version env (re-index after pull). Pre-release: no backward-compat
+  requirement unless ADR documents one; Docker integration always required;
+  document re-index after pull instead of schema migration version env vars.
+deviations: >-
+  ORT C# 1.22 has no session `GetProviders()` — used
+  `OrtEnv.GetAvailableProviders()` after `InferenceSession` create; golden cron
+  anchors retargeted to docs after `cron/` removal
+code_evidence:
+  - src/CodebaseIndexer.ColbertWorker/
+  - src/CodebaseIndexer.Proxy/
+  - src/CodebaseIndexer.Infrastructure/Colbert/ColbertOnnxEmbedder.cs
+  - src/CodebaseIndexer.Application/Services/ScheduledReindexRunner.cs
+  - docker-compose.aspire.yml
+  - docker-compose.aspire.colbert.gpu.yml
+  - scripts/run_compose_integration.py
+  - aspire-phase6-smoke.json (verdict pass)
+test_debt:
+  - CUDA fail-fast unit tests
+  - adaptive rerank tests
+  - ScheduledReindexRunner tests
+  - harness MCP rerank flag consistency
+  - C# golden anchors blocked on TreeSitter packaging (parent)
+changelog:
+  update: false
+  reason: "invoker Changelog: no; status implemented (CHANGELOG at verified if user-facing)"
+user_facing: true
+open_decisions: []

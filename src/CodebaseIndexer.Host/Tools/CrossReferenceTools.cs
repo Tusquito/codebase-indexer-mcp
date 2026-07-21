@@ -26,7 +26,7 @@ public sealed class CrossReferenceTools
         "(Path D: Neo4j CALLS when the collection has graph_call_sites metadata after a " +
         "graph-enabled index; otherwise Qdrant callees scroll with a fallback warning). " +
         "Re-index after pull when enabling Graph:Enabled (no schema-version env). " +
-        "When RERANK_ENABLED=true, pass rerank=false to skip ColBERT (Phase 6; currently no-op).")]
+        "When Embedding:RerankEnabled=true, pass rerank=false to skip ColBERT on semantic paths.")]
     public Task<object> FindCrossReferencesAsync(
         [Description("Semantic search query")] string? query = null,
         [Description("Exact symbol name")] string? symbol_name = null,
@@ -34,7 +34,7 @@ public sealed class CrossReferenceTools
         [Description("Max results per path")] int top_k = 10,
         [Description("Method name for Path D call-site lookup")] string? member = null,
         [Description("Optional receiver/field name for Path D")] string? receiver = null,
-        [Description("ColBERT rerank override (ignored until Phase 6)")] bool? rerank = null,
+        [Description("ColBERT override: false skips rerank when enabled")] bool? rerank = null,
         CancellationToken cancellationToken = default) =>
         _service.FindCrossReferencesAsync(
             query, symbol_name, collections, top_k, member, receiver, rerank, cancellationToken);

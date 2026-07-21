@@ -1,0 +1,35 @@
+# GPU ColBERT worker — CUDA 12 + cuDNN 9 libs for ORT CUDA EP.
+#
+# Option A pin (official CUDA EP matrix): Microsoft.ML.OnnxRuntime.Gpu 1.22.0
+# requires CUDA 12.x + cuDNN 9.x. Do not bump ORT to >=1.27 / CUDA 13 without
+# choosing Option B. Base: nvidia/cuda:12.6.3-cudnn-runtime-ubuntu22.04.
+ARG CUDA_IMAGE=nvidia/cuda:12.6.3-cudnn-runtime-ubuntu22.04
+FROM ${CUDA_IMAGE} AS cuda_runtime
+
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY CodebaseIndexer.slnx ./
+COPY global.json ./
+COPY Directory.Build.props ./
+COPY src/CodebaseIndexer.Domain/ src/CodebaseIndexer.Domain/
+COPY src/CodebaseIndexer.Application/ src/CodebaseIndexer.Application/
+COPY src/CodebaseIndexer.Infrastructure/ src/CodebaseIndexer.Infrastructure/
+COPY src/CodebaseIndexer.ServiceDefaults/ src/CodebaseIndexer.ServiceDefaults/
+COPY src/CodebaseIndexer.ColbertWorker/ src/CodebaseIndexer.ColbertWorker/
+RUN dotnet restore src/CodebaseIndexer.ColbertWorker/CodebaseIndexer.ColbertWorker.csproj
+RUN dotnet publish src/CodebaseIndexer.ColbertWorker/CodebaseIndexer.ColbertWorker.csproj -c Release -o /app/publish /p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0
+COPY --from=cuda_runtime /usr/local/cuda /usr/local/cuda
+COPY --from=cuda_runtime /usr/lib/x86_64-linux-gnu/libcudnn*.so.9* /usr/lib/x86_64-linux-gnu/
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY --from=build /app/publish .
+EXPOSE 8082
+ENV ASPNETCORE_URLS=http://0.0.0.0:8082
+ENV ASPNETCORE_ENVIRONMENT=Production
+ENV Colbert__UseCuda=true
+ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}
+ENTRYPOINT ["dotnet", "CodebaseIndexer.ColbertWorker.dll"]

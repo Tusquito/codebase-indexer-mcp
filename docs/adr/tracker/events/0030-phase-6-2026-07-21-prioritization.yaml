@@ -1,0 +1,26 @@
+adr_id: "0030"
+phase_key: phase-6
+phase_title: Phase 6 — ColBERT + ops
+event: prioritization
+date: "2026-07-21"
+tracker_status: candidate
+choices: >-
+  Selected 0030 Phase 6 over 0032/0033 (Proposed, deferred Accept), over 0026
+  Phase 4 (GPU blocker), over 0031 (needs .NET re-scope), over 0030 Phase 7
+  (blocked on P6); single phase per pipeline rule; no ADR Accept required.
+  Human decisions (2026-07-21): (1) stay one PR; (2) check in generated Aspire
+  compose after P6; (3) separate CodebaseIndexer.Proxy project; (4) GPU host
+  available for ColBERT smoke this cycle. **Why now:** Phases 1–5 merged;
+  ColBERT/ops absent in .NET (explicit Phase-6 no-op stubs); next Accepted
+  sequential phase before Python cutover; Proposed 0031–0033 and 0026 P4
+  deferred by open decisions / blockers. **Suggested scope:** one phase (= one
+  PR). **Chosen scope:** ColBERT worker + Refit client; remote/in-process ONNX;
+  wire `rerank` on search paths; in-process Quartz/`BackgroundService` reindex
+  (remove cron sidecar); Aspire Docker Compose publishing / aspire compose
+  parity; `CodebaseIndexer.Proxy` stdio forwarder; Docker integration + quality
+  validation for rerank path. Open decisions cleared (none remaining).
+deviations: none
+changelog:
+  update: false
+  reason: "user-facing unknown; invoker Changelog: no"
+user_facing: false

@@ -1,5 +1,5 @@
+using CodebaseIndexer.Infrastructure.Configuration;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.Configuration;
 
 namespace CodebaseIndexer.Host.Tests;
 
@@ -10,18 +10,22 @@ public sealed class SettingsValidateOnStartTests
     [Fact]
     public void Host_fails_fast_when_required_settings_missing()
     {
-        var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        using var factory = new MissingQdrantUrlFactory();
+        var ex = Assert.ThrowsAny<Exception>(() =>
         {
-            builder.ConfigureAppConfiguration((_, config) =>
-            {
-                config.AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    [$"{Infrastructure.Configuration.QdrantOptions.SectionName}:Url"] = string.Empty,
-                });
-            });
+            using var client = factory.CreateClient();
         });
-
-        var ex = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
         Assert.Contains("Url", ex.ToString(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private sealed class MissingQdrantUrlFactory : McpHostWebApplicationFactory
+    {
+        public MissingQdrantUrlFactory()
+            : base(new Dictionary<string, string?>(StringComparer.Ordinal)
+            {
+                [$"{QdrantOptions.SectionName}:Url"] = string.Empty,
+            })
+        {
+        }
     }
 }

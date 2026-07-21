@@ -31,5 +31,22 @@ public sealed class EmbeddingOptionsValidator : AbstractValidator<EmbeddingOptio
         RuleFor(x => x.RrfK)
             .GreaterThanOrEqualTo(1)
             .WithMessage($"{nameof(EmbeddingOptions.RrfK)} must be >= 1.");
+
+        RuleFor(x => x.RerankPrefetch)
+            .GreaterThanOrEqualTo(1)
+            .WithMessage($"{nameof(EmbeddingOptions.RerankPrefetch)} must be >= 1.");
+
+        RuleFor(x => x.RerankAdaptiveGap)
+            .GreaterThanOrEqualTo(0)
+            .WithMessage($"{nameof(EmbeddingOptions.RerankAdaptiveGap)} must be >= 0.");
+
+        RuleFor(x => x)
+            .Must(x => !x.RerankEnabled || x.HybridSearch)
+            .WithMessage("Embedding:RerankEnabled requires Embedding:HybridSearch.");
+
+        RuleFor(x => x.ColbertEmbedModel)
+            .NotEmpty()
+            .When(x => x.RerankEnabled)
+            .WithMessage($"{nameof(EmbeddingOptions.ColbertEmbedModel)} is required when rerank is enabled.");
     }
 }

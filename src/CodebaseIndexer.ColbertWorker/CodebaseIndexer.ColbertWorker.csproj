@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\CodebaseIndexer.Application\CodebaseIndexer.Application.csproj" />
+    <ProjectReference Include="..\CodebaseIndexer.Infrastructure\CodebaseIndexer.Infrastructure.csproj" />
+    <ProjectReference Include="..\CodebaseIndexer.ServiceDefaults\CodebaseIndexer.ServiceDefaults.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+</Project>

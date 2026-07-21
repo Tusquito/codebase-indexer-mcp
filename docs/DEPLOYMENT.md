@@ -1,19 +1,20 @@
 # Deployment
 
-Docker Compose runs Qdrant, the MCP server, and the cron reindex job. **Dense embedding always goes through TEI** (HuggingFace Text Embeddings Inference); sparse BM25 stays in-process in the MCP container. Configuration is env-var driven via `.env` (copy from `.env.example`).
+Docker Compose runs Qdrant, the MCP server, and (for Aspire/.NET) TEI + ColBERT. **Dense embedding always goes through TEI** (HuggingFace Text Embeddings Inference); sparse BM25 stays in-process in the MCP container. Scheduled reindex is **in-process** on the .NET Host (`Reindex:*`) — the `cron/` sidecar was removed in ADR 0030 Phase 6. Configuration is env-var driven via `.env` (Python) or `Section__Property` (Aspire).
 
 ## Compose files
 
 | File | Purpose |
 |------|---------|
-| `docker-compose.yml` | Base stack: `codeindexer_qdrant`, `codeindexer_mcp`, `codeindexer_cron` |
+| `docker-compose.yml` | Base Python stack: `codeindexer_qdrant`, `codeindexer_mcp` (no cron sidecar) |
 | `docker-compose.tei.yml` | Optional bundled `tei` service (`COMPOSE_PROFILES=bundled-tei`) |
 | `docker-compose.tei.gpu.yml` | **Default stack** — NVIDIA GPU for bundled TEI when `ACCELERATOR=gpu` (merged by `scripts/compose_files.py`) |
 | `docker-compose.tei.amd64-mkl.yml` | amd64 CPU only — injects `MKL_ENABLE_INSTRUCTIONS` for bundled TEI; omitted on arm64 ([ADR 0028](adr/0028-apple-silicon-arm64-cpu-deployment.md)) |
-| `docker-compose.colbert-worker.yml` | Optional ColBERT HTTP sidecar when `RERANK_ENABLED=true` and `COLBERT_EMBED_BACKEND=remote` |
+| `docker-compose.colbert-worker.yml` | Optional ColBERT HTTP sidecar when `RERANK_ENABLED=true` and `COLBERT_EMBED_BACKEND=remote` (Python path) |
 | `docker-compose.colbert-worker.gpu.yml` | **Default stack** — NVIDIA GPU for ColBERT sidecar when remote sidecar + `ACCELERATOR=gpu` |
 | `docker-compose.neo4j.yml` | Optional Neo4j for **Python** `mcp_server` GraphRAG ([ADR 0002](adr/0002-graphrag-neo4j-qdrant.md)) |
-| `docker-compose.aspire.yml` | **ADR 0030 Phase 1+** — .NET MCP: Qdrant (REST `:6333` + gRPC `:6334`) + TEI + `codeindexer_mcp_dotnet`. `Qdrant__Url=http://qdrant:6334` for `Qdrant.Client` gRPC. Split `appsettings` sections + `Section__Property` env overrides — not repo-root `.env` |
+| `docker-compose.aspire.yml` | **ADR 0030 Phase 6** — .NET MCP + Qdrant + TEI + **ColBERT worker**. Enable rerank with `Embedding__RerankEnabled=true` (remote ColBERT default). **Re-index after pull** when enabling ColBERT (multivector schema recreate; no schema-version env) |
+| `docker-compose.aspire.colbert.gpu.yml` | GPU overlay for Aspire ColBERT (`ACCELERATOR=gpu`) |
 | `docker-compose.aspire.neo4j.yml` | Optional Neo4j overlay for the **Aspire/.NET** stack ([ADR 0030](adr/0030-migrate-mcp-server-to-dotnet10.md) Phase 5). Sets `Graph__*` on `mcp` — do **not** reuse `docker-compose.neo4j.yml` (targets `mcp_server`) |
 
 ### Docker Compose env passthrough
@@ -25,10 +26,10 @@ Compose reads your host `.env` at `docker compose up` time and injects variables
 | `mcp_server` | `docker-compose.yml` | Core application `Settings` env vars (embedding, search, ColBERT config, `METRICS_ENABLED`, etc.) |
 | `mcp_server` | `docker-compose.tei.yml` | Overrides `TEI_*` when bundled/external TEI profile is used |
 | `mcp_server` | `docker-compose.neo4j.yml` | Python GraphRAG vars: `GRAPH_ENABLED`, `NEO4J_*`, `GRAPH_WRITER_BATCH`, `GRAPH_MAX_HOPS`, `GRAPH_MAX_NODES` |
+| `mcp` | `docker-compose.aspire.yml` | .NET: `Embedding__*`, `Colbert__*`, `Reindex__*`, `Qdrant__*`, `Tei__*` |
 | `mcp` | `docker-compose.aspire.neo4j.yml` | .NET GraphRAG: `Graph__Enabled`, `Graph__Neo4jUri`, `Graph__Neo4jUser`, `Graph__Neo4jPassword`, `Graph__Neo4jDatabase`, `Graph__WriterBatch`, `Graph__MaxHops`, `Graph__MaxNodes` |
 | `mcp_server` | `docker-compose.colbert-worker.yml` | ColBERT remote vars when rerank sidecar is active |
-| `colbert_worker` | `docker-compose.colbert-worker.yml` | Sidecar env including `METRICS_ENABLED` |
-| `cron` | `docker-compose.yml` | `INDEX_TIMEOUT`, `MCP_HTTP_TIMEOUT`, `GIT_TIMEOUT`, `MCP_URL` |
+| `colbert` / `colbert_worker` | aspire / Python ColBERT compose | Sidecar env including `METRICS_ENABLED` / `Colbert__UseCuda` |
 | `qdrant` / `tei` / `neo4j` | compose only | Resource caps and service env — not Python `Settings` |
 
 **Not in `.env`:** dense embedding is TEI-only via `TeiDenseBackend` ([ADR 0025](adr/0025-huggingface-tei-dense-embedding.md)). `FASTEMBED_CACHE_PATH` is set to the container cache volume path.
@@ -487,14 +488,15 @@ docker exec codeindexer_colbert curl -s http://127.0.0.1:8082/health
 
 Expect `"device":"cuda"`, `"cuda_available":true`, and `"execution_providers"` containing `CUDAExecutionProvider`. The worker fails at startup if `COLBERT_USE_CUDA=1` but CUDA libraries or the ORT CUDA provider are unavailable, or if the model loads on CPU despite CUDA being requested. To scrape from the host, add an explicit loopback publish (e.g. `127.0.0.1:8082:8082`) — do not expose beyond localhost without auth review.
 
-**Single-GPU VRAM:** On an 8 GB GPU, running TEI dense and ColBERT on the same device may OOM. Prefer a second GPU (`TEI_GPU_COUNT=1` on GPU 0, `COLBERT_DEVICE_IDS=1` on GPU 1) or set `ACCELERATOR=cpu` for CPU-only ColBERT sidecar. There is no automatic GPU scheduler.
+**Single-GPU VRAM:** On an 8 GB GPU, running TEI dense and ColBERT on the same device may OOM. Prefer a second GPU (`TEI_GPU_COUNT=1` on GPU 0, `COLBERT_DEVICE_IDS=1` on GPU 1), lower ColBERT’s ORT arena via `COLBERT_GPU_MEM_LIMIT_BYTES` (default 2 GiB), or set `ACCELERATOR=cpu` for CPU-only ColBERT sidecar. There is no automatic GPU scheduler.
 
 | Variable | Default | Role |
 |----------|---------|------|
 | `COLBERT_GPU` | `1` when `ACCELERATOR=gpu` + remote sidecar | Document flag — GPU sidecar merged by `compose_files.py` |
 | `COLBERT_GPU_COUNT` | `1` | GPUs reserved for ColBERT sidecar when using `.colbert-worker.gpu.yml` |
 | `COLBERT_USE_CUDA` | `0` | Worker env — set to `1` automatically by GPU compose override |
-| `COLBERT_DEVICE_IDS` | *(empty)* | Optional comma-separated GPU indices passed to fastembed |
+| `COLBERT_DEVICE_IDS` | *(empty)* | Optional comma-separated GPU indices (`Colbert__DeviceIds`) |
+| `COLBERT_GPU_MEM_LIMIT_BYTES` | `2147483648` (2 GiB) | ORT CUDA `gpu_mem_limit` (`Colbert__GpuMemLimitBytes`); `0` = uncapped |
 
 #### ColBERT sidecar throughput benchmark
 

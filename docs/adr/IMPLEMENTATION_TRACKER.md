@@ -86,6 +86,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0030 | Phase 3 — Core search tools | Accepted (phases 1–3) | phase-3 | `merged` | Hybrid RRF via Qdrant QueryAsync + client CrossCollectionRrf; Embedding PrefetchMultiplier/RrfK; Qdrant create parity (int8/HNSW/memmap/payload indexes); Host resolves default collection; six MCP tools; summary without build_dependencies; ColBERT no-op; Aspire gRPC :6334 + TEI arch image + SDK-container test fallback; quality via --mcp-url | 2026-07-21 |
 | 0030 | Phase 4 — Cross-ref + discovery | Accepted (phases 1–4) | phase-4 | `merged` | Qdrant-only Path D (`callees` scroll); `Discovery:RecommendEnabled` gating; `UrlExtractors` supersedes Phase 3 minimal classifier; quality report-only (`threshold 0`); no schema-version env (re-index after pull) | 2026-07-21 |
 | 0030 | Phase 5 — GraphRAG | Accepted (phases 1–4; phase 5 merged; Accept skipped) | phase-5 | `merged` | Aspire-specific neo4j overlay; NullGraphStore when disabled; no `GRAPH_SCHEMA_VERSION` (re-index after pull); quality/perf skip; host tool gating via early config read | 2026-07-21 |
+| 0030 | Phase 6 — ColBERT + ops | Accepted (phases 1–5 merged; phase 6 verified; Accept skipped) | phase-6 | `verified` | One PR; checked-in Aspire compose; separate Proxy; GPU smoke; Refit `/v1/embed/colbert`; remote ColBERT default when rerank on; adaptive rerank; `compose_files.py` until Phase 7; CUDA Option A; no schema-version env | 2026-07-22 |
 <!-- END GENERATED:summary -->
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
@@ -93,7 +94,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 ## Active and upcoming work
 
 <!-- BEGIN GENERATED:active -->
-_No active or upcoming phases._
+- **0030** Phase 6 — ColBERT + ops — `verified`
 <!-- END GENERATED:active -->
 
 ### Partial acceptance
@@ -1825,7 +1826,17 @@ _No active or upcoming phases._
 - **Test debt:** Live M3 Pro `--external-tei` Docker integration (integration-tester); Phase 3 `metal_host_tei` benchmark; maintainer Metal log check on first embed
 - **Changelog:** no — user-facing yes; invoker Changelog: no
 
-### ADR 0030 — Phase 3 — Core search tools
+### ADR 0030 — Phase 6 — ColBERT + ops
+
+#### 2026-07-22 — verification
+- **Phase:** Phase 6 — ColBERT + ops
+- **Tracker status:** `verified`
+- **Choices:** One PR; checked-in Aspire compose; separate Proxy; GPU smoke; Refit `/v1/embed/colbert`; remote ColBERT default when rerank on; adaptive rerank; `compose_files.py` until Phase 7; CUDA Option A; no schema-version env
+- **Deviations:** none
+- **Code evidence:** `mcp_server/benchmarks/eval_retrieval.py`, `src/CodebaseIndexer.Infrastructure/Qdrant/QdrantVectorStore.cs`, `CollectionSchemaDecision.cs`, `test/.../AdaptiveRerankDecisionTests.cs`, `CollectionSchemaDecisionTests.cs`, `ScheduledReindexRunnerTests.cs`, `ScheduledReindexSchedulingTests.cs`, `src/CodebaseIndexer.ColbertWorker/`, `src/CodebaseIndexer.Proxy/`, `docker-compose.aspire.yml`, `aspire-phase6-smoke.json`
+- **Test debt:** optional R4 GitTimeoutSeconds assert; optional R5 CUDA fail-fast / Refit mocks; TreeSitter libtree-sitter-csharp.so packaging (parent-owned); live Aspire quality not re-run after R1 honesty fix (server-default ColBERT already exercised)
+- **Verify:** Infrastructure adaptive/schema 12 passed; Application ScheduledReindex 13 passed; useRerank 10 passed; eval_retrieval AST ok; plan compliance pass; Docker integration Verdict pass (Aspire GPU + quality-rerank threshold 0, recall@10 0.4423); R1–R3 closed. Review rounds: 2.
+- **Changelog:** yes — Add .NET ColBERT rerank (remote GPU worker default, in-process ONNX), Aspire compose with ColBERT, stdio Proxy, and in-process scheduled reindex (cron sidecar removed); re-index after pull when enabling ColBERT.
 
 #### 2026-07-21 — verification
 - **Phase:** Phase 3 — Core search tools
@@ -1878,6 +1889,13 @@ _No active or upcoming phases._
 - **Deviations:** none
 - **Changelog:** no — user-facing unknown; invoker Changelog: no
 
+#### 2026-07-21 — prioritization
+- **Phase:** Phase 6 — ColBERT + ops
+- **Tracker status:** `candidate`
+- **Choices:** Selected 0030 Phase 6 over 0032/0033 (Proposed, deferred Accept), over 0026 Phase 4 (GPU blocker), over 0031 (needs .NET re-scope), over 0030 Phase 7 (blocked on P6); single phase per pipeline rule; no ADR Accept required. Human decisions (2026-07-21): (1) stay one PR; (2) check in generated Aspire compose after P6; (3) separate CodebaseIndexer.Proxy project; (4) GPU host available for ColBERT smoke this cycle. **Why now:** Phases 1–5 merged; ColBERT/ops absent in .NET (explicit Phase-6 no-op stubs); next Accepted sequential phase before Python cutover; Proposed 0031–0033 and 0026 P4 deferred by open decisions / blockers. **Suggested scope:** one phase (= one PR). **Chosen scope:** ColBERT worker + Refit client; remote/in-process ONNX; wire `rerank` on search paths; in-process Quartz/`BackgroundService` reindex (remove cron sidecar); Aspire Docker Compose publishing / aspire compose parity; `CodebaseIndexer.Proxy` stdio forwarder; Docker integration + quality validation for rerank path. Open decisions cleared (none remaining).
+- **Deviations:** none
+- **Changelog:** no — user-facing unknown; invoker Changelog: no
+
 #### 2026-07-21 — plan
 - **Phase:** Phase 3 — Core search tools
 - **Tracker status:** `planned`
@@ -1896,6 +1914,13 @@ _No active or upcoming phases._
 - **Phase:** Phase 5 — GraphRAG
 - **Tracker status:** `planned`
 - **Choices:** Continue 0030 Phase 5 this cycle (do not intercalate 0032 Phase 1); Accept 0032/0033 later; ADR 0031 re-scope later (do not Accept now); ADR 0026 Phase 4 stays deferred; Quality validation skip (default graph off; exit = graph overlay smoke); Performance report skip; Aspire-specific neo4j overlay (`docker-compose.aspire.neo4j.yml`) because Python overlay targets `mcp_server`; NullGraphStore when disabled; no `GRAPH_SCHEMA_VERSION`. Assumptions: Phases 1–4 .NET baseline; Python GraphRAG modules are behavioral SoT; `IGraphStore` stub + `CollectionStats` graph flags are extension points; Docker integration always required. Pre-release: no backward-compat requirement unless ADR documents one; no schema migration version env vars — document re-index after pull.
+- **Deviations:** none
+- **Changelog:** no — invoker Changelog: no; status planned
+
+#### 2026-07-21 — plan
+- **Phase:** Phase 6 — ColBERT + ops
+- **Tracker status:** `planned`
+- **Choices:** One PR (ADR default); check in generated Aspire compose; separate Proxy project; GPU smoke this cycle; Refit path `/v1/embed/colbert` (Python parity); default remote ColBERT when rerank enabled; adaptive rerank ported; `compose_files.py` retained until Phase 7 for Python default path. Assumptions: Phases 1–5 code evidence present; ServiceDefaults immutable; no schema-version env (re-index after pull); Python `docker-compose.yml` remains until Phase 7 except cron removal. Pre-release: no backward-compat requirement unless ADR documents one; Docker integration always required; document re-index after pull instead of schema migration version env vars.
 - **Deviations:** none
 - **Changelog:** no — invoker Changelog: no; status planned
 
@@ -1973,6 +1998,15 @@ _No active or upcoming phases._
 - **Code evidence:** `test/CodebaseIndexer.Host.Tests/McpHostWebApplicationFactory.cs`, `test/CodebaseIndexer.Host.Tests/GraphEnabledMcpHostWebApplicationFactory.cs`, `test/CodebaseIndexer.Host.Tests/ExpandSearchContextToolGatingTests.cs`, `src/CodebaseIndexer.Host/HostApplicationBuilderExtensions.cs`, `src/CodebaseIndexer.Host/Tools/ExpandSearchContextTools.cs`, `src/CodebaseIndexer.Application/Services/ExpandSearchContextService.cs`, `src/CodebaseIndexer.Application/Graph/GraphWriter.cs`, `src/CodebaseIndexer.Infrastructure/Neo4j/Neo4jGraphStore.cs`, `docker-compose.aspire.neo4j.yml`, `scripts/run_compose_integration.py`
 - **Test debt:** RecommendEnabled disable-path early-config test; optional env-var gating smoke
 - **Changelog:** no — invoker Changelog: no; status implemented
+
+#### 2026-07-21 — implementation
+- **Phase:** Phase 6 — ColBERT + ops
+- **Tracker status:** `implemented`
+- **Choices:** One PR; checked-in Aspire compose; separate Proxy project; GPU smoke this cycle; Refit `/v1/embed/colbert`; remote ColBERT default when rerank on; adaptive rerank; `compose_files.py` until Phase 7; CUDA Option A = ORT Gpu 1.22.0 + CUDA 12.x + cuDNN 9; `OrtCUDAProviderOptions` + post-session `GetAvailableProviders()` fail-fast; default `GpuMemLimitBytes` 2 GiB; no schema-version env (re-index after pull). Pre-release: no backward-compat requirement unless ADR documents one; Docker integration always required; document re-index after pull instead of schema migration version env vars.
+- **Deviations:** ORT C# 1.22 has no session `GetProviders()` — used `OrtEnv.GetAvailableProviders()` after `InferenceSession` create; golden cron anchors retargeted to docs after `cron/` removal
+- **Code evidence:** `src/CodebaseIndexer.ColbertWorker/`, `src/CodebaseIndexer.Proxy/`, `src/CodebaseIndexer.Infrastructure/Colbert/ColbertOnnxEmbedder.cs`, `src/CodebaseIndexer.Application/Services/ScheduledReindexRunner.cs`, `docker-compose.aspire.yml`, `docker-compose.aspire.colbert.gpu.yml`, `scripts/run_compose_integration.py`, `aspire-phase6-smoke.json (verdict pass)`
+- **Test debt:** CUDA fail-fast unit tests; adaptive rerank tests; ScheduledReindexRunner tests; harness MCP rerank flag consistency; C# golden anchors blocked on TreeSitter packaging (parent)
+- **Changelog:** no — invoker Changelog: no; status implemented (CHANGELOG at verified if user-facing)
 
 #### 2026-07-13 — verification
 - **Phase:** Phase 1 — Scaffold + storage + TEI

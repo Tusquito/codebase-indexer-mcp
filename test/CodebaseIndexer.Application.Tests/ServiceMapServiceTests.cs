@@ -56,6 +56,7 @@ public sealed class ServiceMapServiceTests
             store,
             new FakeDense(),
             new FakeSparse(),
+            new FakeColbert(),
             MsOptions.Create(new EmbeddingOptions
             {
                 HybridSearch = true,
@@ -97,6 +98,19 @@ public sealed class ServiceMapServiceTests
             Task.FromResult<IReadOnlyList<SparseVector>>(texts.Select(_ => new SparseVector([1u], [1f])).ToArray());
     }
 
+    private sealed class FakeColbert : IColbertEmbedder
+    {
+        public int TokenDimension => 128;
+        public bool IsLoaded => true;
+        public Task PreloadAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public void Release() { }
+        public Task<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>> EmbedBatchAsync(
+            IReadOnlyList<string> texts,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>>(
+                texts.Select(_ => (IReadOnlyList<IReadOnlyList<float>>)new IReadOnlyList<float>[] { new float[] { 0.1f } }).ToArray());
+    }
+
     private sealed class FakeStore : NoOpVectorStore
     {
         private readonly IReadOnlyList<string> _collections;
@@ -112,6 +126,7 @@ public sealed class ServiceMapServiceTests
             int topK,
             string? language = null,
             float minScore = 0.5f,
+            IReadOnlyList<IReadOnlyList<float>>? colbertVector = null,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(HitsByCollection.GetValueOrDefault(collection) ?? Array.Empty<SearchHit>());
 

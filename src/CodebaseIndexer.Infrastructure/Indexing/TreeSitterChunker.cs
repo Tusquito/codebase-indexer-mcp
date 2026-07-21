@@ -11,6 +11,7 @@ namespace CodebaseIndexer.Infrastructure.Indexing;
 /// <summary>Tree-sitter AST-based code chunker with sliding-window fallback.</summary>
 public sealed class TreeSitterChunker : ICodeChunker
 {
+    // TreeSitter.DotNet: C# grammar is c-sharp (id "C#"), not "CSharp". No SQL grammar packaged.
     private static readonly FrozenDictionary<string, string> LanguageIds = new Dictionary<string, string>(StringComparer.Ordinal)
     {
         ["python"] = "Python",
@@ -21,13 +22,13 @@ public sealed class TreeSitterChunker : ICodeChunker
         ["java"] = "Java",
         ["c"] = "C",
         ["cpp"] = "Cpp",
-        ["csharp"] = "CSharp",
-        ["sql"] = "Sql",
+        ["csharp"] = "C#",
     }.ToFrozenDictionary(StringComparer.Ordinal);
 
     private readonly ChunkingOptions _options;
     private readonly ILogger<TreeSitterChunker> _logger;
     private readonly Dictionary<string, Parser> _parsers = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _unavailableLanguageIds = new(StringComparer.Ordinal);
 
     /// <summary>Creates a chunker from chunking options.</summary>
     /// <param name="options">Chunk line limit and overlap configuration.</param>
@@ -59,30 +60,37 @@ public sealed class TreeSitterChunker : ICodeChunker
         int chunkOverlapLines,
         double fileMtime)
     {
+        var lastLine = lineIndex.LineCount - 1;
+        IReadOnlyList<Chunk> SlidingFallback() => ChunkerCore.SlidingWindowRange(
+            lineIndex, 0, lastLine, relPath, language, fileSha256,
+            maxChunkLines, chunkOverlapLines, fileMtime);
+
         if (!LanguageRegistry.TreeSitterGrammars.ContainsKey(language)
             || !LanguageRegistry.ExtractNodeTypes.TryGetValue(language, out var nodeTypes)
             || !LanguageIds.TryGetValue(language, out var languageId))
         {
-            return Array.Empty<Chunk>();
+            return SlidingFallback();
         }
 
         try
         {
             var parser = GetOrCreateParser(languageId);
+            if (parser is null)
+            {
+                return SlidingFallback();
+            }
+
             using var tree = parser.Parse(lineIndex.Content);
             if (tree?.RootNode is null)
             {
-                return Array.Empty<Chunk>();
+                return SlidingFallback();
             }
 
             var chunks = new List<Chunk>();
-            var lastLine = lineIndex.LineCount - 1;
             ExtractNodes(tree.RootNode, lineIndex, relPath, language, fileSha256, maxChunkLines, nodeTypes, chunks);
             if (chunks.Count == 0)
             {
-                return ChunkerCore.SlidingWindowRange(
-                    lineIndex, 0, lastLine, relPath, language, fileSha256,
-                    maxChunkLines, chunkOverlapLines, fileMtime);
+                return SlidingFallback();
             }
 
             chunks.Sort(static (left, right) => left.StartLine.CompareTo(right.StartLine));
@@ -92,21 +100,35 @@ public sealed class TreeSitterChunker : ICodeChunker
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "treesitter_parse_failure path={Path}", relPath);
-            return Array.Empty<Chunk>();
+            return SlidingFallback();
         }
     }
 
-    private Parser GetOrCreateParser(string languageId)
+    private Parser? GetOrCreateParser(string languageId)
     {
         if (_parsers.TryGetValue(languageId, out var existing))
         {
             return existing;
         }
 
-        var language = new Language(languageId);
-        var parser = new Parser(language);
-        _parsers[languageId] = parser;
-        return parser;
+        if (_unavailableLanguageIds.Contains(languageId))
+        {
+            return null;
+        }
+
+        try
+        {
+            var language = new Language(languageId);
+            var parser = new Parser(language);
+            _parsers[languageId] = parser;
+            return parser;
+        }
+        catch (Exception ex)
+        {
+            _unavailableLanguageIds.Add(languageId);
+            _logger.LogWarning(ex, "treesitter_language_unavailable languageId={LanguageId}", languageId);
+            return null;
+        }
     }
 
     private static void ExtractNodes(

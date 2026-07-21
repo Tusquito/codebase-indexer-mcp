@@ -266,6 +266,7 @@ async def run_evaluation_via_mcp(
     golden_path: Path,
     top_k: int,
     collection_override: str | None,
+    rerank_enabled: bool = False,
 ) -> dict[str, Any]:
     """Evaluate retrieval by calling Aspire/Host search_codebase over MCP HTTP."""
     entries = load_golden(golden_path)
@@ -299,14 +300,14 @@ async def run_evaluation_via_mcp(
             labels = resolve_labels(entry)
         qrels[entry.query_id] = labels
 
-        payload = client.call_tool(
-            "search_codebase",
-            {
-                "query": entry.query_text,
-                "collection": collection,
-                "top_k": top_k,
-            },
-        )
+        tool_args: dict[str, Any] = {
+            "query": entry.query_text,
+            "collection": collection,
+            "top_k": top_k,
+        }
+        if rerank_enabled:
+            tool_args["rerank"] = True
+        payload = client.call_tool("search_codebase", tool_args)
         results = payload.get("results", []) if isinstance(payload, dict) else []
         chunk_ids = [str(r.get("chunk_id", "")) for r in results if isinstance(r, dict)]
         run[entry.query_id] = build_run_dict_from_chunk_ids(chunk_ids, top_k=top_k)
@@ -345,7 +346,7 @@ async def run_evaluation_via_mcp(
         "params": {
             "golden": str(golden_path),
             "hybrid_search": True,
-            "rerank_enabled": False,
+            "rerank_enabled": rerank_enabled,
             "top_k": top_k,
             "mcp_url": mcp_url,
             "qdrant_url": qdrant_url,
@@ -711,6 +712,7 @@ def main() -> int:
                 golden_path=args.golden,
                 top_k=args.top_k,
                 collection_override=args.collection,
+                rerank_enabled=args.rerank,
             )
         )
     else:

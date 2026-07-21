@@ -15,8 +15,14 @@ public sealed class FluentValidateOptionsTests
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                [$"{IndexingOptions.SectionName}:FlushEvery"] = "0",
-                [$"{IndexingOptions.SectionName}:UpsertBatch"] = "500",
+                [$"{EmbeddingOptions.SectionName}:HybridSearch"] = "true",
+                [$"{EmbeddingOptions.SectionName}:DenseModel"] = "",
+                [$"{EmbeddingOptions.SectionName}:SparseModel"] = "s",
+                [$"{EmbeddingOptions.SectionName}:DenseVectorSize"] = "768",
+                [$"{EmbeddingOptions.SectionName}:CachePath"] = "/c",
+                [$"{EmbeddingOptions.SectionName}:PrefetchMultiplier"] = "5",
+                [$"{EmbeddingOptions.SectionName}:RrfK"] = "60",
+                [$"{EmbeddingOptions.SectionName}:RerankPrefetch"] = "100",
             })
             .Build();
 
@@ -27,8 +33,8 @@ public sealed class FluentValidateOptionsTests
         using var provider = services.BuildServiceProvider(validateScopes: true);
 
         var exception = Assert.Throws<OptionsValidationException>(() =>
-            _ = provider.GetRequiredService<IOptions<IndexingOptions>>().Value);
+            _ = provider.GetRequiredService<IOptions<EmbeddingOptions>>().Value);
 
-        Assert.Contains("Validation failed for IndexingOptions.FlushEvery", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("Validation failed for EmbeddingOptions.DenseModel", exception.Message, StringComparison.Ordinal);
     }
 }

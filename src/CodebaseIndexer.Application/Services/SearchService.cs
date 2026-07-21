@@ -11,7 +11,7 @@ using Microsoft.Extensions.Options;
 
 namespace CodebaseIndexer.Application.Services;
 
-/// <summary>Embeds queries and dispatches hybrid/dense search with cross-collection RRF.</summary>
+/// <summary>Embeds queries and dispatches hybrid/dense search with optional ColBERT rerank.</summary>
 public sealed class SearchService : ISearchService
 {
     private static readonly ConcurrentDictionary<string, byte> WarnedUnlinkedCollections = new(StringComparer.Ordinal);
@@ -19,6 +19,7 @@ public sealed class SearchService : ISearchService
     private readonly IVectorStore _store;
     private readonly IDenseEmbedder _dense;
     private readonly ISparseEmbedder _sparse;
+    private readonly IColbertEmbedder _colbert;
     private readonly EmbeddingOptions _embedding;
     private readonly GraphOptions _graph;
     private readonly ILogger<SearchService> _logger;
@@ -28,6 +29,7 @@ public sealed class SearchService : ISearchService
         IVectorStore store,
         [FromKeyedServices(EmbedderBackendKeys.Dense.Tei)] IDenseEmbedder dense,
         [FromKeyedServices(EmbedderBackendKeys.Sparse.Onnx)] ISparseEmbedder sparse,
+        IColbertEmbedder colbert,
         IOptions<EmbeddingOptions> embedding,
         IOptions<GraphOptions> graph,
         ILogger<SearchService> logger)
@@ -35,10 +37,15 @@ public sealed class SearchService : ISearchService
         _store = store;
         _dense = dense;
         _sparse = sparse;
+        _colbert = colbert;
         _embedding = embedding.Value;
         _graph = graph.Value;
         _logger = logger;
     }
+
+    /// <summary>Resolves whether ColBERT rerank should run for this call.</summary>
+    internal static bool ShouldUseRerank(bool rerankEnabled, bool? rerank) =>
+        rerankEnabled && rerank is not false;
 
     /// <inheritdoc />
     public async Task<SearchCodebaseResponse> SearchCodebaseAsync(
@@ -52,7 +59,6 @@ public sealed class SearchService : ISearchService
         bool? rerank = null,
         CancellationToken cancellationToken = default)
     {
-        _ = rerank; // Phase 6 ColBERT — accepted and ignored while RerankEnabled=false
         if (topK > 20)
         {
             topK = 20;
@@ -60,7 +66,8 @@ public sealed class SearchService : ISearchService
 
         var targets = ResolveCollections(collection ?? "codebase", collections);
         await WarnIfGraphLinkageMissingAsync(targets, cancellationToken).ConfigureAwait(false);
-        var hits = await RunSearchAsync(query, targets, topK, language, minScore, cancellationToken)
+        var useRerank = ShouldUseRerank(_embedding.RerankEnabled, rerank);
+        var hits = await RunSearchAsync(query, targets, topK, language, minScore, useRerank, cancellationToken)
             .ConfigureAwait(false);
 
         var items = new List<SearchCodebaseHit>(hits.Count);
@@ -106,7 +113,6 @@ public sealed class SearchService : ISearchService
         bool? rerank = null,
         CancellationToken cancellationToken = default)
     {
-        _ = rerank;
         if (topK > 30)
         {
             topK = 30;
@@ -114,7 +120,8 @@ public sealed class SearchService : ISearchService
 
         var targets = ResolveCollections(collection ?? "codebase", collections);
         await WarnIfGraphLinkageMissingAsync(targets, cancellationToken).ConfigureAwait(false);
-        var hits = await RunSearchAsync(query, targets, topK, language, minScore, cancellationToken)
+        var useRerank = ShouldUseRerank(_embedding.RerankEnabled, rerank);
+        var hits = await RunSearchAsync(query, targets, topK, language, minScore, useRerank, cancellationToken)
             .ConfigureAwait(false);
 
         var items = hits.Select(hit => new SearchSymbolsHit(
@@ -184,6 +191,7 @@ public sealed class SearchService : ISearchService
         int topK,
         string? language,
         float minScore,
+        bool useRerank,
         CancellationToken cancellationToken)
     {
         var denseTask = _dense.EmbedQueryAsync([query], cancellationToken);
@@ -191,6 +199,12 @@ public sealed class SearchService : ISearchService
         if (_embedding.HybridSearch)
         {
             sparseTask = _sparse.EmbedBatchAsync([query], cancellationToken);
+        }
+
+        Task<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>>? colbertTask = null;
+        if (useRerank)
+        {
+            colbertTask = _colbert.EmbedBatchAsync([query], cancellationToken);
         }
 
         var denseVectors = await denseTask.ConfigureAwait(false);
@@ -201,16 +215,23 @@ public sealed class SearchService : ISearchService
             sparse = sparseVectors[0];
         }
 
+        IReadOnlyList<IReadOnlyList<float>>? colbert = null;
+        if (colbertTask is not null)
+        {
+            var colbertVectors = await colbertTask.ConfigureAwait(false);
+            colbert = colbertVectors[0];
+        }
+
         var dense = denseVectors[0];
 
         if (targets.Count == 1)
         {
             return await _store.SearchAsync(
-                targets[0], dense, sparse, topK, language, minScore, cancellationToken).ConfigureAwait(false);
+                targets[0], dense, sparse, topK, language, minScore, colbert, cancellationToken).ConfigureAwait(false);
         }
 
         var tasks = targets.Select(coll =>
-            _store.SearchAsync(coll, dense, sparse, topK, language, minScore, cancellationToken));
+            _store.SearchAsync(coll, dense, sparse, topK, language, minScore, colbert, cancellationToken));
         var batches = await Task.WhenAll(tasks).ConfigureAwait(false);
         var perCollection = batches
             .Where(b => b.Count > 0)
@@ -231,12 +252,12 @@ public sealed class SearchService : ISearchService
     }
 
     private async Task<IReadOnlyList<CrossReferenceEntry>> DetectCrossReferencesAsync(
-        IReadOnlyList<SearchHit> results,
+        IReadOnlyList<SearchHit> hits,
         IReadOnlyList<string> targetCollections,
         CancellationToken cancellationToken)
     {
         var symbolCollections = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
-        foreach (var r in results)
+        foreach (var r in hits)
         {
             if (string.IsNullOrEmpty(r.SymbolName))
             {
@@ -287,7 +308,7 @@ public sealed class SearchService : ISearchService
             }
 
             var locations = new Dictionary<string, List<CrossReferenceLocation>>(StringComparer.Ordinal);
-            foreach (var r in results)
+            foreach (var r in hits)
             {
                 if (r.SymbolName != sym)
                 {

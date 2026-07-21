@@ -41,7 +41,6 @@ public sealed class CrossReferenceService : ICrossReferenceService
         bool? rerank = null,
         CancellationToken cancellationToken = default)
     {
-        _ = rerank;
         if (string.IsNullOrWhiteSpace(query)
             && string.IsNullOrWhiteSpace(symbolName)
             && string.IsNullOrWhiteSpace(member))
