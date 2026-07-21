@@ -1,6 +1,6 @@
 # 0026. Full-stack embedding model quality benchmark and selection framework
 
-- **Status:** Accepted (phase 1 — Harness reliability fix)
+- **Status:** Accepted (phases 1–3; phases 4–5 open)
 - **Date:** 2026-07-08
 - **Deciders:** Maintainers
 - **Related:** [0007](0007-ranx-retrieval-evaluation.md) — ranx golden-set harness (instrument being repaired here); [0016](0016-qwen3-embedding-default-dense-model.md) — Qwen3 default (measured-outcomes now disputed); [0020](0020-qwen3-code-finetune-jina-quality-gate.md) — fine-tune gate (failed against the same disputed baseline); [0021](0021-revert-jina-production-default-retire-qwen3.md) — Jina revert (measured-outcomes now disputed); [0025](0025-huggingface-tei-dense-embedding.md) — TEI dense sidecar (serving layer for every candidate); [0017](0017-model-tokenizer-tei-dense-truncation.md) — tokenizer-accurate truncation; [0003](0003-hybrid-search-rrf-default.md) — hybrid RRF; [0008](0008-optional-colbert-reranking.md) / [0015](0015-colbert-http-sidecar.md) — ColBERT rerank stage; [0002](0002-graphrag-neo4j-qdrant.md) — Neo4j graph linkage (`chunk_id` / `graph_node_ids`); [0009](0009-multi-hop-retrieval-strategies.md) — multi-hop eval; [MTEB CoIR leaderboard](https://mteb-leaderboard.hf.space/benchmark/CoIR)

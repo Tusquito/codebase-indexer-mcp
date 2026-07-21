@@ -14,4 +14,4 @@ chosen_scope: >-
   Phase 4 bake-off orchestration.
 last_updated: '2026-07-10'
 pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/31
-adr_status_note: Accepted (phase 1 — Harness reliability fix)
+adr_status_note: Accepted (phases 1–3; phases 4–5 open)

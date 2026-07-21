@@ -6,4 +6,4 @@ chosen_scope: >-
   MCP tool `expand_search_context` in `tools/graph_search.py`: hybrid search seeds → bounded Neo4j Cypher subgraph expansion (1–`GRAPH_MAX_HOPS` hops, `GRAPH_MAX_NODES` cap) → attach Qdrant chunk payloads → structured `GraphContext` JSON (`nodes`/`edges`/`related_chunks`/`seeds`). `Neo4jStorage.expand_subgraph` with injection-safe interpolated hop count + `LIMIT $max_nodes`; chunk_id-only seeding (no `graph_node_ids` reads); conditional registration in `main.py` gated on `GRAPH_ENABLED`. Docker harness `--graph` flag brings up Neo4j override and validates live stack via health + startup-log signal. Phase 4 deferred.
 last_updated: '2026-07-10'
 pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/32
-adr_status_note: Accepted (phase 1 — Neo4j storage + index-time graph writer)
+adr_status_note: Accepted (phases 1–3; phase 4 deferred)

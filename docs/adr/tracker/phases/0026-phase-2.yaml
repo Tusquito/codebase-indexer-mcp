@@ -6,4 +6,4 @@ chosen_scope: >-
   Expand `mcp_server/benchmarks/fixtures/golden_queries.jsonl` in place from 26 to ≥75 distinct content-anchored (Phase-1 format) queries via the existing `suggest_labels.py` workflow; meet resolved per-tag membership targets (symbol 26, conceptual 7, config 19, cross_file 19, multi_hop 15); preserve `multi_hop` `hop2_query_text`; every multi_hop row carries a secondary tag (no pure multi_hop); ground-truth subset floor 19; `--validate-labels` zero unresolved; bump `golden_set_version` in `eval_baseline.json` only; raise golden-fixture unit-test floors + add a per-tag distribution/anchor-coverage test; Docker integration via `scripts/run_compose_integration.py`; quality validation report-only (`--threshold 0`). Defer Phases 3–5. [PR #30](https://github.com/Tusquito/codebase-indexer-mcp/pull/30) (`8be500b`)
 last_updated: '2026-07-08'
 pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/30
-adr_status_note: Accepted (phase 1 — Harness reliability fix)
+adr_status_note: Accepted (phases 1–3; phases 4–5 open)

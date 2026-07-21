@@ -1,6 +1,6 @@
 # 0002. Add optional GraphRAG with Neo4j and Qdrant
 
-- **Status:** Accepted (phase 1 — Neo4j storage + index-time graph writer)
+- **Status:** Accepted (phases 1–3; phase 4 deferred)
 - **Date:** 2026-07-02
 - **Deciders:** Maintainers
 - **Related:** [Qdrant GraphRAG tutorial](https://qdrant.tech/documentation/examples/graphrag-qdrant-neo4j/#build-a-graphrag-agent-with-neo4j-and-qdrant), [ADR 0001](0001-pluggable-embed-backends.md)

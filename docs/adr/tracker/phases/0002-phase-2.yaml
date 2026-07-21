@@ -4,4 +4,4 @@ title: Optional GraphRAG (Neo4j + Qdrant)
 tracker_status: merged
 chosen_scope: 'Neighbor-keys-only `graph_node_ids` via `graph_node_ids_from_batch`; batch before upsert; boolean `graph_enabled` collection metadata only; `graph_node_ids` omitted for zero-neighbor chunks and `GRAPH_ENABLED=false`; structlog `graph_linkage_missing` once per unlinked collection; 34 Phase 2 unit tests + 420 full suite pass; integration + plan compliance pass; review rounds: 1; defer Phase 3 `expand_search_context`, Phase 4 cross-project Cypher; test debt: prometheus_client and neo4j driver needed in CI env; [PR #26](https://github.com/Tusquito/codebase-indexer-mcp/pull/26)'
 last_updated: '2026-07-08'
-adr_status_note: Accepted (phase 1 — Neo4j storage + index-time graph writer)
+adr_status_note: Accepted (phases 1–3; phase 4 deferred)
