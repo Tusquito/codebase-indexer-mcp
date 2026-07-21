@@ -1,0 +1,27 @@
+adr_id: "0030"
+phase_key: phase-6
+phase_title: Phase 6 — ColBERT + ops
+event: merge
+date: "2026-07-22"
+tracker_status: merged
+choices: >-
+  Squash merge PR #42 (`d264b02`); accept docs `30c0168`; Accept updated to
+  phases 1–6; Phase 7 remains; release skipped
+deviations: none
+code_evidence:
+  - >-
+    merged via [PR #42](https://github.com/Tusquito/codebase-indexer-mcp/pull/42)
+    (`adr/0030-phase-6-colbert-ops`; squash `d264b02`; accept docs `30c0168`)
+verify: >-
+  carried from verification — Infrastructure adaptive/schema 12 passed;
+  Application ScheduledReindex 13 passed; useRerank 10 passed; eval_retrieval
+  AST ok; plan compliance pass; Docker integration Verdict pass (Aspire GPU +
+  quality-rerank threshold 0, recall@10 0.4423); R1–R3 closed. Review rounds: 2.
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/42
+  commit: d264b02
+  status: merged
+changelog:
+  update: false
+  reason: "user-facing yes; invoker Changelog: no"
+user_facing: true
