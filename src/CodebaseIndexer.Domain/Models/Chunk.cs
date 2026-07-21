@@ -9,6 +9,7 @@ namespace CodebaseIndexer.Domain.Models;
 /// <param name="SymbolName">Optional name of the enclosing symbol.</param>
 /// <param name="Language">Programming language of the source file.</param>
 /// <param name="FileSha256">SHA-256 hash of the parent file content.</param>
+/// <param name="SymbolType">Kind of symbol (method, class, config, …); default <c>other</c>.</param>
 public sealed record Chunk(
     ChunkId Id,
     string RelPath,
@@ -17,7 +18,8 @@ public sealed record Chunk(
     int EndLine,
     string? SymbolName,
     string Language,
-    string FileSha256)
+    string FileSha256,
+    string SymbolType = "other")
 {
     /// <summary>Unique identifier of the chunk.</summary>
     public ChunkId Id { get; init; } = Id;
@@ -42,4 +44,7 @@ public sealed record Chunk(
 
     /// <summary>SHA-256 hash of the parent file content.</summary>
     public string FileSha256 { get; init; } = FileSha256;
+
+    /// <summary>Kind of symbol containing the chunk.</summary>
+    public string SymbolType { get; init; } = string.IsNullOrEmpty(SymbolType) ? "other" : SymbolType;
 }
