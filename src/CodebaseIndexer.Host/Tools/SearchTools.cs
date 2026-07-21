@@ -28,7 +28,7 @@ public sealed class SearchTools
         "min_score filters by similarity. See docs/SEARCH_BEHAVIOR.md. " +
         "Hybrid semantic + keyword search across indexed code. " +
         "Set max_content_chars to truncate chunk content; use get_chunk for full text. " +
-        "When RERANK_ENABLED=true, pass rerank=false to skip ColBERT (Phase 6; currently no-op).")]
+        "When Embedding:RerankEnabled=true, ColBERT MAX_SIM reranks hybrid candidates; pass rerank=false to skip.")]
     public async Task<object> SearchCodebaseAsync(
         [Description("Natural-language or code search query")] string query,
         [Description("Max results (capped at 20)")] int top_k = 5,
@@ -37,7 +37,7 @@ public sealed class SearchTools
         [Description("Optional language filter")] string? language = null,
         [Description("Min cosine score when hybrid is off")] float min_score = 0.5f,
         [Description("Truncate content to this many chars")] int? max_content_chars = null,
-        [Description("ColBERT rerank override (ignored until Phase 6)")] bool? rerank = null,
+        [Description("ColBERT override: false skips rerank when enabled; true/null uses server default")] bool? rerank = null,
         CancellationToken cancellationToken = default) =>
         await _search.SearchCodebaseAsync(
             query,
@@ -61,7 +61,7 @@ public sealed class SearchTools
         [Description("Additional collections")] string[]? collections = null,
         [Description("Optional language filter")] string? language = null,
         [Description("Min cosine score when hybrid is off")] float min_score = 0.4f,
-        [Description("ColBERT rerank override (ignored until Phase 6)")] bool? rerank = null,
+        [Description("ColBERT override: false skips rerank when enabled; true/null uses server default")] bool? rerank = null,
         CancellationToken cancellationToken = default) =>
         await _search.SearchSymbolsAsync(
             query,
