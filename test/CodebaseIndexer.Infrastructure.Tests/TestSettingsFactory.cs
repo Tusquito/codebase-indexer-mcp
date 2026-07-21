@@ -15,12 +15,18 @@ internal static class TestSettingsFactory
 
     public static QdrantOptions CreateQdrantOptions(string? url = null) => new()
     {
-        Url = url ?? "http://localhost:6333",
+        Url = url ?? "http://localhost:6334",
         TimeoutSeconds = 30,
         Collection = "codebase",
         PayloadIndexes = true,
         VectorsOnDisk = false,
         SparseOnDisk = false,
+        Quantization = true,
+        HnswEf = 64,
+        HnswM = 16,
+        HnswEfConstruct = 128,
+        QuantOversampling = 2.0,
+        MemmapThresholdKb = 20_000,
     };
 
     public static EmbeddingOptions CreateEmbeddingOptions(int? denseVectorSize = null) => new()
@@ -34,6 +40,8 @@ internal static class TestSettingsFactory
         MaxSparseTokens = 0,
         CachePath = "/root/.cache/fastembed",
         SparseThreads = 2,
+        PrefetchMultiplier = 5,
+        RrfK = 60,
     };
 
     public static TeiOptions CreateTeiOptions(string? url = null) => new()
@@ -108,6 +116,12 @@ internal static class TestSettingsFactory
             [$"{QdrantOptions.SectionName}:PayloadIndexes"] = qdrant.PayloadIndexes.ToString().ToLowerInvariant(),
             [$"{QdrantOptions.SectionName}:VectorsOnDisk"] = qdrant.VectorsOnDisk.ToString().ToLowerInvariant(),
             [$"{QdrantOptions.SectionName}:SparseOnDisk"] = qdrant.SparseOnDisk.ToString().ToLowerInvariant(),
+            [$"{QdrantOptions.SectionName}:Quantization"] = qdrant.Quantization.ToString().ToLowerInvariant(),
+            [$"{QdrantOptions.SectionName}:HnswEf"] = qdrant.HnswEf.ToString(),
+            [$"{QdrantOptions.SectionName}:HnswM"] = qdrant.HnswM.ToString(),
+            [$"{QdrantOptions.SectionName}:HnswEfConstruct"] = qdrant.HnswEfConstruct.ToString(),
+            [$"{QdrantOptions.SectionName}:QuantOversampling"] = qdrant.QuantOversampling.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            [$"{QdrantOptions.SectionName}:MemmapThresholdKb"] = qdrant.MemmapThresholdKb.ToString(),
             [$"{EmbeddingOptions.SectionName}:HybridSearch"] = embedding.HybridSearch.ToString().ToLowerInvariant(),
             [$"{EmbeddingOptions.SectionName}:DenseModel"] = embedding.DenseModel,
             [$"{EmbeddingOptions.SectionName}:SparseModel"] = embedding.SparseModel,
@@ -117,6 +131,8 @@ internal static class TestSettingsFactory
             [$"{EmbeddingOptions.SectionName}:MaxSparseTokens"] = embedding.MaxSparseTokens.ToString(),
             [$"{EmbeddingOptions.SectionName}:CachePath"] = embedding.CachePath,
             [$"{EmbeddingOptions.SectionName}:SparseThreads"] = embedding.SparseThreads.ToString(),
+            [$"{EmbeddingOptions.SectionName}:PrefetchMultiplier"] = embedding.PrefetchMultiplier.ToString(),
+            [$"{EmbeddingOptions.SectionName}:RrfK"] = embedding.RrfK.ToString(),
             [$"{TeiOptions.SectionName}:Url"] = tei.Url,
             [$"{TeiOptions.SectionName}:EmbedBatchSize"] = tei.EmbedBatchSize.ToString(),
             [$"{TeiOptions.SectionName}:TimeoutSeconds"] = tei.TimeoutSeconds.ToString(),

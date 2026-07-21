@@ -19,7 +19,7 @@ public sealed class SettingsBindingTests
         var qdrant = ResolveOptions<QdrantOptions>(configuration);
         var tei = ResolveOptions<TeiOptions>(configuration);
 
-        Assert.Equal("http://localhost:6333", qdrant.Url);
+        Assert.Equal("http://localhost:6334", qdrant.Url);
         Assert.Equal("http://localhost:8080", tei.Url);
         Assert.Equal("codebase", qdrant.Collection);
     }
@@ -32,7 +32,7 @@ public sealed class SettingsBindingTests
             .AddInMemoryCollection(TestSettingsFactory.CreateConfigurationValues())
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                [$"{QdrantOptions.SectionName}:Url"] = "http://qdrant:6333",
+                [$"{QdrantOptions.SectionName}:Url"] = "http://qdrant:6334",
                 [$"{TeiOptions.SectionName}:Url"] = "http://tei:80",
             })
             .Build();
@@ -40,7 +40,7 @@ public sealed class SettingsBindingTests
         var qdrant = ResolveOptions<QdrantOptions>(configuration);
         var tei = ResolveOptions<TeiOptions>(configuration);
 
-        Assert.Equal("http://qdrant:6333", qdrant.Url);
+        Assert.Equal("http://qdrant:6334", qdrant.Url);
         Assert.Equal("http://tei:80", tei.Url);
     }
 
@@ -51,7 +51,7 @@ public sealed class SettingsBindingTests
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                [$"{QdrantOptions.SectionName}:Url"] = "http://localhost:6333",
+                [$"{QdrantOptions.SectionName}:Url"] = "http://localhost:6334",
                 [$"{QdrantOptions.SectionName}:TimeoutSeconds"] = "30",
                 [$"{QdrantOptions.SectionName}:Collection"] = "codebase",
                 [$"{EmbeddingOptions.SectionName}:DenseModel"] = "test-model",

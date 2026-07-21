@@ -15,12 +15,18 @@ public sealed class McpHostWebApplicationFactory : WebApplicationFactory<Program
         {
             config.AddInMemoryCollection(new Dictionary<string, string?>(StringComparer.Ordinal)
             {
-                [$"{QdrantOptions.SectionName}:Url"] = "http://localhost:6333",
+                [$"{QdrantOptions.SectionName}:Url"] = "http://localhost:6334",
                 [$"{QdrantOptions.SectionName}:TimeoutSeconds"] = "30",
                 [$"{QdrantOptions.SectionName}:Collection"] = "codebase",
                 [$"{QdrantOptions.SectionName}:PayloadIndexes"] = "true",
                 [$"{QdrantOptions.SectionName}:VectorsOnDisk"] = "false",
                 [$"{QdrantOptions.SectionName}:SparseOnDisk"] = "false",
+                [$"{QdrantOptions.SectionName}:Quantization"] = "true",
+                [$"{QdrantOptions.SectionName}:HnswEf"] = "64",
+                [$"{QdrantOptions.SectionName}:HnswM"] = "16",
+                [$"{QdrantOptions.SectionName}:HnswEfConstruct"] = "128",
+                [$"{QdrantOptions.SectionName}:QuantOversampling"] = "2.0",
+                [$"{QdrantOptions.SectionName}:MemmapThresholdKb"] = "20000",
                 [$"{EmbeddingOptions.SectionName}:HybridSearch"] = "true",
                 [$"{EmbeddingOptions.SectionName}:DenseModel"] = "test-model",
                 [$"{EmbeddingOptions.SectionName}:SparseModel"] = "Qdrant/bm25",
@@ -30,6 +36,8 @@ public sealed class McpHostWebApplicationFactory : WebApplicationFactory<Program
                 [$"{EmbeddingOptions.SectionName}:MaxSparseTokens"] = "0",
                 [$"{EmbeddingOptions.SectionName}:CachePath"] = "/root/.cache/fastembed",
                 [$"{EmbeddingOptions.SectionName}:SparseThreads"] = "2",
+                [$"{EmbeddingOptions.SectionName}:PrefetchMultiplier"] = "5",
+                [$"{EmbeddingOptions.SectionName}:RrfK"] = "60",
                 [$"{TeiOptions.SectionName}:Url"] = "http://localhost:8080",
                 [$"{TeiOptions.SectionName}:EmbedBatchSize"] = "32",
                 [$"{TeiOptions.SectionName}:TimeoutSeconds"] = "120",

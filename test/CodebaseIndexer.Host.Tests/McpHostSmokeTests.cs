@@ -72,6 +72,57 @@ public sealed class McpHostSmokeTests : IClassFixture<McpHostWebApplicationFacto
         }
     }
 
+    /// <summary>MCP client lists Phase 3 core search/read tools.</summary>
+    [Fact]
+    public async Task McpClient_lists_core_search_tools()
+    {
+        await using var mcpClient = await CreateMcpClientAsync();
+        var tools = await mcpClient.ListToolsAsync();
+        foreach (var name in new[]
+                 {
+                     "search_codebase",
+                     "search_symbols",
+                     "get_chunk",
+                     "get_file_outline",
+                     "get_collection_summary",
+                     "list_collections",
+                 })
+        {
+            Assert.Contains(tools, tool => tool.Name == name);
+        }
+    }
+
+    /// <summary>list_collections CallTool is wired (Qdrant may be down in unit host).</summary>
+    [Fact]
+    public async Task McpClient_calls_list_collections()
+    {
+        await using var mcpClient = await CreateMcpClientAsync();
+        var result = await mcpClient.CallToolAsync("list_collections", new Dictionary<string, object?>());
+
+        // Success → JSON array; Qdrant unavailable → IsError with content. Either proves wiring.
+        if (result.IsError != true)
+        {
+            if (result.StructuredContent is { } structured)
+            {
+                var json = JsonSerializer.Serialize(structured);
+                using var document = JsonDocument.Parse(json);
+                Assert.Equal(JsonValueKind.Array, document.RootElement.ValueKind);
+                return;
+            }
+
+            var text = result.Content.OfType<TextContentBlock>().FirstOrDefault()?.Text;
+            Assert.False(string.IsNullOrWhiteSpace(text));
+            using (var document = JsonDocument.Parse(text!))
+            {
+                Assert.Equal(JsonValueKind.Array, document.RootElement.ValueKind);
+            }
+
+            return;
+        }
+
+        Assert.NotEmpty(result.Content);
+    }
+
     private async Task<McpClient> CreateMcpClientAsync()
     {
         var httpClient = new HttpClient(_factory.Server.CreateHandler())
