@@ -23,5 +23,13 @@ public sealed class EmbeddingOptionsValidator : AbstractValidator<EmbeddingOptio
         RuleFor(x => x.CachePath)
             .NotEmpty()
             .WithMessage($"{nameof(EmbeddingOptions.CachePath)} is required.");
+
+        RuleFor(x => x.PrefetchMultiplier)
+            .GreaterThanOrEqualTo(1)
+            .WithMessage($"{nameof(EmbeddingOptions.PrefetchMultiplier)} must be >= 1.");
+
+        RuleFor(x => x.RrfK)
+            .GreaterThanOrEqualTo(1)
+            .WithMessage($"{nameof(EmbeddingOptions.RrfK)} must be >= 1.");
     }
 }
