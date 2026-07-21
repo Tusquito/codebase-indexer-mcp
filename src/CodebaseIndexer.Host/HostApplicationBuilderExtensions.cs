@@ -1,9 +1,11 @@
 using CodebaseIndexer.Application;
+using CodebaseIndexer.Application.Options;
 using CodebaseIndexer.Host.Health;
+using CodebaseIndexer.Host.Tools;
 using CodebaseIndexer.Infrastructure;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using ModelContextProtocol.Server;
 
 namespace CodebaseIndexer.Host;
 
@@ -21,11 +23,30 @@ public static class HostApplicationBuilderExtensions
             .AddCodebaseIndexerInfrastructure()
             .AddIndexingServices()
             .AddHealthChecks()
-            .AddCheck<McpHostHealthCheck>("codebase-indexer", tags: ["ready"])
-            .Services
+            .AddCheck<McpHostHealthCheck>("codebase-indexer", tags: ["ready"]);
+
+        var mcp = builder.Services
             .AddMcpServer()
             .WithHttpTransport()
-            .WithToolsFromAssembly();
+            .WithTools<HealthTools>()
+            .WithTools<IndexTools>()
+            .WithTools<SearchTools>()
+            .WithTools<ChunkTools>()
+            .WithTools<OutlineTools>()
+            .WithTools<SummaryTools>()
+            .WithTools<CollectionsTools>()
+            .WithTools<CrossReferenceTools>()
+            .WithTools<ServiceMapTools>();
+
+        // Resolve RecommendEnabled after options bind; gate tool registration like Python main.py.
+        var recommendEnabled = builder.Configuration
+            .GetSection(DiscoveryOptions.SectionName)
+            .GetValue(nameof(DiscoveryOptions.RecommendEnabled), true);
+        if (recommendEnabled)
+        {
+            mcp.WithTools<RecommendTools>()
+                .WithTools<OutlierTools>();
+        }
 
         return builder;
     }

@@ -23,8 +23,8 @@ public sealed class SummaryTools
     /// <summary>Compact codebase orientation — no embedding cost.</summary>
     [McpServerTool(Name = "get_collection_summary"), Description(
         "Compact codebase orientation in a single tool call — no embedding cost. " +
-        "Returns file counts, language breakdown, directory tree, symbol types, and top chunked files. " +
-        "build_dependencies is deferred to Phase 4.")]
+        "Returns file counts, language breakdown, directory tree, symbol types, top chunked files, " +
+        "and build_dependencies when other indexed collections match manifest artifacts.")]
     public Task<object> GetCollectionSummaryAsync(
         [Description("Collection name")] string? collection = null,
         CancellationToken cancellationToken = default) =>
