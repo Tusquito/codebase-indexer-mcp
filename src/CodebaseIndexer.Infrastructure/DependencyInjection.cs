@@ -1,6 +1,7 @@
 using CodebaseIndexer.Application.Options;
 using CodebaseIndexer.Domain.Embedding;
 using CodebaseIndexer.Domain.Ports;
+using CodebaseIndexer.Infrastructure.Colbert;
 using CodebaseIndexer.Infrastructure.Configuration;
 using CodebaseIndexer.Infrastructure.Embedding;
 using CodebaseIndexer.Infrastructure.Indexing;
@@ -30,6 +31,22 @@ public static class DependencyInjection
         services.TryAddSingleton<IVectorStore, QdrantVectorStore>();
         services.AddKeyedSingleton<IDenseEmbedder, TeiDenseEmbedder>(EmbedderBackendKeys.Dense.Tei);
         services.AddKeyedSingleton<ISparseEmbedder, OnnxSparseEmbedder>(EmbedderBackendKeys.Sparse.Onnx);
+        services.AddKeyedSingleton<IColbertEmbedder, ColbertRemoteEmbedder>(EmbedderBackendKeys.Colbert.Remote);
+        services.AddKeyedSingleton<IColbertEmbedder, ColbertOnnxEmbedder>(EmbedderBackendKeys.Colbert.Onnx);
+        services.TryAddSingleton<IColbertEmbedder>(sp =>
+        {
+            var embedding = sp.GetRequiredService<IOptions<EmbeddingOptions>>().Value;
+            if (!embedding.RerankEnabled)
+            {
+                return new NullColbertEmbedder();
+            }
+
+            var colbert = sp.GetRequiredService<IOptions<ColbertOptions>>().Value;
+            var backend = colbert.ResolvedEmbedBackend;
+            return backend == "remote"
+                ? sp.GetRequiredKeyedService<IColbertEmbedder>(EmbedderBackendKeys.Colbert.Remote)
+                : sp.GetRequiredKeyedService<IColbertEmbedder>(EmbedderBackendKeys.Colbert.Onnx);
+        });
         services.TryAddSingleton<ICodeChunker, TreeSitterChunker>();
         services.TryAddSingleton<IWorkspaceScanner, WorkspaceScanner>();
         services.TryAddSingleton<IMemoryPressureGuard, CgroupMemoryPressureGuard>();
@@ -43,6 +60,15 @@ public static class DependencyInjection
                 // Standard resilience TotalRequestTimeout defaults to 30s and would
                 // win over HttpClient.Timeout — disable it for slow CPU TEI embeds.
                 var seconds = tei.TimeoutSeconds > 0 ? tei.TimeoutSeconds : 600;
+                client.Timeout = TimeSpan.FromSeconds(seconds);
+            });
+
+        services.AddRefitClient<IColbertEmbedApi>()
+            .ConfigureHttpClient((sp, client) =>
+            {
+                var colbert = sp.GetRequiredService<IOptions<ColbertOptions>>().Value;
+                client.BaseAddress = new Uri(colbert.Url.TrimEnd('/') + "/");
+                var seconds = colbert.TimeoutSeconds > 0 ? colbert.TimeoutSeconds : 300;
                 client.Timeout = TimeSpan.FromSeconds(seconds);
             });
 
