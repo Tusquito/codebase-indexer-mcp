@@ -83,7 +83,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0029 | Phase 2 — Integration smoke | Accept skipped — unchanged (Accepted) | phase-2 | `merged` | Harness-only PR; `include_tei=False` via `compose_file_args`; force `ACCELERATOR=cpu`; M3 Pro Metal cgroup preset; host TEI preflight; `tei_container_absent` verdict gate; bundled path unchanged; quality/perf validation skipped. Defer live M3 Pro `--external-tei` full Docker integration before merge, Phase 3 `metal_host_tei` benchmark, and maintainer Metal log check on first embed. | 2026-07-12 |
 | 0030 | Phase 1 — Scaffold + storage + TEI | Accepted (phase 1 — Scaffold + storage + TEI) | phase-1 | `merged` | Accept ADR 0030; repo-root solution; hand-authored docker-compose.aspire.yml; arm64 cpu-arm64-latest TEI; accelerator defaults cpu; MCP stub get_health only; SearchAsync stub until Phase 3; tokenizer truncation Phase 2; Python production default until Phase 7 | 2026-07-13 |
 | 0030 | Phase 2 — Indexing pipeline | Accepted (phase 1; phase 2 — Indexing pipeline) | phase-2 | `merged` | `WorkspaceScanner` (SHA-256 incremental scan, ignore files, `ArrayPool` hashing, channel worker fan-out DOP=1); `TreeSitterChunker` (port `chunker.py` via `TreeSitter.DotNet`, regex SQL fallback); `OnnxSparseEmbedder` (`Microsoft.ML.OnnxRuntime`, same `Qdrant/bm25` artifacts); model-accurate dense tokenizer truncation; `IndexPipeline` with `Channel<T>` stages in `IndexPipelineHostedService`; `IndexCodebaseService` + `IndexJobService`; MCP index tools (`index_codebase`, `index_status`, `stop_indexing`, `index_all`); chunk-ID golden parity fixture; `docker-compose.aspire.yml` workspace/cache wiring (fastembed at `/root/.cache/fastembed` with `fastembed_cache` volume); `--aspire-stack` integration smoke (manual M3 Pro pre-review, optional non-blocking CI); Python `run_compose_integration.py` remains green | 2026-07-13 |
-| 0030 | Phase 3 — Core search tools | Accepted (phase 1–2 merged; phase 3 — Core search tools) | phase-3 | `verified` | Hybrid RRF via Qdrant QueryAsync + client CrossCollectionRrf; Embedding PrefetchMultiplier/RrfK; Qdrant create parity (int8/HNSW/memmap/payload indexes); Host resolves default collection; six MCP tools; summary without build_dependencies; ColBERT no-op; Aspire gRPC :6334 + TEI arch image + SDK-container test fallback; quality via --mcp-url | 2026-07-21 |
+| 0030 | Phase 3 — Core search tools | Accepted (phases 1–3) | phase-3 | `merged` | Hybrid RRF via Qdrant QueryAsync + client CrossCollectionRrf; Embedding PrefetchMultiplier/RrfK; Qdrant create parity (int8/HNSW/memmap/payload indexes); Host resolves default collection; six MCP tools; summary without build_dependencies; ColBERT no-op; Aspire gRPC :6334 + TEI arch image + SDK-container test fallback; quality via --mcp-url | 2026-07-21 |
 <!-- END GENERATED:summary -->
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
@@ -91,7 +91,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 ## Active and upcoming work
 
 <!-- BEGIN GENERATED:active -->
-- **0030** Phase 3 — Core search tools — `verified`
+_No active or upcoming phases._
 <!-- END GENERATED:active -->
 
 ### Partial acceptance
@@ -1848,6 +1848,16 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 - **Choices:** Expand `IVectorStore` to vector-based hybrid search (Application embeds); align collection create with Python quantization/HNSW/payload indexes; add `Chunk.SymbolType`; omit summary `build_dependencies` and full cross-ref tools until Phase 4; quality eval must hit .NET search (MCP `--mcp-url` or equivalent), not Python `run_search` alone; ColBERT no-op until Phase 6. Assumptions: Phases 1–2 merged artifacts are the edit base; Python remains production default; golden fixtures + `eval_baseline.json` unchanged; Aspire TEI/Qdrant available for gates. Pre-release: no backward-compat requirement unless ADR documents one; Docker integration always required; no schema migration version env vars — document re-index after pull.
 - **Deviations:** none
 - **Changelog:** no — invoker Changelog: no; status planned
+
+#### 2026-07-21 — merge
+- **Phase:** Phase 3 — Core search tools
+- **Tracker status:** `merged`
+- **Choices:** Squash merge PR #39; ADR Accept to Accepted (phases 1–3); release skipped; Phases 4–7 remain open
+- **Deviations:** none
+- **Code evidence:** `merged via [PR #39](https://github.com/Tusquito/codebase-indexer-mcp/pull/39) (`adr/0030-phase-3-core-search`; squash `db04efc`)`
+- **Verify:** carried from verification — review round 1 clean; integration pass; quality recall@10 +38.1%; 70 unit tests
+- **Git:** https://github.com/Tusquito/codebase-indexer-mcp/pull/39 — status: merged — commit: db04efc
+- **Changelog:** no — user-facing yes; invoker Changelog: no
 
 #### 2026-07-21 — implementation
 - **Phase:** Phase 3 — Core search tools
