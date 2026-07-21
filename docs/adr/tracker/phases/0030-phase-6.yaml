@@ -1,0 +1,11 @@
+adr_id: "0030"
+phase_key: phase-6
+title: Phase 6 — ColBERT + ops
+tracker_status: verified
+chosen_scope: >-
+  One PR; checked-in Aspire compose; separate Proxy; GPU smoke; Refit
+  `/v1/embed/colbert`; remote ColBERT default when rerank on; adaptive
+  rerank; `compose_files.py` until Phase 7; CUDA Option A; no schema-version
+  env
+last_updated: "2026-07-22"
+adr_status_note: Accepted (phases 1–5 merged; phase 6 verified; Accept skipped)

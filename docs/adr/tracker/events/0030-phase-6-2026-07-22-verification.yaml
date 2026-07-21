@@ -1,0 +1,42 @@
+adr_id: "0030"
+phase_key: phase-6
+phase_title: Phase 6 — ColBERT + ops
+event: verification
+date: "2026-07-22"
+tracker_status: verified
+choices: >-
+  One PR; checked-in Aspire compose; separate Proxy; GPU smoke; Refit
+  `/v1/embed/colbert`; remote ColBERT default when rerank on; adaptive
+  rerank; `compose_files.py` until Phase 7; CUDA Option A; no schema-version
+  env
+deviations: none
+code_evidence:
+  - mcp_server/benchmarks/eval_retrieval.py
+  - src/CodebaseIndexer.Infrastructure/Qdrant/QdrantVectorStore.cs
+  - CollectionSchemaDecision.cs
+  - test/.../AdaptiveRerankDecisionTests.cs
+  - CollectionSchemaDecisionTests.cs
+  - ScheduledReindexRunnerTests.cs
+  - ScheduledReindexSchedulingTests.cs
+  - src/CodebaseIndexer.ColbertWorker/
+  - src/CodebaseIndexer.Proxy/
+  - docker-compose.aspire.yml
+  - aspire-phase6-smoke.json
+test_debt:
+  - optional R4 GitTimeoutSeconds assert
+  - optional R5 CUDA fail-fast / Refit mocks
+  - TreeSitter libtree-sitter-csharp.so packaging (parent-owned)
+  - live Aspire quality not re-run after R1 honesty fix (server-default ColBERT already exercised)
+verify: >-
+  Infrastructure adaptive/schema 12 passed; Application ScheduledReindex 13
+  passed; useRerank 10 passed; eval_retrieval AST ok; plan compliance pass;
+  Docker integration Verdict pass (Aspire GPU + quality-rerank threshold 0,
+  recall@10 0.4423); R1–R3 closed. Review rounds: 2.
+changelog:
+  update: true
+  bullet: >-
+    Add .NET ColBERT rerank (remote GPU worker default, in-process ONNX),
+    Aspire compose with ColBERT, stdio Proxy, and in-process scheduled
+    reindex (cron sidecar removed); re-index after pull when enabling
+    ColBERT.
+user_facing: true
