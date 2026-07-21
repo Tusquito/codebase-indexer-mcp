@@ -1,0 +1,29 @@
+adr_id: "0030"
+phase_key: phase-3
+phase_title: Phase 3 — Core search tools
+event: implementation
+date: "2026-07-21"
+tracker_status: implemented
+choices: >-
+  Aspire/.NET Qdrant.Client uses gRPC :6334 (REST :6333 kept for health/metrics);
+  QdrantGrpcEndpoint remaps well-known REST 6333→6334; Aspire harness waits on MCP
+  /health (15×1s).
+deviations: >-
+  none beyond defensive 6333→6334 remap in client parse
+code_evidence:
+  - docker-compose.aspire.yml
+  - src/CodebaseIndexer.AppHost/AppHost.cs
+  - src/CodebaseIndexer.Infrastructure/Qdrant/QdrantGrpcEndpoint.cs
+  - src/CodebaseIndexer.Infrastructure/Qdrant/QdrantVectorStore.cs
+  - src/CodebaseIndexer.Host/appsettings.json
+  - src/CodebaseIndexer.Host/appsettings.Docker.json
+  - scripts/run_compose_integration.py
+  - test/CodebaseIndexer.Infrastructure.Tests/QdrantGrpcEndpointTests.cs
+  - docs/ARCHITECTURE.md
+  - docs/DEPLOYMENT.md
+test_debt:
+  - no automated assert that Aspire path uses wait_http for MCP; live gRPC left to compose quality re-run
+changelog:
+  update: false
+  reason: "invoker Changelog: no; status implemented"
+user_facing: true

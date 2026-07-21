@@ -1,0 +1,24 @@
+adr_id: "0030"
+phase_key: phase-3
+phase_title: Phase 3 — Core search tools
+event: implementation
+date: "2026-07-21"
+tracker_status: implemented
+choices: >-
+  Aspire TEI via TEI_IMAGE + ADR 0028 tei_image_default (default cpu-1.9, arm64 cpu-arm64-latest); HF hub models--Qdrant--bm25 (+ snapshots) sparse resolve; harness dotnet test in mcr.microsoft.com/dotnet/sdk:10.0 when host lacks global.json SDK 10.0.301. Preserved: Hybrid RRF / CrossCollectionRrf; PrefetchMultiplier/RrfK; six MCP tools; summary without build_deps; rerank no-op; quality via --mcp-url threshold 2.
+deviations: none
+code_evidence:
+  - docker-compose.aspire.yml
+  - src/CodebaseIndexer.AppHost/AppHost.cs
+  - src/CodebaseIndexer.Infrastructure/Embedding/SparseModelCacheResolver.cs
+  - src/CodebaseIndexer.Infrastructure/Embedding/OnnxSparseEmbedder.cs
+  - test/CodebaseIndexer.Infrastructure.Tests/SparseModelCacheResolverTests.cs
+  - scripts/run_compose_integration.py
+test_debt:
+  - Full Aspire Docker + quality gate still required on target host
+  - harness unit test for SDK-container fallback
+  - Host.Tests re-smoke
+changelog:
+  update: false
+  reason: "invoker Changelog: no; status implemented"
+user_facing: true

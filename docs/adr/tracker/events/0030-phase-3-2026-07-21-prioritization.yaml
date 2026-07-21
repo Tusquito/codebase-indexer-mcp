@@ -1,0 +1,13 @@
+adr_id: '0030'
+phase_key: phase-3
+phase_title: Phase 3 — Core search tools
+event: prioritization
+date: '2026-07-21'
+tracker_status: candidate
+choices: >-
+  Selected over 0031 Phase 1 (Proposed — needs Accept; Python-only ops fix short-lived vs .NET migration), over 0026 Phase 4 (GPU-blocked), over 0023 Phase 3 / 0027 Phase 1 (lower unlock); single phase per pipeline rule; no ADR Accept required (0030 already Accepted). Human decisions 2026-07-21: (1) Prefer ADR 0030 Phase 3 this cycle; (2) NVIDIA GPU available for future ADR 0026 Phase 4 scheduling; (3) Do not Accept ADR 0031/0027 this cycle — wait for a future cycle. **Why now:** Phases 1–2 merged; `SearchAsync` stubbed; Host has index tools only; ADR delivery order makes Phase 3 the usable-search milestone; prior open decisions kept 0030 as primary thread and deferred GPU bake-off / Accept-0027. **Suggested scope:** one phase (= one PR). **Chosen scope:** Implement .NET hybrid dense+sparse RRF search and MCP tools `search_codebase`, `search_symbols`, `get_chunk`, `get_file_outline`, `get_collection_summary`, `list_collections`; replace Phase-1 `SearchAsync` stub; golden recall@10 within ±2% of Python baseline on fixture collection; Docker integration via `scripts/run_compose_integration.py` (+ Aspire smoke as established); quality validation required; defer Phase 4 cross-ref/discovery, Phase 5 GraphRAG, Phase 6 ColBERT/ops, Phase 7 Python deletion. Pre-release: no backward-compat requirement unless ADR documents one; Docker integration always required; no schema migration version env vars — document re-index after pull.
+deviations: none
+changelog:
+  update: false
+  reason: 'user-facing unknown; invoker Changelog: no'
+user_facing: false

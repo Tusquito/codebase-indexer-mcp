@@ -83,6 +83,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0029 | Phase 2 — Integration smoke | Accept skipped — unchanged (Accepted) | phase-2 | `merged` | Harness-only PR; `include_tei=False` via `compose_file_args`; force `ACCELERATOR=cpu`; M3 Pro Metal cgroup preset; host TEI preflight; `tei_container_absent` verdict gate; bundled path unchanged; quality/perf validation skipped. Defer live M3 Pro `--external-tei` full Docker integration before merge, Phase 3 `metal_host_tei` benchmark, and maintainer Metal log check on first embed. | 2026-07-12 |
 | 0030 | Phase 1 — Scaffold + storage + TEI | Accepted (phase 1 — Scaffold + storage + TEI) | phase-1 | `merged` | Accept ADR 0030; repo-root solution; hand-authored docker-compose.aspire.yml; arm64 cpu-arm64-latest TEI; accelerator defaults cpu; MCP stub get_health only; SearchAsync stub until Phase 3; tokenizer truncation Phase 2; Python production default until Phase 7 | 2026-07-13 |
 | 0030 | Phase 2 — Indexing pipeline | Accepted (phase 1; phase 2 — Indexing pipeline) | phase-2 | `merged` | `WorkspaceScanner` (SHA-256 incremental scan, ignore files, `ArrayPool` hashing, channel worker fan-out DOP=1); `TreeSitterChunker` (port `chunker.py` via `TreeSitter.DotNet`, regex SQL fallback); `OnnxSparseEmbedder` (`Microsoft.ML.OnnxRuntime`, same `Qdrant/bm25` artifacts); model-accurate dense tokenizer truncation; `IndexPipeline` with `Channel<T>` stages in `IndexPipelineHostedService`; `IndexCodebaseService` + `IndexJobService`; MCP index tools (`index_codebase`, `index_status`, `stop_indexing`, `index_all`); chunk-ID golden parity fixture; `docker-compose.aspire.yml` workspace/cache wiring (fastembed at `/root/.cache/fastembed` with `fastembed_cache` volume); `--aspire-stack` integration smoke (manual M3 Pro pre-review, optional non-blocking CI); Python `run_compose_integration.py` remains green | 2026-07-13 |
+| 0030 | Phase 3 — Core search tools | Accepted (phase 1–2 merged; phase 3 — Core search tools) | phase-3 | `verified` | Hybrid RRF via Qdrant QueryAsync + client CrossCollectionRrf; Embedding PrefetchMultiplier/RrfK; Qdrant create parity (int8/HNSW/memmap/payload indexes); Host resolves default collection; six MCP tools; summary without build_dependencies; ColBERT no-op; Aspire gRPC :6334 + TEI arch image + SDK-container test fallback; quality via --mcp-url | 2026-07-21 |
 <!-- END GENERATED:summary -->
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
@@ -90,7 +91,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 ## Active and upcoming work
 
 <!-- BEGIN GENERATED:active -->
-_No active or upcoming phases._
+- **0030** Phase 3 — Core search tools — `verified`
 <!-- END GENERATED:active -->
 
 ### Partial acceptance
@@ -1822,7 +1823,58 @@ _No active or upcoming phases._
 - **Test debt:** Live M3 Pro `--external-tei` Docker integration (integration-tester); Phase 3 `metal_host_tei` benchmark; maintainer Metal log check on first embed
 - **Changelog:** no — user-facing yes; invoker Changelog: no
 
-### ADR 0030 — Phase 1 — Scaffold + storage + TEI
+### ADR 0030 — Phase 3 — Core search tools
+
+#### 2026-07-21 — verification
+- **Phase:** Phase 3 — Core search tools
+- **Tracker status:** `verified`
+- **Choices:** Hybrid RRF via Qdrant QueryAsync + client CrossCollectionRrf; Embedding PrefetchMultiplier/RrfK; Qdrant create parity (int8/HNSW/memmap/payload indexes); Host resolves default collection; six MCP tools; summary without build_dependencies; ColBERT no-op; Aspire gRPC :6334 + TEI arch image + SDK-container test fallback; quality via --mcp-url
+- **Deviations:** none
+- **Code evidence:** `QdrantVectorStore.cs`, `SearchService.cs`, `CrossCollectionRrf.cs`, `Host Tools (Search/Chunk/Outline/Summary/Collections)`, `SparseModelCacheResolver.cs`, `QdrantGrpcEndpoint.cs`, `eval_retrieval.py`, `run_compose_integration.py`, `docker-compose.aspire.yml`
+- **Test debt:** Testcontainers hybrid query / recreate-quant asserts; SearchService multi-collection + hybrid-min_score unit cases; SymbolType chunker goldens; automated assert Aspire wait_http (live covered by compose)
+- **Verify:** review rounds 1; dotnet test in SDK container (70 pass); integration Verdict pass; quality recall@10 +38.1% vs baseline (threshold 2); plan compliance pass
+- **Changelog:** yes — Aspire/.NET MCP now exposes hybrid dense+sparse RRF search and core read tools (`search_codebase`, `search_symbols`, `get_chunk`, `get_file_outline`, `get_collection_summary`, `list_collections`); re-index after pull for quantization/HNSW/`symbol_type` parity.
+
+#### 2026-07-21 — prioritization
+- **Phase:** Phase 3 — Core search tools
+- **Tracker status:** `candidate`
+- **Choices:** Selected over 0031 Phase 1 (Proposed — needs Accept; Python-only ops fix short-lived vs .NET migration), over 0026 Phase 4 (GPU-blocked), over 0023 Phase 3 / 0027 Phase 1 (lower unlock); single phase per pipeline rule; no ADR Accept required (0030 already Accepted). Human decisions 2026-07-21: (1) Prefer ADR 0030 Phase 3 this cycle; (2) NVIDIA GPU available for future ADR 0026 Phase 4 scheduling; (3) Do not Accept ADR 0031/0027 this cycle — wait for a future cycle. **Why now:** Phases 1–2 merged; `SearchAsync` stubbed; Host has index tools only; ADR delivery order makes Phase 3 the usable-search milestone; prior open decisions kept 0030 as primary thread and deferred GPU bake-off / Accept-0027. **Suggested scope:** one phase (= one PR). **Chosen scope:** Implement .NET hybrid dense+sparse RRF search and MCP tools `search_codebase`, `search_symbols`, `get_chunk`, `get_file_outline`, `get_collection_summary`, `list_collections`; replace Phase-1 `SearchAsync` stub; golden recall@10 within ±2% of Python baseline on fixture collection; Docker integration via `scripts/run_compose_integration.py` (+ Aspire smoke as established); quality validation required; defer Phase 4 cross-ref/discovery, Phase 5 GraphRAG, Phase 6 ColBERT/ops, Phase 7 Python deletion. Pre-release: no backward-compat requirement unless ADR documents one; Docker integration always required; no schema migration version env vars — document re-index after pull.
+- **Deviations:** none
+- **Changelog:** no — user-facing unknown; invoker Changelog: no
+
+#### 2026-07-21 — plan
+- **Phase:** Phase 3 — Core search tools
+- **Tracker status:** `planned`
+- **Choices:** Expand `IVectorStore` to vector-based hybrid search (Application embeds); align collection create with Python quantization/HNSW/payload indexes; add `Chunk.SymbolType`; omit summary `build_dependencies` and full cross-ref tools until Phase 4; quality eval must hit .NET search (MCP `--mcp-url` or equivalent), not Python `run_search` alone; ColBERT no-op until Phase 6. Assumptions: Phases 1–2 merged artifacts are the edit base; Python remains production default; golden fixtures + `eval_baseline.json` unchanged; Aspire TEI/Qdrant available for gates. Pre-release: no backward-compat requirement unless ADR documents one; Docker integration always required; no schema migration version env vars — document re-index after pull.
+- **Deviations:** none
+- **Changelog:** no — invoker Changelog: no; status planned
+
+#### 2026-07-21 — implementation
+- **Phase:** Phase 3 — Core search tools
+- **Tracker status:** `implemented`
+- **Choices:** Aspire TEI via TEI_IMAGE + ADR 0028 tei_image_default (default cpu-1.9, arm64 cpu-arm64-latest); HF hub models--Qdrant--bm25 (+ snapshots) sparse resolve; harness dotnet test in mcr.microsoft.com/dotnet/sdk:10.0 when host lacks global.json SDK 10.0.301. Preserved: Hybrid RRF / CrossCollectionRrf; PrefetchMultiplier/RrfK; six MCP tools; summary without build_deps; rerank no-op; quality via --mcp-url threshold 2.
+- **Deviations:** none
+- **Code evidence:** `docker-compose.aspire.yml`, `src/CodebaseIndexer.AppHost/AppHost.cs`, `src/CodebaseIndexer.Infrastructure/Embedding/SparseModelCacheResolver.cs`, `src/CodebaseIndexer.Infrastructure/Embedding/OnnxSparseEmbedder.cs`, `test/CodebaseIndexer.Infrastructure.Tests/SparseModelCacheResolverTests.cs`, `scripts/run_compose_integration.py`
+- **Test debt:** Full Aspire Docker + quality gate still required on target host; harness unit test for SDK-container fallback; Host.Tests re-smoke
+- **Changelog:** no — invoker Changelog: no; status implemented
+
+#### 2026-07-21 — implementation
+- **Phase:** Phase 3 — Core search tools
+- **Tracker status:** `implemented`
+- **Choices:** Aspire/.NET Qdrant.Client uses gRPC :6334 (REST :6333 kept for health/metrics); QdrantGrpcEndpoint remaps well-known REST 6333→6334; Aspire harness waits on MCP /health (15×1s).
+- **Deviations:** none beyond defensive 6333→6334 remap in client parse
+- **Code evidence:** `docker-compose.aspire.yml`, `src/CodebaseIndexer.AppHost/AppHost.cs`, `src/CodebaseIndexer.Infrastructure/Qdrant/QdrantGrpcEndpoint.cs`, `src/CodebaseIndexer.Infrastructure/Qdrant/QdrantVectorStore.cs`, `src/CodebaseIndexer.Host/appsettings.json`, `src/CodebaseIndexer.Host/appsettings.Docker.json`, `scripts/run_compose_integration.py`, `test/CodebaseIndexer.Infrastructure.Tests/QdrantGrpcEndpointTests.cs`, `docs/ARCHITECTURE.md`, `docs/DEPLOYMENT.md`
+- **Test debt:** no automated assert that Aspire path uses wait_http for MCP; live gRPC left to compose quality re-run
+- **Changelog:** no — invoker Changelog: no; status implemented
+
+#### 2026-07-21 — implementation
+- **Phase:** Phase 3 — Core search tools
+- **Tracker status:** `implemented`
+- **Choices:** Hybrid RRF via Qdrant QueryAsync + client CrossCollectionRrf; search knobs on Embedding: (PrefetchMultiplier, RrfK); Qdrant create parity (int8 quant, HNSW m/ef_construct, memmap, payload indexes); Host resolves default collection; rerank no-op until Phase 6; summary without build_deps
+- **Deviations:** Application does not reference Infrastructure QdrantOptions (Host binds default collection); Host CallTool smoke allows Qdrant-unavailable error
+- **Code evidence:** `src/CodebaseIndexer.Infrastructure/Qdrant/QdrantVectorStore.cs`, `src/CodebaseIndexer.Application/Services/SearchService.cs`, `src/CodebaseIndexer.Application/Search/CrossCollectionRrf.cs`, `src/CodebaseIndexer.Host/Tools/SearchTools.cs`, `src/CodebaseIndexer.Host/Tools/ChunkTools.cs`, `src/CodebaseIndexer.Host/Tools/OutlineTools.cs`, `src/CodebaseIndexer.Host/Tools/SummaryTools.cs`, `src/CodebaseIndexer.Host/Tools/CollectionsTools.cs`, `mcp_server/benchmarks/eval_retrieval.py`, `scripts/run_compose_integration.py`
+- **Test debt:** Testcontainers hybrid query; recreate/quantization asserts; Aspire golden recall@10 gate; SymbolType chunker goldens
+- **Changelog:** no — invoker Changelog: no; status implemented
 
 #### 2026-07-13 — verification
 - **Phase:** Phase 1 — Scaffold + storage + TEI

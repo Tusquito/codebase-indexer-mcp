@@ -1,0 +1,13 @@
+adr_id: "0030"
+phase_key: phase-3
+phase_title: Phase 3 — Core search tools
+event: plan
+date: "2026-07-21"
+tracker_status: planned
+choices: >-
+  Expand `IVectorStore` to vector-based hybrid search (Application embeds); align collection create with Python quantization/HNSW/payload indexes; add `Chunk.SymbolType`; omit summary `build_dependencies` and full cross-ref tools until Phase 4; quality eval must hit .NET search (MCP `--mcp-url` or equivalent), not Python `run_search` alone; ColBERT no-op until Phase 6. Assumptions: Phases 1–2 merged artifacts are the edit base; Python remains production default; golden fixtures + `eval_baseline.json` unchanged; Aspire TEI/Qdrant available for gates. Pre-release: no backward-compat requirement unless ADR documents one; Docker integration always required; no schema migration version env vars — document re-index after pull.
+deviations: none
+changelog:
+  update: false
+  reason: "invoker Changelog: no; status planned"
+user_facing: true

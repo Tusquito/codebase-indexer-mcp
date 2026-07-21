@@ -31,8 +31,8 @@ Each direct subdirectory of `/workspace` is one **collection** (indexed project)
 | Component | Path | Role |
 |-----------|------|------|
 | HTTP server (Python — production default) | `mcp_server/src/codebase_indexer/main.py` | FastMCP app factory (`create_app`), registers all MCP tools, optional bearer auth middleware, `/health` endpoint |
-| HTTP server (.NET — ADR 0030 Phase 1+ scaffold) | `src/CodebaseIndexer.Host/Program.cs` | `WebApplication.CreateSlimBuilder`; MCP at `/mcp`; `/health` via `AddHealthChecks()` + `McpHostHealthCheck`; split `appsettings` sections + FluentValidation; **do not edit** `CodebaseIndexer.ServiceDefaults` (Aspire template) |
-| Aspire AppHost (.NET) | `src/CodebaseIndexer.AppHost/AppHost.cs` | Local dev orchestration: Qdrant + TEI + MCP host; `docker-compose.aspire.yml` for arm64 CPU profile |
+| HTTP server (.NET — ADR 0030 Phase 1–3) | `src/CodebaseIndexer.Host/Program.cs` | `WebApplication.CreateSlimBuilder`; MCP at `/mcp`; `/health` via `AddHealthChecks()` + `McpHostHealthCheck`; Phase 3 core search tools (`search_codebase`, `search_symbols`, `get_chunk`, `get_file_outline`, `get_collection_summary`, `list_collections`) on Aspire stack; split `appsettings` sections + FluentValidation; **do not edit** `CodebaseIndexer.ServiceDefaults` (Aspire template) |
+| Aspire AppHost (.NET) | `src/CodebaseIndexer.AppHost/AppHost.cs` | Local dev orchestration: Qdrant (REST `:6333` + gRPC `:6334`) + TEI + MCP host; `docker-compose.aspire.yml` for CPU Aspire stack |
 | stdio proxy | `mcp_server/src/codebase_indexer/stdio_proxy.py` | Optional fallback: runs in a separate `codeindexer_proxy` sidecar; forwards JSON-RPC from stdin/stdout to the HTTP server — no model reload per session. Primary clients (e.g. Cursor) connect via HTTP URL instead. |
 | Cron job | `cron/reindex.py` | Daily git pull + incremental `index_codebase` for changed repos |
 | Benchmark | `mcp_server/benchmarks/bench.py` | Async harness for indexing/search latency and payload-index A/B comparison |
@@ -44,7 +44,7 @@ Each direct subdirectory of `/workspace` is one **collection** (indexed project)
 
 Docker Compose passes every `Settings` field from the repo-root `.env` into `mcp_server` via explicit `${VAR:-default}` entries in `docker-compose.yml` — see [DEPLOYMENT.md](DEPLOYMENT.md#docker-compose-env-passthrough). Restart `mcp_server` after env-only changes.
 
-**.NET MCP host (ADR 0030 Phase 1+):** `src/CodebaseIndexer.Host/appsettings.json` uses split sections (`Qdrant`, `Tei`, `Embedding`, `Workspace`, `Chunking`, `Indexing`) — not `.env`. Container overrides use ASP.NET Core env syntax (`Qdrant__Url`, `Embedding__DenseModel`, etc.) in `docker-compose.aspire.yml`. Required fields are enforced by FluentValidation at startup (`ValidateOnStart`). See [ADR 0030](adr/0030-migrate-mcp-server-to-dotnet10.md).
+**.NET MCP host (ADR 0030 Phase 1+):** `src/CodebaseIndexer.Host/appsettings.json` uses split sections (`Qdrant`, `Tei`, `Embedding`, `Workspace`, `Chunking`, `Indexing`) — not `.env`. Container overrides use ASP.NET Core env syntax (`Qdrant__Url`, `Embedding__DenseModel`, etc.) in `docker-compose.aspire.yml`. **`Qdrant__Url` must target gRPC port 6334** (`Qdrant.Client`); REST `:6333` is published for health/metrics only (Python clients still use REST). Required fields are enforced by FluentValidation at startup (`ValidateOnStart`). See [ADR 0030](adr/0030-migrate-mcp-server-to-dotnet10.md).
 
 `mcp_server/src/codebase_indexer/context.py` builds `AppContext`: wires `Settings`, `QdrantStorage`, `Embedder`, `UrlExtractors`, and `IndexJobTracker` once per process.
 

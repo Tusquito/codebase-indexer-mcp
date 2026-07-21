@@ -2,6 +2,8 @@
 
 **Summary:** `search_codebase` caps `top_k` at **20**; `search_symbols` caps `top_k` at **30**. When `HYBRID_SEARCH` is enabled (default), results are ranked by reciprocal rank fusion (RRF) of dense and sparse lists — `min_score` is ignored because RRF scores are not on the cosine [0,1] scale. When `HYBRID_SEARCH` is disabled, only dense cosine search runs and `min_score` filters results by similarity threshold.
 
+**.NET Aspire stack (ADR 0030 Phase 3):** The same six core tools (`search_codebase`, `search_symbols`, `get_chunk`, `get_file_outline`, `get_collection_summary`, `list_collections`) are exposed by `CodebaseIndexer.Host` on `docker-compose.aspire.yml`. Hybrid RRF lives in `QdrantVectorStore.SearchAsync`; cross-collection fuse in `CrossCollectionRrf`. ColBERT rerank remains Phase 6 (`rerank` arg accepted, no-op while `RerankEnabled=false`). After pull, **re-index** collections so quantization/HNSW/`symbol_type` payload match (no schema-version env).
+
 ## `search_codebase`
 
 | Parameter | Default | Cap / behavior |

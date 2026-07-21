@@ -1,0 +1,39 @@
+adr_id: "0030"
+phase_key: phase-3
+phase_title: Phase 3 — Core search tools
+event: verification
+date: "2026-07-21"
+tracker_status: verified
+choices: >-
+  Hybrid RRF via Qdrant QueryAsync + client CrossCollectionRrf; Embedding
+  PrefetchMultiplier/RrfK; Qdrant create parity (int8/HNSW/memmap/payload indexes);
+  Host resolves default collection; six MCP tools; summary without build_dependencies;
+  ColBERT no-op; Aspire gRPC :6334 + TEI arch image + SDK-container test fallback;
+  quality via --mcp-url
+deviations: none
+code_evidence:
+  - QdrantVectorStore.cs
+  - SearchService.cs
+  - CrossCollectionRrf.cs
+  - Host Tools (Search/Chunk/Outline/Summary/Collections)
+  - SparseModelCacheResolver.cs
+  - QdrantGrpcEndpoint.cs
+  - eval_retrieval.py
+  - run_compose_integration.py
+  - docker-compose.aspire.yml
+test_debt:
+  - Testcontainers hybrid query / recreate-quant asserts
+  - SearchService multi-collection + hybrid-min_score unit cases
+  - SymbolType chunker goldens
+  - automated assert Aspire wait_http (live covered by compose)
+verify: >-
+  review rounds 1; dotnet test in SDK container (70 pass); integration Verdict pass;
+  quality recall@10 +38.1% vs baseline (threshold 2); plan compliance pass
+changelog:
+  update: true
+  bullet: >-
+    Aspire/.NET MCP now exposes hybrid dense+sparse RRF search and core read tools
+    (`search_codebase`, `search_symbols`, `get_chunk`, `get_file_outline`,
+    `get_collection_summary`, `list_collections`); re-index after pull for
+    quantization/HNSW/`symbol_type` parity.
+user_facing: true
