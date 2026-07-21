@@ -198,7 +198,7 @@ jobs:
           global-json-file: global.json
 
       - name: Run aspire-stack integration smoke
-        run: python scripts/run_compose_integration.py --json --aspire-stack
+        run: python scripts/run_compose_integration.py --json --aspire-stack --quality-validation --quality-threshold 0
 
   compose-integration:
     # Non-blocking: full Docker Compose stack on CPU (ADR 0022 — sole CI CPU

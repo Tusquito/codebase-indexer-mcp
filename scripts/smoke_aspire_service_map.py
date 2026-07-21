@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Multi-collection map_service_dependencies smoke for --aspire-stack (.NET MCP).
 
-Indexes two tiny fixture trees under WORKSPACE_ROOT (or /tmp/aspire-smoke-ws)
-then calls map_service_dependencies. Requires live MCP at MCP_URL.
+Indexes two tiny fixture trees under the compose-mounted workspace
+(WORKSPACE_PATH / ASPIRE_SMOKE_WORKSPACE / cwd → /workspace in the MCP
+container) then calls map_service_dependencies. Requires live MCP at MCP_URL.
 """
 from __future__ import annotations
 
 import json
 import os
+import shutil
 import sys
-import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -17,6 +18,16 @@ from pathlib import Path
 
 MCP_URL = os.environ.get("MCP_URL", "http://127.0.0.1:8000/mcp")
 TIMEOUT = 180
+FIXTURE_NAMES = ("smoke-svc-a", "smoke-svc-b")
+
+
+def _resolve_workspace() -> Path:
+    """Host path mounted as /workspace (docker-compose.aspire.yml WORKSPACE_PATH)."""
+    for key in ("ASPIRE_SMOKE_WORKSPACE", "WORKSPACE_PATH"):
+        raw = os.environ.get(key)
+        if raw:
+            return Path(raw).expanduser().resolve()
+    return Path.cwd().resolve()
 
 
 class McpClient:
@@ -132,37 +143,58 @@ def _wait_index(client: McpClient, job_id: str, timeout_s: float = 120.0) -> Non
     raise TimeoutError(f"index job {job_id} did not finish")
 
 
+def _cleanup_fixtures(workspace: Path) -> None:
+    for name in FIXTURE_NAMES:
+        target = workspace / name
+        if target.is_dir():
+            shutil.rmtree(target, ignore_errors=True)
+
+
 def main() -> int:
-    workspace = Path(os.environ.get("ASPIRE_SMOKE_WORKSPACE", tempfile.mkdtemp(prefix="aspire-smoke-")))
+    workspace = _resolve_workspace()
     coll_a, coll_b = _write_fixtures(workspace)
     print(f"fixtures under {workspace}: {coll_a}, {coll_b}")
 
-    client = McpClient()
-    client.initialize()
+    try:
+        client = McpClient()
+        client.initialize()
 
-    for coll in (coll_a, coll_b):
-        started = client.call_tool("index_codebase", {"path": coll, "force": True})
-        job_id = started.get("job_id") or started.get("id")
-        if not job_id:
-            # Some hosts return immediately without job id when sync — accept empty error-free start
-            print(f"index_codebase({coll}) => {started}")
-            continue
-        _wait_index(client, str(job_id))
+        for coll in (coll_a, coll_b):
+            started = client.call_tool("index_codebase", {"path": coll, "force": True})
+            job_id = started.get("job_id") or started.get("id")
+            if not job_id:
+                # Some hosts return immediately without job id when sync — accept empty error-free start
+                print(f"index_codebase({coll}) => {started}")
+                continue
+            total = started.get("total_files") or started.get("totalFiles")
+            if total is not None:
+                print(f"index_codebase({coll}) total_files={total}")
+            _wait_index(client, str(job_id))
 
-    result = client.call_tool(
-        "map_service_dependencies",
-        {"collections": [coll_a, coll_b], "top_k": 10},
-    )
-    if "error" in result:
-        print("FAIL:", result)
-        return 1
-    print(json.dumps({"collections_analyzed": result.get("collections_analyzed"), "summary": result.get("summary")}, indent=2))
-    analyzed = result.get("collections_analyzed") or []
-    if coll_a not in analyzed or coll_b not in analyzed:
-        print("FAIL: expected both collections in collections_analyzed")
-        return 1
-    print("PASS: map_service_dependencies multi-collection smoke")
-    return 0
+        result = client.call_tool(
+            "map_service_dependencies",
+            {"collections": [coll_a, coll_b], "top_k": 10},
+        )
+        if "error" in result:
+            print("FAIL:", result)
+            return 1
+        print(
+            json.dumps(
+                {
+                    "collections_analyzed": result.get("collections_analyzed"),
+                    "summary": result.get("summary"),
+                },
+                indent=2,
+            )
+        )
+        analyzed = result.get("collections_analyzed") or []
+        if coll_a not in analyzed or coll_b not in analyzed:
+            print("FAIL: expected both collections in collections_analyzed")
+            return 1
+        print("PASS: map_service_dependencies multi-collection smoke")
+        return 0
+    finally:
+        _cleanup_fixtures(workspace)
 
 
 if __name__ == "__main__":

@@ -30,3 +30,7 @@ mcp_server/benchmarks/train/outputs/
 *.log
 tmp*.txt
 *_diagnostic.txt
+
+# Aspire service-map smoke fixtures (scripts/smoke_aspire_service_map.py)
+/smoke-svc-a/
+/smoke-svc-b/
