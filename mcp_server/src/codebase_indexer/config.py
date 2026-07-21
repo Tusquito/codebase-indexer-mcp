@@ -325,6 +325,21 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
+    def validate_upsert_batch_when_rerank(self) -> Self:
+        # ColBERT multivectors blow past Qdrant HTTP body limits at default 500.
+        # Auto-clamp the field default; fail only when the operator set UPSERT_BATCH > 25.
+        if not self.rerank_enabled or self.upsert_batch <= 25:
+            return self
+        if "upsert_batch" not in self.model_fields_set:
+            object.__setattr__(self, "upsert_batch", 10)
+            return self
+        raise ValueError(
+            "UPSERT_BATCH must be <= 25 when RERANK_ENABLED=true "
+            "(ColBERT multivectors exceed HTTP upsert body limits; "
+            "use 10–25, see docs/DEPLOYMENT.md)."
+        )
+
+    @model_validator(mode="after")
     def validate_adaptive_rerank_when_disabled(self) -> Self:
         if not self.rerank_enabled:
             object.__setattr__(self, "rerank_adaptive_enabled", False)

@@ -31,8 +31,26 @@ def _reset_telemetry_metrics_state() -> None:
 
 @pytest.fixture(autouse=True)
 def _required_embed_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Tests construct Settings() without repeating embed env vars."""
+    """Pin Settings defaults so host ``.env`` / shell opt-ins cannot pollute tests.
+
+    Operator machines often export ``GRAPH_ENABLED`` / ``RERANK_ENABLED`` for the
+    live Docker stack; without isolation, ``Settings()`` default assertions and
+    storage-integration constructors fail spuriously.
+    """
     monkeypatch.setenv("DENSE_EMBED_MODEL", _TEST_DENSE_EMBED_MODEL)
     monkeypatch.setenv("SPARSE_EMBED_MODEL", _TEST_SPARSE_EMBED_MODEL)
     monkeypatch.setenv("DENSE_EMBED_VECTOR_SIZE", _TEST_DENSE_EMBED_VECTOR_SIZE)
     monkeypatch.setenv("SPARSE_THREADS", _TEST_SPARSE_THREADS)
+    # Opt-in features — force production defaults regardless of host env /.env
+    monkeypatch.setenv("HYBRID_SEARCH", "true")
+    monkeypatch.setenv("RERANK_ENABLED", "false")
+    monkeypatch.setenv("GRAPH_ENABLED", "false")
+    monkeypatch.setenv("NEO4J_PASSWORD", "")
+    monkeypatch.setenv("METRICS_ENABLED", "false")
+    monkeypatch.setenv("RECOMMEND_ENABLED", "true")
+    monkeypatch.setenv("MCP_AUTH_TOKEN", "")
+    # Leave COLBERT_EMBED_BACKEND unset so Settings can default onnx→remote when
+    # individual tests enable RERANK_ENABLED (host .env must not pin "onnx").
+    monkeypatch.delenv("COLBERT_EMBED_BACKEND", raising=False)
+    monkeypatch.delenv("UPSERT_BATCH", raising=False)
+    monkeypatch.setenv("COLBERT_URL", "http://colbert_worker:8082")

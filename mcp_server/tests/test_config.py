@@ -324,6 +324,41 @@ def test_rerank_requires_hybrid():
         )
 
 
+def test_rerank_auto_clamps_default_upsert_batch():
+    s = Settings(
+        dense_embed_model="nomic-ai/nomic-embed-text-v1.5",
+        sparse_embed_model="Qdrant/bm25",
+        dense_embed_vector_size=768,
+        sparse_threads=2,
+        rerank_enabled=True,
+    )
+    assert s.upsert_batch == 10
+
+
+def test_rerank_rejects_explicit_large_upsert_batch():
+    with pytest.raises(ValueError, match="UPSERT_BATCH"):
+        Settings(
+            dense_embed_model="nomic-ai/nomic-embed-text-v1.5",
+            sparse_embed_model="Qdrant/bm25",
+            dense_embed_vector_size=768,
+            sparse_threads=2,
+            rerank_enabled=True,
+            upsert_batch=500,
+        )
+
+
+def test_rerank_allows_explicit_small_upsert_batch():
+    s = Settings(
+        dense_embed_model="nomic-ai/nomic-embed-text-v1.5",
+        sparse_embed_model="Qdrant/bm25",
+        dense_embed_vector_size=768,
+        sparse_threads=2,
+        rerank_enabled=True,
+        upsert_batch=16,
+    )
+    assert s.upsert_batch == 16
+
+
 def test_colbert_specs_in_registry():
     from codebase_indexer.config import (
         COLBERT_EMBED_SPECS,
