@@ -197,6 +197,16 @@ jobs:
         with:
           global-json-file: global.json
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        working-directory: mcp_server
+        run: uv sync --extra dev --extra benchmark
+
       - name: Run aspire-stack integration smoke
         run: python scripts/run_compose_integration.py --json --aspire-stack --quality-validation --quality-threshold 0
 

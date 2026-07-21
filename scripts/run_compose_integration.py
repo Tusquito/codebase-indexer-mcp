@@ -496,18 +496,21 @@ def run_smoke_optional() -> tuple[str, str]:
 
 
 def run_validate_labels() -> tuple[bool, str]:
-    proc = _run(
-        [
-            "uv",
-            "run",
-            "python",
-            "-m",
-            "benchmarks.eval_retrieval",
-            "--validate-labels",
-        ],
-        cwd=MCP_SERVER,
-        env=_host_test_env(),
-    )
+    try:
+        proc = _run(
+            [
+                "uv",
+                "run",
+                "python",
+                "-m",
+                "benchmarks.eval_retrieval",
+                "--validate-labels",
+            ],
+            cwd=MCP_SERVER,
+            env=_host_test_env(),
+        )
+    except FileNotFoundError as exc:
+        return False, f"uv not available: {exc}"
     out = (proc.stdout or "") + (proc.stderr or "")
     return proc.returncode == 0, out.strip()[-2000:]
 
