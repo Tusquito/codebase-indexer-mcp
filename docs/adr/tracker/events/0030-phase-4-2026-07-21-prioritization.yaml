@@ -1,0 +1,35 @@
+adr_id: "0030"
+phase_key: phase-4
+phase_title: Phase 4 — Cross-ref + discovery
+event: prioritization
+date: "2026-07-21"
+tracker_status: candidate
+choices: >-
+  Selected over 0026 Phase 4 (GPU bake-off — ties on score, loses tie-break:
+  larger scope + secondary to 0030 thread); over 0032/0033 Phase 1 (Proposed —
+  need Accept; strong intercalation option); over 0027/0031 (Accept deferred /
+  Python-scoped); over 0023 Phase 3 (Python debt). Single phase per pipeline
+  rule; no ADR Accept required (0030 already Accepted). Human decisions applied
+  2026-07-21: (1) continue with 0030 Phase 4 — do not intercalate 0032/0033;
+  (2) keep 0026 Phase 4 deferred behind 0030; (3) ADR 0027 — no action this
+  cycle; (4) ADR 0031 — re-scope to .NET Host probe URLs before any Accept (do
+  not Accept 0031 now). **Why now:** Phases 1–3 merged; ADR delivery order next
+  is cross-ref + discovery; Host has index + six search tools only; no
+  xref/recommend/outlier tools in `src/`; 0030 remains primary migration thread
+  per tracker open decisions / Phase 3 prioritization; Proposed 0032/0033 need
+  Accept if intercalated. **Suggested scope:** one phase (= one PR). **Chosen
+  scope:** Implement .NET `find_cross_references`, `map_service_dependencies`,
+  `recommend_code`, `find_outlier_chunks` + build-deps parsers; tool-contract
+  tests; multi-collection service-map smoke; Docker integration via
+  `scripts/run_compose_integration.py`; defer Phases 5–7 and Proposed ADR Accept
+  unless invoker redirects to 0032 Phase 1.
+deviations: none
+changelog:
+  update: false
+  reason: "user-facing unknown; invoker Changelog: no"
+user_facing: false
+open_decisions:
+  - "RESOLVED — (1) continue 0030 Phase 4; do not intercalate 0032/0033"
+  - "RESOLVED — (2) keep 0026 Phase 4 deferred behind 0030"
+  - "RESOLVED — (3) ADR 0027 — no action this cycle"
+  - "(4) open — re-scope ADR 0031 to .NET Host probe URLs before Accept (do not Accept now)"

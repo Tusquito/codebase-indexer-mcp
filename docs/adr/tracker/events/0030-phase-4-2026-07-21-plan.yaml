@@ -1,0 +1,24 @@
+adr_id: "0030"
+phase_key: phase-4
+phase_title: Phase 4 — Cross-ref + discovery
+event: plan
+date: "2026-07-21"
+tracker_status: planned
+choices: >-
+  Qdrant-only Path D in Phase 4 (Neo4j callers in Phase 5); Discovery options
+  section mirroring Python recommend/outlier/service-map knobs;
+  `RecommendEnabled` gates tool registration; quality eval report-only
+  (`threshold 0`); no ColBERT rerank until Phase 6; re-index after pull for
+  `callees` (no schema-version env). Assumptions: Phases 1–3 .NET merge is
+  baseline; Python tool modules are behavioral source of truth;
+  `IndexedPayloadFields` already lists `callees` but upsert/chunker must be
+  completed this phase. Pre-release: no backward-compat requirement unless ADR
+  documents one; Docker integration always required; no schema migration
+  version env vars.
+deviations: none
+changelog:
+  update: false
+  reason: "invoker Changelog: no; status planned"
+user_facing: true
+open_decisions:
+  - "Future only (out of scope): re-scope Proposed 0031 to .NET Host probe URLs before Accept — do not Accept 0031 this cycle"

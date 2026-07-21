@@ -1,0 +1,30 @@
+adr_id: "0030"
+phase_key: phase-4
+phase_title: Phase 4 — Cross-ref + discovery
+event: implementation
+date: "2026-07-21"
+tracker_status: implemented
+choices: >-
+  Qdrant-only Path D (`callees` scroll); explicit MCP tool registration with
+  `Discovery:RecommendEnabled` gating; `UrlExtractors` supersedes Phase 3
+  minimal classifier; no schema-version env (re-index after pull)
+deviations: none
+code_evidence:
+  - src/CodebaseIndexer.Host/Tools/CrossReferenceTools.cs
+  - src/CodebaseIndexer.Host/Tools/ServiceMapTools.cs
+  - src/CodebaseIndexer.Host/Tools/RecommendTools.cs
+  - src/CodebaseIndexer.Host/Tools/OutlierTools.cs
+  - src/CodebaseIndexer.Application/Services/CrossReferenceService.cs
+  - src/CodebaseIndexer.Application/Services/ServiceMapService.cs
+  - src/CodebaseIndexer.Application/Services/RecommendService.cs
+  - src/CodebaseIndexer.Infrastructure/Qdrant/QdrantVectorStore.cs
+  - src/CodebaseIndexer.Infrastructure/Indexing/CalleeExtractor.cs
+  - src/CodebaseIndexer.Application/BuildDeps/
+  - scripts/smoke_aspire_service_map.py
+test_debt:
+  - live Qdrant recommend/outlier/callers e2e
+  - Docker aspire service-map + quality report-only harness
+changelog:
+  update: false
+  reason: "invoker Changelog: no; status implemented"
+user_facing: true
