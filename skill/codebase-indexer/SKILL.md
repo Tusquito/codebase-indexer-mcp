@@ -72,8 +72,8 @@ cost.
 | `search_codebase` + `max_content_chars` | Embed + partial | Narrowing candidates |
 | `get_chunk` | Zero embed | Reading one specific chunk in full |
 | `search_codebase` (no truncation) | Embed + full content | Last resort only |
-| `find_cross_references` | Zero embed (member-only); embed with query/symbol_name | Precise call sites via member/receiver + cross-project links; ColBERT rerank when `RERANK_ENABLED=true` |
-| `map_service_dependencies` | Multiple embeds | Full microservice call graph; ColBERT rerank when `RERANK_ENABLED=true` |
+| `find_cross_references` | Zero embed (member-only); embed with query/symbol_name | Precise call sites via member/receiver + cross-project links; ColBERT rerank when `Embedding:RerankEnabled` / `RERANK_ENABLED=true` (`rerank=false` skips) |
+| `map_service_dependencies` | Multiple embeds | Full microservice call graph; ColBERT rerank when enabled (`rerank=false` skips) |
 | `recommend_code` | Embed per text example | "Like this, not that" discovery via Qdrant Recommendation API (dense-only) |
 | `find_outlier_chunks` | Embed per text example | Semantically distant chunks in a module (refactor / dead-code triage) |
 | `expand_search_context` | Embed once + graph query | Hybrid seeds → Neo4j neighborhood (`CALLS`/`HTTP_CALLS`/…). Structured graph context, not an answer. Only when `Graph:Enabled` / `GRAPH_ENABLED=true` (.NET Aspire: `docker-compose.aspire.neo4j.yml`). Re-index after pull when enabling graph |

@@ -716,37 +716,36 @@ Full re-index required after changing `DENSE_EMBED_MODEL` or `DENSE_EMBED_VECTOR
 - Qdrant HNSW indexing is deferred during bulk upload (`indexing_threshold` is set to 0, then restored) so index construction doesn't compete with embedding for CPU.
 - Tree-sitter parsing runs in a thread executor so it never blocks the event loop, letting scan, embed, and upsert overlap.
 
-## Scheduled Reindex (cron)
+## Scheduled Reindex (in-process)
 
-The `codeindexer_cron` service (`cron` in `docker-compose.yml`) runs `cron/reindex.py` on a schedule. For each indexed collection it:
+The .NET Host owns scheduled reindex via `Reindex:*` options (Quartz cron or interval). For each indexed collection it:
 
-1. Locates the matching git repo under `/workspace/<collection-name>`
-2. Fetches and fast-forwards the default branch (`git pull`)
-3. Calls `index_codebase` with `force=False` when the repo changed (incremental re-index)
+1. Locates the matching git repo under `Workspace:Path/<collection-name>` (LibGit2Sharp)
+2. Fetches and fast-forwards the default branch when `Reindex:GitPull=true`
+3. Calls `IIndexJobService` directly (no MCP HTTP loopback) with `force=false`
 
-Repos that are not git repositories, have no detectable default branch, or are unchanged since the last run are skipped.
+The former `cron/` sidecar was removed in ADR 0030 Phase 6. Python `docker-compose.yml` no longer includes a cron service — use the Aspire/.NET Host schedule or call `index_all` manually until Phase 7 cutover.
 
-### Cron environment variables
+### Reindex environment variables (.NET)
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MCP_URL` | `http://mcp_server:8000` | MCP server base URL (cron appends `/mcp`) |
-| `MCP_AUTH_TOKEN` | *(empty)* | Bearer token sent when auth is enabled (same as MCP server) |
-| `WORKSPACE_ROOT` | `/workspace` | In-container workspace root where repos live (mounted from host `WORKSPACE_ROOT`) |
-| `INDEX_TIMEOUT` | `1800` | Seconds to wait for each `index_codebase` call to complete |
-| `MCP_HTTP_TIMEOUT` | `300` | HTTP timeout for individual MCP JSON-RPC requests |
-| `GIT_TIMEOUT` | `120` | Timeout for git subprocess commands |
+| `Reindex__Enabled` | `true` | Master switch for the hosted scheduler |
+| `Reindex__Cron` | `0 0 3 * * ?` | Quartz cron (daily 03:00); wins over interval |
+| `Reindex__Interval` | *(empty)* | Fallback interval (`6h`, `30m`) when cron is empty |
+| `Reindex__GitPull` | `true` | LibGit2Sharp pull before reindex |
+| `Reindex__IndexTimeoutSeconds` | `1800` | Per-collection index wait |
+| `Reindex__GitTimeoutSeconds` | `120` | Git operation timeout (documented; pull uses LibGit2Sharp) |
 
-View cron logs:
+## Stdio Proxy (.NET)
 
-```bash
-docker logs -f codeindexer_cron
-```
+`src/CodebaseIndexer.Proxy` forwards stdin JSON-RPC to `MCP_URL` (default `http://localhost:8000/mcp`). Diagnostics go to stderr (`LogToStandardErrorThreshold = Trace`). Env: `MCP_URL`, `MCP_AUTH_TOKEN`.
 
 ## Architecture Summary
 
 - **Qdrant** — Vector database for storing and searching embeddings
-- **MCP Server** — FastMCP-based server exposing tools over HTTP/stdio; dense embedding via TEI HTTP, sparse BM25 in-process
-- **Cron** — Scheduled git pull + incremental re-index for indexed collections
+- **MCP Server** — .NET Host (Aspire) or Python FastMCP; dense embedding via TEI HTTP, sparse BM25 in-process; optional ColBERT MAX_SIM when `Embedding:RerankEnabled=true`
+- **ColBERT worker** — `CodebaseIndexer.ColbertWorker` ONNX sidecar (`docker-compose.aspire.yml` service `colbert`)
+- **Reindex** — In-process Host schedule (no cron sidecar)
 
 All services run in Docker with persistent volumes. See [System Architecture](#system-architecture) and [How Indexing Works](#how-indexing-works) above for detailed diagrams.
