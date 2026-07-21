@@ -143,7 +143,10 @@ public sealed class TreeSitterChunker : ICodeChunker
                 ExtractSymbolName(node),
                 language,
                 fileSha256,
-                ClassifySymbolType(node.Type)));
+                ClassifySymbolType(node.Type))
+            {
+                Callees = CalleeExtractor.Extract(nodeContent),
+            });
             return;
         }
 
