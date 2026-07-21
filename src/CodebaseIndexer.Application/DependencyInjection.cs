@@ -1,3 +1,4 @@
+using CodebaseIndexer.Application.Graph;
 using CodebaseIndexer.Application.Options;
 using CodebaseIndexer.Application.Search;
 using CodebaseIndexer.Application.Services;
@@ -16,6 +17,7 @@ public static class DependencyInjection
         services.AddMemoryCache();
         services.AddCodebaseIndexerIndexingOptions();
         services.AddSingleton<UrlExtractors>();
+        services.AddSingleton<GraphWriter>();
         services.AddSingleton<IHealthService, HealthService>();
         services.AddSingleton<IIndexEmbeddingService, IndexEmbeddingService>();
         services.AddSingleton<IIndexCodebaseService, IndexCodebaseService>();
@@ -25,6 +27,7 @@ public static class DependencyInjection
         services.AddSingleton<ICrossReferenceService, CrossReferenceService>();
         services.AddSingleton<IServiceMapService, ServiceMapService>();
         services.AddSingleton<IRecommendService, RecommendService>();
+        services.AddSingleton<IExpandSearchContextService, ExpandSearchContextService>();
         return services;
     }
 }

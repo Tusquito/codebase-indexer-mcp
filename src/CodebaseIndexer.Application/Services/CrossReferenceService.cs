@@ -1,22 +1,33 @@
 using CodebaseIndexer.Application.Models;
 using CodebaseIndexer.Application.Search;
+using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
+using Microsoft.Extensions.Logging;
 
 namespace CodebaseIndexer.Application.Services;
 
-/// <summary>Port of Python find_cross_references (Qdrant Path D only — Neo4j deferred to Phase 5).</summary>
+/// <summary>Port of Python find_cross_references (Path D: Neo4j when graph-ready, else Qdrant).</summary>
 public sealed class CrossReferenceService : ICrossReferenceService
 {
     private readonly ISearchService _search;
     private readonly IVectorStore _store;
+    private readonly IGraphStore _graph;
     private readonly UrlExtractors _extractors;
+    private readonly ILogger<CrossReferenceService> _logger;
 
     /// <summary>Creates the cross-reference service.</summary>
-    public CrossReferenceService(ISearchService search, IVectorStore store, UrlExtractors extractors)
+    public CrossReferenceService(
+        ISearchService search,
+        IVectorStore store,
+        IGraphStore graph,
+        UrlExtractors extractors,
+        ILogger<CrossReferenceService> logger)
     {
         _search = search;
         _store = store;
+        _graph = graph;
         _extractors = extractors;
+        _logger = logger;
     }
 
     /// <inheritdoc />
@@ -121,8 +132,7 @@ public sealed class CrossReferenceService : ICrossReferenceService
 
         if (!string.IsNullOrWhiteSpace(member))
         {
-            // Phase 5: Neo4j Path D. Until then, always Qdrant callees scroll.
-            var callerResults = await _store.FindCallersInCollectionsAsync(
+            var callerResults = await FindCallSitesAsync(
                 member!, targetCollections, receiver, topK, cancellationToken).ConfigureAwait(false);
             var byKey = allResults.ToDictionary(r => r.RelPath + r.StartLine, StringComparer.Ordinal);
             foreach (var r in callerResults)
@@ -155,6 +165,55 @@ public sealed class CrossReferenceService : ICrossReferenceService
         var links = BuildLinkSummary(byCollection, _extractors, member, symbolName);
         return new CrossReferenceResponse(
             query, symbolName, member, receiver, byCollection.Count, byCollection, links);
+    }
+
+    private async Task<IReadOnlyList<SearchHit>> FindCallSitesAsync(
+        string member,
+        IReadOnlyList<string> targetCollections,
+        string? receiver,
+        int topK,
+        CancellationToken cancellationToken)
+    {
+        var neo4jCollections = new List<string>();
+        var qdrantCollections = new List<string>(targetCollections);
+
+        if (await _graph.IsEnabledAsync(cancellationToken).ConfigureAwait(false))
+        {
+            neo4jCollections.Clear();
+            qdrantCollections.Clear();
+            foreach (var coll in targetCollections)
+            {
+                if (await _store.CollectionHasGraphCallSitesAsync(coll, cancellationToken).ConfigureAwait(false))
+                {
+                    neo4jCollections.Add(coll);
+                }
+                else
+                {
+                    qdrantCollections.Add(coll);
+                    _logger.LogWarning(
+                        "call_site_qdrant_fallback collection={Collection} hint={Hint}",
+                        coll,
+                        "Collection lacks graph_call_sites metadata; re-index with Graph:Enabled=true");
+                }
+            }
+        }
+
+        var callerResults = new List<SearchHit>();
+        if (neo4jCollections.Count > 0)
+        {
+            callerResults.AddRange(
+                await _graph.FindCallersAsync(member, neo4jCollections, receiver, topK, cancellationToken)
+                    .ConfigureAwait(false));
+        }
+
+        if (qdrantCollections.Count > 0)
+        {
+            callerResults.AddRange(
+                await _store.FindCallersInCollectionsAsync(
+                    member, qdrantCollections, receiver, topK, cancellationToken).ConfigureAwait(false));
+        }
+
+        return callerResults;
     }
 
     private static CrossReferenceHitInternal ToHit(SearchCodebaseHit r, string matchType, string referenceType) =>
