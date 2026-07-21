@@ -2044,7 +2044,7 @@ Pipeline steps output a **Tracker append** block; the **invoker** (or a dedicate
 | 3b | Bug fix | — (loop) | no |
 | 4 | Verification (review clean) | `verified` | yes **only if** user-facing |
 | 5 | Git operator (prepare) | — | no |
-| 5a–5b | PR review ↔ PR babysit (cloud) | — | no |
+| 5a–5b | PR review ↔ PR babysit (local) | — | no |
 | 6 | Finisher (merge + accept + optional release) | `merged` + PR link | no |
 | 7 | Git operator (cleanup) | — | no |
 
@@ -2055,7 +2055,7 @@ Pipeline steps output a **Tracker append** block; the **invoker** (or a dedicate
 3a–3b. **Review / fix loop** — invoker passes `## Review findings` (`Verdict: needs_fix`) to bug fix; passes `## ADR bug fix report` back to code review. Repeat until `Verdict: clean`. No tracker append during the loop.
 4. **Verification** — when review is clean, append event (`verification`, `verified`); if user-facing, add CHANGELOG `[Unreleased]` bullet.
 5. **Git prepare** — feature branch `adr/NNNN-phase-N-<slug>`, grouped conventional commits, push, **PR into `main`**. No tracker append.
-5a–5b. **PR review / babysit loop** — `adr-pr-review`; on `request_changes`, cloud `adr-pr-babysit` fixes branch; repeat until `approve` (max 5 rounds). No tracker append.
+5a–5b. **PR review / babysit loop** — `adr-pr-review`; on `request_changes`, local `adr-pr-babysit` fixes branch; repeat until `approve` (max 5 rounds). No tracker append.
 6. **Finish** — `adr-finisher` merges PR when gates pass, accepts ADR when eligible, optionally cuts CHANGELOG when version supplied; append event (`merge`, `merged`) with PR link.
 7. **Cleanup** — `adr-git-operator` (`cleanup`) commits tracker on `main`, pushes, deletes merged feature branch, prunes remotes; workspace must be clean.
 

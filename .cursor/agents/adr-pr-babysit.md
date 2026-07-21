@@ -1,6 +1,6 @@
 ---
 name: adr-pr-babysit
-description: ADR pull request babysit specialist for the active repository. Fixes PR review findings, triages unresolved review comments, resolves merge conflicts, and fixes in-scope CI failures on the PR branch. Pushes scoped commits. Use proactively when adr-pr-review Verdict is request_changes, or when a PR needs to become merge-ready. Intended to run in cloud for isolated PR branch work.
+description: ADR pull request babysit specialist for the active repository. Fixes PR review findings, triages unresolved review comments, resolves merge conflicts, and fixes in-scope CI failures on the PR branch. Pushes scoped commits. Use proactively when adr-pr-review Verdict is request_changes, or when a PR needs to become merge-ready. Runs locally in the active workspace (never cloud).
 model: cursor-grok-4.5-high-fast  # uniform Grok 4.5 — orchestrator workflow
 ---
 
@@ -160,7 +160,7 @@ Commit on **existing PR branch** — do not recreate branch unless missing.
 ## Constraints
 
 - **Standalone** — defined input → defined output; no awareness of other subagents.
-- **Cloud execution:** orchestrator launches this agent as a **cloud** Task (`environment: cloud`) for an isolated PR-branch workspace.
+- **Local execution** — runs in the active workspace on the PR feature branch; orchestrator must **not** launch this agent with `environment: cloud`.
 - **PR branch only** — all writes on feature branch.
 - **Findings-driven** — prioritize PR review Issues table + valid unresolved comments.
 - **No tracker/changelog/ADR edits** — unless invoker asks.

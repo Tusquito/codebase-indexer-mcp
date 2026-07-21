@@ -98,7 +98,7 @@ Produce **`## ADR orchestration report`** after every run. Include a **Step acce
 
 When a step emits **`## Tracker append`**, run tracker acceptance before proceeding.
 
-**Internal defaults** (not invoker input): max `1` retry per step; max `5` PR review ↔ babysit rounds; babysit runs in **cloud** Task; pipeline ends `complete` only after step 7 cleanup (tracker committed, branches pruned, workspace clean).
+**Internal defaults** (not invoker input): max `1` retry per step; max `5` PR review ↔ babysit rounds; **all steps run local** (never `environment: cloud`); pipeline ends `complete` only after step 7 cleanup (tracker committed, branches pruned, workspace clean).
 
 **Invoker overrides:** `Release version` (optional); resume `Start step` + bootstrap fields (see Input); `Human decisions` (required to clear a prior human gate).
 
@@ -171,7 +171,7 @@ For **every** pipeline step:
 
 ## Waiting for long-running steps (mandatory)
 
-Steps that can run long — `adr-developer` on a non-trivial phase, `adr-integration-tester` (Docker Compose deploy), `adr-pr-babysit` (always cloud) — must **not** be manually polled. The `Task` tool already solves this: a backgrounded Task delivers an **automatic completion notification** the moment it finishes; the calling agent does not need to do anything to receive it except stop acting.
+Steps that can run long — `adr-developer` on a non-trivial phase, `adr-integration-tester` (Docker Compose deploy), `adr-pr-babysit` — must **not** be manually polled. The `Task` tool already solves this: a backgrounded Task delivers an **automatic completion notification** the moment it finishes; the calling agent does not need to do anything to receive it except stop acting.
 
 **DELEGATE step, corrected:**
 
@@ -223,7 +223,7 @@ Use `--watch` only inside `adr-pr-babysit` after a push, and **always** with `--
 | 3.5 | `adr-integration-tester` | none |
 | 3a–4 | `adr-code-reviewer` ↔ `adr-bug-fixer` loop | `verified` when clean → apply |
 | 5 | `adr-git-operator` (`prepare`) | none |
-| 5a–5b | `adr-pr-review` ↔ `adr-pr-babysit` (cloud) loop | none |
+| 5a–5b | `adr-pr-review` ↔ `adr-pr-babysit` (local) loop | none |
 | 6 | `adr-finisher` | `merged` → apply |
 | 7 | `adr-git-operator` (`cleanup`) | none |
 | — | `adr-tracker` | after each append |
@@ -530,16 +530,15 @@ Do not pass ADR id, phase, constraints, or focus — prioritizer discovers and d
 
 ---
 
-### 5b — `adr-pr-babysit` (cloud)
+### 5b — `adr-pr-babysit` (local)
 
 **Aim:** Fix PR branch until mergeable — PR review issues, comments, CI, conflicts.
 
-**Delegation (mandatory):** launch as **cloud** Task — isolated PR branch workspace. Use the **native** `adr-pr-babysit` subagent type (not `generalPurpose`) so its pinned `model:` frontmatter is honored.
+**Delegation (mandatory):** launch as a **local** Task (default — do **not** pass `environment: cloud`). Use the **native** `adr-pr-babysit` subagent type (not `generalPurpose`) so its pinned `model:` frontmatter is honored. Babysit checks out the PR feature branch in the same workspace, pushes fixes, then leaves the tree ready for the next local step.
 
 ```
 Task(
   description: "ADR PR babysit — <ADR id> round N",
-  environment: "cloud",
   subagent_type: "adr-pr-babysit",
   prompt: """
   Return full ## ADR PR babysit report only.
@@ -701,7 +700,7 @@ If consistency fails → **reject** step result even if acceptance criteria pass
 
 ## PR review ↔ babysit loop
 
-Runs after step 5 (git prepare). Babysit **always** uses cloud Task.
+Runs after step 5 (git prepare). Babysit runs **local** like every other step — never cloud.
 
 ```
 pr_round = 1
@@ -712,7 +711,7 @@ WHILE true:
     BREAK → step 6 (finisher)
   IF pr_round >= max_pr_rounds (default 5):
     STOP — escalate with PR review findings
-  run adr-pr-babysit (cloud) → ACCEPT
+  run adr-pr-babysit (local) → ACCEPT
   IF Status == blocked: STOP
   pr_round += 1
 ```
@@ -763,6 +762,8 @@ No tracker append during loop iterations.
 | 7 | Merged tracker not applied; not on main |
 
 ## Delegation
+
+**Local only — never cloud.** Every step Task (including `adr-pr-babysit`) runs in the **local** workspace. Do **not** pass `environment: cloud` on any ADR pipeline Task. Cloud agents create separate VMs/branches that leave stale remotes and skip step-7 cleanup.
 
 Use the **native subagent type matching the agent name** (e.g. `subagent_type: "adr-planner"`) for every step — **never** `generalPurpose`. Native subagent type alone is **not sufficient** for the model pin to take effect.
 

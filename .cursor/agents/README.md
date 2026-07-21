@@ -23,7 +23,7 @@ Every agent declares a `model:` in its frontmatter — currently uniform `cursor
 | 3.5 | `adr-integration-tester` | Compose deploy + live integration tests |
 | 3a–4 | `adr-code-reviewer` ↔ `adr-bug-fixer` | Review loop → `verified` |
 | 5 | `adr-git-operator` | Branch, commits, PR → main |
-| 5a–5b | `adr-pr-review` ↔ `adr-pr-babysit` | PR review loop (babysit: cloud) |
+| 5a–5b | `adr-pr-review` ↔ `adr-pr-babysit` | PR review loop (local) |
 | 6 | `adr-finisher` | Merge, accept ADR, optional release → `merged` |
 | 7 | `adr-git-operator` (`cleanup`) | Commit tracker, push main, delete branch |
 | — | `adr-tracker` | Apply Tracker append + CHANGELOG rules |
