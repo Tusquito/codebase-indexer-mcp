@@ -1,0 +1,25 @@
+adr_id: "0030"
+phase_key: phase-4
+phase_title: Phase 4 — Cross-ref + discovery
+event: merge
+date: "2026-07-21"
+tracker_status: merged
+choices: >-
+  Squash merge PR #40; ADR Accept to Accepted (phases 1–4); release skipped
+deviations: none
+code_evidence:
+  - >-
+    merged via [PR #40](https://github.com/Tusquito/codebase-indexer-mcp/pull/40)
+    (`adr/0030-phase-4-cross-ref-discovery`; squash
+    `270225addd8121c4f27197c6bbceb3957f3f10f4`)
+verify: >-
+  carried from verification — review rounds 2; `dotnet test` 108 passed;
+  plan compliance pass; Docker integration Verdict pass
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/40
+  commit: 270225addd8121c4f27197c6bbceb3957f3f10f4
+  status: merged
+changelog:
+  update: false
+  reason: "user-facing yes; invoker Changelog: no"
+user_facing: true
