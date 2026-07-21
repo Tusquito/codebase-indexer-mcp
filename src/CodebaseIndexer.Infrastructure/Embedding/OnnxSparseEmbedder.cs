@@ -1,10 +1,8 @@
 using System.Collections.Concurrent;
 using CodebaseIndexer.Application.Options;
-using CodebaseIndexer.Domain.Exceptions;
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
 using CodebaseIndexer.Infrastructure.Configuration;
-using CodebaseIndexer.Infrastructure.Embedding;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -42,7 +40,7 @@ public sealed class OnnxSparseEmbedder : ISparseEmbedder, IDisposable
     /// <inheritdoc />
     public Task PreloadAsync(CancellationToken cancellationToken = default)
     {
-        var modelDir = ResolveModelDirectory(_embedding.CachePath, _embedding.SparseModel);
+        var modelDir = SparseModelCacheResolver.ResolveModelDirectory(_embedding.CachePath, _embedding.SparseModel);
         _ = GetSharedModel(modelDir);
         var tokenLimit = EmbeddingTruncation.ResolveMaxEmbedTokens(
             EmbedRole.Sparse,
@@ -77,7 +75,8 @@ public sealed class OnnxSparseEmbedder : ISparseEmbedder, IDisposable
             return Task.FromResult<IReadOnlyList<SparseVector>>(Array.Empty<SparseVector>());
         }
 
-        var model = GetSharedModel(ResolveModelDirectory(_embedding.CachePath, _embedding.SparseModel));
+        var model = GetSharedModel(
+            SparseModelCacheResolver.ResolveModelDirectory(_embedding.CachePath, _embedding.SparseModel));
         var results = new List<SparseVector>(texts.Count);
         foreach (var text in texts)
         {
@@ -110,27 +109,4 @@ public sealed class OnnxSparseEmbedder : ISparseEmbedder, IDisposable
             _ => new Lazy<Bm25EmbedderCore>(() => new Bm25EmbedderCore(modelDir), LazyThreadSafetyMode.ExecutionAndPublication))
             .Value;
 
-    private static string ResolveModelDirectory(string cacheRoot, string modelName)
-    {
-        var normalized = modelName.Replace('/', Path.DirectorySeparatorChar);
-        var direct = Path.Combine(cacheRoot, normalized);
-        if (Directory.Exists(direct))
-        {
-            return direct;
-        }
-
-        if (!Directory.Exists(cacheRoot))
-        {
-            throw new EmbeddingException($"Fastembed cache directory '{cacheRoot}' does not exist.");
-        }
-
-        var match = Directory.EnumerateDirectories(cacheRoot, "*", SearchOption.AllDirectories)
-            .FirstOrDefault(d => d.Replace('\\', '/').EndsWith(modelName, StringComparison.OrdinalIgnoreCase));
-        if (match is not null)
-        {
-            return match;
-        }
-
-        throw new EmbeddingException($"Sparse model '{modelName}' not found under '{cacheRoot}'.");
-    }
 }

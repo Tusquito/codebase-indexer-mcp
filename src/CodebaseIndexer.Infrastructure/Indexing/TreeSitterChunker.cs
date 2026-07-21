@@ -142,7 +142,8 @@ public sealed class TreeSitterChunker : ICodeChunker
                 end + 1,
                 ExtractSymbolName(node),
                 language,
-                fileSha256));
+                fileSha256,
+                ClassifySymbolType(node.Type)));
             return;
         }
 
@@ -163,5 +164,65 @@ public sealed class TreeSitterChunker : ICodeChunker
         }
 
         return null;
+    }
+
+    internal static string ClassifySymbolType(string nodeType)
+    {
+        if (nodeType == "create_table")
+        {
+            return "table";
+        }
+
+        if (nodeType == "create_procedure")
+        {
+            return "procedure";
+        }
+
+        if (nodeType == "create_function")
+        {
+            return "function";
+        }
+
+        if (nodeType == "create_view")
+        {
+            return "view";
+        }
+
+        if (nodeType == "create_trigger")
+        {
+            return "trigger";
+        }
+
+        if (nodeType == "create_type")
+        {
+            return "type";
+        }
+
+        if (nodeType == "create_index")
+        {
+            return "index";
+        }
+
+        if (nodeType.Contains("class", StringComparison.Ordinal)
+            || nodeType.Contains("struct", StringComparison.Ordinal)
+            || nodeType.Contains("enum", StringComparison.Ordinal)
+            || nodeType.Contains("interface", StringComparison.Ordinal))
+        {
+            return "class";
+        }
+
+        if (nodeType.Contains("method", StringComparison.Ordinal)
+            || nodeType.Contains("constructor", StringComparison.Ordinal))
+        {
+            return "method";
+        }
+
+        if (nodeType.Contains("function", StringComparison.Ordinal)
+            || nodeType.Contains("arrow_function", StringComparison.Ordinal))
+        {
+            return "function";
+        }
+
+        return "other";
     }
 }
