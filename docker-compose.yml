@@ -165,31 +165,8 @@ services:
   #     MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:-}
   #   volumes:
   #     - ./mcp_server/src/codebase_indexer/stdio_proxy.py:/app/stdio_proxy.py:ro
-
-  cron:
-    build:
-      context: ./cron
-      dockerfile: Dockerfile
-    container_name: codeindexer_cron
-    restart: unless-stopped
-    depends_on:
-      mcp_server:
-        condition: service_healthy
-    environment:
-      TZ: Europe/Amsterdam
-      MCP_URL: ${MCP_URL:-http://mcp_server:8000}
-      MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:-}
-      WORKSPACE_ROOT: /workspace
-      INDEX_TIMEOUT: ${INDEX_TIMEOUT:-1800}
-      MCP_HTTP_TIMEOUT: ${MCP_HTTP_TIMEOUT:-300}
-      GIT_TIMEOUT: ${GIT_TIMEOUT:-120}
-    volumes:
-      - ${WORKSPACE_ROOT:?Set WORKSPACE_ROOT in .env to your repos directory}:/workspace
-    deploy:
-      resources:
-        limits:
-          memory: 256m
-          cpus: "1"
+  #
+  # Scheduled reindex is in-process on the .NET Host (Reindex:*). cron/ sidecar removed (ADR 0030 Phase 6).
 
 volumes:
   qdrant_data:
