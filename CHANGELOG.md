@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Aspire/.NET MCP hybrid search and core read tools** ([ADR 0030](docs/adr/0030-migrate-mcp-server-to-dotnet10.md)) — hybrid dense+sparse RRF search and core read tools (`search_codebase`, `search_symbols`, `get_chunk`, `get_file_outline`, `get_collection_summary`, `list_collections`); re-index after pull for quantization/HNSW/`symbol_type` parity
 - **.NET 10 MCP scaffold (opt-in)** ([ADR 0030](docs/adr/0030-migrate-mcp-server-to-dotnet10.md)) — `docker-compose.aspire.yml` adds Aspire AppHost, Qdrant + TEI, and stub `get_health` MCP tool; Python runtime remains default until ADR 0030 Phase 7
 - **Opt-in Prometheus application metrics** ([ADR 0018](docs/adr/0018-telemetry-observability-otel-prometheus.md)) — set `METRICS_ENABLED=true` on MCP and ColBERT worker for `GET /metrics`; tool latency histograms, index/embed/memory counters, and deployment scrape documentation for MCP, ColBERT, and Qdrant; default unchanged (`METRICS_ENABLED=false`)
 - **Optional GraphRAG Phase 1 (Neo4j code graph)** ([ADR 0002](docs/adr/0002-graphrag-neo4j-qdrant.md)) — enable with `GRAPH_ENABLED=true` and `docker-compose.neo4j.yml` to index a Neo4j code graph alongside Qdrant; disabled by default with no behavior change; full re-index required when enabling on existing collections

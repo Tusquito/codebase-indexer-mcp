@@ -1,0 +1,12 @@
+adr_id: "0030"
+phase_key: phase-3
+title: Phase 3 — Core search tools
+tracker_status: verified
+chosen_scope: >-
+  Hybrid RRF via Qdrant QueryAsync + client CrossCollectionRrf; Embedding
+  PrefetchMultiplier/RrfK; Qdrant create parity (int8/HNSW/memmap/payload indexes);
+  Host resolves default collection; six MCP tools; summary without build_dependencies;
+  ColBERT no-op; Aspire gRPC :6334 + TEI arch image + SDK-container test fallback;
+  quality via --mcp-url
+last_updated: "2026-07-21"
+adr_status_note: Accepted (phase 1–2 merged; phase 3 — Core search tools)

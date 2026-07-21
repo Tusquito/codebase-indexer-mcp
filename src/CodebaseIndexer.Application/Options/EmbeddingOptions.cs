@@ -32,4 +32,10 @@ public sealed class EmbeddingOptions
 
     /// <summary>Thread count for sparse embedding inference.</summary>
     public int SparseThreads { get; init; }
+
+    /// <summary>Hybrid prefetch limit multiplier (<c>top_k * multiplier</c>).</summary>
+    public int PrefetchMultiplier { get; init; } = 5;
+
+    /// <summary>RRF constant for cross-collection fusion (default 60).</summary>
+    public int RrfK { get; init; } = 60;
 }

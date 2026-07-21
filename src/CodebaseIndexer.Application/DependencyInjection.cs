@@ -12,11 +12,14 @@ public static class DependencyInjection
     /// <returns>The same service collection for chaining.</returns>
     public static IServiceCollection AddCodebaseIndexerApplication(this IServiceCollection services)
     {
+        services.AddMemoryCache();
         services.AddCodebaseIndexerIndexingOptions();
         services.AddSingleton<IHealthService, HealthService>();
         services.AddSingleton<IIndexEmbeddingService, IndexEmbeddingService>();
         services.AddSingleton<IIndexCodebaseService, IndexCodebaseService>();
         services.AddSingleton<IIndexJobService, IndexJobService>();
+        services.AddSingleton<ISearchService, SearchService>();
+        services.AddSingleton<ICollectionQueryService, CollectionQueryService>();
         return services;
     }
 }

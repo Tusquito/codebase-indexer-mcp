@@ -1,0 +1,30 @@
+adr_id: "0030"
+phase_key: phase-3
+phase_title: Phase 3 — Core search tools
+event: implementation
+date: "2026-07-21"
+tracker_status: implemented
+choices: >-
+  Hybrid RRF via Qdrant QueryAsync + client CrossCollectionRrf; search knobs on Embedding: (PrefetchMultiplier, RrfK); Qdrant create parity (int8 quant, HNSW m/ef_construct, memmap, payload indexes); Host resolves default collection; rerank no-op until Phase 6; summary without build_deps
+deviations: >-
+  Application does not reference Infrastructure QdrantOptions (Host binds default collection); Host CallTool smoke allows Qdrant-unavailable error
+code_evidence:
+  - src/CodebaseIndexer.Infrastructure/Qdrant/QdrantVectorStore.cs
+  - src/CodebaseIndexer.Application/Services/SearchService.cs
+  - src/CodebaseIndexer.Application/Search/CrossCollectionRrf.cs
+  - src/CodebaseIndexer.Host/Tools/SearchTools.cs
+  - src/CodebaseIndexer.Host/Tools/ChunkTools.cs
+  - src/CodebaseIndexer.Host/Tools/OutlineTools.cs
+  - src/CodebaseIndexer.Host/Tools/SummaryTools.cs
+  - src/CodebaseIndexer.Host/Tools/CollectionsTools.cs
+  - mcp_server/benchmarks/eval_retrieval.py
+  - scripts/run_compose_integration.py
+test_debt:
+  - Testcontainers hybrid query
+  - recreate/quantization asserts
+  - Aspire golden recall@10 gate
+  - SymbolType chunker goldens
+changelog:
+  update: false
+  reason: "invoker Changelog: no; status implemented"
+user_facing: true

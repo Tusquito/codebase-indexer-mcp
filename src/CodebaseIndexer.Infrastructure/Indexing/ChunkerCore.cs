@@ -119,7 +119,8 @@ internal static class ChunkerCore
                 chunkEnd + 1,
                 symbolName,
                 language,
-                fileSha256));
+                fileSha256,
+                symbolType));
 
             if (chunkEnd >= end)
             {
@@ -159,6 +160,7 @@ internal static class ChunkerCore
             .Select(chunk => chunk with
             {
                 SymbolName = chunk.SymbolName ?? defaultName,
+                SymbolType = fileType,
             })
             .ToArray();
     }
