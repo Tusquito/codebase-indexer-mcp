@@ -1,3 +1,4 @@
+using CodebaseIndexer.Application.BuildDeps;
 using CodebaseIndexer.Application.Models;
 using CodebaseIndexer.Domain.Ports;
 using Microsoft.Extensions.Caching.Memory;
@@ -110,6 +111,7 @@ public sealed class CollectionQueryService : ICollectionQueryService
         var langCounter = new Dictionary<string, int>(StringComparer.Ordinal);
         var symbolTypeCounter = new Dictionary<string, int>(StringComparer.Ordinal);
         var chunksPerFile = new Dictionary<string, int>(StringComparer.Ordinal);
+        var manifestPaths = new List<string>();
 
         foreach (var row in rows)
         {
@@ -120,10 +122,70 @@ public sealed class CollectionQueryService : ICollectionQueryService
             {
                 filesByPath[row.RelPath] = language;
                 langCounter[language] = langCounter.GetValueOrDefault(language) + 1;
+                if (BuildManifestDetector.IsBuildManifest(row.RelPath))
+                {
+                    manifestPaths.Add(row.RelPath);
+                }
             }
 
             symbolTypeCounter[symbolType] = symbolTypeCounter.GetValueOrDefault(symbolType) + 1;
             chunksPerFile[row.RelPath] = chunksPerFile.GetValueOrDefault(row.RelPath) + 1;
+        }
+
+        IReadOnlyList<CollectionBuildDependency>? buildDependencies = null;
+        if (manifestPaths.Count > 0)
+        {
+            try
+            {
+                var allStats = await _store.ListCollectionStatsAsync(cancellationToken).ConfigureAwait(false);
+                var otherCollections = allStats.Where(s => s.Name != coll).Select(s => s.Name).ToArray();
+                if (otherCollections.Length > 0)
+                {
+                    var manifestChunks = await _store.ScrollChunksByPathsAsync(
+                        coll, manifestPaths, ["rel_path", "content"], cancellationToken: cancellationToken)
+                        .ConfigureAwait(false);
+                    var contentByPath = new Dictionary<string, string>(StringComparer.Ordinal);
+                    foreach (var chunk in manifestChunks)
+                    {
+                        var p = chunk.GetValueOrDefault("rel_path", "");
+                        if (string.IsNullOrEmpty(p))
+                        {
+                            continue;
+                        }
+
+                        contentByPath[p] = contentByPath.GetValueOrDefault(p, "") + "\n" + chunk.GetValueOrDefault("content", "");
+                    }
+
+                    var seen = new HashSet<string>(StringComparer.Ordinal);
+                    var deps = new List<CollectionBuildDependency>();
+                    foreach (var (relPath, content) in contentByPath)
+                    {
+                        var extracted = BuildDepExtractor.Extract(content, relPath);
+                        var matches = BuildDepCollectionMatcher.Match(extracted, otherCollections, coll);
+                        foreach (var m in matches)
+                        {
+                            var key = $"{m.Artifact}:{m.MatchedCollection}";
+                            if (!seen.Add(key))
+                            {
+                                continue;
+                            }
+
+                            deps.Add(new CollectionBuildDependency(
+                                m.Artifact, m.Group, m.Version, m.Scope, m.Ecosystem,
+                                m.MatchedCollection, m.MatchConfidence, relPath));
+                        }
+                    }
+
+                    if (deps.Count > 0)
+                    {
+                        buildDependencies = deps;
+                    }
+                }
+            }
+            catch
+            {
+                // Non-critical — summary still useful without build dep info
+            }
         }
 
         var response = new CollectionSummaryResponse(
@@ -137,7 +199,8 @@ public sealed class CollectionQueryService : ICollectionQueryService
                 .OrderByDescending(kv => kv.Value)
                 .Take(10)
                 .Select(kv => new TopChunkedFile(kv.Key, kv.Value))
-                .ToArray());
+                .ToArray(),
+            buildDependencies);
 
         _cache.Set(cacheKey, response, CacheTtl);
         return response;

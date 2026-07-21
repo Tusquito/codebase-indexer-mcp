@@ -16,6 +16,7 @@ public static class IndexingOptionsRegistration
         services.AddOptionsWithFluentValidation<EmbeddingOptions>(EmbeddingOptions.SectionName);
         services.AddOptionsWithFluentValidation<WorkspaceOptions>(WorkspaceOptions.SectionName);
         services.AddOptionsWithFluentValidation<IndexingOptions>(IndexingOptions.SectionName);
+        services.AddOptionsWithFluentValidation<DiscoveryOptions>(DiscoveryOptions.SectionName);
 
         return services;
     }

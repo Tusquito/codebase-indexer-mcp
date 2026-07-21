@@ -75,7 +75,7 @@ public sealed record FileOutlineErrorResponse(
     [property: JsonPropertyName("error")] string Error,
     [property: JsonPropertyName("hint")] string Hint);
 
-/// <summary>get_collection_summary success payload (no build_dependencies — Phase 4).</summary>
+/// <summary>get_collection_summary success payload.</summary>
 public sealed record CollectionSummaryResponse(
     [property: JsonPropertyName("collection")] string Collection,
     [property: JsonPropertyName("total_files")] int TotalFiles,
@@ -83,7 +83,8 @@ public sealed record CollectionSummaryResponse(
     [property: JsonPropertyName("files_by_language")] IReadOnlyDictionary<string, int> FilesByLanguage,
     [property: JsonPropertyName("symbols_by_type")] IReadOnlyDictionary<string, int> SymbolsByType,
     [property: JsonPropertyName("directory_tree")] IReadOnlyList<string> DirectoryTree,
-    [property: JsonPropertyName("top_chunked_files")] IReadOnlyList<TopChunkedFile> TopChunkedFiles);
+    [property: JsonPropertyName("top_chunked_files")] IReadOnlyList<TopChunkedFile> TopChunkedFiles,
+    [property: JsonPropertyName("build_dependencies")] IReadOnlyList<CollectionBuildDependency>? BuildDependencies = null);
 
 /// <summary>Top chunked file row.</summary>
 public sealed record TopChunkedFile(

@@ -39,7 +39,7 @@ public interface ICollectionQueryService
     /// <summary>Symbol outline for a file.</summary>
     Task<object> GetFileOutlineAsync(string relPath, string? collection = null, CancellationToken cancellationToken = default);
 
-    /// <summary>Collection orientation summary (no build_dependencies).</summary>
+    /// <summary>Collection orientation summary (includes build_dependencies when other collections exist).</summary>
     Task<object> GetCollectionSummaryAsync(string? collection = null, CancellationToken cancellationToken = default);
 
     /// <summary>List collections with stats.</summary>
