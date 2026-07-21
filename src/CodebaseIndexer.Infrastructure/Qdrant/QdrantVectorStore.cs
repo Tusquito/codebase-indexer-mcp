@@ -1417,7 +1417,14 @@ public sealed class QdrantVectorStore : IVectorStore
         try
         {
             var (host, port, https) = QdrantGrpcEndpoint.Parse(options.Url);
-            return new QdrantClient(host: host, port: port, https: https);
+            var grpcTimeout = options.TimeoutSeconds > 0
+                ? TimeSpan.FromSeconds(options.TimeoutSeconds)
+                : TimeSpan.FromSeconds(120);
+            return new QdrantClient(
+                host: host,
+                port: port,
+                https: https,
+                grpcTimeout: grpcTimeout);
         }
         catch (Exception ex) when (ex is ArgumentException or UriFormatException or RpcException)
         {
