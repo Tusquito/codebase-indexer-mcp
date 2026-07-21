@@ -462,6 +462,15 @@ def run_pytest_integration() -> tuple[bool, str]:
     return proc.returncode == 0, out.strip()[-2000:]
 
 
+def run_aspire_service_map_smoke() -> tuple[bool, str]:
+    """Multi-collection map_service_dependencies against Aspire .NET MCP."""
+    proc = _run(["python", "scripts/smoke_aspire_service_map.py"], cwd=REPO_ROOT)
+    detail = (proc.stdout or "") + (proc.stderr or "")
+    if proc.returncode == 0:
+        return True, detail[-2000:] or "aspire service-map smoke passed"
+    return False, detail[-4000:] or "aspire service-map smoke failed"
+
+
 def run_smoke_optional() -> tuple[str, str]:
     """recommend_code smoke — optional when TEI + indexed collection available."""
     proc = _run(
@@ -745,6 +754,7 @@ def main() -> int:
         "tei_gpu_visible": {"status": "pending", "detail": ""},
         "tei_container_absent": {"status": "pending", "detail": ""},
         "dotnet_smoke": {"status": "pending", "detail": ""},
+        "aspire_service_map_smoke": {"status": "pending", "detail": ""},
         "pytest_integration": {"status": "pending", "detail": ""},
         "smoke_recommend": {"status": "pending", "detail": ""},
         "quality_validation": {"required": args.quality_validation, "status": "skipped", "checks": {}},
@@ -791,17 +801,23 @@ def main() -> int:
         ok, detail = run_dotnet_smoke()
         report["dotnet_smoke"] = {"status": "pass" if ok else "fail", "detail": detail}
 
+        ok, detail = run_aspire_service_map_smoke()
+        report["aspire_service_map_smoke"] = {
+            "status": "pass" if ok else "fail",
+            "detail": detail,
+        }
+
         if args.quality_validation:
             quality_rows = run_quality_validation(
                 compare=args.quality_compare,
-                threshold=args.quality_threshold if args.quality_threshold else 2,
+                threshold=args.quality_threshold,
                 rerank=args.quality_rerank,
                 mcp_url="http://127.0.0.1:8000/mcp",
             )
             report["quality_validation"] = {
                 "required": True,
                 "status": "pass" if quality_validation_passed(quality_rows) else "fail",
-                "threshold": args.quality_threshold if args.quality_threshold else 2,
+                "threshold": args.quality_threshold,
                 "rerank": args.quality_rerank,
                 "compare": str(args.quality_compare),
                 "mcp_url": "http://127.0.0.1:8000/mcp",
@@ -817,7 +833,14 @@ def main() -> int:
                 "compare": str(args.bench_compare),
             }
 
-        required = ("deploy", "mcp_health", "qdrant_health", "tei_health", "dotnet_smoke")
+        required = (
+            "deploy",
+            "mcp_health",
+            "qdrant_health",
+            "tei_health",
+            "dotnet_smoke",
+            "aspire_service_map_smoke",
+        )
         required_ok = all(report[k]["status"] in ("pass", "skipped") for k in required)
         if args.quality_validation:
             required_ok = required_ok and report["quality_validation"]["status"] == "pass"
