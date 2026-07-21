@@ -19,7 +19,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.accelerator import get_accelerator
+from scripts.accelerator import get_accelerator, require_gpu
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -135,6 +135,9 @@ def compose_file_args(
 
 
 def main() -> int:
+    # Fail fast for operators running `docker compose $(python scripts/compose_files.py)`
+    # when ACCELERATOR=gpu but NVIDIA runtime is missing (ADR 0022).
+    require_gpu()
     print(" ".join(compose_file_args()))
     return 0
 

@@ -405,7 +405,7 @@ docker compose restart mcp_server
 | `TEI_CPUS` | `4` | CPU limit for bundled TEI |
 | `TEI_IMAGE` | `89-1.9` (GPU) / `cpu-1.9` (amd64 CPU) / `cpu-arm64-latest` (arm64 CPU) | Compose-only TEI Docker tag override; on Apple Silicon use `cpu-arm64-latest` ([§ Apple Silicon](#apple-silicon-arm64-cpu)) |
 
-Verify MCP: `curl http://localhost:8000/health` and logs show `tei_embed_ready`. If TEI is down at startup, MCP still serves `/health` but logs `model_preload_failed_continuing` until TEI is reachable (restart `mcp_server` after TEI is ready).
+Verify MCP: `curl http://localhost:8000/health` and logs show `tei_embed_ready`. If TEI is down at startup, MCP still serves `/health` but logs `model_preload_failed_continuing` until TEI is reachable (restart `mcp_server` after TEI is ready). **Proposed** [ADR 0031](adr/0031-mcp-liveness-vs-readiness.md) splits liveness (`/health`) from dependency readiness (`/ready`) so Compose/cron stop treating a dep-less MCP as healthy.
 
 **Full re-index required** after changing `DENSE_EMBED_MODEL` or `DENSE_EMBED_VECTOR_SIZE`. See [ADR 0025](adr/0025-huggingface-tei-dense-embedding.md).
 
@@ -477,7 +477,13 @@ COLBERT_GPU_COUNT=1
 docker compose $(python scripts/compose_files.py) --profile bundled-tei up -d --build
 ```
 
-Verify sidecar device: `curl http://localhost:8082/health` — expect `"device":"cuda"`, `"cuda_available":true`, and `"execution_providers"` containing `CUDAExecutionProvider`. The worker fails at startup if `COLBERT_USE_CUDA=1` but CUDA libraries or the ORT CUDA provider are unavailable, or if the model loads on CPU despite CUDA being requested.
+Verify sidecar device from **inside the Docker network** (default compose does **not** publish `8082` on the host):
+
+```bash
+docker exec codeindexer_colbert curl -s http://127.0.0.1:8082/health
+```
+
+Expect `"device":"cuda"`, `"cuda_available":true`, and `"execution_providers"` containing `CUDAExecutionProvider`. The worker fails at startup if `COLBERT_USE_CUDA=1` but CUDA libraries or the ORT CUDA provider are unavailable, or if the model loads on CPU despite CUDA being requested. To scrape from the host, add an explicit loopback publish (e.g. `127.0.0.1:8082:8082`) — do not expose beyond localhost without auth review.
 
 **Single-GPU VRAM:** On an 8 GB GPU, running TEI dense and ColBERT on the same device may OOM. Prefer a second GPU (`TEI_GPU_COUNT=1` on GPU 0, `COLBERT_DEVICE_IDS=1` on GPU 1) or set `ACCELERATOR=cpu` for CPU-only ColBERT sidecar. There is no automatic GPU scheduler.
 
@@ -641,7 +647,7 @@ Restart affected services after env-only changes (`docker compose restart mcp_se
 
 ### ColBERT sidecar
 
-When `METRICS_ENABLED=true` in the ColBERT worker container, `GET /metrics` is served on port **8082**. In default Compose, the sidecar is bound to **loopback only** (`127.0.0.1:8082`) — scrape from the host or a co-located Prometheus container; do not expose `/metrics` beyond localhost without auth review.
+When `METRICS_ENABLED=true` in the ColBERT worker container, `GET /metrics` is served on port **8082** **inside** that container. Default Compose does **not** publish `8082` to the host — scrape via `docker exec`, a co-located Prometheus on the compose network, or an explicit loopback port mapping you add yourself. Do not expose `/metrics` beyond localhost without auth review.
 
 ```yaml
   - job_name: codeindexer-colbert
