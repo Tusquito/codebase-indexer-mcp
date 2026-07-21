@@ -2,6 +2,9 @@
 # CPU Aspire stack — TEI image via TEI_IMAGE (arch-aware; see scripts/compose_files.py
 # tei_image_default / ADR 0028). Default is amd64 cpu-1.9; arm64 hosts/harness set
 # cpu-arm64-latest. fastembed sparse cache at /root/.cache/fastembed.
+# Neo4j is off by default — merge docker-compose.aspire.neo4j.yml for GraphRAG
+# (ADR 0030 Phase 5). Do not use docker-compose.neo4j.yml with this stack
+# (that overlay targets Python mcp_server).
 
 services:
   qdrant:

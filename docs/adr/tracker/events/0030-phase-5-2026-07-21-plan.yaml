@@ -1,0 +1,23 @@
+adr_id: "0030"
+phase_key: phase-5
+phase_title: Phase 5 — GraphRAG
+event: plan
+date: "2026-07-21"
+tracker_status: planned
+choices: >-
+  Continue 0030 Phase 5 this cycle (do not intercalate 0032 Phase 1); Accept
+  0032/0033 later; ADR 0031 re-scope later (do not Accept now); ADR 0026 Phase 4
+  stays deferred; Quality validation skip (default graph off; exit = graph
+  overlay smoke); Performance report skip; Aspire-specific neo4j overlay
+  (`docker-compose.aspire.neo4j.yml`) because Python overlay targets
+  `mcp_server`; NullGraphStore when disabled; no `GRAPH_SCHEMA_VERSION`.
+  Assumptions: Phases 1–4 .NET baseline; Python GraphRAG modules are behavioral
+  SoT; `IGraphStore` stub + `CollectionStats` graph flags are extension points;
+  Docker integration always required. Pre-release: no backward-compat
+  requirement unless ADR documents one; no schema migration version env vars —
+  document re-index after pull.
+deviations: none
+changelog:
+  update: false
+  reason: "invoker Changelog: no; status planned"
+user_facing: true

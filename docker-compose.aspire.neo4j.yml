@@ -1,0 +1,58 @@
+# Optional Neo4j overlay for the Aspire .NET stack (ADR 0030 Phase 5).
+#
+# Usage:
+#   Set in .env:
+#     GRAPH_ENABLED=true
+#     NEO4J_PASSWORD=your-secure-password
+#     NEO4J_MEM_LIMIT=2g
+#   docker compose -f docker-compose.aspire.yml -f docker-compose.aspire.neo4j.yml up -d --build
+#
+# Default Aspire stack unchanged: omit this file; Graph:Enabled=false.
+# Do not reuse docker-compose.neo4j.yml here — that overlay targets Python mcp_server.
+
+services:
+  neo4j:
+    image: neo4j:5.26.28-community
+    container_name: codeindexer_neo4j
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:7474:7474"
+      - "127.0.0.1:7687:7687"
+    environment:
+      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env when using Neo4j}
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 1g
+      NEO4J_server_memory_pagecache_size: 512m
+    volumes:
+      # Neo4j persists NEO4J_AUTH in /data. Integration harness must
+      # `compose down -v` (see scripts/run_compose_integration.py) so a
+      # stale password from a prior run cannot desync from env.
+      - neo4j_data:/data
+    deploy:
+      resources:
+        limits:
+          memory: ${NEO4J_MEM_LIMIT:-2g}
+          cpus: "${NEO4J_CPUS:-2}"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:7474 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  mcp:
+    environment:
+      Graph__Enabled: ${GRAPH_ENABLED:-true}
+      Graph__Neo4jUri: ${NEO4J_URI:-bolt://neo4j:7687}
+      Graph__Neo4jUser: ${NEO4J_USER:-neo4j}
+      Graph__Neo4jPassword: ${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env when using Neo4j}
+      Graph__Neo4jDatabase: ${NEO4J_DATABASE:-neo4j}
+      Graph__WriterBatch: ${GRAPH_WRITER_BATCH:-500}
+      Graph__MaxHops: ${GRAPH_MAX_HOPS:-2}
+      Graph__MaxNodes: ${GRAPH_MAX_NODES:-200}
+    depends_on:
+      neo4j:
+        condition: service_healthy
+
+volumes:
+  neo4j_data:

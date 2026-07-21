@@ -2,7 +2,7 @@ using CodebaseIndexer.Application.Options;
 using CodebaseIndexer.Application.Services;
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
-using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging.Abstractions;
 using MsOptions = Microsoft.Extensions.Options.Options;
 
 namespace CodebaseIndexer.Application.Tests;
@@ -30,7 +30,19 @@ public sealed class SearchServiceTests
                 CachePath = "/c",
                 PrefetchMultiplier = 5,
                 RrfK = 60,
-            }));
+            }),
+            MsOptions.Create(new GraphOptions
+            {
+                Enabled = false,
+                Neo4jUri = "bolt://localhost:7687",
+                Neo4jUser = "neo4j",
+                Neo4jPassword = "",
+                Neo4jDatabase = "neo4j",
+                WriterBatch = 500,
+                MaxHops = 2,
+                MaxNodes = 200,
+            }),
+            NullLogger<SearchService>.Instance);
 
         var result = await service.SearchCodebaseAsync(
             "query",
@@ -84,20 +96,11 @@ public sealed class SearchServiceTests
             Task.FromResult<IReadOnlyList<SparseVector>>([new SparseVector([1u], [1f])]);
     }
 
-    private sealed class FakeVectorStore : IVectorStore
+    private sealed class FakeVectorStore : NoOpVectorStore
     {
         public int LastTopK { get; private set; }
 
-        public ValueTask<bool> CollectionExistsAsync(string collection, CancellationToken cancellationToken = default) =>
-            ValueTask.FromResult(true);
-
-        public Task EnsureCollectionAsync(string collection, bool force = false, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-
-        public Task UpsertChunksAsync(string collection, IReadOnlyList<EmbeddedChunk> chunks, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-
-        public Task<IReadOnlyList<SearchHit>> SearchAsync(
+        public override Task<IReadOnlyList<SearchHit>> SearchAsync(
             string collection,
             IReadOnlyList<float> denseVector,
             SparseVector? sparseVector,
@@ -123,82 +126,5 @@ public sealed class SearchServiceTests
             ];
             return Task.FromResult(hits);
         }
-
-        public Task<ChunkPayload?> GetChunkByIdAsync(string collection, string chunkId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<ChunkPayload?>(null);
-
-        public Task<ChunkPayload?> FindChunkByIdAsync(string chunkId, string? collection = null, CancellationToken cancellationToken = default) =>
-            Task.FromResult<ChunkPayload?>(null);
-
-        public Task<IReadOnlyList<FileSymbol>> ScrollFileSymbolsAsync(string collection, string relPath, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<FileSymbol>>([]);
-
-        public Task<IReadOnlyList<PayloadRow>> ScrollAllPayloadsAsync(string collection, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<PayloadRow>>([]);
-
-        public Task<IReadOnlyList<CollectionStats>> ListCollectionStatsAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<CollectionStats>>([]);
-
-        public Task<IReadOnlyList<SearchHit>> FindSymbolInCollectionsAsync(
-            string symbolName,
-            IReadOnlyList<string> collections,
-            int limitPerCollection = 10,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<SearchHit>>([]);
-
-        public Task<IReadOnlyList<string>> ListCollectionsAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<string>>([]);
-
-        public ValueTask<CollectionStats?> GetCollectionStatsAsync(string collection, CancellationToken cancellationToken = default) =>
-            ValueTask.FromResult<CollectionStats?>(null);
-
-        public Task<IReadOnlyDictionary<string, FileMetadata>> GetFileMetadataAsync(string collection, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyDictionary<string, FileMetadata>>(new Dictionary<string, FileMetadata>());
-
-        public Task DeleteByPathsAsync(string collection, IReadOnlyList<string> relPaths, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-
-        public Task SetIndexingAsync(string collection, bool enabled, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-
-        public Task VerifyChunkIdsExistAsync(string collection, IReadOnlyList<string> chunkIds, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-
-        public Task<IReadOnlyList<SearchHit>> RecommendAsync(
-            string collection,
-            IReadOnlyList<RecommendExample> positive,
-            IReadOnlyList<RecommendExample>? negative = null,
-            int limit = 5,
-            string? language = null,
-            string? pathGlob = null,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<SearchHit>>([]);
-
-        public Task<IReadOnlyList<SearchHit>> FindOutlierChunksAsync(
-            string collection,
-            IReadOnlyList<string>? contextChunkIds = null,
-            int limit = 5,
-            string? language = null,
-            string? pathGlob = null,
-            float? maxSimilarity = null,
-            int? maxContextSamples = null,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<SearchHit>>([]);
-
-        public Task<IReadOnlyList<SearchHit>> FindCallersInCollectionsAsync(
-            string method,
-            IReadOnlyList<string> collections,
-            string? receiver = null,
-            int limitPerCollection = 10,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<SearchHit>>([]);
-
-        public Task<IReadOnlyList<IReadOnlyDictionary<string, string>>> ScrollChunksByPathsAsync(
-            string collection,
-            IReadOnlyList<string> relPaths,
-            IReadOnlyList<string>? payloadFields = null,
-            int limit = 500,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<IReadOnlyDictionary<string, string>>>([]);
     }
 }

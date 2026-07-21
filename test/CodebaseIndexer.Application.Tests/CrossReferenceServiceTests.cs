@@ -3,7 +3,7 @@ using CodebaseIndexer.Application.Options;
 using CodebaseIndexer.Application.Search;
 using CodebaseIndexer.Application.Services;
 using CodebaseIndexer.Domain.Models;
-using CodebaseIndexer.Domain.Ports;
+using Microsoft.Extensions.Logging.Abstractions;
 using MsOptions = Microsoft.Extensions.Options.Options;
 
 namespace CodebaseIndexer.Application.Tests;
@@ -14,14 +14,14 @@ public sealed class CrossReferenceServiceTests
     [Fact]
     public async Task FindCrossReferences_errors_when_no_query_symbol_or_member()
     {
-        var service = CreateService(new FakeStore());
+        var service = CreateService(new FakeStore(), new NoOpGraphStore());
         var result = await service.FindCrossReferencesAsync();
         var dict = Assert.IsType<Dictionary<string, object?>>(result);
         Assert.Contains("error", dict.Keys);
     }
 
     [Fact]
-    public async Task FindCrossReferences_path_d_uses_qdrant_callers()
+    public async Task FindCrossReferences_path_d_uses_qdrant_when_graph_disabled()
     {
         var store = new FakeStore
         {
@@ -32,7 +32,7 @@ public sealed class CrossReferenceServiceTests
                     "Caller", "method", "featureService.isEnabled();", "proj-a"),
             ],
         };
-        var service = CreateService(store);
+        var service = CreateService(store, new NoOpGraphStore { Enabled = false });
         var result = await service.FindCrossReferencesAsync(member: "isEnabled", receiver: "featureService", collections: ["proj-a"]);
         var response = Assert.IsType<CrossReferenceResponse>(result);
         Assert.Equal(1, response.CollectionCount);
@@ -40,6 +40,50 @@ public sealed class CrossReferenceServiceTests
         Assert.Equal("call_site", response.FoundIn["proj-a"][0].ReferenceType);
         Assert.Equal("isEnabled", store.LastCallerMethod);
         Assert.Equal("featureService", store.LastCallerReceiver);
+    }
+
+    [Fact]
+    public async Task FindCrossReferences_path_d_uses_neo4j_when_graph_call_sites()
+    {
+        var store = new FakeStore { GraphCallSites = true };
+        var graph = new NoOpGraphStore
+        {
+            Enabled = true,
+            Callers =
+            [
+                new SearchHit(
+                    new ChunkId("neo"), 0, "src/B.cs", "csharp", 1, 2,
+                    "Caller", "method", "", "proj-a"),
+            ],
+        };
+        var service = CreateService(store, graph);
+        var result = await service.FindCrossReferencesAsync(member: "isEnabled", collections: ["proj-a"]);
+        var response = Assert.IsType<CrossReferenceResponse>(result);
+        Assert.Equal("call_site", response.FoundIn["proj-a"][0].ReferenceType);
+        Assert.Equal("isEnabled", graph.LastCallerMethod);
+        Assert.Null(store.LastCallerMethod);
+    }
+
+    [Fact]
+    public async Task FindCrossReferences_path_d_falls_back_to_qdrant_without_metadata()
+    {
+        var store = new FakeStore
+        {
+            GraphCallSites = false,
+            Callers =
+            [
+                new SearchHit(
+                    new ChunkId("c1"), 0, "src/A.cs", "csharp", 10, 20,
+                    "Caller", "method", "x", "proj-a"),
+            ],
+        };
+        var graph = new NoOpGraphStore { Enabled = true };
+        var service = CreateService(store, graph);
+        var result = await service.FindCrossReferencesAsync(member: "isEnabled", collections: ["proj-a"]);
+        var response = Assert.IsType<CrossReferenceResponse>(result);
+        Assert.Equal("call_site", response.FoundIn["proj-a"][0].ReferenceType);
+        Assert.Equal("isEnabled", store.LastCallerMethod);
+        Assert.Null(graph.LastCallerMethod);
     }
 
     [Fact]
@@ -57,7 +101,7 @@ public sealed class CrossReferenceServiceTests
             extractors.ClassifyReference("<PackageReference Include=\"Foo\" Version=\"1.0\" />", "", "App.csproj"));
     }
 
-    private static CrossReferenceService CreateService(FakeStore store)
+    private static CrossReferenceService CreateService(FakeStore store, NoOpGraphStore graph)
     {
         var search = new SearchService(
             store,
@@ -72,11 +116,24 @@ public sealed class CrossReferenceServiceTests
                 CachePath = "/c",
                 PrefetchMultiplier = 5,
                 RrfK = 60,
-            }));
-        return new CrossReferenceService(search, store, new UrlExtractors(Array.Empty<string>()));
+            }),
+            MsOptions.Create(new GraphOptions
+            {
+                Enabled = false,
+                Neo4jUri = "bolt://localhost:7687",
+                Neo4jUser = "neo4j",
+                Neo4jPassword = "",
+                Neo4jDatabase = "neo4j",
+                WriterBatch = 500,
+                MaxHops = 2,
+                MaxNodes = 200,
+            }),
+            NullLogger<SearchService>.Instance);
+        return new CrossReferenceService(
+            search, store, graph, new UrlExtractors(Array.Empty<string>()), NullLogger<CrossReferenceService>.Instance);
     }
 
-    private sealed class FakeDense : IDenseEmbedder
+    private sealed class FakeDense : Domain.Ports.IDenseEmbedder
     {
         public int VectorSize => 2;
         public bool IsLoaded => true;
@@ -88,52 +145,43 @@ public sealed class CrossReferenceServiceTests
             EmbedBatchAsync(texts, cancellationToken);
     }
 
-    private sealed class FakeSparse : ISparseEmbedder
+    private sealed class FakeSparse : Domain.Ports.ISparseEmbedder
     {
         public bool IsLoaded => true;
         public Task PreloadAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public void Release() { }
         public Task<IReadOnlyList<SparseVector>> EmbedBatchAsync(IReadOnlyList<string> texts, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<SparseVector>>(texts.Select(_ => new SparseVector([1u], [1f])).ToArray());
+            Task.FromResult<IReadOnlyList<SparseVector>>(texts.Select(_ => new SparseVector([1], [1f])).ToArray());
     }
 
-    private sealed class FakeStore : IVectorStore
+    private sealed class FakeStore : NoOpVectorStore
     {
         public IReadOnlyList<SearchHit> Callers { get; init; } = [];
+        public bool GraphCallSites { get; init; }
         public string? LastCallerMethod { get; private set; }
         public string? LastCallerReceiver { get; private set; }
 
-        public ValueTask<bool> CollectionExistsAsync(string collection, CancellationToken cancellationToken = default) => ValueTask.FromResult(true);
-        public Task EnsureCollectionAsync(string collection, bool force = false, CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task UpsertChunksAsync(string collection, IReadOnlyList<EmbeddedChunk> chunks, CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task<IReadOnlyList<SearchHit>> SearchAsync(string collection, IReadOnlyList<float> denseVector, SparseVector? sparseVector, int topK, string? language = null, float minScore = 0.5f, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<SearchHit>>([]);
-        public Task<ChunkPayload?> GetChunkByIdAsync(string collection, string chunkId, CancellationToken cancellationToken = default) => Task.FromResult<ChunkPayload?>(null);
-        public Task<ChunkPayload?> FindChunkByIdAsync(string chunkId, string? collection = null, CancellationToken cancellationToken = default) => Task.FromResult<ChunkPayload?>(null);
-        public Task<IReadOnlyList<FileSymbol>> ScrollFileSymbolsAsync(string collection, string relPath, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<FileSymbol>>([]);
-        public Task<IReadOnlyList<PayloadRow>> ScrollAllPayloadsAsync(string collection, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<PayloadRow>>([]);
-        public Task<IReadOnlyList<CollectionStats>> ListCollectionStatsAsync(CancellationToken cancellationToken = default) =>
+        public override Task<IReadOnlyList<CollectionStats>> ListCollectionStatsAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<CollectionStats>>([new CollectionStats("proj-a", 1, 0, "m", "s", "tei", true)]);
-        public Task<IReadOnlyList<SearchHit>> FindSymbolInCollectionsAsync(string symbolName, IReadOnlyList<string> collections, int limitPerCollection = 10, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<SearchHit>>([]);
-        public Task<IReadOnlyList<string>> ListCollectionsAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<string>>(["proj-a"]);
-        public ValueTask<CollectionStats?> GetCollectionStatsAsync(string collection, CancellationToken cancellationToken = default) => ValueTask.FromResult<CollectionStats?>(null);
-        public Task<IReadOnlyDictionary<string, FileMetadata>> GetFileMetadataAsync(string collection, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyDictionary<string, FileMetadata>>(new Dictionary<string, FileMetadata>());
-        public Task DeleteByPathsAsync(string collection, IReadOnlyList<string> relPaths, CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task SetIndexingAsync(string collection, bool enabled, CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task VerifyChunkIdsExistAsync(string collection, IReadOnlyList<string> chunkIds, CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task<IReadOnlyList<SearchHit>> RecommendAsync(string collection, IReadOnlyList<RecommendExample> positive, IReadOnlyList<RecommendExample>? negative = null, int limit = 5, string? language = null, string? pathGlob = null, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<SearchHit>>([]);
-        public Task<IReadOnlyList<SearchHit>> FindOutlierChunksAsync(string collection, IReadOnlyList<string>? contextChunkIds = null, int limit = 5, string? language = null, string? pathGlob = null, float? maxSimilarity = null, int? maxContextSamples = null, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<SearchHit>>([]);
-        public Task<IReadOnlyList<SearchHit>> FindCallersInCollectionsAsync(string method, IReadOnlyList<string> collections, string? receiver = null, int limitPerCollection = 10, CancellationToken cancellationToken = default)
+
+        public override Task<IReadOnlyList<string>> ListCollectionsAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<string>>(["proj-a"]);
+
+        public override ValueTask<bool> CollectionHasGraphCallSitesAsync(
+            string collection,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(GraphCallSites);
+
+        public override Task<IReadOnlyList<SearchHit>> FindCallersInCollectionsAsync(
+            string method,
+            IReadOnlyList<string> collections,
+            string? receiver = null,
+            int limitPerCollection = 10,
+            CancellationToken cancellationToken = default)
         {
             LastCallerMethod = method;
             LastCallerReceiver = receiver;
             return Task.FromResult(Callers);
         }
-        public Task<IReadOnlyList<IReadOnlyDictionary<string, string>>> ScrollChunksByPathsAsync(string collection, IReadOnlyList<string> relPaths, IReadOnlyList<string>? payloadFields = null, int limit = 500, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<IReadOnlyDictionary<string, string>>>([]);
     }
 }

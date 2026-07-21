@@ -85,6 +85,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0030 | Phase 2 — Indexing pipeline | Accepted (phase 1; phase 2 — Indexing pipeline) | phase-2 | `merged` | `WorkspaceScanner` (SHA-256 incremental scan, ignore files, `ArrayPool` hashing, channel worker fan-out DOP=1); `TreeSitterChunker` (port `chunker.py` via `TreeSitter.DotNet`, regex SQL fallback); `OnnxSparseEmbedder` (`Microsoft.ML.OnnxRuntime`, same `Qdrant/bm25` artifacts); model-accurate dense tokenizer truncation; `IndexPipeline` with `Channel<T>` stages in `IndexPipelineHostedService`; `IndexCodebaseService` + `IndexJobService`; MCP index tools (`index_codebase`, `index_status`, `stop_indexing`, `index_all`); chunk-ID golden parity fixture; `docker-compose.aspire.yml` workspace/cache wiring (fastembed at `/root/.cache/fastembed` with `fastembed_cache` volume); `--aspire-stack` integration smoke (manual M3 Pro pre-review, optional non-blocking CI); Python `run_compose_integration.py` remains green | 2026-07-13 |
 | 0030 | Phase 3 — Core search tools | Accepted (phases 1–3) | phase-3 | `merged` | Hybrid RRF via Qdrant QueryAsync + client CrossCollectionRrf; Embedding PrefetchMultiplier/RrfK; Qdrant create parity (int8/HNSW/memmap/payload indexes); Host resolves default collection; six MCP tools; summary without build_dependencies; ColBERT no-op; Aspire gRPC :6334 + TEI arch image + SDK-container test fallback; quality via --mcp-url | 2026-07-21 |
 | 0030 | Phase 4 — Cross-ref + discovery | Accepted (phases 1–4) | phase-4 | `merged` | Qdrant-only Path D (`callees` scroll); `Discovery:RecommendEnabled` gating; `UrlExtractors` supersedes Phase 3 minimal classifier; quality report-only (`threshold 0`); no schema-version env (re-index after pull) | 2026-07-21 |
+| 0030 | Phase 5 — GraphRAG | Accepted (phases 1–4; phase 5 verified) | phase-5 | `verified` | Aspire-specific neo4j overlay; NullGraphStore when disabled; no `GRAPH_SCHEMA_VERSION` (re-index after pull); quality/perf skip; host tool gating via early config read | 2026-07-21 |
 <!-- END GENERATED:summary -->
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
@@ -92,7 +93,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 ## Active and upcoming work
 
 <!-- BEGIN GENERATED:active -->
-_No active or upcoming phases._
+- **0030** Phase 5 — GraphRAG — `verified`
 <!-- END GENERATED:active -->
 
 ### Partial acceptance
@@ -1846,6 +1847,16 @@ _No active or upcoming phases._
 - **Verify:** review rounds 2; `dotnet test CodebaseIndexer.slnx` 108 passed; plan compliance pass; Docker integration Verdict pass (prior) + R1 harness fix verified in source
 - **Changelog:** yes — Add .NET MCP discovery tools (`find_cross_references`, `map_service_dependencies`, `recommend_code`, `find_outlier_chunks`), build-deps matching in summaries/service-map, and Qdrant Path D `callees` call-site lookup (re-index after pull).
 
+#### 2026-07-21 — verification
+- **Phase:** Phase 5 — GraphRAG
+- **Tracker status:** `verified`
+- **Choices:** Aspire-specific neo4j overlay; NullGraphStore when disabled; no `GRAPH_SCHEMA_VERSION` (re-index after pull); quality/perf skip; host tool gating via early config read
+- **Deviations:** none
+- **Code evidence:** `Neo4jGraphStore.cs`, `GraphWriter.cs`, `IndexCodebaseService.cs`, `ExpandSearchContextService.cs`, `ExpandSearchContextTools.cs`, `docker-compose.aspire.neo4j.yml`, `scripts/run_compose_integration.py`, `IndexCodebaseServiceTests.cs`
+- **Test debt:** RecommendEnabled disable-path early-config test; optional env-var gating smoke
+- **Verify:** `dotnet test CodebaseIndexer.slnx` 131 passed; Aspire+graph Docker `run_compose_integration.py --json --aspire-stack --graph` pass (Bolt auth+write + expand_search_context); plan compliance pass; R1–R4 closed (review rounds: 3)
+- **Changelog:** yes — Opt-in .NET GraphRAG: Neo4j writer, Path D CALLS routing, and `expand_search_context` behind `Graph:Enabled` with Aspire neo4j overlay (re-index after pull; no schema-version env).
+
 #### 2026-07-21 — prioritization
 - **Phase:** Phase 3 — Core search tools
 - **Tracker status:** `candidate`
@@ -1860,6 +1871,13 @@ _No active or upcoming phases._
 - **Deviations:** none
 - **Changelog:** no — user-facing unknown; invoker Changelog: no
 
+#### 2026-07-21 — prioritization
+- **Phase:** Phase 5 — GraphRAG
+- **Tracker status:** `candidate`
+- **Choices:** Selected over 0026 Phase 4 (GPU bake-off — high score, deferred behind 0030); over 0032/0033 Phase 1 (Proposed — need Accept; intercalation option); over 0031 (re-scope to .NET before Accept); over 0027 (Accept deferred). Single phase per pipeline rule; no ADR Accept required (0030 already Accepted). Invoker: continue 0030 P5; do not intercalate 0032; keep 0026 P4 deferred; 0031 re-scope later Accept; 0032/0033 Accept later cycle. **Why now:** ADR 0030 phases 1–4 merged; delivery order next is GraphRAG; `src/` has no Neo4j and Path D is Qdrant-only with explicit Phase-5 deferral; primary migration thread per prior open decisions; Proposed 0032/0033 need Accept if intercalated. Invoker confirmed continue 0030 Phase 5 this cycle. **Suggested scope:** one phase (= one PR). **Chosen scope:** Port `Neo4jStorage` + index-time graph writer; MCP `expand_search_context` gated by `GRAPH_ENABLED`; Neo4j Path D / callers when graph enabled; graph overlay Docker integration via `scripts/run_compose_integration.py`; document re-index after pull (no schema-version env); defer Phase 6 ColBERT/ops and Phase 7 Python delete.
+- **Deviations:** none
+- **Changelog:** no — user-facing unknown; invoker Changelog: no
+
 #### 2026-07-21 — plan
 - **Phase:** Phase 3 — Core search tools
 - **Tracker status:** `planned`
@@ -1871,6 +1889,13 @@ _No active or upcoming phases._
 - **Phase:** Phase 4 — Cross-ref + discovery
 - **Tracker status:** `planned`
 - **Choices:** Qdrant-only Path D in Phase 4 (Neo4j callers in Phase 5); Discovery options section mirroring Python recommend/outlier/service-map knobs; `RecommendEnabled` gates tool registration; quality eval report-only (`threshold 0`); no ColBERT rerank until Phase 6; re-index after pull for `callees` (no schema-version env). Assumptions: Phases 1–3 .NET merge is baseline; Python tool modules are behavioral source of truth; `IndexedPayloadFields` already lists `callees` but upsert/chunker must be completed this phase. Pre-release: no backward-compat requirement unless ADR documents one; Docker integration always required; no schema migration version env vars.
+- **Deviations:** none
+- **Changelog:** no — invoker Changelog: no; status planned
+
+#### 2026-07-21 — plan
+- **Phase:** Phase 5 — GraphRAG
+- **Tracker status:** `planned`
+- **Choices:** Continue 0030 Phase 5 this cycle (do not intercalate 0032 Phase 1); Accept 0032/0033 later; ADR 0031 re-scope later (do not Accept now); ADR 0026 Phase 4 stays deferred; Quality validation skip (default graph off; exit = graph overlay smoke); Performance report skip; Aspire-specific neo4j overlay (`docker-compose.aspire.neo4j.yml`) because Python overlay targets `mcp_server`; NullGraphStore when disabled; no `GRAPH_SCHEMA_VERSION`. Assumptions: Phases 1–4 .NET baseline; Python GraphRAG modules are behavioral SoT; `IGraphStore` stub + `CollectionStats` graph flags are extension points; Docker integration always required. Pre-release: no backward-compat requirement unless ADR documents one; no schema migration version env vars — document re-index after pull.
 - **Deviations:** none
 - **Changelog:** no — invoker Changelog: no; status planned
 
@@ -1928,6 +1953,15 @@ _No active or upcoming phases._
 - **Deviations:** none
 - **Code evidence:** `src/CodebaseIndexer.Host/Tools/CrossReferenceTools.cs`, `src/CodebaseIndexer.Host/Tools/ServiceMapTools.cs`, `src/CodebaseIndexer.Host/Tools/RecommendTools.cs`, `src/CodebaseIndexer.Host/Tools/OutlierTools.cs`, `src/CodebaseIndexer.Application/Services/CrossReferenceService.cs`, `src/CodebaseIndexer.Application/Services/ServiceMapService.cs`, `src/CodebaseIndexer.Application/Services/RecommendService.cs`, `src/CodebaseIndexer.Infrastructure/Qdrant/QdrantVectorStore.cs`, `src/CodebaseIndexer.Infrastructure/Indexing/CalleeExtractor.cs`, `src/CodebaseIndexer.Application/BuildDeps/`, `scripts/smoke_aspire_service_map.py`
 - **Test debt:** live Qdrant recommend/outlier/callers e2e; Docker aspire service-map + quality report-only harness
+- **Changelog:** no — invoker Changelog: no; status implemented
+
+#### 2026-07-21 — implementation
+- **Phase:** Phase 5 — GraphRAG
+- **Tracker status:** `implemented`
+- **Choices:** Fix test config timing via `ConfigureHostConfiguration` + `GraphEnabledMcpHostWebApplicationFactory` so `Graph:Enabled` is visible when `AddCodebaseIndexerHost` gates `WithTools<ExpandSearchContextTools>`; keep production host gating unchanged (same pattern as RecommendEnabled config read). Full Phase 5 GraphRAG delivered on disk: Neo4jGraphStore, GraphWriter, Index/CrossRef/Search hooks, expand_search_context, Aspire neo4j overlay, docs, tests. Smoke: `dotnet test CodebaseIndexer.slnx` 125 passed.
+- **Deviations:** none
+- **Code evidence:** `test/CodebaseIndexer.Host.Tests/McpHostWebApplicationFactory.cs`, `test/CodebaseIndexer.Host.Tests/GraphEnabledMcpHostWebApplicationFactory.cs`, `test/CodebaseIndexer.Host.Tests/ExpandSearchContextToolGatingTests.cs`, `src/CodebaseIndexer.Host/HostApplicationBuilderExtensions.cs`, `src/CodebaseIndexer.Host/Tools/ExpandSearchContextTools.cs`, `src/CodebaseIndexer.Application/Services/ExpandSearchContextService.cs`, `src/CodebaseIndexer.Application/Graph/GraphWriter.cs`, `src/CodebaseIndexer.Infrastructure/Neo4j/Neo4jGraphStore.cs`, `docker-compose.aspire.neo4j.yml`, `scripts/run_compose_integration.py`
+- **Test debt:** RecommendEnabled disable-path early-config test; optional env-var gating smoke
 - **Changelog:** no — invoker Changelog: no; status implemented
 
 #### 2026-07-13 — verification
@@ -2075,6 +2109,10 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 - RESOLVED — (2) keep 0026 Phase 4 deferred behind 0030
 - RESOLVED — (3) ADR 0027 — no action this cycle
 - (4) open — re-scope ADR 0031 to .NET Host probe URLs before Accept (do not Accept now)
+- RESOLVED — continue 0030 Phase 5 this cycle; do not intercalate 0032
+- RESOLVED — keep 0026 Phase 4 deferred behind 0030
+- RESOLVED — defer 0032/0033 Accept to later cycle
+- RESOLVED — ADR 0031 re-scope to .NET then Accept later (not this cycle)
 <!-- END GENERATED:open-decisions -->
 
 ---

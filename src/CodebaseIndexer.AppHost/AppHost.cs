@@ -30,6 +30,28 @@ var tei = builder.AddContainer("tei", teiImageName)
     .WithArgs("--port", "80", "--max-batch-tokens", "1024")
     .WithHttpHealthCheck("/health");
 
+var graphEnabledEnv = Environment.GetEnvironmentVariable("GRAPH_ENABLED")
+    ?? Environment.GetEnvironmentVariable("Graph__Enabled");
+var graphEnabled = string.Equals(graphEnabledEnv, "true", StringComparison.OrdinalIgnoreCase)
+    || string.Equals(graphEnabledEnv, "1", StringComparison.OrdinalIgnoreCase);
+var neo4jPassword = Environment.GetEnvironmentVariable("NEO4J_PASSWORD")
+    ?? Environment.GetEnvironmentVariable("Graph__Neo4jPassword")
+    ?? string.Empty;
+
+IResourceBuilder<ContainerResource>? neo4j = null;
+if (graphEnabled)
+{
+    neo4j = builder.AddContainer("neo4j", "neo4j", "5.26.28-community")
+        .WithHttpEndpoint(port: 7474, targetPort: 7474, name: "http")
+        .WithEndpoint(port: 7687, targetPort: 7687, name: "bolt", scheme: "bolt")
+        .WithEnvironment("NEO4J_AUTH", $"neo4j/{neo4jPassword}")
+        .WithEnvironment("NEO4J_server_memory_heap_initial__size", "512m")
+        .WithEnvironment("NEO4J_server_memory_heap_max__size", "1g")
+        .WithEnvironment("NEO4J_server_memory_pagecache_size", "512m")
+        .WithVolume("neo4j_data", "/data")
+        .WithHttpHealthCheck("/");
+}
+
 var mcp = builder.AddProject<Projects.CodebaseIndexer_Host>("mcp")
     .WithEnvironment("Qdrant__Url", qdrant.GetEndpoint("grpc"))
     .WithEnvironment("Tei__Url", tei.GetEndpoint("http"))
@@ -40,6 +62,17 @@ var mcp = builder.AddProject<Projects.CodebaseIndexer_Host>("mcp")
     .WithEnvironment("Embedding__DenseVectorSize", denseVectorSize)
     .WithEnvironment("Embedding__SparseModel", "Qdrant/bm25")
     .WithEnvironment("Embedding__HybridSearch", "true");
+
+if (neo4j is not null)
+{
+    mcp = mcp
+        .WithEnvironment("Graph__Enabled", "true")
+        .WithEnvironment("Graph__Neo4jUri", "bolt://neo4j:7687")
+        .WithEnvironment("Graph__Neo4jUser", "neo4j")
+        .WithEnvironment("Graph__Neo4jPassword", neo4jPassword)
+        .WithEnvironment("Graph__Neo4jDatabase", "neo4j")
+        .WaitFor(neo4j);
+}
 
 builder.AddDockerComposeEnvironment("compose");
 

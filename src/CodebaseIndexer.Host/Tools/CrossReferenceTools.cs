@@ -23,7 +23,9 @@ public sealed class CrossReferenceTools
         "endpoint_definition, http_call, service_config, build_dependency, or call_site. " +
         "Use 'query' for semantic search or 'symbol_name' for exact symbol matching. " +
         "For precise method call-site retrieval, pass 'member' and optionally 'receiver' " +
-        "(indexed callees Path D via Qdrant; re-index after pull to populate callees). " +
+        "(Path D: Neo4j CALLS when the collection has graph_call_sites metadata after a " +
+        "graph-enabled index; otherwise Qdrant callees scroll with a fallback warning). " +
+        "Re-index after pull when enabling Graph:Enabled (no schema-version env). " +
         "When RERANK_ENABLED=true, pass rerank=false to skip ColBERT (Phase 6; currently no-op).")]
     public Task<object> FindCrossReferencesAsync(
         [Description("Semantic search query")] string? query = null,

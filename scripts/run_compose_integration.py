@@ -46,8 +46,11 @@ BENCH_BASELINE = MCP_SERVER / "benchmarks" / "baseline.json"
 REINDEX_SCRIPT = REPO_ROOT / "scripts" / "reindex_graphrag.py"
 COMPOSE_BASE = ["docker", "compose", "--env-file", str(ENV_FILE)]
 ASPIRE_COMPOSE_FILE = REPO_ROOT / "docker-compose.aspire.yml"
+ASPIRE_NEO4J_COMPOSE_FILE = REPO_ROOT / "docker-compose.aspire.neo4j.yml"
 ASPIRE_FASTEMBED_CACHE = REPO_ROOT / ".aspire-fastembed-cache"
 ASPIRE_SERVICES = ("qdrant", "tei", "mcp")
+ASPIRE_MCP_CONTAINER = "codeindexer_mcp_dotnet"
+MCP_CONTAINER_DOTNET = ASPIRE_MCP_CONTAINER
 # Same SDK image family as src/CodebaseIndexer.Host/Dockerfile (Aspire MCP build).
 DOTNET_SDK_IMAGE = os.environ.get("DOTNET_SDK_IMAGE", "mcr.microsoft.com/dotnet/sdk:10.0")
 COMPOSE_PROFILE = "bundled-tei"
@@ -61,6 +64,7 @@ EXTERNAL_TEI_COMPOSE_URL = "http://host.docker.internal:8080"
 TEI_CONTAINER = "codeindexer_tei"
 NEO4J_URL = "http://127.0.0.1:7474"
 MCP_CONTAINER = "codeindexer_mcp"
+NEO4J_CONTAINER = "codeindexer_neo4j"
 # Non-secret password used only for the throwaway integration Neo4j container.
 GRAPH_INTEGRATION_PASSWORD = "graph-integration-pw"
 JINA_DENSE_MODEL = "jinaai/jina-embeddings-v2-base-code"
@@ -204,16 +208,19 @@ RERANK_ENABLED=false
     ENV_FILE.write_text(content, encoding="utf-8")
 
 
-def aspire_compose_cmd(*args: str) -> list[str]:
-    return [
+def aspire_compose_cmd(*args: str, graph: bool = False) -> list[str]:
+    cmd = [
         "docker",
         "compose",
         "--env-file",
         str(ENV_FILE),
         "-f",
         str(ASPIRE_COMPOSE_FILE),
-        *args,
     ]
+    if graph:
+        cmd.extend(["-f", str(ASPIRE_NEO4J_COMPOSE_FILE)])
+    cmd.extend(args)
+    return cmd
 
 
 def seed_aspire_sparse_cache() -> tuple[bool, str]:
@@ -240,17 +247,26 @@ def seed_aspire_sparse_cache() -> tuple[bool, str]:
     return True, f"seeded BM25 at {cache}"
 
 
-def deploy_aspire_stack() -> tuple[bool, str]:
+def deploy_aspire_stack(*, graph: bool = False) -> tuple[bool, str]:
     seeded, seed_detail = seed_aspire_sparse_cache()
     if not seeded:
         return False, f"aspire sparse cache seed failed — {seed_detail}"
-    build = _run(aspire_compose_cmd("build", "mcp"))
+    if graph:
+        # Wipe neo4j_data before up — Neo4j locks NEO4J_AUTH into the volume on
+        # first boot; a stale volume + new env password yields Unauthorized on
+        # schema init (Aspire+graph smoke).
+        _run(aspire_compose_cmd("down", "--remove-orphans", "-v", graph=True))
+    build = _run(aspire_compose_cmd("build", "mcp", graph=graph))
     if build.returncode != 0:
         return False, build.stderr or build.stdout or "aspire compose build failed"
-    up = _run(aspire_compose_cmd("up", "-d", "--wait", *ASPIRE_SERVICES))
+    services = ASPIRE_SERVICES + (("neo4j",) if graph else ())
+    up = _run(aspire_compose_cmd("up", "-d", "--wait", *services, graph=graph))
     if up.returncode != 0:
         return False, up.stderr or up.stdout or "aspire compose up failed"
-    return True, f"aspire stack deployed ({seed_detail})"
+    detail = f"aspire stack deployed ({seed_detail})"
+    if graph:
+        detail += " with neo4j graph overlay"
+    return True, detail
 
 
 def _dotnet_sdk_resolution_failed(output: str) -> bool:
@@ -688,46 +704,94 @@ def quality_validation_passed(rows: dict[str, dict[str, str]]) -> bool:
     return eval_row.get("status") == "pass"
 
 
-def run_graph_validation(*, external_tei: bool = False) -> tuple[str, str]:
-    """Validate the live Neo4j-enabled stack registered expand_search_context.
+def _neo4j_auth_and_write_ok() -> tuple[bool, str]:
+    """Prove Bolt auth matches harness password and a trivial write succeeds.
 
-    Waits for the Neo4j browser port, then confirms the mcp_server booted with
-    graph enabled (it logs ``graph_enabled`` at startup only when GRAPH_ENABLED=true,
+    Catches stale ``neo4j_data`` volumes where HTTP :7474 is healthy but the
+    stored password no longer matches ``NEO4J_PASSWORD`` (schema init fails).
+    """
+    proc = _run(
+        [
+            "docker",
+            "exec",
+            NEO4J_CONTAINER,
+            "cypher-shell",
+            "-u",
+            "neo4j",
+            "-p",
+            GRAPH_INTEGRATION_PASSWORD,
+            "CREATE (n:__GraphSmoke {k: 1}) DELETE n RETURN 1 AS ok",
+        ]
+    )
+    detail = ((proc.stdout or "") + (proc.stderr or "")).strip()
+    if proc.returncode != 0:
+        return False, detail[-2000:] or "cypher-shell auth/write failed"
+    if "ok" not in detail.lower() and "1" not in detail:
+        return False, detail[-2000:] or "cypher-shell returned unexpected output"
+    return True, "neo4j auth+write ok"
+
+
+def run_graph_validation(
+    *, external_tei: bool = False, aspire_stack: bool = False
+) -> tuple[str, str]:
+    """Validate Neo4j health, Bolt auth/write, and expand_search_context registration.
+
+    Waits for the Neo4j browser port, proves harness credentials can write via
+    cypher-shell (schema/write path), then confirms the MCP host booted with
+    graph enabled (it logs ``graph_enabled`` at startup only when graph is on,
     which is also the exact condition under which expand_search_context is
-    registered — see main.create_app). Returns (status, detail): pass / fail.
+    registered). Returns (status, detail): pass / fail.
     """
     ok, detail = wait_http(NEO4J_URL)
     if not ok:
         return "fail", f"neo4j not healthy: {detail}"
 
-    logs = _run(
-        compose_cmd(
-            *_compose_profile_args(external_tei=external_tei),
-            "logs",
-            "--no-color",
-            "--tail",
-            "500",
-            "mcp_server",
-            external_tei=external_tei,
+    ok, auth_detail = _neo4j_auth_and_write_ok()
+    if not ok:
+        return "fail", f"neo4j auth/write failed: {auth_detail}"
+
+    if aspire_stack:
+        logs = _run(
+            aspire_compose_cmd(
+                "logs", "--no-color", "--tail", "500", "mcp", graph=True
+            )
         )
-    )
+        service_label = "mcp"
+    else:
+        logs = _run(
+            compose_cmd(
+                *_compose_profile_args(external_tei=external_tei),
+                "logs",
+                "--no-color",
+                "--tail",
+                "500",
+                "mcp_server",
+                external_tei=external_tei,
+            )
+        )
+        service_label = "mcp_server"
     out = (logs.stdout or "") + (logs.stderr or "")
     if "graph_enabled" not in out:
-        return "fail", "mcp_server did not log graph_enabled at startup"
+        return "fail", f"{service_label} did not log graph_enabled at startup"
     if "graph_disabled" in out:
-        return "fail", "mcp_server logged graph_disabled (GRAPH_ENABLED not applied)"
-    return "pass", "neo4j healthy; mcp_server registered expand_search_context (graph_enabled)"
-
-
-def teardown(*, external_tei: bool = False) -> None:
-    _run(
-        compose_cmd(
-            *_compose_profile_args(external_tei=external_tei),
-            "down",
-            "--remove-orphans",
-            external_tei=external_tei,
-        )
+        return "fail", f"{service_label} logged graph_disabled (graph env not applied)"
+    return (
+        "pass",
+        f"neo4j healthy; auth+write ok; {service_label} registered "
+        "expand_search_context (graph_enabled)",
     )
+
+
+def teardown(*, external_tei: bool = False, graph: bool = False) -> None:
+    down_args = [
+        *_compose_profile_args(external_tei=external_tei),
+        "down",
+        "--remove-orphans",
+    ]
+    if graph:
+        # Drop neo4j_data so the next --graph run does not inherit a stale password.
+        down_args.append("-v")
+    _run(compose_cmd(*down_args, external_tei=external_tei))
 
 
 def main() -> int:
@@ -765,8 +829,9 @@ def main() -> int:
     parser.add_argument(
         "--graph",
         action="store_true",
-        help="Bring up docker-compose.neo4j.yml with GRAPH_ENABLED=true and validate "
-        "the live expand_search_context tool (ADR 0002 Phase 3)",
+        help="Bring up Neo4j overlay with graph enabled and validate "
+        "expand_search_context (Python: docker-compose.neo4j.yml; "
+        "Aspire: docker-compose.aspire.neo4j.yml + Graph__* env)",
     )
     parser.add_argument(
         "--external-tei",
@@ -825,11 +890,13 @@ def main() -> int:
         os.environ["ACCELERATOR"] = "cpu"
         # Parent of the repo so index_codebase(path="codebase-indexer-mcp") sees
         # /workspace/<repo-folder> — same layout as the Python compose harness.
-        write_integration_env(REPO_ROOT.parent, graph=False, external_tei=False)
+        write_integration_env(
+            REPO_ROOT.parent, graph=args.graph, external_tei=False
+        )
         if args.skip_deploy:
             report["deploy"] = {"status": "skipped", "detail": "--skip-deploy"}
         else:
-            ok, detail = deploy_aspire_stack()
+            ok, detail = deploy_aspire_stack(graph=args.graph)
             report["deploy"] = {"status": "pass" if ok else "fail", "detail": detail}
             if not ok:
                 report["verdict"] = "fail"
@@ -854,6 +921,14 @@ def main() -> int:
             "status": "pass" if ok else "fail",
             "detail": detail,
         }
+
+        if args.graph:
+            graph_status, graph_detail = run_graph_validation(aspire_stack=True)
+            report["graph_validation"] = {
+                "required": True,
+                "status": graph_status,
+                "detail": graph_detail,
+            }
 
         if args.quality_validation:
             quality_rows = run_quality_validation(
@@ -892,13 +967,18 @@ def main() -> int:
         required_ok = all(report[k]["status"] in ("pass", "skipped") for k in required)
         if args.quality_validation:
             required_ok = required_ok and report["quality_validation"]["status"] == "pass"
+        if args.graph:
+            required_ok = required_ok and report["graph_validation"]["status"] == "pass"
         report["verdict"] = "pass" if required_ok else "fail"
         if args.json:
             print(json.dumps(report, indent=2))
         else:
             print(f"Verdict: {report['verdict']}")
         if not args.keep and not args.skip_deploy:
-            _run(aspire_compose_cmd("down", "--remove-orphans"))
+            down_args = ["down", "--remove-orphans"]
+            if args.graph:
+                down_args.append("-v")
+            _run(aspire_compose_cmd(*down_args, graph=args.graph))
         return 0 if report["verdict"] == "pass" else 1
 
     write_integration_env(
@@ -944,6 +1024,9 @@ def main() -> int:
         if args.skip_deploy:
             report["deploy"] = {"status": "skipped", "detail": "--skip-deploy"}
         else:
+            if args.graph:
+                # Same stale-password hazard as Aspire: wipe neo4j_data before up.
+                teardown(external_tei=args.external_tei, graph=True)
             ok, detail = deploy(
                 services=deploy_services, external_tei=args.external_tei
             )
@@ -1069,7 +1152,7 @@ def main() -> int:
         return 0 if required_ok else 1
     finally:
         if not args.keep and not args.skip_deploy:
-            teardown(external_tei=args.external_tei)
+            teardown(external_tei=args.external_tei, graph=args.graph)
 
 
 if __name__ == "__main__":

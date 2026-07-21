@@ -1,0 +1,33 @@
+adr_id: "0030"
+phase_key: phase-5
+phase_title: Phase 5 — GraphRAG
+event: implementation
+date: "2026-07-21"
+tracker_status: implemented
+choices: >-
+  Fix test config timing via `ConfigureHostConfiguration` +
+  `GraphEnabledMcpHostWebApplicationFactory` so `Graph:Enabled` is visible when
+  `AddCodebaseIndexerHost` gates `WithTools<ExpandSearchContextTools>`; keep
+  production host gating unchanged (same pattern as RecommendEnabled config
+  read). Full Phase 5 GraphRAG delivered on disk: Neo4jGraphStore, GraphWriter,
+  Index/CrossRef/Search hooks, expand_search_context, Aspire neo4j overlay,
+  docs, tests. Smoke: `dotnet test CodebaseIndexer.slnx` 125 passed.
+deviations: none
+code_evidence:
+  - test/CodebaseIndexer.Host.Tests/McpHostWebApplicationFactory.cs
+  - test/CodebaseIndexer.Host.Tests/GraphEnabledMcpHostWebApplicationFactory.cs
+  - test/CodebaseIndexer.Host.Tests/ExpandSearchContextToolGatingTests.cs
+  - src/CodebaseIndexer.Host/HostApplicationBuilderExtensions.cs
+  - src/CodebaseIndexer.Host/Tools/ExpandSearchContextTools.cs
+  - src/CodebaseIndexer.Application/Services/ExpandSearchContextService.cs
+  - src/CodebaseIndexer.Application/Graph/GraphWriter.cs
+  - src/CodebaseIndexer.Infrastructure/Neo4j/Neo4jGraphStore.cs
+  - docker-compose.aspire.neo4j.yml
+  - scripts/run_compose_integration.py
+test_debt:
+  - RecommendEnabled disable-path early-config test
+  - optional env-var gating smoke
+changelog:
+  update: false
+  reason: "invoker Changelog: no; status implemented"
+user_facing: true

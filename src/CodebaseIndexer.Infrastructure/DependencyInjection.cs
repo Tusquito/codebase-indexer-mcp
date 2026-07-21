@@ -1,14 +1,18 @@
+using CodebaseIndexer.Application.Options;
 using CodebaseIndexer.Domain.Embedding;
 using CodebaseIndexer.Domain.Ports;
 using CodebaseIndexer.Infrastructure.Configuration;
 using CodebaseIndexer.Infrastructure.Embedding;
 using CodebaseIndexer.Infrastructure.Indexing;
 using CodebaseIndexer.Infrastructure.Memory;
+using CodebaseIndexer.Infrastructure.Neo4j;
 using CodebaseIndexer.Infrastructure.Qdrant;
 using CodebaseIndexer.Infrastructure.Tei;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Neo4j.Driver;
 using Refit;
 
 namespace CodebaseIndexer.Infrastructure;
@@ -29,6 +33,7 @@ public static class DependencyInjection
         services.TryAddSingleton<ICodeChunker, TreeSitterChunker>();
         services.TryAddSingleton<IWorkspaceScanner, WorkspaceScanner>();
         services.TryAddSingleton<IMemoryPressureGuard, CgroupMemoryPressureGuard>();
+        services.AddGraphStore();
 
         services.AddRefitClient<ITeiEmbeddingsApi>()
             .ConfigureHttpClient((sp, client) =>
@@ -40,6 +45,26 @@ public static class DependencyInjection
                 var seconds = tei.TimeoutSeconds > 0 ? tei.TimeoutSeconds : 600;
                 client.Timeout = TimeSpan.FromSeconds(seconds);
             });
+
+        return services;
+    }
+
+    private static IServiceCollection AddGraphStore(this IServiceCollection services)
+    {
+        services.TryAddSingleton<IGraphStore>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<GraphOptions>>();
+            if (!options.Value.Enabled)
+            {
+                return new NullGraphStore();
+            }
+
+            var driver = GraphDatabase.Driver(
+                options.Value.Neo4jUri,
+                AuthTokens.Basic(options.Value.Neo4jUser, options.Value.Neo4jPassword));
+            var logger = sp.GetRequiredService<ILogger<Neo4jGraphStore>>();
+            return new Neo4jGraphStore(driver, options, logger, ownsDriver: true);
+        });
 
         return services;
     }

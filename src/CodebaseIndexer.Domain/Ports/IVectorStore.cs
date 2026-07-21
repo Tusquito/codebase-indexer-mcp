@@ -12,9 +12,38 @@ public interface IVectorStore
     Task EnsureCollectionAsync(string collection, bool force = false, CancellationToken cancellationToken = default);
 
     /// <summary>Inserts or updates embedded chunks in a collection.</summary>
+    /// <param name="collection">Target collection name.</param>
+    /// <param name="chunks">Embedded chunks to upsert.</param>
+    /// <param name="omitCallees">When true, omit <c>callees</c> payload (graph-on indexing).</param>
+    /// <param name="graphNodeIdsByChunk">Optional chunk_id → neighbor graph node keys.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     Task UpsertChunksAsync(
         string collection,
         IReadOnlyList<EmbeddedChunk> chunks,
+        bool omitCallees = false,
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? graphNodeIdsByChunk = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Stamps collection metadata when Neo4j call-site lookup is active.</summary>
+    Task SetCollectionGraphCallSitesAsync(
+        string collection,
+        bool enabled = true,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Stamps collection metadata when chunks carry graph_node_ids linkage.</summary>
+    Task SetCollectionGraphEnabledAsync(
+        string collection,
+        bool enabled = true,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Returns true when collection metadata marks Neo4j as call-site engine.</summary>
+    ValueTask<bool> CollectionHasGraphCallSitesAsync(
+        string collection,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Returns true when collection metadata marks chunks as graph-linked.</summary>
+    ValueTask<bool> CollectionHasGraphEnabledAsync(
+        string collection,
         CancellationToken cancellationToken = default);
 
     /// <summary>Hybrid or dense-only vector search against a single collection.</summary>
