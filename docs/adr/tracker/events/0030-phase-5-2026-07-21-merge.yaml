@@ -1,0 +1,27 @@
+adr_id: "0030"
+phase_key: phase-5
+phase_title: Phase 5 — GraphRAG
+event: merge
+date: "2026-07-21"
+tracker_status: merged
+choices: >-
+  Squash merge PR #41; ADR Accept skipped (remains Accepted phases 1–4);
+  release skipped
+deviations: none
+code_evidence:
+  - >-
+    merged via [PR #41](https://github.com/Tusquito/codebase-indexer-mcp/pull/41)
+    (`adr/0030-phase-5-graphrag`; squash
+    `67771fac53b260965d51893d3d0b97b3202c5d25`)
+verify: >-
+  carried from verification — `dotnet test CodebaseIndexer.slnx` 131 passed;
+  Aspire+graph Docker `run_compose_integration.py --json --aspire-stack --graph`
+  pass; plan compliance pass; R1–R4 closed (review rounds: 3)
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/41
+  commit: 67771fac53b260965d51893d3d0b97b3202c5d25
+  status: merged
+changelog:
+  update: false
+  reason: "user-facing yes; invoker Changelog: no"
+user_facing: true

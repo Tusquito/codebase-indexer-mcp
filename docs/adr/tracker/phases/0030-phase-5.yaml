@@ -1,10 +1,11 @@
 adr_id: "0030"
 phase_key: phase-5
 title: Phase 5 — GraphRAG
-tracker_status: verified
+tracker_status: merged
 chosen_scope: >-
   Aspire-specific neo4j overlay; NullGraphStore when disabled; no
   `GRAPH_SCHEMA_VERSION` (re-index after pull); quality/perf skip; host tool
   gating via early config read
 last_updated: "2026-07-21"
-adr_status_note: Accepted (phases 1–4; phase 5 verified)
+pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/41
+adr_status_note: Accepted (phases 1–4; phase 5 merged; Accept skipped)

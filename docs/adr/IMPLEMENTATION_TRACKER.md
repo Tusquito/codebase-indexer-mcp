@@ -85,7 +85,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0030 | Phase 2 — Indexing pipeline | Accepted (phase 1; phase 2 — Indexing pipeline) | phase-2 | `merged` | `WorkspaceScanner` (SHA-256 incremental scan, ignore files, `ArrayPool` hashing, channel worker fan-out DOP=1); `TreeSitterChunker` (port `chunker.py` via `TreeSitter.DotNet`, regex SQL fallback); `OnnxSparseEmbedder` (`Microsoft.ML.OnnxRuntime`, same `Qdrant/bm25` artifacts); model-accurate dense tokenizer truncation; `IndexPipeline` with `Channel<T>` stages in `IndexPipelineHostedService`; `IndexCodebaseService` + `IndexJobService`; MCP index tools (`index_codebase`, `index_status`, `stop_indexing`, `index_all`); chunk-ID golden parity fixture; `docker-compose.aspire.yml` workspace/cache wiring (fastembed at `/root/.cache/fastembed` with `fastembed_cache` volume); `--aspire-stack` integration smoke (manual M3 Pro pre-review, optional non-blocking CI); Python `run_compose_integration.py` remains green | 2026-07-13 |
 | 0030 | Phase 3 — Core search tools | Accepted (phases 1–3) | phase-3 | `merged` | Hybrid RRF via Qdrant QueryAsync + client CrossCollectionRrf; Embedding PrefetchMultiplier/RrfK; Qdrant create parity (int8/HNSW/memmap/payload indexes); Host resolves default collection; six MCP tools; summary without build_dependencies; ColBERT no-op; Aspire gRPC :6334 + TEI arch image + SDK-container test fallback; quality via --mcp-url | 2026-07-21 |
 | 0030 | Phase 4 — Cross-ref + discovery | Accepted (phases 1–4) | phase-4 | `merged` | Qdrant-only Path D (`callees` scroll); `Discovery:RecommendEnabled` gating; `UrlExtractors` supersedes Phase 3 minimal classifier; quality report-only (`threshold 0`); no schema-version env (re-index after pull) | 2026-07-21 |
-| 0030 | Phase 5 — GraphRAG | Accepted (phases 1–4; phase 5 verified) | phase-5 | `verified` | Aspire-specific neo4j overlay; NullGraphStore when disabled; no `GRAPH_SCHEMA_VERSION` (re-index after pull); quality/perf skip; host tool gating via early config read | 2026-07-21 |
+| 0030 | Phase 5 — GraphRAG | Accepted (phases 1–4; phase 5 merged; Accept skipped) | phase-5 | `merged` | Aspire-specific neo4j overlay; NullGraphStore when disabled; no `GRAPH_SCHEMA_VERSION` (re-index after pull); quality/perf skip; host tool gating via early config read | 2026-07-21 |
 <!-- END GENERATED:summary -->
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
@@ -93,7 +93,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 ## Active and upcoming work
 
 <!-- BEGIN GENERATED:active -->
-- **0030** Phase 5 — GraphRAG — `verified`
+_No active or upcoming phases._
 <!-- END GENERATED:active -->
 
 ### Partial acceptance
@@ -1917,6 +1917,16 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 - **Code evidence:** `merged via [PR #40](https://github.com/Tusquito/codebase-indexer-mcp/pull/40) (`adr/0030-phase-4-cross-ref-discovery`; squash `270225addd8121c4f27197c6bbceb3957f3f10f4`)`
 - **Verify:** carried from verification — review rounds 2; `dotnet test` 108 passed; plan compliance pass; Docker integration Verdict pass
 - **Git:** https://github.com/Tusquito/codebase-indexer-mcp/pull/40 — status: merged — commit: 270225addd8121c4f27197c6bbceb3957f3f10f4
+- **Changelog:** no — user-facing yes; invoker Changelog: no
+
+#### 2026-07-21 — merge
+- **Phase:** Phase 5 — GraphRAG
+- **Tracker status:** `merged`
+- **Choices:** Squash merge PR #41; ADR Accept skipped (remains Accepted phases 1–4); release skipped
+- **Deviations:** none
+- **Code evidence:** `merged via [PR #41](https://github.com/Tusquito/codebase-indexer-mcp/pull/41) (`adr/0030-phase-5-graphrag`; squash `67771fac53b260965d51893d3d0b97b3202c5d25`)`
+- **Verify:** carried from verification — `dotnet test CodebaseIndexer.slnx` 131 passed; Aspire+graph Docker `run_compose_integration.py --json --aspire-stack --graph` pass; plan compliance pass; R1–R4 closed (review rounds: 3)
+- **Git:** https://github.com/Tusquito/codebase-indexer-mcp/pull/41 — status: merged — commit: 67771fac53b260965d51893d3d0b97b3202c5d25
 - **Changelog:** no — user-facing yes; invoker Changelog: no
 
 #### 2026-07-21 — implementation
