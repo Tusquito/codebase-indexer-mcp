@@ -13,7 +13,7 @@ public sealed class McpHostSmokeTests : IClassFixture<McpHostWebApplicationFacto
     /// <summary>Initializes tests with the shared web application factory.</summary>
     public McpHostSmokeTests(McpHostWebApplicationFactory factory) => _factory = factory;
 
-    /// <summary>Health endpoint returns ok status and dotnet runtime.</summary>
+    /// <summary>Health readiness endpoint returns ok status and dotnet runtime (TEI mocked healthy).</summary>
     [Fact]
     public async Task Health_endpoint_returns_ok()
     {
@@ -24,6 +24,15 @@ public sealed class McpHostSmokeTests : IClassFixture<McpHostWebApplicationFacto
         Assert.NotNull(payload);
         Assert.Equal("ok", payload!.Status);
         Assert.Equal("dotnet", payload.Runtime);
+    }
+
+    /// <summary>Liveness endpoint returns 200 without dependency checks.</summary>
+    [Fact]
+    public async Task Alive_endpoint_returns_ok()
+    {
+        var client = _factory.CreateClient();
+        var response = await client.GetAsync("/alive");
+        response.EnsureSuccessStatusCode();
     }
 
     /// <summary>MCP client lists the get_health tool.</summary>
