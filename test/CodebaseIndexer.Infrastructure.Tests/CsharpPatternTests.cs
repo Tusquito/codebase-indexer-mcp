@@ -42,6 +42,25 @@ public sealed class CsharpPatternTests
         Assert.Equal(TruncationSource.EnvOverride, limit.Source);
     }
 
+    /// <summary>Aspire pairing invariant: env 1024 beats registry 8192 (ADR 0035).</summary>
+    [Fact]
+    public void EmbedTokenLimit_pairing_1024_overrides_registry()
+    {
+        var limit = EmbeddingTruncation.ResolveMaxEmbedTokens(
+            EmbedRole.Dense,
+            "jinaai/jina-embeddings-v2-base-code",
+            envTokens: 1024,
+            modelDir: null,
+            knownRegistry: new Dictionary<string, int>
+            {
+                ["jinaai/jina-embeddings-v2-base-code"] = 8192,
+            },
+            logger: null);
+
+        Assert.Equal(1024, limit.MaxTokens);
+        Assert.Equal(TruncationSource.EnvOverride, limit.Source);
+    }
+
     /// <summary>TruncateBm25Text preserves input shorter than the token limit.</summary>
     [Fact]
     public void TruncatedText_preserves_short_input()
