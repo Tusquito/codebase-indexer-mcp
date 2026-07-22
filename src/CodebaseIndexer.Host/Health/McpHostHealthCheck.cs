@@ -1,4 +1,6 @@
 using CodebaseIndexer.Application.Services;
+using CodebaseIndexer.Domain.Models;
+using CodebaseIndexer.Domain.Serialization;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using AspNetHealthStatus = Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus;
 using HostHealthStatus = CodebaseIndexer.Application.Services.HealthStatus;
@@ -17,9 +19,14 @@ public sealed class McpHostHealthCheck(IHealthService health) : IHealthCheck
         CancellationToken cancellationToken = default)
     {
         var status = await health.GetStatusAsync(cancellationToken).ConfigureAwait(false);
-        return HealthCheckResult.Healthy(
-            status.Status,
-            new Dictionary<string, object> { [nameof(HostHealthStatus.Runtime)] = status.Runtime });
+        var description = DomainEnumWire.ToWire(status.Status);
+        return status.Status == LivenessStatus.Ok
+            ? HealthCheckResult.Healthy(
+                description,
+                new Dictionary<string, object> { [nameof(HostHealthStatus.Runtime)] = status.Runtime })
+            : HealthCheckResult.Unhealthy(
+                description,
+                data: new Dictionary<string, object> { [nameof(HostHealthStatus.Runtime)] = status.Runtime });
     }
 }
 
@@ -44,7 +51,9 @@ public static class HealthCheckJsonResponseWriter
             }
         }
 
-        var status = report.Status == AspNetHealthStatus.Healthy ? "ok" : "unhealthy";
+        var status = report.Status == AspNetHealthStatus.Healthy
+            ? LivenessStatus.Ok
+            : LivenessStatus.Unhealthy;
         return context.Response.WriteAsJsonAsync(new HostHealthStatus(status, runtime));
     }
 }

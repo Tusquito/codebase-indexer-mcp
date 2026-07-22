@@ -3,6 +3,7 @@ using CodebaseIndexer.Application.Search;
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
 using Microsoft.Extensions.Logging;
+using DomainMatchType = CodebaseIndexer.Domain.Models.MatchType;
 
 namespace CodebaseIndexer.Application.Services;
 
@@ -83,7 +84,7 @@ public sealed class CrossReferenceService : ICrossReferenceService
                 cancellationToken: cancellationToken).ConfigureAwait(false);
             foreach (var r in semantic.Results)
             {
-                allResults.Add(ToHit(r, "semantic", _extractors.ClassifyReference(r.Content, lookupLabel, r.RelPath)));
+                allResults.Add(ToHit(r, DomainMatchType.Semantic, _extractors.ClassifyReference(r.Content, lookupLabel, r.RelPath)));
             }
         }
 
@@ -102,7 +103,7 @@ public sealed class CrossReferenceService : ICrossReferenceService
 
                 allResults.Add(new CrossReferenceHitInternal(
                     r.RelPath, r.SymbolName, r.SymbolType, r.StartLine, r.EndLine, r.Language,
-                    r.Content, 1.0, r.Collection, "exact_symbol",
+                    r.Content, 1.0, r.Collection, DomainMatchType.ExactSymbol,
                     _extractors.ClassifyReference(r.Content, symbolName!, r.RelPath)));
             }
 
@@ -125,7 +126,7 @@ public sealed class CrossReferenceService : ICrossReferenceService
                     continue;
                 }
 
-                allResults.Add(ToHit(r, "import_search", _extractors.ClassifyReference(r.Content, symbolName!, r.RelPath)));
+                allResults.Add(ToHit(r, DomainMatchType.ImportSearch, _extractors.ClassifyReference(r.Content, symbolName!, r.RelPath)));
             }
         }
 
@@ -139,15 +140,15 @@ public sealed class CrossReferenceService : ICrossReferenceService
                 var key = r.RelPath + r.StartLine;
                 if (byKey.TryGetValue(key, out var existing))
                 {
-                    existing.MatchType = "call_site";
-                    existing.ReferenceType = "call_site";
+                    existing.MatchType = DomainMatchType.CallSite;
+                    existing.ReferenceType = ReferenceType.CallSite;
                     existing.Score = 1.0;
                 }
                 else
                 {
                     var entry = new CrossReferenceHitInternal(
                         r.RelPath, r.SymbolName, r.SymbolType, r.StartLine, r.EndLine, r.Language,
-                        r.Content, 1.0, r.Collection, "call_site", "call_site");
+                        r.Content, 1.0, r.Collection, DomainMatchType.CallSite, ReferenceType.CallSite);
                     allResults.Add(entry);
                     byKey[key] = entry;
                 }
@@ -215,7 +216,10 @@ public sealed class CrossReferenceService : ICrossReferenceService
         return callerResults;
     }
 
-    private static CrossReferenceHitInternal ToHit(SearchCodebaseHit r, string matchType, string referenceType) =>
+    private static CrossReferenceHitInternal ToHit(
+        SearchCodebaseHit r,
+        DomainMatchType matchType,
+        ReferenceType referenceType) =>
         new(
             r.RelPath, r.SymbolName, r.SymbolType, r.StartLine, r.EndLine, r.Language,
             r.Content, r.Score, r.Collection, matchType, referenceType);
@@ -239,23 +243,23 @@ public sealed class CrossReferenceService : ICrossReferenceService
             {
                 switch (r.ReferenceType)
                 {
-                    case "endpoint_definition":
+                    case ReferenceType.EndpointDefinition:
                         endpoints.Add((coll, r, UrlExtractors.RoutePaths(r.Content, r.RelPath)));
                         break;
-                    case "http_call":
+                    case ReferenceType.HttpCall:
                         callers.Add((coll, r, extractors.CodeUrls(r.Content)));
                         break;
-                    case "service_config":
+                    case ReferenceType.ServiceConfig:
                         callers.Add((coll, r, extractors.ConfigUrls(r.Content).Paths));
                         break;
-                    case "definition":
+                    case ReferenceType.Definition:
                         definitions.Add((coll, r));
                         break;
-                    case "call_site":
+                    case ReferenceType.CallSite:
                         callSites.Add((coll, r));
                         break;
-                    case "usage":
-                    case "import":
+                    case ReferenceType.Usage:
+                    case ReferenceType.Import:
                         usages.Add((coll, r));
                         break;
                 }
@@ -288,7 +292,7 @@ public sealed class CrossReferenceService : ICrossReferenceService
 
                 links.Add(new CrossReferenceLink(
                     "code_dependency",
-                    new CrossReferenceLinkEnd(useColl, useR.RelPath, "call_site"),
+                    new CrossReferenceLinkEnd(useColl, useR.RelPath, ReferenceType.CallSite),
                     new CrossReferenceLinkEnd(defColl, defR.RelPath, null, defSymbol)));
             }
         }
@@ -333,7 +337,7 @@ public sealed class CrossReferenceService : ICrossReferenceService
                 links.Add(new CrossReferenceLink(
                     "http_dependency",
                     new CrossReferenceLinkEnd(callColl, callR.RelPath, callR.ReferenceType),
-                    new CrossReferenceLinkEnd(epColl, epR.RelPath, "endpoint_definition"),
+                    new CrossReferenceLinkEnd(epColl, epR.RelPath, ReferenceType.EndpointDefinition),
                     matched));
             }
         }
@@ -373,7 +377,8 @@ public sealed class CrossReferenceService : ICrossReferenceService
     {
         public CrossReferenceHitInternal(
             string relPath, string? symbolName, SymbolType symbolType, int startLine, int endLine,
-            SourceLanguage language, string content, double score, string collection, string matchType, string referenceType)
+            SourceLanguage language, string content, double score, string collection,
+            DomainMatchType matchType, ReferenceType referenceType)
         {
             RelPath = relPath;
             SymbolName = symbolName;
@@ -397,8 +402,8 @@ public sealed class CrossReferenceService : ICrossReferenceService
         public string Content { get; }
         public double Score { get; set; }
         public string Collection { get; }
-        public string MatchType { get; set; }
-        public string ReferenceType { get; set; }
+        public DomainMatchType MatchType { get; set; }
+        public ReferenceType ReferenceType { get; set; }
 
         public CrossReferenceHit ToPublic() => new(
             RelPath, SymbolName, SymbolType, StartLine, EndLine, Language, Content,

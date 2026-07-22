@@ -32,7 +32,7 @@ public sealed record CrossReferenceEntry(
 /// <summary>Location of a cross-referenced symbol.</summary>
 public sealed record CrossReferenceLocation(
     [property: JsonPropertyName("path")] string Path,
-    [property: JsonPropertyName("reference_type")] string ReferenceType);
+    [property: JsonPropertyName("reference_type")] ReferenceType ReferenceType);
 
 /// <summary>One search_symbols result item (no content).</summary>
 public sealed record SearchSymbolsHit(
