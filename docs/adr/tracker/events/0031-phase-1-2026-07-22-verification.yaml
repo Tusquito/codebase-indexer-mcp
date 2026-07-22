@@ -1,0 +1,40 @@
+adr_id: "0031"
+phase_key: phase-1
+phase_title: >-
+  Phase 1 — dependency-aware readiness + compose/Aspire MCP healthcheck +
+  unit/integration tests (Accept + .NET Host/Aspire re-scope)
+event: verification
+date: "2026-07-22"
+tracker_status: verified
+choices: >-
+  Aspire `/health` readiness + always-on `/alive` (no `/ready`); TEI always
+  ready; ColBERT when remote+rerank; Neo4j when graph; hard-coded ~5s TEI/Neo4j
+  probes; curl in Host Dockerfile for compose healthcheck
+deviations: none
+code_evidence:
+  - src/CodebaseIndexer.Host/Health/TeiHealthCheck.cs
+  - src/CodebaseIndexer.Host/Health/Neo4jHealthCheck.cs
+  - src/CodebaseIndexer.Host/Health/McpHostHealthCheck.cs
+  - src/CodebaseIndexer.Host/HostApplicationBuilderExtensions.cs
+  - src/CodebaseIndexer.Host/EndpointRouteBuilderExtensions.cs
+  - src/CodebaseIndexer.Infrastructure/DependencyInjection.cs
+  - docker-compose.aspire.yml
+  - src/CodebaseIndexer.AppHost/AppHost.cs
+  - scripts/run_compose_integration.py
+  - test/CodebaseIndexer.Host.Tests/HealthEndpointReadinessTests.cs
+  - docs/adr/0031-mcp-liveness-vs-readiness.md
+test_debt:
+  - optional align ColBERT probe timeout to ~5s
+  - optional split HealthCheckJsonResponseWriter to its own file
+verify: >-
+  Review rounds: 1; dotnet test CodebaseIndexer.slnx 180 pass; Docker
+  integration Verdict pass (mcp_alive + TEI-down); plan compliance pass
+changelog:
+  update: true
+  bullet: >-
+    MCP readiness vs liveness ([ADR 0031](docs/adr/0031-mcp-liveness-vs-readiness.md))
+    — `GET /health` fails closed on TEI (and remote ColBERT / Neo4j when
+    enabled); always-on `GET /alive` is process liveness; Compose and AppHost
+    probe `/health`
+  reason: "verified + user-facing yes"
+user_facing: true

@@ -1,0 +1,35 @@
+adr_id: "0031"
+phase_key: phase-1
+phase_title: >-
+  Phase 1 — `/ready` (or Aspire-equivalent readiness) + compose/Aspire MCP
+  healthcheck + unit/integration tests
+event: prioritization
+date: "2026-07-22"
+tracker_status: candidate
+choices: >-
+  Prioritize 0031 P1 over tied 0026 P4 (lower scope/risk; post-cutover ops);
+  over 0032/0033 P1 (Accept needed; Domain hygiene next); over 0027 (Accept
+  repeatedly deferred); over 0023 P3; single phase; **requires formal Accept**
+  before implementation. **Why now:** ADR 0030 Phase 7 merged; P7 deferred
+  Accept of 0031–0033; `HealthService` still always-ok; Aspire `mcp` has no
+  healthcheck; DEPLOYMENT documents soft health — close readiness gap on the
+  new production stack before Domain enum/Result or GPU bake-off. **Suggested
+  scope:** one phase (= one PR). **Chosen scope:** Accept ADR 0031 with .NET
+  Host/Aspire re-scope; implement Phase 1 dependency-aware readiness (TEI
+  required; ColBERT when remote rerank; Neo4j when graph on); separate
+  liveness; wire compose/Aspire MCP probe to readiness; unit + Docker
+  integration; defer Phase 2 preload fail-closed. Human decisions applied
+  2026-07-22: (1) Accept 0031 this cycle with .NET re-scope — yes; (2) Probe
+  URL naming — adopt Aspire `/health`=readiness + always-on `/alive`=liveness
+  and update the ADR; (3) Override to 0026 P4 — no; (4) Accept 0032/0033
+  docs-only this cycle — wait until after 0031 implements.
+deviations: none
+changelog:
+  update: false
+  reason: "user-facing unknown; invoker Changelog: no"
+user_facing: false
+open_decisions:
+  - "RESOLVED — (1) Accept 0031 this cycle with .NET Host/Aspire re-scope — yes"
+  - "RESOLVED — (2) Probe URL naming — adopt Aspire `/health`=readiness + always-on `/alive`=liveness; update ADR accordingly"
+  - "RESOLVED — (3) Override to 0026 P4 — no"
+  - "RESOLVED — (4) Accept 0032/0033 docs-only this cycle — wait until after 0031 implements"
