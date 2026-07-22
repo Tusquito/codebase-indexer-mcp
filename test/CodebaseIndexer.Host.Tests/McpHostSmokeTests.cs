@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using CodebaseIndexer.Domain.Models;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 
@@ -22,7 +23,7 @@ public sealed class McpHostSmokeTests : IClassFixture<McpHostWebApplicationFacto
         response.EnsureSuccessStatusCode();
         var payload = await response.Content.ReadFromJsonAsync<HealthPayload>();
         Assert.NotNull(payload);
-        Assert.Equal("ok", payload!.Status);
+        Assert.Equal(LivenessStatus.Ok, payload!.Status);
         Assert.Equal("dotnet", payload.Runtime);
     }
 
@@ -202,5 +203,5 @@ public sealed class McpHostSmokeTests : IClassFixture<McpHostWebApplicationFacto
         return await McpClient.CreateAsync(transport);
     }
 
-    private sealed record HealthPayload(string Status, string Runtime);
+    private sealed record HealthPayload(LivenessStatus Status, string Runtime);
 }

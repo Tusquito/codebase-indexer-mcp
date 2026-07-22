@@ -5,7 +5,7 @@ using DomainMatchType = CodebaseIndexer.Domain.Models.MatchType;
 
 namespace CodebaseIndexer.Domain.Tests;
 
-/// <summary>Wire-string and JSON round-trip coverage for Phase 1 domain enums.</summary>
+/// <summary>Wire-string and JSON round-trip coverage for domain closed-set enums.</summary>
 public sealed class DomainEnumWireTests
 {
     private static readonly JsonSerializerOptions JsonOptions = new();
@@ -88,24 +88,51 @@ public sealed class DomainEnumWireTests
         Assert.Equal(value, JsonSerializer.Deserialize<NamedVector>($"\"{wire}\"", JsonOptions));
     }
 
-    /// <summary>Phase 3 reserved match/reference wire names are declared on sibling enums.</summary>
+    /// <summary>Every <see cref="DomainMatchType"/> member maps to its canonical wire form.</summary>
     [Theory]
-    [InlineData(DomainMatchType.CallSite, "call_site")]
+    [InlineData(DomainMatchType.Semantic, "semantic")]
     [InlineData(DomainMatchType.ExactSymbol, "exact_symbol")]
     [InlineData(DomainMatchType.ImportSearch, "import_search")]
-    [InlineData(DomainMatchType.Semantic, "semantic")]
-    [InlineData(ReferenceType.CallSite, "call_site")]
+    [InlineData(DomainMatchType.CallSite, "call_site")]
+    public void MatchType_round_trips_wire(DomainMatchType value, string wire)
+    {
+        Assert.Equal(wire, DomainEnumWire.ToWire(value));
+        Assert.True(DomainEnumWire.TryParse(wire, out DomainMatchType parsed));
+        Assert.Equal(value, parsed);
+        Assert.Equal(wire, JsonSerializer.Serialize(value, JsonOptions).Trim('"'));
+        Assert.Equal(value, JsonSerializer.Deserialize<DomainMatchType>($"\"{wire}\"", JsonOptions));
+    }
+
+    /// <summary>Every <see cref="ReferenceType"/> member maps to its canonical wire form.</summary>
+    [Theory]
+    [InlineData(ReferenceType.Definition, "definition")]
+    [InlineData(ReferenceType.Import, "import")]
+    [InlineData(ReferenceType.Usage, "usage")]
     [InlineData(ReferenceType.EndpointDefinition, "endpoint_definition")]
     [InlineData(ReferenceType.HttpCall, "http_call")]
-    public void Phase3_enums_reserve_snake_case_wires(Enum value, string wire)
+    [InlineData(ReferenceType.CallSite, "call_site")]
+    [InlineData(ReferenceType.ServiceConfig, "service_config")]
+    [InlineData(ReferenceType.BuildDependency, "build_dependency")]
+    public void ReferenceType_round_trips_wire(ReferenceType value, string wire)
     {
-        var actual = value switch
-        {
-            DomainMatchType mt => DomainEnumWire.ToWire(mt),
-            ReferenceType rt => DomainEnumWire.ToWire(rt),
-            _ => throw new InvalidOperationException(),
-        };
-        Assert.Equal(wire, actual);
+        Assert.Equal(wire, DomainEnumWire.ToWire(value));
+        Assert.True(DomainEnumWire.TryParse(wire, out ReferenceType parsed));
+        Assert.Equal(value, parsed);
+        Assert.Equal(wire, JsonSerializer.Serialize(value, JsonOptions).Trim('"'));
+        Assert.Equal(value, JsonSerializer.Deserialize<ReferenceType>($"\"{wire}\"", JsonOptions));
+    }
+
+    /// <summary>Every <see cref="LivenessStatus"/> member maps to its canonical wire form.</summary>
+    [Theory]
+    [InlineData(LivenessStatus.Ok, "ok")]
+    [InlineData(LivenessStatus.Unhealthy, "unhealthy")]
+    public void LivenessStatus_round_trips_wire(LivenessStatus value, string wire)
+    {
+        Assert.Equal(wire, DomainEnumWire.ToWire(value));
+        Assert.True(DomainEnumWire.TryParse(wire, out LivenessStatus parsed));
+        Assert.Equal(value, parsed);
+        Assert.Equal(wire, JsonSerializer.Serialize(value, JsonOptions).Trim('"'));
+        Assert.Equal(value, JsonSerializer.Deserialize<LivenessStatus>($"\"{wire}\"", JsonOptions));
     }
 
     /// <summary>Unknown symbol wires fall back to <see cref="SymbolType.Other"/>.</summary>
@@ -172,6 +199,35 @@ public sealed class DomainEnumWireTests
             var wire = DomainEnumWire.ToWire(value);
             Assert.False(string.IsNullOrWhiteSpace(wire));
             Assert.True(DomainEnumWire.TryParse(wire, out NamedVector parsed));
+            Assert.Equal(value, parsed);
+        }
+    }
+
+    /// <summary>DomainEnumWire covers every MatchType, ReferenceType, and LivenessStatus member.</summary>
+    [Fact]
+    public void DomainEnumWire_covers_all_phase3_members()
+    {
+        foreach (DomainMatchType value in Enum.GetValues<DomainMatchType>())
+        {
+            var wire = DomainEnumWire.ToWire(value);
+            Assert.False(string.IsNullOrWhiteSpace(wire));
+            Assert.True(DomainEnumWire.TryParse(wire, out DomainMatchType parsed));
+            Assert.Equal(value, parsed);
+        }
+
+        foreach (ReferenceType value in Enum.GetValues<ReferenceType>())
+        {
+            var wire = DomainEnumWire.ToWire(value);
+            Assert.False(string.IsNullOrWhiteSpace(wire));
+            Assert.True(DomainEnumWire.TryParse(wire, out ReferenceType parsed));
+            Assert.Equal(value, parsed);
+        }
+
+        foreach (LivenessStatus value in Enum.GetValues<LivenessStatus>())
+        {
+            var wire = DomainEnumWire.ToWire(value);
+            Assert.False(string.IsNullOrWhiteSpace(wire));
+            Assert.True(DomainEnumWire.TryParse(wire, out LivenessStatus parsed));
             Assert.Equal(value, parsed);
         }
     }
