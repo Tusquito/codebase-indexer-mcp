@@ -48,8 +48,8 @@ public sealed class RecommendServiceTests
             RecommendHits =
             [
                 new SearchHit(
-                    new ChunkId("src/h.py:1"), 0.9, "src/h.py", "python", 1, 10,
-                    "handler", "function", "def handler(): ...", "proj"),
+                    new ChunkId("src/h.py:1"), 0.9, "src/h.py", SourceLanguage.Python, 1, 10,
+                    "handler", SymbolType.Function, "def handler(): ...", "proj"),
             ],
         };
         var dense = new FakeDense();
@@ -138,7 +138,7 @@ public sealed class RecommendServiceTests
             IReadOnlyList<RecommendExample> positive,
             IReadOnlyList<RecommendExample>? negative = null,
             int limit = 5,
-            string? language = null,
+            SourceLanguage? language = null,
             string? pathGlob = null,
             CancellationToken cancellationToken = default)
         {

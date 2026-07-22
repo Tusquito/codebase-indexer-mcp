@@ -27,8 +27,8 @@ public sealed class ChunkerGoldenTests
             Microsoft.Extensions.Options.Options.Create(TestSettingsFactory.CreateChunkingOptions()),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<TreeSitterChunker>.Instance);
 
-        var first = chunker.ChunkFile("sample.py", PySample, "python", "deadbeef");
-        var second = chunker.ChunkFile("sample.py", PySample, "python", "deadbeef");
+        var first = chunker.ChunkFile("sample.py", PySample, SourceLanguage.Python, "deadbeef");
+        var second = chunker.ChunkFile("sample.py", PySample, SourceLanguage.Python, "deadbeef");
 
         Assert.Equal(
             first.Select(c => c.Id.Value).ToArray(),
@@ -44,7 +44,7 @@ public sealed class ChunkerGoldenTests
             Microsoft.Extensions.Options.Options.Create(TestSettingsFactory.CreateChunkingOptions()),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<TreeSitterChunker>.Instance);
 
-        var chunks = chunker.ChunkFile("sample.py", PySample, "python", "deadbeef");
+        var chunks = chunker.ChunkFile("sample.py", PySample, SourceLanguage.Python, "deadbeef");
         Assert.NotEmpty(chunks);
         foreach (var chunk in chunks)
         {
@@ -71,7 +71,8 @@ public sealed class ChunkerGoldenTests
         foreach (var sample in samples.EnumerateArray())
         {
             var relPath = sample.GetProperty("rel_path").GetString()!;
-            var language = sample.GetProperty("language").GetString()!;
+            var languageWire = sample.GetProperty("language").GetString()!;
+            Assert.True(CodebaseIndexer.Domain.Serialization.DomainEnumWire.TryParse(languageWire, out SourceLanguage language));
             var fileSha256 = sample.GetProperty("file_sha256").GetString()!;
             var content = sample.GetProperty("content").GetString()!;
             var expected = sample.GetProperty("expected_chunk_ids")
@@ -108,7 +109,7 @@ public sealed class ChunkerGoldenTests
         var chunker = new TreeSitterChunker(
             Microsoft.Extensions.Options.Options.Create(TestSettingsFactory.CreateChunkingOptions()),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<TreeSitterChunker>.Instance);
-        var chunks = chunker.ChunkFile("proc.sql", sql, "sql", "abc");
+        var chunks = chunker.ChunkFile("proc.sql", sql, SourceLanguage.Sql, "abc");
         Assert.Contains(chunks, c => c.SymbolName == "dbo.MyProc");
     }
 
@@ -129,7 +130,7 @@ public sealed class ChunkerGoldenTests
         var chunker = new TreeSitterChunker(
             Microsoft.Extensions.Options.Options.Create(TestSettingsFactory.CreateChunkingOptions()),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<TreeSitterChunker>.Instance);
-        var chunks = chunker.ChunkFile("Widget.cs", csharp, "csharp", "abc");
-        Assert.Contains(chunks, c => c.SymbolName == "Widget" && c.SymbolType == "class");
+        var chunks = chunker.ChunkFile("Widget.cs", csharp, SourceLanguage.CSharp, "abc");
+        Assert.Contains(chunks, c => c.SymbolName == "Widget" && c.SymbolType == SymbolType.Class);
     }
 }

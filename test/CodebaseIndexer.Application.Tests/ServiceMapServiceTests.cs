@@ -30,16 +30,16 @@ public sealed class ServiceMapServiceTests
                 ["svc-a"] =
                 [
                     new SearchHit(
-                        new ChunkId("c1"), 0.9, "Clients/ApiClient.cs", "csharp", 1, 20,
-                        "Call", "method",
+                        new ChunkId("c1"), 0.9, "Clients/ApiClient.cs", SourceLanguage.CSharp, 1, 20,
+                        "Call", SymbolType.Method,
                         "await client.GetAsync(\"/api/users/list\");",
                         "svc-a"),
                 ],
                 ["svc-b"] =
                 [
                     new SearchHit(
-                        new ChunkId("c2"), 0.9, "Controllers/UsersController.cs", "csharp", 1, 30,
-                        "Get", "method",
+                        new ChunkId("c2"), 0.9, "Controllers/UsersController.cs", SourceLanguage.CSharp, 1, 30,
+                        "Get", SymbolType.Method,
                         "[HttpGet(\"api/users/list\")]\npublic IActionResult Get() => Ok();",
                         "svc-b"),
                 ],
@@ -124,7 +124,7 @@ public sealed class ServiceMapServiceTests
             IReadOnlyList<float> denseVector,
             SparseVector? sparseVector,
             int topK,
-            string? language = null,
+            SourceLanguage? language = null,
             float minScore = 0.5f,
             IReadOnlyList<IReadOnlyList<float>>? colbertVector = null,
             CancellationToken cancellationToken = default) =>

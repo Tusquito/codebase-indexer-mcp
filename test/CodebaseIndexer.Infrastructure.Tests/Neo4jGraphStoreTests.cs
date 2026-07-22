@@ -85,7 +85,7 @@ public sealed class Neo4jGraphStoreTests
         var driver = new FakeDriver();
         var store = CreateStore(driver, enabled: true);
         var batch = new GraphBatch("demo");
-        batch.Files.Add(new GraphFileRow("a.py", "python", "sha"));
+        batch.Files.Add(new GraphFileRow("a.py", SourceLanguage.Python, "sha"));
         batch.Chunks.Add(new GraphChunkRow("c1", "a.py", 1, 2));
 
         await store.WriteBatchAsync(batch);

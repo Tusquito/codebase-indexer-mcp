@@ -203,7 +203,7 @@ public sealed class IndexCodebaseServiceTests
     }
 
     private static FileRecord SampleFile(string sha = "sha") =>
-        new("/tmp/workspace/a.py", "a.py", "python", "def hello(): pass", sha);
+        new("/tmp/workspace/a.py", "a.py", SourceLanguage.Python, "def hello(): pass", sha);
 
     private static Chunk SampleChunk(IReadOnlyList<string>? callees = null) =>
         new(
@@ -213,9 +213,9 @@ public sealed class IndexCodebaseServiceTests
             1,
             1,
             "hello",
-            "python",
+            SourceLanguage.Python,
             "sha",
-            "function")
+            SymbolType.Function)
         {
             Callees = callees ?? [],
         };
@@ -228,9 +228,9 @@ public sealed class IndexCodebaseServiceTests
             1,
             1,
             "hello",
-            "python",
+            SourceLanguage.Python,
             "sha",
-            "function")
+            SymbolType.Function)
         {
             Callees = null!,
         };
@@ -259,7 +259,7 @@ public sealed class IndexCodebaseServiceTests
 
     private sealed class StubChunker(IReadOnlyDictionary<string, IReadOnlyList<Chunk>> chunksByPath) : ICodeChunker
     {
-        public IReadOnlyList<Chunk> ChunkFile(string relPath, string content, string language, string fileSha256)
+        public IReadOnlyList<Chunk> ChunkFile(string relPath, string content, SourceLanguage language, string fileSha256)
         {
             _ = content;
             _ = language;

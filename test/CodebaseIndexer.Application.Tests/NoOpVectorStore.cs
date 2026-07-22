@@ -55,7 +55,7 @@ internal class NoOpVectorStore : IVectorStore
         IReadOnlyList<float> denseVector,
         SparseVector? sparseVector,
         int topK,
-        string? language = null,
+        SourceLanguage? language = null,
         float minScore = 0.5f,
         IReadOnlyList<IReadOnlyList<float>>? colbertVector = null,
         CancellationToken cancellationToken = default) =>
@@ -144,7 +144,7 @@ internal class NoOpVectorStore : IVectorStore
         IReadOnlyList<RecommendExample> positive,
         IReadOnlyList<RecommendExample>? negative = null,
         int limit = 5,
-        string? language = null,
+        SourceLanguage? language = null,
         string? pathGlob = null,
         CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<SearchHit>>([]);
@@ -154,7 +154,7 @@ internal class NoOpVectorStore : IVectorStore
         string collection,
         IReadOnlyList<string>? contextChunkIds = null,
         int limit = 5,
-        string? language = null,
+        SourceLanguage? language = null,
         string? pathGlob = null,
         float? maxSimilarity = null,
         int? maxContextSamples = null,
