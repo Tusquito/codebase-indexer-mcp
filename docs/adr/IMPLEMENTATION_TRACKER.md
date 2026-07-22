@@ -90,6 +90,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0030 | Phase 7 — Cutover + delete Python | Accepted (phases 1–7 merged) | phase-7 | `merged` | Aspire/.NET sole production path; Python eval retained under `benchmarks/`; train MCP-HTTP port deferred; Accept 0031/0032/0033 not in this phase | 2026-07-22 |
 | 0031 | Phase 1 — dependency-aware readiness + compose/Aspire MCP healthcheck + unit/integration tests (Accept + .NET Host/Aspire re-scope) | Merged — PR #44 (`73af6dd`); Accept skipped (already Accepted; phase 1 shipped; phase 2 open); release skipped | phase-1 | `merged` | Aspire `/health` readiness + always-on `/alive` (no `/ready`); TEI always ready; ColBERT when remote+rerank; Neo4j when graph; hard-coded ~5s TEI/Neo4j probes; curl in Host Dockerfile for compose healthcheck | 2026-07-22 |
 | 0032 | Phase 1 — Domain enums + model/port signatures | Merged — PR #45 (`bc5506a`); Accept skipped (already Accepted in PR); release skipped | phase-1 | `merged` | Phase 1 only; wire strings unchanged via `DomainEnumWire` + `JsonStringEnumMemberName`; sibling enums declare-only; NamedVector/Qdrant named-vector literals and MatchType/ReferenceType/LivenessStatus wiring deferred to Phases 2–3; no `*_SCHEMA_VERSION`; Changelog deferred per plan | 2026-07-22 |
+| 0032 | Phase 2 — Indexing + Qdrant | Verified — 0032 P2 NamedVector via DomainEnumWire; ImportHeaderProcessor SourceLanguage typing; Docker + unit tests pass; CHANGELOG re-index note present; 0033/0034 docs-only Accept post-merge follow-up | phase-2 | `verified` | Centralize Qdrant named-vector names via static DenseWire/SparseWire/ColbertWire from DomainEnumWire; expose GetNamedVectorWireMap for tests; ImportHeaderProcessor takes SourceLanguage (registry id via ToWire). NamedVector ↔ Qdrant `"dense"`/`"sparse"`/`"colbert"` via DomainEnumWire in QdrantVectorStore create/query/upsert/recommend (+ schema/retrieve/scroll); chunker/classifier → payload enum round-trip; unit tests; Docker compose integration; CHANGELOG full re-index after pull (no schema-version env); defer Phase 3 search/xref/health; do not implement 0033/0034 in this PR. | 2026-07-22 |
 <!-- END GENERATED:summary -->
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
@@ -97,7 +98,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 ## Active and upcoming work
 
 <!-- BEGIN GENERATED:active -->
-_No active or upcoming phases._
+- **0032** Phase 2 — Indexing + Qdrant — `verified`
 <!-- END GENERATED:active -->
 
 ### Partial acceptance
@@ -2207,10 +2208,27 @@ _No active or upcoming phases._
 - **Verify:** Review rounds: 1; `dotnet test CodebaseIndexer.slnx` pass (233); Docker integration Verdict pass (quality skip); plan compliance pass
 - **Changelog:** no — Changelog: no per plan (user-facing yes but changelog deferred)
 
+#### 2026-07-22 — verification
+- **Phase:** Phase 2 — Indexing + Qdrant
+- **Tracker status:** `verified`
+- **Choices:** Centralize Qdrant named-vector names via static DenseWire/SparseWire/ColbertWire from DomainEnumWire; expose GetNamedVectorWireMap for tests; ImportHeaderProcessor takes SourceLanguage (registry id via ToWire)
+- **Deviations:** none
+- **Code evidence:** `src/CodebaseIndexer.Infrastructure/Qdrant/QdrantVectorStore.cs`, `src/CodebaseIndexer.Infrastructure/Indexing/ImportHeaderProcessor.cs`, `src/CodebaseIndexer.Infrastructure/Indexing/TreeSitterChunker.cs`, `src/CodebaseIndexer.Domain/Serialization/DomainEnumWire.cs`, `test/CodebaseIndexer.Infrastructure.Tests/QdrantNamedVectorWireTests.cs`, `CHANGELOG.md`
+- **Test debt:** optional Method-chunk golden assert if/when chunker emits nested methods as separate chunks
+- **Verify:** review rounds: 1; `dotnet test CodebaseIndexer.slnx` pass (242); Docker integration pass; plan path/task table pass
+- **Changelog:** yes — **Domain NamedVector wire centralization** ([ADR 0032](docs/adr/0032-replace-magic-strings-with-enums.md) Phase 2) — Qdrant named-vector create/query/upsert paths use DomainEnumWire.ToWire(NamedVector.*); operators must full re-index after pull (`index_all(force=true)`); no schema-version env
+
 #### 2026-07-22 — prioritization
 - **Phase:** Phase 1 — Domain enums + model/port signatures
 - **Tracker status:** `candidate`
 - **Choices:** Prefer 0032 P1 over tied 0033 P1 (Domain string debt + post-0031 Accept queue); over 0026 P4 (GPU + missing `bakeoff.py`); over 0031 P2 preload fail-closed; over 0023 P3 / 0027; single phase; **requires formal Accept** before implementation. **Why now:** Post–0030 P7 and 0031 P1, open-decisions unlock Accept of Domain hygiene; closed vocabularies remain plain strings across Domain/MCP/Qdrant layers with no enum types yet; Phase 1 is Accept + Domain/port typing without re-index. **Suggested scope:** one phase (= one PR). **Chosen scope:** Accept ADR 0032; introduce Domain enums (`SymbolType`, `SourceLanguage`, and siblings per ADR); change Domain models and Application ports/DTOs to enums; centralize MCP JSON wire mapping; update constructing unit tests; defer chunker/Qdrant/re-index (Phase 2) and ReferenceClassifier/match/health (Phase 3); Docker integration required; quality validation skip (no ranking-path change).
+- **Deviations:** none
+- **Changelog:** no — user-facing unknown; invoker Changelog: no
+
+#### 2026-07-22 — prioritization
+- **Phase:** Phase 2 — Indexing + Qdrant
+- **Tracker status:** `candidate`
+- **Choices:** Selected over 0026 P4 (tie on score; lower scope/risk / no GPU session); over 0033 P1 (still Proposed; prior open decisions deferred behind 0032); over 0031 P2 / 0034 P1 / 0027; single phase per pipeline rule; no new ADR Accept required (0032 already Accepted). Human decisions applied: (1) no override to 0026 P4 — proceed 0032 P2; (2) accept 0033 and/or 0034 docs-only this cycle; (3) yes — CHANGELOG full re-index operator note for 0032 P2. **Why now:** 0030 P7 and 0032 P1 merged; active work empty; Qdrant still hard-codes named-vector string literals while Domain enums exist — finish Accepted Phase 2 before Proposed Result/TUnit or GPU bake-off. **Suggested scope:** one phase (= one PR). **Chosen scope:** Centralize `NamedVector` ↔ Qdrant `"dense"`/`"sparse"`/`"colbert"` via `DomainEnumWire` (or single helper) in `QdrantVectorStore` create/query/upsert/recommend paths; confirm chunker/classifier → payload enum round-trip; unit tests; Docker `scripts/run_compose_integration.py`; document re-index after pull (no schema-version env); defer Phase 3 search/xref/health enum surfaces.
 - **Deviations:** none
 - **Changelog:** no — user-facing unknown; invoker Changelog: no
 
@@ -2220,6 +2238,13 @@ _No active or upcoming phases._
 - **Choices:** Formal Accept in-PR (ADR + README); wire-identical `symbol_type`/`language` via `DomainEnumWire` + `[JsonStringEnumMemberName]` (no Phase 1 re-index); declare `NamedVector`/`ReferenceType`/`MatchType`/`LivenessStatus` but wire only symbol/language; compile-fix chunker/Qdrant casts allowed without NamedVector refactor; Quality skip / Perf skip; Docker required; defer Accept 0033; do not Prefer 0033 P1; do not override to 0026 P4. Assumptions: ADR 0030 .NET stack is production SoT; current LanguageRegistry ids define `SourceLanguage`; empty summary language → `Unknown`/`"unknown"`; pre-release allows breaking type APIs without dual stacks; compose integration script remains gate.
 - **Deviations:** none
 - **Changelog:** no — invoker Changelog: no; status planned
+
+#### 2026-07-22 — plan
+- **Phase:** Phase 2 — Indexing + Qdrant
+- **Tracker status:** `planned`
+- **Choices:** Proceed 0032 P2 only (not 0026 P4); Quality skip / Perf skip; Docker required; Accept after merge no (already Accepted); NamedVector via `DomainEnumWire` (optional private aliases still sourced from helper); ImportHeaderProcessor deeper typing in-scope from P1 debt; 0033/0034 docs-only Accept is finisher/post-merge follow-up only. Assumptions: P1 left payload symbol/language enum round-trip in place; NamedVector maps exist unused; wire strings stay identical; Aspire compose remains integration SoT; pre-release allows breaking default without dual stacks.
+- **Deviations:** none
+- **Changelog:** no — Operators: after pull, full re-index with index_all(force=true) — no schema-version env vars (ADR 0032 Phase 2).
 
 #### 2026-07-22 — merge
 - **Phase:** Phase 1 — Domain enums + model/port signatures
@@ -2238,6 +2263,15 @@ _No active or upcoming phases._
 - **Deviations:** none
 - **Code evidence:** `src/CodebaseIndexer.Domain/Models/SymbolType.cs`, `src/CodebaseIndexer.Domain/Models/SourceLanguage.cs`, `src/CodebaseIndexer.Domain/Models/NamedVector.cs`, `src/CodebaseIndexer.Domain/Models/ReferenceType.cs`, `src/CodebaseIndexer.Domain/Models/MatchType.cs`, `src/CodebaseIndexer.Domain/Serialization/DomainEnumWire.cs`, `src/CodebaseIndexer.Application/Services/LivenessStatus.cs`, `Domain models/ports`, `Application DTOs/services`, `Host tools`, `Infrastructure chunker/registry/Qdrant/Neo4j`, `test/CodebaseIndexer.Domain.Tests/DomainEnumWireTests.cs`, `docs/adr/0032-replace-magic-strings-with-enums.md`, `docs/adr/README.md`
 - **Test debt:** Phase 2 NamedVector + re-index ops note; Phase 3 classifier/match/health wiring tests; compose integration (pipeline)
+- **Changelog:** no — invoker Changelog: no; status implemented (changelog at verified if user-facing)
+
+#### 2026-07-22 — implementation
+- **Phase:** Phase 2 — Indexing + Qdrant
+- **Tracker status:** `implemented`
+- **Choices:** NamedVector wires via static `DenseWire`/`SparseWire`/`ColbertWire` locals from `DomainEnumWire`; `ImportHeaderProcessor` accepts `SourceLanguage` + `LanguageRegistry.ToRegistryId`
+- **Deviations:** chunker Method separate-chunk assert omitted (extractor folds nested methods into parent class chunk)
+- **Code evidence:** `src/CodebaseIndexer.Infrastructure/Qdrant/QdrantVectorStore.cs`, `src/CodebaseIndexer.Infrastructure/Indexing/ImportHeaderProcessor.cs`, `src/CodebaseIndexer.Infrastructure/Indexing/TreeSitterChunker.cs`, `src/CodebaseIndexer.Domain/Serialization/DomainEnumWire.cs`, `test/CodebaseIndexer.Domain.Tests/DomainEnumWireTests.cs`, `test/CodebaseIndexer.Infrastructure.Tests/QdrantNamedVectorWireTests.cs`, `test/CodebaseIndexer.Infrastructure.Tests/ChunkerGoldenTests.cs`, `CHANGELOG.md`, `docs/DEPLOYMENT.md`
+- **Test debt:** compose live named-vector schema check; optional oversized-class Method extract; ImportHeaderProcessor direct units
 - **Changelog:** no — invoker Changelog: no; status implemented (changelog at verified if user-facing)
 <!-- END GENERATED:phase-logs -->
 

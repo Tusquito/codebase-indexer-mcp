@@ -1,0 +1,31 @@
+adr_id: "0032"
+phase_key: phase-2
+phase_title: Phase 2 — Indexing + Qdrant
+event: implementation
+date: "2026-07-22"
+tracker_status: implemented
+choices: >-
+  NamedVector wires via static `DenseWire`/`SparseWire`/`ColbertWire`
+  locals from `DomainEnumWire`; `ImportHeaderProcessor` accepts
+  `SourceLanguage` + `LanguageRegistry.ToRegistryId`
+deviations: >-
+  chunker Method separate-chunk assert omitted (extractor folds nested
+  methods into parent class chunk)
+code_evidence:
+  - src/CodebaseIndexer.Infrastructure/Qdrant/QdrantVectorStore.cs
+  - src/CodebaseIndexer.Infrastructure/Indexing/ImportHeaderProcessor.cs
+  - src/CodebaseIndexer.Infrastructure/Indexing/TreeSitterChunker.cs
+  - src/CodebaseIndexer.Domain/Serialization/DomainEnumWire.cs
+  - test/CodebaseIndexer.Domain.Tests/DomainEnumWireTests.cs
+  - test/CodebaseIndexer.Infrastructure.Tests/QdrantNamedVectorWireTests.cs
+  - test/CodebaseIndexer.Infrastructure.Tests/ChunkerGoldenTests.cs
+  - CHANGELOG.md
+  - docs/DEPLOYMENT.md
+test_debt:
+  - compose live named-vector schema check
+  - optional oversized-class Method extract
+  - ImportHeaderProcessor direct units
+changelog:
+  update: false
+  reason: "invoker Changelog: no; status implemented (changelog at verified if user-facing)"
+user_facing: true

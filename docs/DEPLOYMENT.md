@@ -6,7 +6,7 @@ Docker Compose runs the **Aspire/.NET** stack: Qdrant, TEI, ColBERT worker, and 
 
 | File | Purpose |
 |------|---------|
-| `docker-compose.aspire.yml` | **Production default** — .NET MCP + Qdrant + TEI + ColBERT. Canonical `-f` list: `python scripts/aspire_compose.py`. **Re-index after pull** (`index_all(force=true)`) when index shape / ColBERT / graph flags change (no schema-version env) |
+| `docker-compose.aspire.yml` | **Production default** — .NET MCP + Qdrant + TEI + ColBERT. Canonical `-f` list: `python scripts/aspire_compose.py`. **Re-index after pull** (`index_all(force=true)`) when index shape / named-vector / ColBERT / graph flags change (no schema-version env) |
 | `docker-compose.aspire.colbert.gpu.yml` | GPU overlay for Aspire ColBERT (`ACCELERATOR=gpu`) |
 | `docker-compose.aspire.neo4j.yml` | Optional Neo4j GraphRAG overlay (`Graph__*` on `mcp`) |
 

@@ -1,0 +1,19 @@
+adr_id: "0032"
+phase_key: phase-2
+title: Phase 2 — Indexing + Qdrant
+tracker_status: verified
+chosen_scope: >-
+  Centralize Qdrant named-vector names via static DenseWire/SparseWire/ColbertWire
+  from DomainEnumWire; expose GetNamedVectorWireMap for tests; ImportHeaderProcessor
+  takes SourceLanguage (registry id via ToWire). NamedVector ↔ Qdrant
+  `"dense"`/`"sparse"`/`"colbert"` via DomainEnumWire in QdrantVectorStore
+  create/query/upsert/recommend (+ schema/retrieve/scroll); chunker/classifier
+  → payload enum round-trip; unit tests; Docker compose integration; CHANGELOG
+  full re-index after pull (no schema-version env); defer Phase 3
+  search/xref/health; do not implement 0033/0034 in this PR.
+last_updated: "2026-07-22"
+adr_status_note: >-
+  Verified — 0032 P2 NamedVector via DomainEnumWire;
+  ImportHeaderProcessor SourceLanguage typing; Docker + unit tests pass;
+  CHANGELOG re-index note present; 0033/0034 docs-only Accept post-merge
+  follow-up
