@@ -26,6 +26,10 @@ public sealed class QdrantVectorStore : IVectorStore
     private const string GraphCallSitesMetadataKey = "graph_call_sites";
     private const string GraphEnabledMetadataKey = "graph_enabled";
 
+    private static readonly string DenseWire = DomainEnumWire.ToWire(NamedVector.Dense);
+    private static readonly string SparseWire = DomainEnumWire.ToWire(NamedVector.Sparse);
+    private static readonly string ColbertWire = DomainEnumWire.ToWire(NamedVector.Colbert);
+
     private static readonly string[] IndexedPayloadFields =
         ["rel_path", "chunk_id", "symbol_name", "language", "callees"];
 
@@ -102,7 +106,7 @@ public sealed class QdrantVectorStore : IVectorStore
         {
             Map =
             {
-                ["dense"] = new VectorParams
+                [DenseWire] = new VectorParams
                 {
                     Size = (ulong)_embedding.DenseVectorSize,
                     Distance = Distance.Cosine,
@@ -118,7 +122,7 @@ public sealed class QdrantVectorStore : IVectorStore
             {
                 Map =
                 {
-                    ["sparse"] = new SparseVectorParams
+                    [SparseWire] = new SparseVectorParams
                     {
                         Index = new SparseIndexConfig { OnDisk = _qdrant.SparseOnDisk },
                     },
@@ -128,7 +132,7 @@ public sealed class QdrantVectorStore : IVectorStore
 
         if (_embedding.RerankEnabled)
         {
-            vectorsConfig.Map["colbert"] = new VectorParams
+            vectorsConfig.Map[ColbertWire] = new VectorParams
             {
                 Size = (ulong)ColbertTokenSize,
                 Distance = Distance.Cosine,
@@ -329,13 +333,13 @@ public sealed class QdrantVectorStore : IVectorStore
             points = await _client.Value.QueryAsync(
                 collection,
                 query: colbertQuery,
-                usingVector: "colbert",
+                usingVector: ColbertWire,
                 prefetch:
                 [
                     new PrefetchQuery
                     {
                         Query = denseArray,
-                        Using = "dense",
+                        Using = DenseWire,
                         Limit = prefetchLimit,
                         Params = denseParams,
                         Filter = queryFilter,
@@ -343,7 +347,7 @@ public sealed class QdrantVectorStore : IVectorStore
                     new PrefetchQuery
                     {
                         Query = (sparseValues, sparseIndices),
-                        Using = "sparse",
+                        Using = SparseWire,
                         Limit = prefetchLimit,
                         Filter = queryFilter,
                     },
@@ -371,7 +375,7 @@ public sealed class QdrantVectorStore : IVectorStore
             points = await _client.Value.QueryAsync(
                 collection,
                 query: denseArray,
-                usingVector: "dense",
+                usingVector: DenseWire,
                 filter: queryFilter,
                 searchParams: denseParams,
                 limit: (ulong)topK,
@@ -403,7 +407,7 @@ public sealed class QdrantVectorStore : IVectorStore
                 new PrefetchQuery
                 {
                     Query = denseArray,
-                    Using = "dense",
+                    Using = DenseWire,
                     Limit = prefetchLimit,
                     Params = denseParams,
                     Filter = queryFilter,
@@ -411,7 +415,7 @@ public sealed class QdrantVectorStore : IVectorStore
                 new PrefetchQuery
                 {
                     Query = (sparseValues, sparseIndices),
-                    Using = "sparse",
+                    Using = SparseWire,
                     Limit = prefetchLimit,
                     Filter = queryFilter,
                 },
@@ -925,7 +929,7 @@ public sealed class QdrantVectorStore : IVectorStore
         var points = await _client.Value.QueryAsync(
             collection,
             query: input,
-            usingVector: "dense",
+            usingVector: DenseWire,
             filter: BuildLanguageFilter(language),
             searchParams: BuildDenseSearchParams(),
             limit: (ulong)fetchLimit,
@@ -984,12 +988,12 @@ public sealed class QdrantVectorStore : IVectorStore
         var points = await _client.Value.QueryAsync(
             collection,
             query: input,
-            usingVector: "dense",
+            usingVector: DenseWire,
             filter: BuildLanguageFilter(language),
             searchParams: BuildDenseSearchParams(),
             limit: (ulong)fetchLimit,
             payloadSelector: new WithPayloadSelector { Enable = true },
-            vectorsSelector: (WithVectorsSelector)new[] { "dense" },
+            vectorsSelector: (WithVectorsSelector)new[] { DenseWire },
             cancellationToken: cancellationToken).ConfigureAwait(false);
 
         var candidates = new List<SearchHit>();
@@ -1195,15 +1199,15 @@ public sealed class QdrantVectorStore : IVectorStore
     {
         var vectorsConfig = info.Config.Params.VectorsConfig;
         if (vectorsConfig.ConfigCase != VectorsConfig.ConfigOneofCase.ParamsMap
-            || !vectorsConfig.ParamsMap.Map.TryGetValue("dense", out var dense))
+            || !vectorsConfig.ParamsMap.Map.TryGetValue(DenseWire, out var dense))
         {
             return true;
         }
 
-        var hasSparse = info.Config.Params.SparseVectorsConfig.Map.ContainsKey("sparse");
-        var hasColbert = vectorsConfig.ParamsMap.Map.ContainsKey("colbert");
+        var hasSparse = info.Config.Params.SparseVectorsConfig.Map.ContainsKey(SparseWire);
+        var hasColbert = vectorsConfig.ParamsMap.Map.ContainsKey(ColbertWire);
         var colbertSize = 0;
-        if (hasColbert && vectorsConfig.ParamsMap.Map.TryGetValue("colbert", out var colbert))
+        if (hasColbert && vectorsConfig.ParamsMap.Map.TryGetValue(ColbertWire, out var colbert))
         {
             colbertSize = (int)colbert.Size;
         }
@@ -1241,6 +1245,15 @@ public sealed class QdrantVectorStore : IVectorStore
 
         return decision.NeedsRecreate;
     }
+
+    /// <summary>Named-vector wire names used by create/upsert/query (test surface).</summary>
+    internal static IReadOnlyDictionary<NamedVector, string> GetNamedVectorWireMap() =>
+        new Dictionary<NamedVector, string>
+        {
+            [NamedVector.Dense] = DenseWire,
+            [NamedVector.Sparse] = SparseWire,
+            [NamedVector.Colbert] = ColbertWire,
+        };
 
     /// <summary>
     /// Hybrid prefetch limit: <see cref="EmbeddingOptions.RerankPrefetch"/> when ColBERT
@@ -1437,19 +1450,19 @@ public sealed class QdrantVectorStore : IVectorStore
     {
         var namedVectors = new Dictionary<string, Vector>
         {
-            ["dense"] = chunk.DenseVector.ToArray(),
+            [DenseWire] = chunk.DenseVector.ToArray(),
         };
 
         if (chunk.SparseVector is not null)
         {
-            namedVectors["sparse"] = (
+            namedVectors[SparseWire] = (
                 chunk.SparseVector.Values.ToArray(),
                 chunk.SparseVector.Indices.Select(i => i).ToArray());
         }
 
         if (chunk.ColbertVector is { Count: > 0 })
         {
-            namedVectors["colbert"] = ToMultiVector(chunk.ColbertVector);
+            namedVectors[ColbertWire] = ToMultiVector(chunk.ColbertVector);
         }
 
         var payload = new Dictionary<string, Value>
@@ -1568,7 +1581,7 @@ public sealed class QdrantVectorStore : IVectorStore
                 collection,
                 pointIds,
                 new WithPayloadSelector { Enable = true },
-                (WithVectorsSelector)new[] { "dense" },
+                (WithVectorsSelector)new[] { DenseWire },
                 cancellationToken: cancellationToken).ConfigureAwait(false);
             var byId = records.ToDictionary(r => r.Id.Uuid, StringComparer.OrdinalIgnoreCase);
             for (var i = 0; i < chunkIds.Count; i++)
@@ -1607,7 +1620,7 @@ public sealed class QdrantVectorStore : IVectorStore
                 limit: (uint)Math.Min(remaining * 2, 256),
                 offset: offset,
                 payloadSelector: new WithPayloadSelector { Enable = true },
-                vectorsSelector: (WithVectorsSelector)new[] { "dense" },
+                vectorsSelector: (WithVectorsSelector)new[] { DenseWire },
                 cancellationToken: cancellationToken).ConfigureAwait(false);
 
             if (result.Result.Count == 0)
@@ -1680,7 +1693,7 @@ public sealed class QdrantVectorStore : IVectorStore
 
         if (vectors.VectorsOptionsCase == VectorsOutput.VectorsOptionsOneofCase.Vectors)
         {
-            if (vectors.Vectors.Vectors.TryGetValue("dense", out var dense))
+            if (vectors.Vectors.Vectors.TryGetValue(DenseWire, out var dense))
             {
                 return DenseFloats(dense);
             }

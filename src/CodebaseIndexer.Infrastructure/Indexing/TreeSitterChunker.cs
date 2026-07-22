@@ -97,7 +97,7 @@ public sealed class TreeSitterChunker : ICodeChunker
 
             chunks.Sort(static (left, right) => left.StartLine.CompareTo(right.StartLine));
             var lines = lineIndex.ToLines();
-            return ImportHeaderProcessor.ApplyImportHeaders(chunks, tree.RootNode, lines, languageKey);
+            return ImportHeaderProcessor.ApplyImportHeaders(chunks, tree.RootNode, lines, language);
         }
         catch (Exception ex)
         {
