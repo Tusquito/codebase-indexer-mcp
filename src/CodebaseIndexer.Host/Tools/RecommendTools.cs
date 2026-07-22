@@ -1,5 +1,7 @@
 using System.ComponentModel;
 using CodebaseIndexer.Application.Services;
+using CodebaseIndexer.Domain.Models;
+using CodebaseIndexer.Domain.Serialization;
 using ModelContextProtocol.Server;
 
 namespace CodebaseIndexer.Host.Tools;
@@ -36,5 +38,8 @@ public sealed class RecommendTools
         CancellationToken cancellationToken = default) =>
         _service.RecommendCodeAsync(
             collection, positive_chunk_ids, positive_query, negative_chunk_ids, negative_query,
-            limit, language, path_glob, max_content_chars, cancellationToken);
+            limit, ParseLanguage(language), path_glob, max_content_chars, cancellationToken);
+
+    private static SourceLanguage? ParseLanguage(string? language) =>
+        DomainEnumWire.TryParse(language, out SourceLanguage value) ? value : null;
 }

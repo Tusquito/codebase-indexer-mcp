@@ -1,4 +1,6 @@
 using System.Collections.Frozen;
+using CodebaseIndexer.Domain.Models;
+using CodebaseIndexer.Domain.Serialization;
 
 namespace CodebaseIndexer.Infrastructure.Indexing;
 
@@ -99,28 +101,36 @@ internal static class LanguageRegistry
         TreeSitterGrammars = grammars.ToFrozenDictionary(StringComparer.Ordinal);
     }
 
-    internal static string? DetectLanguage(string fileName, IReadOnlyList<string> suffixes)
+    /// <summary>Detects language from filename / extensions; returns null when unrecognized.</summary>
+    internal static SourceLanguage? DetectLanguage(string fileName, IReadOnlyList<string> suffixes)
     {
+        string? wire = null;
         if (FilenameLanguageMap.TryGetValue(fileName, out var byName))
         {
-            return byName;
+            wire = byName;
         }
-
-        if (suffixes.Count > 0)
+        else if (suffixes.Count > 0)
         {
             var compound = string.Concat(suffixes).ToLowerInvariant();
             if (ExtensionLanguageMap.TryGetValue(compound, out var byCompound))
             {
-                return byCompound;
+                wire = byCompound;
             }
-
-            var last = suffixes[^1].ToLowerInvariant();
-            if (ExtensionLanguageMap.TryGetValue(last, out var byLast))
+            else
             {
-                return byLast;
+                var last = suffixes[^1].ToLowerInvariant();
+                if (ExtensionLanguageMap.TryGetValue(last, out var byLast))
+                {
+                    wire = byLast;
+                }
             }
         }
 
-        return null;
+        return wire is not null && DomainEnumWire.TryParse(wire, out SourceLanguage language)
+            ? language
+            : null;
     }
+
+    /// <summary>Wire id used by internal registry maps.</summary>
+    internal static string ToRegistryId(SourceLanguage language) => DomainEnumWire.ToWire(language);
 }
