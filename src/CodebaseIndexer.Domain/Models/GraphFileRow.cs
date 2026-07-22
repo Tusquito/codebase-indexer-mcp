@@ -4,4 +4,4 @@ namespace CodebaseIndexer.Domain.Models;
 /// <param name="RelPath">Repository-relative path.</param>
 /// <param name="Language">Source language.</param>
 /// <param name="Sha256">File content hash.</param>
-public sealed record GraphFileRow(string RelPath, string Language, string Sha256);
+public sealed record GraphFileRow(string RelPath, SourceLanguage Language, string Sha256);

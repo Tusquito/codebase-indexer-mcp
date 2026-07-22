@@ -17,8 +17,8 @@ public sealed record ChunkPayload(
     string Content,
     int StartLine,
     int EndLine,
-    string Language,
+    SourceLanguage Language,
     string FileSha256,
     string? SymbolName,
-    string SymbolType,
+    SymbolType SymbolType,
     string? Collection = null);

@@ -11,7 +11,7 @@ namespace CodebaseIndexer.Domain.Models;
 public sealed record FileRecord(
     string AbsPath,
     string RelPath,
-    string Language,
+    SourceLanguage Language,
     string Content,
     string Sha256Hash,
     double Mtime = 0,
@@ -24,7 +24,7 @@ public sealed record FileRecord(
     public string RelPath { get; init; } = RelPath;
 
     /// <summary>Detected programming language of the file.</summary>
-    public string Language { get; init; } = Language;
+    public SourceLanguage Language { get; init; } = Language;
 
     /// <summary>Full text content of the file.</summary>
     public string Content { get; init; } = Content;

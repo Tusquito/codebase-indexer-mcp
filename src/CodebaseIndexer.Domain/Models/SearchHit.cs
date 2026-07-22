@@ -15,10 +15,10 @@ public sealed record SearchHit(
     ChunkId Id,
     double Score,
     string RelPath,
-    string Language,
+    SourceLanguage Language,
     int StartLine,
     int EndLine,
     string? SymbolName,
-    string SymbolType,
+    SymbolType SymbolType,
     string Content,
     string Collection = "");
