@@ -16,7 +16,7 @@ Skip ADRs for routine bug fixes, refactors with no design change, or dependency 
 ## How to add an ADR
 
 1. Copy [`template.md`](template.md) to a new file: `NNNN-short-kebab-title.md`
-2. Use the next available four-digit number (see index below — currently **0035**)
+2. Use the next available four-digit number (see index below — currently **0036**)
 3. Fill in all sections; leave **Status** as `Proposed` until reviewed
 4. Add a row to the index table below
 5. Link the ADR from related docs (e.g. [`ARCHITECTURE.md`](../ARCHITECTURE.md)) when relevant
@@ -87,6 +87,7 @@ Invoke the full pipeline with **`adr-orchestrator`**; resume a phase with `Resum
 | [0032](0032-replace-magic-strings-with-enums.md) | Replace closed-set magic strings with domain enums | Accepted | 2026-07-21 |
 | [0033](0033-adopt-result-pattern.md) | Adopt Result pattern for expected failures | Accepted | 2026-07-21 |
 | [0034](0034-migrate-unit-tests-to-tunit.md) | Adopt TUnit as the full .NET test stack | Accepted | 2026-07-22 |
+| [0035](0035-tei-max-batch-tokens-client-pairing.md) | Pair TEI `--max-batch-tokens` with client dense truncation | Proposed | 2026-07-22 |
 
 ## Qdrant Build Prototypes & Improve Search map
 
