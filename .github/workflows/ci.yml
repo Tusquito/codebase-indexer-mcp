@@ -6,48 +6,6 @@ on:
   pull_request:
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: mcp_server
-    services:
-      qdrant:
-        image: qdrant/qdrant:v1.18.2
-        ports:
-          - 6333:6333
-        options: >-
-          --health-cmd "bash -c ':> /dev/tcp/127.0.0.1/6333'"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 20
-    env:
-      QDRANT_URL: http://localhost:6333
-      ACCELERATOR: cpu
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v8.3.2
-
-      - name: Set up Python
-        run: uv python install 3.12
-
-      - name: Install dependencies
-        run: uv sync --extra dev
-
-      - name: Lint (ruff)
-        run: uv run ruff check .
-
-      - name: Type check (mypy, non-blocking)
-        run: uv run mypy src || true
-
-      - name: Run tests
-        run: uv run pytest -q
-
-      - name: Validate ADR tracker render (blocking, ADR 0019 Phase 2)
-        run: uv run python ../scripts/render_adr_tracker.py --check
-
   dotnet-test:
     runs-on: ubuntu-latest
     steps:
@@ -61,26 +19,12 @@ jobs:
       - name: Restore and test .NET solution (ADR 0030)
         run: dotnet test CodebaseIndexer.slnx
 
-  benchmark:
-    # Non-blocking: surfaces performance numbers as an artifact without gating
-    # merges on runner-dependent latency. Strict thresholds stay off in CI.
+  python-devtools:
     runs-on: ubuntu-latest
-    continue-on-error: true
     defaults:
       run:
-        working-directory: mcp_server
-    services:
-      qdrant:
-        image: qdrant/qdrant:v1.18.2
-        ports:
-          - 6333:6333
-        options: >-
-          --health-cmd "bash -c ':> /dev/tcp/127.0.0.1/6333'"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 20
+        working-directory: benchmarks
     env:
-      QDRANT_URL: http://localhost:6333
       ACCELERATOR: cpu
     steps:
       - uses: actions/checkout@v7
@@ -92,31 +36,52 @@ jobs:
         run: uv python install 3.12
 
       - name: Install dependencies
-        run: uv sync --extra dev
+        run: uv sync --extra dev --extra benchmark
 
-      - name: Run benchmark (payload indexes ON) vs committed baseline
-        run: >-
-          uv run python -m benchmarks.bench
-          --files 150 --iterations 20
-          --compare benchmarks/baseline.json
-          --output bench-results.json
+      - name: Run benchmarks unit tests
+        run: uv run pytest -q
 
-      - name: Upload benchmark results
-        uses: actions/upload-artifact@v7
-        if: always()
+      - name: Validate ADR tracker render (blocking, ADR 0019 Phase 2)
+        working-directory: .
+        run: python scripts/render_adr_tracker.py --check
+
+  aspire-integration:
+    # Non-blocking in GH CI (long TEI pull); mandatory locally via adr-integration-tester.
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 45
+    env:
+      ACCELERATOR: cpu
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
         with:
-          name: benchmark-results
-          path: mcp_server/bench-results.json
-          if-no-files-found: ignore
+          global-json-file: global.json
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.3.2
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install benchmark tooling
+        working-directory: benchmarks
+        run: uv sync --extra dev --extra benchmark
+
+      - name: Run aspire-stack integration smoke
+        run: >-
+          python scripts/run_compose_integration.py --json
+          --quality-validation --quality-threshold 0
 
   eval-retrieval:
-    # Non-blocking: validates golden-set label schema and runs eval when
-    # Qdrant + TEI + indexed collection are available on the runner.
+    # Non-blocking: validates golden-set label schema when Qdrant is available.
     runs-on: ubuntu-latest
     continue-on-error: true
     defaults:
       run:
-        working-directory: mcp_server
+        working-directory: benchmarks
     services:
       qdrant:
         image: qdrant/qdrant:v1.18.2
@@ -145,114 +110,8 @@ jobs:
       - name: Validate golden-set labels (skip search when collection missing)
         run: uv run python -m benchmarks.eval_retrieval --validate-labels || true
 
-      - name: Run retrieval eval vs baseline (skip when TEI/index unavailable)
-        run: >-
-          uv run python -m benchmarks.eval_retrieval
-          --compare benchmarks/fixtures/eval_baseline.json
-          --output eval-results.json
-          || true
-
-      - name: Upload eval results
-        uses: actions/upload-artifact@v7
-        with:
-          name: eval-retrieval-results
-          path: mcp_server/eval-results.json
-        if: always()
-
-  docker-image:
-    # Non-blocking: validates the MCP Docker image builds successfully.
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    env:
-      ACCELERATOR: cpu
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Build MCP image
-        run: docker build -t codebase-indexer ./mcp_server
-
-  colbert-gpu-image:
-    # Non-blocking: validates the GPU ColBERT sidecar Dockerfile builds.
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    env:
-      ACCELERATOR: cpu
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Build ColBERT GPU sidecar image
-        run: docker build -f colbert_worker/Dockerfile.gpu -t colbert-worker-gpu ./mcp_server
-
-  aspire-integration:
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    timeout-minutes: 45
-    env:
-      ACCELERATOR: cpu
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v5
-        with:
-          global-json-file: global.json
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v8.3.2
-
-      - name: Set up Python
-        run: uv python install 3.12
-
-      - name: Install dependencies
-        working-directory: mcp_server
-        run: uv sync --extra dev --extra benchmark
-
-      - name: Run aspire-stack integration smoke
-        run: python scripts/run_compose_integration.py --json --aspire-stack --quality-validation --quality-threshold 0
-
-  compose-integration:
-    # Non-blocking: full Docker Compose stack on CPU (ADR 0022 — sole CI CPU
-    # exception). Mandatory in the local ADR pipeline (adr-integration-tester
-    # runs this before every phase's code review); optional in GitHub CI since
-    # the ~15min+ Compose deploy otherwise slows down every PR.
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    timeout-minutes: 45
-    env:
-      ACCELERATOR: cpu
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v8.3.2
-
-      - name: Set up Python
-        run: uv python install 3.12
-
-      - name: Install dependencies
-        working-directory: mcp_server
-        run: uv sync --extra dev --extra benchmark
-
-      - name: Run compose integration (CPU stack, keep for reproducibility)
-        run: python scripts/run_compose_integration.py --json --quality-validation --keep
-
-      - name: Harness reproducibility (ADR 0026 — repeat-run stability)
-        working-directory: mcp_server
-        env:
-          QDRANT_URL: http://localhost:6333
-          TEI_URL: http://localhost:8080
-          DENSE_EMBED_MODEL: jinaai/jina-embeddings-v2-base-code
-          DENSE_EMBED_VECTOR_SIZE: "768"
-          SPARSE_EMBED_MODEL: Qdrant/bm25
-          SPARSE_THREADS: "2"
-        run: uv run pytest tests/test_harness_reproducibility.py -q -m benchmark
-
-      - name: Tear down compose stack
-        if: always()
-        run: docker compose --env-file .env.compose.integration down --remove-orphans || true
-
   gpu-smoke:
-    # Non-blocking: real GPU stack smoke on self-hosted runner (ADR 0022 Phase 3).
+    # Non-blocking: real GPU Aspire stack on self-hosted runner (ADR 0022 Phase 3).
     runs-on: [self-hosted, gpu]
     continue-on-error: true
     timeout-minutes: 45
@@ -267,9 +126,9 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
 
-      - name: Install dependencies
-        working-directory: mcp_server
-        run: uv sync --extra dev
+      - name: Install benchmark tooling
+        working-directory: benchmarks
+        run: uv sync --extra dev --extra benchmark
 
-      - name: Run compose integration (GPU stack)
+      - name: Run Aspire integration (GPU stack)
         run: python scripts/run_compose_integration.py --json
