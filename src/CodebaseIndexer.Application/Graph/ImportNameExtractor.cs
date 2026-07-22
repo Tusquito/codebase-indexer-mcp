@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using CodebaseIndexer.Domain.Models;
 
 namespace CodebaseIndexer.Application.Graph;
 
@@ -6,7 +7,7 @@ namespace CodebaseIndexer.Application.Graph;
 public static partial class ImportNameExtractor
 {
     /// <summary>Collect imported symbol names from raw file content.</summary>
-    public static IReadOnlyList<string> ExtractFileImportNames(string content, string language)
+    public static IReadOnlyList<string> ExtractFileImportNames(string content, SourceLanguage language)
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var names = new List<string>();
@@ -31,16 +32,16 @@ public static partial class ImportNameExtractor
     }
 
     /// <summary>Parse imported names from a single import/using line.</summary>
-    public static IReadOnlyList<string>? ExtractImportedNames(string line, string language) =>
+    public static IReadOnlyList<string>? ExtractImportedNames(string line, SourceLanguage language) =>
         language switch
         {
-            "python" => ParsePythonImportNames(line),
-            "java" => ParseJavaImportNames(line),
-            "csharp" => ParseCsharpUsingNames(line),
-            "javascript" or "typescript" => ParseJsImportNames(line),
-            "go" => ParseGoImportNames(line),
-            "rust" => ParseRustUseNames(line),
-            "c" or "cpp" => ParseCIncludeNames(line),
+            SourceLanguage.Python => ParsePythonImportNames(line),
+            SourceLanguage.Java => ParseJavaImportNames(line),
+            SourceLanguage.CSharp => ParseCsharpUsingNames(line),
+            SourceLanguage.JavaScript or SourceLanguage.TypeScript => ParseJsImportNames(line),
+            SourceLanguage.Go => ParseGoImportNames(line),
+            SourceLanguage.Rust => ParseRustUseNames(line),
+            SourceLanguage.C or SourceLanguage.Cpp => ParseCIncludeNames(line),
             _ => Array.Empty<string>(),
         };
 

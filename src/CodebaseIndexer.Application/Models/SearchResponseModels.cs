@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using CodebaseIndexer.Domain.Models;
 
 namespace CodebaseIndexer.Application.Models;
 
@@ -9,10 +10,10 @@ public sealed record SearchCodebaseHit(
     [property: JsonPropertyName("collection")] string Collection,
     [property: JsonPropertyName("rel_path")] string RelPath,
     [property: JsonPropertyName("symbol_name")] string? SymbolName,
-    [property: JsonPropertyName("symbol_type")] string SymbolType,
+    [property: JsonPropertyName("symbol_type")] SymbolType SymbolType,
     [property: JsonPropertyName("start_line")] int StartLine,
     [property: JsonPropertyName("end_line")] int EndLine,
-    [property: JsonPropertyName("language")] string Language,
+    [property: JsonPropertyName("language")] SourceLanguage Language,
     [property: JsonPropertyName("content")] string Content,
     [property: JsonPropertyName("content_truncated")] bool? ContentTruncated = null);
 
@@ -40,10 +41,10 @@ public sealed record SearchSymbolsHit(
     [property: JsonPropertyName("collection")] string Collection,
     [property: JsonPropertyName("rel_path")] string RelPath,
     [property: JsonPropertyName("symbol_name")] string? SymbolName,
-    [property: JsonPropertyName("symbol_type")] string SymbolType,
+    [property: JsonPropertyName("symbol_type")] SymbolType SymbolType,
     [property: JsonPropertyName("start_line")] int StartLine,
     [property: JsonPropertyName("end_line")] int EndLine,
-    [property: JsonPropertyName("language")] string Language);
+    [property: JsonPropertyName("language")] SourceLanguage Language);
 
 /// <summary>search_symbols MCP response.</summary>
 public sealed record SearchSymbolsResponse(
@@ -65,10 +66,10 @@ public sealed record FileOutlineResponse(
 public sealed record FileOutlineSymbol(
     [property: JsonPropertyName("chunk_id")] string ChunkId,
     [property: JsonPropertyName("symbol_name")] string? SymbolName,
-    [property: JsonPropertyName("symbol_type")] string SymbolType,
+    [property: JsonPropertyName("symbol_type")] SymbolType SymbolType,
     [property: JsonPropertyName("start_line")] int StartLine,
     [property: JsonPropertyName("end_line")] int EndLine,
-    [property: JsonPropertyName("language")] string Language);
+    [property: JsonPropertyName("language")] SourceLanguage Language);
 
 /// <summary>get_file_outline error payload.</summary>
 public sealed record FileOutlineErrorResponse(

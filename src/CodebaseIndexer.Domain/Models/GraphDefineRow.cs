@@ -5,4 +5,4 @@ namespace CodebaseIndexer.Domain.Models;
 /// <param name="QualifiedName">Stable symbol key.</param>
 /// <param name="Name">Display name.</param>
 /// <param name="Kind">Symbol kind.</param>
-public sealed record GraphDefineRow(string ChunkId, string QualifiedName, string Name, string Kind);
+public sealed record GraphDefineRow(string ChunkId, string QualifiedName, string Name, SymbolType Kind);

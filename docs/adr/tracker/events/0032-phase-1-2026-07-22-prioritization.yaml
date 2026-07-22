@@ -1,0 +1,30 @@
+adr_id: "0032"
+phase_key: phase-1
+phase_title: Phase 1 — Domain enums + model/port signatures
+event: prioritization
+date: "2026-07-22"
+tracker_status: candidate
+choices: >-
+  Prefer 0032 P1 over tied 0033 P1 (Domain string debt + post-0031 Accept
+  queue); over 0026 P4 (GPU + missing `bakeoff.py`); over 0031 P2 preload
+  fail-closed; over 0023 P3 / 0027; single phase; **requires formal Accept**
+  before implementation. **Why now:** Post–0030 P7 and 0031 P1, open-decisions
+  unlock Accept of Domain hygiene; closed vocabularies remain plain strings
+  across Domain/MCP/Qdrant layers with no enum types yet; Phase 1 is Accept +
+  Domain/port typing without re-index. **Suggested scope:** one phase (= one
+  PR). **Chosen scope:** Accept ADR 0032; introduce Domain enums
+  (`SymbolType`, `SourceLanguage`, and siblings per ADR); change Domain models
+  and Application ports/DTOs to enums; centralize MCP JSON wire mapping;
+  update constructing unit tests; defer chunker/Qdrant/re-index (Phase 2) and
+  ReferenceClassifier/match/health (Phase 3); Docker integration required;
+  quality validation skip (no ranking-path change).
+deviations: none
+changelog:
+  update: false
+  reason: "user-facing unknown; invoker Changelog: no"
+user_facing: false
+open_decisions:
+  - "RESOLVED — (1) Accept ADR 0032 + implement Phase 1 — yes"
+  - "RESOLVED — (2) Prefer 0033 P1 — no"
+  - "RESOLVED — (3) Override to 0026 P4 — no"
+  - "RESOLVED — (4) Accept 0033 docs-only — defer"

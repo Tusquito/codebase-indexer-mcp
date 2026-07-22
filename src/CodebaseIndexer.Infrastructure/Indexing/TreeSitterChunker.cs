@@ -5,6 +5,7 @@ using CodebaseIndexer.Infrastructure.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TreeSitter;
+using DomainSymbolType = CodebaseIndexer.Domain.Models.SymbolType;
 
 namespace CodebaseIndexer.Infrastructure.Indexing;
 
@@ -40,7 +41,7 @@ public sealed class TreeSitterChunker : ICodeChunker
     }
 
     /// <inheritdoc />
-    public IReadOnlyList<Chunk> ChunkFile(string relPath, string content, string language, string fileSha256) =>
+    public IReadOnlyList<Chunk> ChunkFile(string relPath, string content, SourceLanguage language, string fileSha256) =>
         ChunkerCore.ChunkFile(
             content,
             relPath,
@@ -54,7 +55,7 @@ public sealed class TreeSitterChunker : ICodeChunker
     private IReadOnlyList<Chunk> TryTreeSitterChunk(
         LineIndex lineIndex,
         string relPath,
-        string language,
+        SourceLanguage language,
         string fileSha256,
         int maxChunkLines,
         int chunkOverlapLines,
@@ -65,9 +66,10 @@ public sealed class TreeSitterChunker : ICodeChunker
             lineIndex, 0, lastLine, relPath, language, fileSha256,
             maxChunkLines, chunkOverlapLines, fileMtime);
 
-        if (!LanguageRegistry.TreeSitterGrammars.ContainsKey(language)
-            || !LanguageRegistry.ExtractNodeTypes.TryGetValue(language, out var nodeTypes)
-            || !LanguageIds.TryGetValue(language, out var languageId))
+        var languageKey = LanguageRegistry.ToRegistryId(language);
+        if (!LanguageRegistry.TreeSitterGrammars.ContainsKey(languageKey)
+            || !LanguageRegistry.ExtractNodeTypes.TryGetValue(languageKey, out var nodeTypes)
+            || !LanguageIds.TryGetValue(languageKey, out var languageId))
         {
             return SlidingFallback();
         }
@@ -95,7 +97,7 @@ public sealed class TreeSitterChunker : ICodeChunker
 
             chunks.Sort(static (left, right) => left.StartLine.CompareTo(right.StartLine));
             var lines = lineIndex.ToLines();
-            return ImportHeaderProcessor.ApplyImportHeaders(chunks, tree.RootNode, lines, language);
+            return ImportHeaderProcessor.ApplyImportHeaders(chunks, tree.RootNode, lines, languageKey);
         }
         catch (Exception ex)
         {
@@ -135,7 +137,7 @@ public sealed class TreeSitterChunker : ICodeChunker
         Node node,
         LineIndex lineIndex,
         string relPath,
-        string language,
+        SourceLanguage language,
         string fileSha256,
         int maxChunkLines,
         FrozenSet<string> nodeTypes,
@@ -191,41 +193,41 @@ public sealed class TreeSitterChunker : ICodeChunker
         return null;
     }
 
-    internal static string ClassifySymbolType(string nodeType)
+    internal static DomainSymbolType ClassifySymbolType(string nodeType)
     {
         if (nodeType == "create_table")
         {
-            return "table";
+            return DomainSymbolType.Table;
         }
 
         if (nodeType == "create_procedure")
         {
-            return "procedure";
+            return DomainSymbolType.Procedure;
         }
 
         if (nodeType == "create_function")
         {
-            return "function";
+            return DomainSymbolType.Function;
         }
 
         if (nodeType == "create_view")
         {
-            return "view";
+            return DomainSymbolType.View;
         }
 
         if (nodeType == "create_trigger")
         {
-            return "trigger";
+            return DomainSymbolType.Trigger;
         }
 
         if (nodeType == "create_type")
         {
-            return "type";
+            return DomainSymbolType.Type;
         }
 
         if (nodeType == "create_index")
         {
-            return "index";
+            return DomainSymbolType.Index;
         }
 
         if (nodeType.Contains("class", StringComparison.Ordinal)
@@ -233,21 +235,21 @@ public sealed class TreeSitterChunker : ICodeChunker
             || nodeType.Contains("enum", StringComparison.Ordinal)
             || nodeType.Contains("interface", StringComparison.Ordinal))
         {
-            return "class";
+            return DomainSymbolType.Class;
         }
 
         if (nodeType.Contains("method", StringComparison.Ordinal)
             || nodeType.Contains("constructor", StringComparison.Ordinal))
         {
-            return "method";
+            return DomainSymbolType.Method;
         }
 
         if (nodeType.Contains("function", StringComparison.Ordinal)
             || nodeType.Contains("arrow_function", StringComparison.Ordinal))
         {
-            return "function";
+            return DomainSymbolType.Function;
         }
 
-        return "other";
+        return DomainSymbolType.Other;
     }
 }

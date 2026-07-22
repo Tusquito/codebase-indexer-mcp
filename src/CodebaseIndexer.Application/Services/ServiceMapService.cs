@@ -348,8 +348,8 @@ public sealed class ServiceMapService : IServiceMapService
     private sealed class ServiceMapChunk
     {
         public ServiceMapChunk(
-            string relPath, string? symbolName, string symbolType, int startLine, int endLine,
-            string language, string contentPreview, string fullContent)
+            string relPath, string? symbolName, SymbolType symbolType, int startLine, int endLine,
+            SourceLanguage language, string contentPreview, string fullContent)
         {
             RelPath = relPath;
             SymbolName = symbolName;
@@ -363,10 +363,10 @@ public sealed class ServiceMapService : IServiceMapService
 
         public string RelPath { get; }
         public string? SymbolName { get; }
-        public string SymbolType { get; }
+        public SymbolType SymbolType { get; }
         public int StartLine { get; }
         public int EndLine { get; }
-        public string Language { get; }
+        public SourceLanguage Language { get; }
         public string ContentPreview { get; }
         public string FullContent { get; }
         public IReadOnlyList<string>? Routes { get; set; }

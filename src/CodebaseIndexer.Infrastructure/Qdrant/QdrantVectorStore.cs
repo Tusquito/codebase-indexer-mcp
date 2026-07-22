@@ -6,6 +6,7 @@ using CodebaseIndexer.Domain.Embedding;
 using CodebaseIndexer.Domain.Exceptions;
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
+using CodebaseIndexer.Domain.Serialization;
 using CodebaseIndexer.Infrastructure.Configuration;
 using Grpc.Core;
 using Microsoft.Extensions.Logging;
@@ -268,7 +269,7 @@ public sealed class QdrantVectorStore : IVectorStore
         IReadOnlyList<float> denseVector,
         DomainSparseVector? sparseVector,
         int topK,
-        string? language = null,
+        SourceLanguage? language = null,
         float minScore = 0.5f,
         IReadOnlyList<IReadOnlyList<float>>? colbertVector = null,
         CancellationToken cancellationToken = default)
@@ -544,10 +545,10 @@ public sealed class QdrantVectorStore : IVectorStore
                     symbols.Add(new FileSymbol(
                         GetString(p, "chunk_id"),
                         GetOptionalString(p, "symbol_name"),
-                        GetString(p, "symbol_type", "other"),
+                        DomainEnumWire.ParseOrOther(GetString(p, "symbol_type", "other")),
                         GetInt(p, "start_line"),
                         GetInt(p, "end_line"),
-                        GetString(p, "language")));
+                        DomainEnumWire.ParseOrUnknown(GetString(p, "language"))));
                 }
 
                 if (result.NextPageOffset is null)
@@ -601,9 +602,9 @@ public sealed class QdrantVectorStore : IVectorStore
                     var p = point.Payload;
                     rows.Add(new PayloadRow(
                         GetString(p, "rel_path"),
-                        GetString(p, "language"),
+                        DomainEnumWire.ParseOrUnknown(GetString(p, "language")),
                         GetOptionalString(p, "symbol_name"),
-                        GetString(p, "symbol_type", "other"),
+                        DomainEnumWire.ParseOrOther(GetString(p, "symbol_type", "other")),
                         GetInt(p, "start_line"),
                         GetInt(p, "end_line")));
                 }
@@ -687,11 +688,11 @@ public sealed class QdrantVectorStore : IVectorStore
                         new ChunkId(id),
                         0,
                         GetString(payload, "rel_path"),
-                        GetString(payload, "language"),
+                        DomainEnumWire.ParseOrUnknown(GetString(payload, "language")),
                         GetInt(payload, "start_line"),
                         GetInt(payload, "end_line"),
                         GetOptionalString(payload, "symbol_name"),
-                        GetString(payload, "symbol_type", "other"),
+                        DomainEnumWire.ParseOrOther(GetString(payload, "symbol_type", "other")),
                         GetString(payload, "content"),
                         coll);
                 }).ToArray();
@@ -904,7 +905,7 @@ public sealed class QdrantVectorStore : IVectorStore
         IReadOnlyList<RecommendExample> positive,
         IReadOnlyList<RecommendExample>? negative = null,
         int limit = 5,
-        string? language = null,
+        SourceLanguage? language = null,
         string? pathGlob = null,
         CancellationToken cancellationToken = default)
     {
@@ -950,7 +951,7 @@ public sealed class QdrantVectorStore : IVectorStore
         string collection,
         IReadOnlyList<string>? contextChunkIds = null,
         int limit = 5,
-        string? language = null,
+        SourceLanguage? language = null,
         string? pathGlob = null,
         float? maxSimilarity = null,
         int? maxContextSamples = null,
@@ -1012,11 +1013,11 @@ public sealed class QdrantVectorStore : IVectorStore
                 new ChunkId(chunkId),
                 similarity,
                 GetString(payload, "rel_path"),
-                GetString(payload, "language"),
+                DomainEnumWire.ParseOrUnknown(GetString(payload, "language")),
                 GetInt(payload, "start_line"),
                 GetInt(payload, "end_line"),
                 GetOptionalString(payload, "symbol_name"),
-                GetString(payload, "symbol_type", "other"),
+                DomainEnumWire.ParseOrOther(GetString(payload, "symbol_type", "other")),
                 GetString(payload, "content"),
                 collection));
         }
@@ -1074,11 +1075,11 @@ public sealed class QdrantVectorStore : IVectorStore
                         new ChunkId(GetString(p.Payload, "chunk_id")),
                         0.0,
                         GetString(p.Payload, "rel_path"),
-                        GetString(p.Payload, "language"),
+                        DomainEnumWire.ParseOrUnknown(GetString(p.Payload, "language")),
                         GetInt(p.Payload, "start_line"),
                         GetInt(p.Payload, "end_line"),
                         GetOptionalString(p.Payload, "symbol_name"),
-                        GetString(p.Payload, "symbol_type", "other"),
+                        DomainEnumWire.ParseOrOther(GetString(p.Payload, "symbol_type", "other")),
                         GetString(p.Payload, "content"),
                         coll))
                     .Where(h => !string.IsNullOrEmpty(h.Id.Value))
@@ -1322,9 +1323,9 @@ public sealed class QdrantVectorStore : IVectorStore
         return searchParams;
     }
 
-    private static Filter? BuildLanguageFilter(string? language)
+    private static Filter? BuildLanguageFilter(SourceLanguage? language)
     {
-        if (string.IsNullOrEmpty(language))
+        if (language is null)
         {
             return null;
         }
@@ -1338,7 +1339,7 @@ public sealed class QdrantVectorStore : IVectorStore
                     Field = new FieldCondition
                     {
                         Key = "language",
-                        Match = new GrpcMatch { Keyword = language },
+                        Match = new GrpcMatch { Keyword = DomainEnumWire.ToWire(language.Value) },
                     },
                 },
             },
@@ -1369,11 +1370,11 @@ public sealed class QdrantVectorStore : IVectorStore
                 new ChunkId(chunkId),
                 point.Score,
                 GetString(payload, "rel_path"),
-                GetString(payload, "language"),
+                DomainEnumWire.ParseOrUnknown(GetString(payload, "language")),
                 GetInt(payload, "start_line"),
                 GetInt(payload, "end_line"),
                 GetOptionalString(payload, "symbol_name"),
-                GetString(payload, "symbol_type", "other"),
+                DomainEnumWire.ParseOrOther(GetString(payload, "symbol_type", "other")),
                 GetString(payload, "content"),
                 collection));
         }
@@ -1388,10 +1389,10 @@ public sealed class QdrantVectorStore : IVectorStore
             GetString(payload, "content"),
             GetInt(payload, "start_line"),
             GetInt(payload, "end_line"),
-            GetString(payload, "language"),
+            DomainEnumWire.ParseOrUnknown(GetString(payload, "language")),
             GetString(payload, "file_sha256"),
             GetOptionalString(payload, "symbol_name"),
-            GetString(payload, "symbol_type", "other"),
+            DomainEnumWire.ParseOrOther(GetString(payload, "symbol_type", "other")),
             collection);
 
     private static string GetString(IDictionary<string, Value> payload, string key, string defaultValue = "")
@@ -1458,11 +1459,11 @@ public sealed class QdrantVectorStore : IVectorStore
             ["content"] = chunk.Chunk.Content,
             ["start_line"] = chunk.Chunk.StartLine,
             ["end_line"] = chunk.Chunk.EndLine,
-            ["language"] = chunk.Chunk.Language,
+            ["language"] = DomainEnumWire.ToWire(chunk.Chunk.Language),
             ["file_sha256"] = chunk.Chunk.FileSha256,
             ["file_mtime"] = 0.0,
             ["symbol_name"] = chunk.Chunk.SymbolName ?? string.Empty,
-            ["symbol_type"] = string.IsNullOrEmpty(chunk.Chunk.SymbolType) ? "other" : chunk.Chunk.SymbolType,
+            ["symbol_type"] = DomainEnumWire.ToWire(chunk.Chunk.SymbolType),
         };
 
         if (!omitCallees)

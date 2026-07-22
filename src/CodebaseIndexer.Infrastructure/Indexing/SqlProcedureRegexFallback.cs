@@ -65,7 +65,7 @@ internal static partial class SqlProcedureRegexFallback
     internal static IReadOnlyList<Chunk> ExtractProcedureChunks(
         IReadOnlyList<string> lines,
         string relPath,
-        string language,
+        SourceLanguage language,
         string fileSha256,
         int maxChunkLines,
         int chunkOverlapLines,
@@ -91,7 +91,7 @@ internal static partial class SqlProcedureRegexFallback
                 chunkOverlapLines,
                 fileMtime,
                 span.Name,
-                "procedure"));
+                SymbolType.Procedure));
         }
 
         return chunks;

@@ -10,7 +10,7 @@ namespace CodebaseIndexer.Domain.Models;
 public sealed record FileSymbol(
     string ChunkId,
     string? SymbolName,
-    string SymbolType,
+    SymbolType SymbolType,
     int StartLine,
     int EndLine,
-    string Language);
+    SourceLanguage Language);

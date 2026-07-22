@@ -4,21 +4,30 @@ namespace CodebaseIndexer.Infrastructure.Indexing;
 
 internal static class ChunkerCore
 {
-    private static readonly HashSet<string> VerboseLanguages = new(StringComparer.Ordinal)
-    {
-        "xml", "json", "yaml", "markdown", "protobuf", "sql", "properties", "toml",
-        "hcl", "dockerfile", "groovy",
-    };
+    private static readonly HashSet<SourceLanguage> VerboseLanguages =
+    [
+        SourceLanguage.Xml,
+        SourceLanguage.Json,
+        SourceLanguage.Yaml,
+        SourceLanguage.Markdown,
+        SourceLanguage.Protobuf,
+        SourceLanguage.Sql,
+        SourceLanguage.Properties,
+        SourceLanguage.Toml,
+        SourceLanguage.Hcl,
+        SourceLanguage.Dockerfile,
+        SourceLanguage.Groovy,
+    ];
 
     internal static IReadOnlyList<Chunk> ChunkFile(
         string content,
         string relPath,
-        string language,
+        SourceLanguage language,
         string fileSha256,
         int maxChunkLines,
         int chunkOverlapLines,
         double fileMtime,
-        Func<LineIndex, string, string, string, int, int, double, IReadOnlyList<Chunk>>? treeSitterChunker)
+        Func<LineIndex, string, SourceLanguage, string, int, int, double, IReadOnlyList<Chunk>>? treeSitterChunker)
     {
         var lineIndex = LineIndex.Parse(content);
         if (lineIndex.LineCount == 0
@@ -28,6 +37,7 @@ internal static class ChunkerCore
         }
 
         var lastLine = lineIndex.LineCount - 1;
+        var languageId = LanguageRegistry.ToRegistryId(language);
 
         if (VerboseLanguages.Contains(language))
         {
@@ -37,7 +47,7 @@ internal static class ChunkerCore
 
         IReadOnlyList<SqlProcedureSpan> procedureSpans = Array.Empty<SqlProcedureSpan>();
         IReadOnlyList<Chunk> procedureChunks = Array.Empty<Chunk>();
-        if (language == "sql")
+        if (language == SourceLanguage.Sql)
         {
             var lines = lineIndex.ToLines();
             procedureChunks = SqlProcedureRegexFallback.ExtractProcedureChunks(
@@ -47,8 +57,8 @@ internal static class ChunkerCore
 
         IReadOnlyList<Chunk> chunks;
         if (treeSitterChunker is not null
-            && LanguageRegistry.TreeSitterGrammars.ContainsKey(language)
-            && LanguageRegistry.ExtractNodeTypes.ContainsKey(language))
+            && LanguageRegistry.TreeSitterGrammars.ContainsKey(languageId)
+            && LanguageRegistry.ExtractNodeTypes.ContainsKey(languageId))
         {
             try
             {
@@ -66,8 +76,8 @@ internal static class ChunkerCore
                 chunks = SlidingWindowRange(lineIndex, 0, lastLine, relPath, language, fileSha256, maxChunkLines, chunkOverlapLines, fileMtime);
             }
         }
-        else if (LanguageRegistry.SlidingWindowLanguages.Contains(language)
-            || !LanguageRegistry.TreeSitterGrammars.ContainsKey(language))
+        else if (LanguageRegistry.SlidingWindowLanguages.Contains(languageId)
+            || !LanguageRegistry.TreeSitterGrammars.ContainsKey(languageId))
         {
             chunks = SlidingWindowRange(lineIndex, 0, lastLine, relPath, language, fileSha256, maxChunkLines, chunkOverlapLines, fileMtime);
         }
@@ -76,7 +86,7 @@ internal static class ChunkerCore
             chunks = SlidingWindowRange(lineIndex, 0, lastLine, relPath, language, fileSha256, maxChunkLines, chunkOverlapLines, fileMtime);
         }
 
-        if (language == "sql" && procedureSpans.Count > 0)
+        if (language == SourceLanguage.Sql && procedureSpans.Count > 0)
         {
             chunks = chunks
                 .Where(c => !SqlProcedureRegexFallback.LineRangeOverlapsSpans(c.StartLine, c.EndLine, procedureSpans))
@@ -97,13 +107,13 @@ internal static class ChunkerCore
         int start,
         int end,
         string relPath,
-        string language,
+        SourceLanguage language,
         string fileSha256,
         int maxLines,
         int overlap,
         double fileMtime,
         string? symbolName = null,
-        string symbolType = "other")
+        SymbolType symbolType = SymbolType.Other)
     {
         var chunks = new List<Chunk>();
         var pos = start;
@@ -141,16 +151,16 @@ internal static class ChunkerCore
         int start,
         int end,
         string relPath,
-        string language,
+        SourceLanguage language,
         string fileSha256,
         int maxLines,
         int overlap,
         double fileMtime,
         string? symbolName = null,
-        string symbolType = "other") =>
+        SymbolType symbolType = SymbolType.Other) =>
         SlidingWindowRange(LineIndex.Parse(string.Join('\n', lines)), start, end, relPath, language, fileSha256, maxLines, overlap, fileMtime, symbolName, symbolType);
 
-    private static IReadOnlyList<Chunk> ApplyFileSymbolType(IReadOnlyList<Chunk> chunks, string relPath, string language)
+    private static IReadOnlyList<Chunk> ApplyFileSymbolType(IReadOnlyList<Chunk> chunks, string relPath, SourceLanguage language)
     {
         var fileType = ClassifyFileSymbolType(relPath, language);
         if (fileType is null)
@@ -163,12 +173,12 @@ internal static class ChunkerCore
             .Select(chunk => chunk with
             {
                 SymbolName = chunk.SymbolName ?? defaultName,
-                SymbolType = fileType,
+                SymbolType = fileType.Value,
             })
             .ToArray();
     }
 
-    private static string? ClassifyFileSymbolType(string relPath, string language)
+    private static SymbolType? ClassifyFileSymbolType(string relPath, SourceLanguage language)
     {
         var norm = relPath.Replace('\\', '/').ToLowerInvariant();
         var name = Path.GetFileName(norm);
@@ -176,7 +186,7 @@ internal static class ChunkerCore
             or "build.gradle" or "build.gradle.kts" or "settings.gradle" or "settings.gradle.kts"
             or "requirements.txt" or "setup.cfg")
         {
-            return "manifest";
+            return SymbolType.Manifest;
         }
 
         if (name is ".env" or ".env.example" or ".env.local"
@@ -185,18 +195,18 @@ internal static class ChunkerCore
             || norm.EndsWith(".cfg", StringComparison.Ordinal)
             || norm.EndsWith(".toml", StringComparison.Ordinal))
         {
-            return "config";
+            return SymbolType.Config;
         }
 
-        if (language == "yaml" && (norm.Contains(".github/workflows/", StringComparison.Ordinal)
+        if (language == SourceLanguage.Yaml && (norm.Contains(".github/workflows/", StringComparison.Ordinal)
             || norm.Contains("templates/", StringComparison.Ordinal)))
         {
-            return "ops";
+            return SymbolType.Ops;
         }
 
-        if (language == "yaml")
+        if (language == SourceLanguage.Yaml)
         {
-            return "config";
+            return SymbolType.Config;
         }
 
         return null;

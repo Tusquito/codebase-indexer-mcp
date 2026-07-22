@@ -161,7 +161,7 @@ public sealed class SearchServiceTests
             IReadOnlyList<float> denseVector,
             SparseVector? sparseVector,
             int topK,
-            string? language = null,
+            SourceLanguage? language = null,
             float minScore = 0.5f,
             IReadOnlyList<IReadOnlyList<float>>? colbertVector = null,
             CancellationToken cancellationToken = default)
@@ -174,11 +174,11 @@ public sealed class SearchServiceTests
                     new ChunkId("abc"),
                     0.123456,
                     "src/A.cs",
-                    "csharp",
+                    SourceLanguage.CSharp,
                     1,
                     5,
                     "Foo",
-                    "class",
+                    SymbolType.Class,
                     "class Foo {}",
                     collection),
             ];

@@ -11,5 +11,5 @@ public interface ICodeChunker
     /// <param name="language">Programming language of the file.</param>
     /// <param name="fileSha256">SHA-256 hash of the file content.</param>
     /// <returns>Chunks extracted from the file.</returns>
-    IReadOnlyList<Chunk> ChunkFile(string relPath, string content, string language, string fileSha256);
+    IReadOnlyList<Chunk> ChunkFile(string relPath, string content, SourceLanguage language, string fileSha256);
 }

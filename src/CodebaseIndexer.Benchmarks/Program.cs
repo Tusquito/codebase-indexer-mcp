@@ -20,11 +20,11 @@ public static class Program
                 new ChunkId($"a-{i}"),
                 1.0 - i * 0.01,
                 $"a/{i}.cs",
-                "csharp",
+                SourceLanguage.CSharp,
                 1,
                 10,
                 $"Sym{i}",
-                "method",
+                SymbolType.Method,
                 "body",
                 "coll-a"))
             .ToArray();
@@ -33,11 +33,11 @@ public static class Program
                 new ChunkId($"b-{i}"),
                 1.0 - i * 0.01,
                 $"b/{i}.cs",
-                "csharp",
+                SourceLanguage.CSharp,
                 1,
                 10,
                 $"Sym{i}",
-                "method",
+                SymbolType.Method,
                 "body",
                 "coll-b"))
             .ToArray();

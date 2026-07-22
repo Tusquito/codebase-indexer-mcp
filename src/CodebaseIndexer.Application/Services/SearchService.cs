@@ -53,7 +53,7 @@ public sealed class SearchService : ISearchService
         int topK = 5,
         string? collection = null,
         IReadOnlyList<string>? collections = null,
-        string? language = null,
+        SourceLanguage? language = null,
         float minScore = 0.5f,
         int? maxContentChars = null,
         bool? rerank = null,
@@ -108,7 +108,7 @@ public sealed class SearchService : ISearchService
         int topK = 10,
         string? collection = null,
         IReadOnlyList<string>? collections = null,
-        string? language = null,
+        SourceLanguage? language = null,
         float minScore = 0.4f,
         bool? rerank = null,
         CancellationToken cancellationToken = default)
@@ -189,7 +189,7 @@ public sealed class SearchService : ISearchService
         string query,
         IReadOnlyList<string> targets,
         int topK,
-        string? language,
+        SourceLanguage? language,
         float minScore,
         bool useRerank,
         CancellationToken cancellationToken)

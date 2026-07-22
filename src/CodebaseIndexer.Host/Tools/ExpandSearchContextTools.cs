@@ -1,5 +1,7 @@
 using System.ComponentModel;
 using CodebaseIndexer.Application.Services;
+using CodebaseIndexer.Domain.Models;
+using CodebaseIndexer.Domain.Serialization;
 using ModelContextProtocol.Server;
 
 namespace CodebaseIndexer.Host.Tools;
@@ -35,5 +37,8 @@ public sealed class ExpandSearchContextTools
         [Description("Truncate related chunk content to this many chars")] int? max_content_chars = null,
         CancellationToken cancellationToken = default) =>
         _service.ExpandSearchContextAsync(
-            query, top_k, collection, collections, graph_hops, language, min_score, max_content_chars, cancellationToken);
+            query, top_k, collection, collections, graph_hops, ParseLanguage(language), min_score, max_content_chars, cancellationToken);
+
+    private static SourceLanguage? ParseLanguage(string? language) =>
+        DomainEnumWire.TryParse(language, out SourceLanguage value) ? value : null;
 }

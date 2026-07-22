@@ -1,5 +1,7 @@
 using System.ComponentModel;
 using CodebaseIndexer.Application.Services;
+using CodebaseIndexer.Domain.Models;
+using CodebaseIndexer.Domain.Serialization;
 using CodebaseIndexer.Infrastructure.Configuration;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
@@ -44,7 +46,7 @@ public sealed class SearchTools
             top_k,
             collection ?? _qdrant.Collection,
             collections,
-            language,
+            ParseLanguage(language),
             min_score,
             max_content_chars,
             rerank,
@@ -68,8 +70,11 @@ public sealed class SearchTools
             top_k,
             collection ?? _qdrant.Collection,
             collections,
-            language,
+            ParseLanguage(language),
             min_score,
             rerank,
             cancellationToken).ConfigureAwait(false);
+
+    private static SourceLanguage? ParseLanguage(string? language) =>
+        DomainEnumWire.TryParse(language, out SourceLanguage value) ? value : null;
 }

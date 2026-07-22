@@ -9,8 +9,8 @@ namespace CodebaseIndexer.Domain.Models;
 /// <param name="EndLine">One-based end line.</param>
 public sealed record PayloadRow(
     string RelPath,
-    string Language,
+    SourceLanguage Language,
     string? SymbolName,
-    string SymbolType,
+    SymbolType SymbolType,
     int StartLine,
     int EndLine);

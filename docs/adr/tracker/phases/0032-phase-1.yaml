@@ -1,0 +1,10 @@
+adr_id: "0032"
+phase_key: phase-1
+title: Phase 1 — Domain enums + model/port signatures
+tracker_status: verified
+chosen_scope: >-
+  Phase 1 only; wire strings unchanged via `DomainEnumWire` +
+  `JsonStringEnumMemberName`; sibling enums declare-only;
+  NamedVector/Qdrant named-vector literals and MatchType/ReferenceType/LivenessStatus
+  wiring deferred to Phases 2–3; no `*_SCHEMA_VERSION`; Changelog deferred per plan
+last_updated: "2026-07-22"

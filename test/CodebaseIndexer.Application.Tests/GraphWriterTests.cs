@@ -23,7 +23,7 @@ public sealed class GraphWriterTests
         {
             ["isEnabled"] =
             [
-                new GraphDefineEntry("demo:Feature.java::isEnabled", "Feature.java", "isEnabled", "method"),
+                new GraphDefineEntry("demo:Feature.java::isEnabled", "Feature.java", "isEnabled", SymbolType.Method),
             ],
         };
 
@@ -51,7 +51,7 @@ public sealed class GraphWriterTests
         var batch = new GraphBatch("demo");
         batch.Chunks.Add(new GraphChunkRow("c1", "a.py", 1, 5));
         batch.Chunks.Add(new GraphChunkRow("c2", "a.py", 6, 9));
-        batch.Defines.Add(new GraphDefineRow("c1", "demo:a.py::foo", "foo", "function"));
+        batch.Defines.Add(new GraphDefineRow("c1", "demo:a.py::foo", "foo", SymbolType.Function));
         batch.Calls.Add(new GraphCallRow("c1", "demo::callee::bar", "bar", "bar"));
         batch.Calls.Add(new GraphCallRow("c1", "demo::callee::bar", "bar", "bar"));
         batch.DeclaresEndpoint.Add(new GraphDeclaresEndpointRow("c1", "/api/users"));
@@ -90,9 +90,9 @@ public sealed class GraphWriterTests
                 1,
                 3,
                 "getUsers",
-                "java",
+                SourceLanguage.Java,
                 "sha",
-                "method")
+                SymbolType.Method)
             {
                 Callees = ["get"],
             },

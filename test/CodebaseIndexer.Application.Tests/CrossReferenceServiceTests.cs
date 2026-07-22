@@ -28,8 +28,8 @@ public sealed class CrossReferenceServiceTests
             Callers =
             [
                 new SearchHit(
-                    new ChunkId("c1"), 0, "src/A.cs", "csharp", 10, 20,
-                    "Caller", "method", "featureService.isEnabled();", "proj-a"),
+                    new ChunkId("c1"), 0, "src/A.cs", SourceLanguage.CSharp, 10, 20,
+                    "Caller", SymbolType.Method, "featureService.isEnabled();", "proj-a"),
             ],
         };
         var service = CreateService(store, new NoOpGraphStore { Enabled = false });
@@ -52,8 +52,8 @@ public sealed class CrossReferenceServiceTests
             Callers =
             [
                 new SearchHit(
-                    new ChunkId("neo"), 0, "src/B.cs", "csharp", 1, 2,
-                    "Caller", "method", "", "proj-a"),
+                    new ChunkId("neo"), 0, "src/B.cs", SourceLanguage.CSharp, 1, 2,
+                    "Caller", SymbolType.Method, "", "proj-a"),
             ],
         };
         var service = CreateService(store, graph);
@@ -73,8 +73,8 @@ public sealed class CrossReferenceServiceTests
             Callers =
             [
                 new SearchHit(
-                    new ChunkId("c1"), 0, "src/A.cs", "csharp", 10, 20,
-                    "Caller", "method", "x", "proj-a"),
+                    new ChunkId("c1"), 0, "src/A.cs", SourceLanguage.CSharp, 10, 20,
+                    "Caller", SymbolType.Method, "x", "proj-a"),
             ],
         };
         var graph = new NoOpGraphStore { Enabled = true };

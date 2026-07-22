@@ -17,7 +17,7 @@ public sealed class ExpandSearchContextServiceTests
         var search = new StubSearchService(
         [
             new SearchCodebaseHit(
-                "proj/a.py:1", 0.9, "proj", "a.py", "handler", "function", 1, 10, "python", "def handler(): ...", null),
+                "proj/a.py:1", 0.9, "proj", "a.py", "handler", SymbolType.Function, 1, 10, SourceLanguage.Python, "def handler(): ...", null),
         ]);
         var service = CreateService(search, new NoOpVectorStore(), graph, maxHops: 2);
 
@@ -35,7 +35,7 @@ public sealed class ExpandSearchContextServiceTests
         var search = new StubSearchService(
         [
             new SearchCodebaseHit(
-                "c1", 0.5, "proj", "a.py", "f", "function", 1, 2, "python", "x", null),
+                "c1", 0.5, "proj", "a.py", "f", SymbolType.Function, 1, 2, SourceLanguage.Python, "x", null),
         ]);
         var service = CreateService(search, new NoOpVectorStore(), graph);
 
@@ -78,7 +78,7 @@ public sealed class ExpandSearchContextServiceTests
             int topK = 5,
             string? collection = null,
             IReadOnlyList<string>? collections = null,
-            string? language = null,
+            SourceLanguage? language = null,
             float minScore = 0.5f,
             int? maxContentChars = null,
             bool? rerank = null,
@@ -90,7 +90,7 @@ public sealed class ExpandSearchContextServiceTests
             int topK = 10,
             string? collection = null,
             IReadOnlyList<string>? collections = null,
-            string? language = null,
+            SourceLanguage? language = null,
             float minScore = 0.4f,
             bool? rerank = null,
             CancellationToken cancellationToken = default) =>

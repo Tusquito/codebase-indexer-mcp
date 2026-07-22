@@ -1,5 +1,7 @@
 using System.ComponentModel;
 using CodebaseIndexer.Application.Services;
+using CodebaseIndexer.Domain.Models;
+using CodebaseIndexer.Domain.Serialization;
 using ModelContextProtocol.Server;
 
 namespace CodebaseIndexer.Host.Tools;
@@ -33,6 +35,9 @@ public sealed class OutlierTools
         [Description("Truncate content to this many chars")] int? max_content_chars = null,
         CancellationToken cancellationToken = default) =>
         _service.FindOutlierChunksAsync(
-            collection, context_chunk_ids, limit, language, path_glob, max_similarity,
+            collection, context_chunk_ids, limit, ParseLanguage(language), path_glob, max_similarity,
             max_content_chars, cancellationToken);
+
+    private static SourceLanguage? ParseLanguage(string? language) =>
+        DomainEnumWire.TryParse(language, out SourceLanguage value) ? value : null;
 }

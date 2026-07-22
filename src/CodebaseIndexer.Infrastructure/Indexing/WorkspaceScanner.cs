@@ -263,6 +263,8 @@ public sealed class WorkspaceScanner : IWorkspaceScanner
                 continue;
             }
 
+            var sourceLanguage = language.Value;
+
             double mtime;
             try
             {
@@ -280,7 +282,7 @@ public sealed class WorkspaceScanner : IWorkspaceScanner
                 && Math.Abs(stored.Mtime.Value - mtime) < 0.001)
             {
                 await writer.WriteAsync(
-                    new FileRecord(absPath, relPath, language, string.Empty, stored.Sha256, mtime, MtimeSkipped: true),
+                    new FileRecord(absPath, relPath, sourceLanguage, string.Empty, stored.Sha256, mtime, MtimeSkipped: true),
                     cancellationToken).ConfigureAwait(false);
                 continue;
             }
@@ -304,7 +306,7 @@ public sealed class WorkspaceScanner : IWorkspaceScanner
             var content = System.Text.Encoding.UTF8.GetString(raw);
             var hash = ComputeSha256(raw);
             await writer.WriteAsync(
-                new FileRecord(absPath, relPath, language, content, hash, mtime),
+                new FileRecord(absPath, relPath, sourceLanguage, content, hash, mtime),
                 cancellationToken).ConfigureAwait(false);
         }
     }

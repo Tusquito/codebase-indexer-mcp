@@ -9,4 +9,4 @@ public sealed record GraphDefineEntry(
     string QualifiedName,
     string RelPath,
     string Name,
-    string Kind);
+    SymbolType Kind);

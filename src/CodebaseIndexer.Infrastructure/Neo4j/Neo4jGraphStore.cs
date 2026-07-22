@@ -1,6 +1,7 @@
 using CodebaseIndexer.Application.Options;
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
+using CodebaseIndexer.Domain.Serialization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Neo4j.Driver;
@@ -276,11 +277,11 @@ public sealed class Neo4jGraphStore : IGraphStore, IAsyncDisposable, IDisposable
                 new ChunkId(chunkId),
                 0,
                 rec["rel_path"].As<string>() ?? string.Empty,
-                rec["language"].As<string?>() ?? string.Empty,
+                DomainEnumWire.ParseOrUnknown(rec["language"].As<string?>()),
                 rec["start_line"].As<int?>() ?? 0,
                 rec["end_line"].As<int?>() ?? 0,
                 rec["symbol_name"].As<string?>(),
-                rec["symbol_type"].As<string?>() ?? "other",
+                DomainEnumWire.ParseOrOther(rec["symbol_type"].As<string?>()),
                 string.Empty,
                 collection));
         }
@@ -309,7 +310,12 @@ public sealed class Neo4jGraphStore : IGraphStore, IAsyncDisposable, IDisposable
             rows => new
             {
                 collection,
-                files = rows.Select(r => new { rel_path = r.RelPath, language = r.Language, sha256 = r.Sha256 }).ToArray(),
+                files = rows.Select(r => new
+                {
+                    rel_path = r.RelPath,
+                    language = DomainEnumWire.ToWire(r.Language),
+                    sha256 = r.Sha256,
+                }).ToArray(),
             }).ConfigureAwait(false);
 
         await UnwindAsync(
@@ -354,7 +360,7 @@ public sealed class Neo4jGraphStore : IGraphStore, IAsyncDisposable, IDisposable
                     chunk_id = r.ChunkId,
                     qualified_name = r.QualifiedName,
                     name = r.Name,
-                    kind = r.Kind,
+                    kind = DomainEnumWire.ToWire(r.Kind),
                 }).ToArray(),
             }).ConfigureAwait(false);
 

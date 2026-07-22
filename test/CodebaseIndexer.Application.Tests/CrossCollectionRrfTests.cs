@@ -45,11 +45,11 @@ public sealed class CrossCollectionRrfTests
             new ChunkId(chunkId),
             score,
             "path.cs",
-            "csharp",
+            SourceLanguage.CSharp,
             1,
             10,
             "Sym",
-            "method",
+            SymbolType.Method,
             "content",
             collection);
 }
