@@ -1,0 +1,27 @@
+adr_id: "0031"
+phase_key: phase-1
+phase_title: >-
+  Phase 1 — dependency-aware readiness + compose/Aspire MCP healthcheck +
+  unit/integration tests (Accept + .NET Host/Aspire re-scope)
+event: merge
+date: "2026-07-22"
+tracker_status: merged
+choices: >-
+  Merge PR #44 (`73af6dd`); branch `adr/0031-phase-1-mcp-liveness`; Accept
+  skipped — already Accepted (phase 1 shipped; phase 2 open); release skipped
+deviations: none
+code_evidence:
+  - >-
+    merged via [PR #44](https://github.com/Tusquito/codebase-indexer-mcp/pull/44)
+    (`adr/0031-phase-1-mcp-liveness`; `73af6dd276b67e09b7cd9f46ea53f392054deb2b`)
+verify: >-
+  carried from verification — Review rounds: 1; dotnet test 180 pass; Docker
+  integration Verdict pass (mcp_alive + TEI-down); plan compliance pass
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/44
+  commit: 73af6dd276b67e09b7cd9f46ea53f392054deb2b
+  status: merged
+changelog:
+  update: false
+  reason: "user-facing yes; invoker Changelog: no"
+user_facing: true

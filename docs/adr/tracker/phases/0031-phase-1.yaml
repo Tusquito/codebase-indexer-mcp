@@ -3,12 +3,13 @@ phase_key: phase-1
 title: >-
   Phase 1 — dependency-aware readiness + compose/Aspire MCP healthcheck +
   unit/integration tests (Accept + .NET Host/Aspire re-scope)
-tracker_status: verified
+tracker_status: merged
 chosen_scope: >-
   Aspire `/health` readiness + always-on `/alive` (no `/ready`); TEI always
   ready; ColBERT when remote+rerank; Neo4j when graph; hard-coded ~5s TEI/Neo4j
   probes; curl in Host Dockerfile for compose healthcheck
 last_updated: "2026-07-22"
+pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/44
 adr_status_note: >-
-  Verified — Review rounds: 1; dotnet test 180 pass; Docker integration Verdict
-  pass (mcp_alive + TEI-down); plan compliance pass
+  Merged — PR #44 (`73af6dd`); Accept skipped (already Accepted; phase 1
+  shipped; phase 2 open); release skipped

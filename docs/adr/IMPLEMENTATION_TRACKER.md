@@ -88,7 +88,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0030 | Phase 5 — GraphRAG | Accepted (phases 1–4; phase 5 merged; Accept skipped) | phase-5 | `merged` | Aspire-specific neo4j overlay; NullGraphStore when disabled; no `GRAPH_SCHEMA_VERSION` (re-index after pull); quality/perf skip; host tool gating via early config read | 2026-07-21 |
 | 0030 | Phase 6 — ColBERT + ops | Accepted (phases 1–6); Phase 7 remains | phase-6 | `merged` | One PR; checked-in Aspire compose; separate Proxy; GPU smoke; Refit `/v1/embed/colbert`; remote ColBERT default when rerank on; adaptive rerank; `compose_files.py` until Phase 7; CUDA Option A; no schema-version env | 2026-07-22 |
 | 0030 | Phase 7 — Cutover + delete Python | Accepted (phases 1–7 merged) | phase-7 | `merged` | Aspire/.NET sole production path; Python eval retained under `benchmarks/`; train MCP-HTTP port deferred; Accept 0031/0032/0033 not in this phase | 2026-07-22 |
-| 0031 | Phase 1 — dependency-aware readiness + compose/Aspire MCP healthcheck + unit/integration tests (Accept + .NET Host/Aspire re-scope) | Verified — Review rounds: 1; dotnet test 180 pass; Docker integration Verdict pass (mcp_alive + TEI-down); plan compliance pass | phase-1 | `verified` | Aspire `/health` readiness + always-on `/alive` (no `/ready`); TEI always ready; ColBERT when remote+rerank; Neo4j when graph; hard-coded ~5s TEI/Neo4j probes; curl in Host Dockerfile for compose healthcheck | 2026-07-22 |
+| 0031 | Phase 1 — dependency-aware readiness + compose/Aspire MCP healthcheck + unit/integration tests (Accept + .NET Host/Aspire re-scope) | Merged — PR #44 (`73af6dd`); Accept skipped (already Accepted; phase 1 shipped; phase 2 open); release skipped | phase-1 | `merged` | Aspire `/health` readiness + always-on `/alive` (no `/ready`); TEI always ready; ColBERT when remote+rerank; Neo4j when graph; hard-coded ~5s TEI/Neo4j probes; curl in Host Dockerfile for compose healthcheck | 2026-07-22 |
 <!-- END GENERATED:summary -->
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
@@ -96,7 +96,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 ## Active and upcoming work
 
 <!-- BEGIN GENERATED:active -->
-- **0031** Phase 1 — dependency-aware readiness + compose/Aspire MCP healthcheck + unit/integration tests (Accept + .NET Host/Aspire re-scope) — `verified`
+_No active or upcoming phases._
 <!-- END GENERATED:active -->
 
 ### Partial acceptance
@@ -2174,6 +2174,16 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 - **Choices:** Aspire probe URLs `/health`=readiness + `/alive`=liveness (update ADR body; no `/ready`); Accept in this PR; retag `McpHostHealthCheck` to `live`; add `TeiHealthCheck` + `Neo4jHealthCheck`; keep existing `ColbertRemoteHealthCheck` gate; compose `mcp` healthcheck + AppHost `WithHttpHealthCheck("/health")`; Quality skip / Perf skip; Docker integration required; stay on 0031 P1 (not 0026 P4); do not Accept 0032/0033 this cycle. Assumptions: Post–0030 P7 Aspire/.NET is sole production path; `docker-compose.aspire.yml` is checked-in deploy SoT; unit host must mock TEI for `/health` 200; pre-release allows breaking soft-health behavior. Project phase policy: pre-release — no backward compatibility requirement unless ADR documents one; Docker integration required; no schema-version env vars.
 - **Deviations:** none
 - **Changelog:** no — invoker Changelog: no; status planned
+
+#### 2026-07-22 — merge
+- **Phase:** Phase 1 — dependency-aware readiness + compose/Aspire MCP healthcheck + unit/integration tests (Accept + .NET Host/Aspire re-scope)
+- **Tracker status:** `merged`
+- **Choices:** Merge PR #44 (`73af6dd`); branch `adr/0031-phase-1-mcp-liveness`; Accept skipped — already Accepted (phase 1 shipped; phase 2 open); release skipped
+- **Deviations:** none
+- **Code evidence:** `merged via [PR #44](https://github.com/Tusquito/codebase-indexer-mcp/pull/44) (`adr/0031-phase-1-mcp-liveness`; `73af6dd276b67e09b7cd9f46ea53f392054deb2b`)`
+- **Verify:** carried from verification — Review rounds: 1; dotnet test 180 pass; Docker integration Verdict pass (mcp_alive + TEI-down); plan compliance pass
+- **Git:** https://github.com/Tusquito/codebase-indexer-mcp/pull/44 — status: merged — commit: 73af6dd276b67e09b7cd9f46ea53f392054deb2b
+- **Changelog:** no — user-facing yes; invoker Changelog: no
 
 #### 2026-07-22 — implementation
 - **Phase:** Phase 1 — dependency-aware readiness + compose/Aspire MCP healthcheck + unit/integration tests (Accept + .NET Host/Aspire re-scope)
