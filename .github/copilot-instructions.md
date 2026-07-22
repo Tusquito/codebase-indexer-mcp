@@ -7,140 +7,119 @@ A fully self-hosted MCP server that indexes codebases into a local Qdrant vector
 ## Running the server
 
 ```bash
-# Start services (GPU default — bundled TEI profile)
-docker compose $(python scripts/compose_files.py) --profile bundled-tei up -d --build
+# Start Aspire/.NET stack (production default — ADR 0030 Phase 7)
+docker compose $(python scripts/aspire_compose.py) up -d --build
 
 # Explicit CPU-only (CI / no NVIDIA)
-docker compose $(ACCELERATOR=cpu python scripts/compose_files.py) --profile bundled-tei up -d --build
+docker compose $(ACCELERATOR=cpu python scripts/aspire_compose.py --no-gpu-colbert) up -d --build
 
 # Apple Silicon (M1/M2/M3/M4) — native arm64 CPU profile; see docs/DEPLOYMENT.md § Apple Silicon
 # .env: ACCELERATOR=cpu, TEI_IMAGE=ghcr.io/huggingface/text-embeddings-inference:cpu-arm64-latest,
-#      TEI_MKL_INSTRUCTIONS= (empty), RERANK_ENABLED=false; Docker Desktop Memory 24 GiB recommended
-docker compose $(ACCELERATOR=cpu python scripts/compose_files.py) --profile bundled-tei up -d --build
+#      TEI_MKL_INSTRUCTIONS= (empty), Embedding__RerankEnabled=false; Docker Desktop Memory 24 GiB recommended
+docker compose $(ACCELERATOR=cpu python scripts/aspire_compose.py --no-gpu-colbert) up -d --build
 
 # Apple Silicon — optional host Metal TEI (faster dense; ADR 0029; opt-in)
 # brew install text-embeddings-inference && text-embeddings-router --model-id jinaai/jina-embeddings-v2-base-code \
 #   --hostname 127.0.0.1 --port 8080 --max-batch-tokens 1024
-# .env: COMPOSE_PROFILES= (empty), TEI_URL=http://host.docker.internal:8080, ACCELERATOR=cpu
-# Start host TEI before Docker; MCP_MEM_LIMIT=12g, QDRANT_MEM_LIMIT=8g (24 GiB Docker VM)
-# docker compose -f docker-compose.yml up -d --build && docker compose restart mcp_server
+# .env: TEI_URL / Tei__Url=http://host.docker.internal:8080, ACCELERATOR=cpu
+# Start host TEI before Docker; omit bundled tei service
+# docker compose $(ACCELERATOR=cpu python scripts/aspire_compose.py --no-gpu-colbert) up -d --build qdrant colbert mcp
 # See docs/DEPLOYMENT.md § macOS host-native TEI (Metal)
 
 # Check health
 curl http://localhost:8000/health
 
 # View MCP server logs
-docker logs -f codeindexer_mcp
+docker logs -f codeindexer_mcp_dotnet
 ```
 
-All config is env-var driven via `.env` (copy from `.env.example`). **Python `mcp_server` (production default):** see required vars below. **`.NET MCP host (ADR 0030 Phase 1+, opt-in):** `docker compose -f docker-compose.aspire.yml up -d --build` — split sections in `src/CodebaseIndexer.Host/appsettings.json` (`Qdrant`, `Tei`, `Embedding`, `Workspace`, `Chunking`, `Indexing`); override with `Section__Property` env vars (e.g. `Qdrant__Url`, `Embedding__DenseModel`) — see [ADR 0030](docs/adr/0030-migrate-mcp-server-to-dotnet10.md)). **Required in `.env` for Python stack (no Python defaults):** `WORKSPACE_ROOT`, `MCP_MEM_LIMIT`, `QDRANT_MEM_LIMIT`, `MCP_CPUS`, `QDRANT_CPUS`, `OMP_NUM_THREADS`, `ACCELERATOR`, `DENSE_EMBED_MODEL`, `SPARSE_EMBED_MODEL`, `DENSE_EMBED_VECTOR_SIZE`, `SPARSE_THREADS`. **TEI (dense):** `TEI_URL`, `DENSE_EMBED_MODEL`, `COMPOSE_PROFILES=bundled-tei`, `TEI_GPU=1` with GPU compose merged by `scripts/compose_files.py` when `ACCELERATOR=gpu` (default). Set `ACCELERATOR=cpu` for CPU-only hosts. Optional: `HYBRID_SEARCH`, `MCP_TRANSPORT`, pipeline/storage knobs in `config.py`. Default sparse is `Qdrant/bm25` with `SPARSE_THREADS=2` (always CPU in MCP — see [ADR 0022](docs/adr/0022-gpu-default-cpu-fallback.md)). Performance/RAM knobs: batching `BATCH_SIZE`/`FLUSH_EVERY`/`UPSERT_BATCH`/`READAHEAD_BUFFER`/`MAX_DENSE_EMBED_TOKENS`/`MAX_SPARSE_EMBED_TOKENS`, `SEQUENTIAL_EMBED`, glibc `MALLOC_ARENA_MAX`/`MALLOC_TRIM_THRESHOLD_`, Qdrant storage `VECTORS_ON_DISK`/`SPARSE_ON_DISK`/`QUANTIZATION`/`MEMMAP_THRESHOLD_KB`, memory pressure `MEMORY_PRESSURE_WARN_PCT`/`MEMORY_PRESSURE_HALT_PCT`, and model lifecycle `RELEASE_MODELS_AFTER_INDEX`/`MODEL_IDLE_TIMEOUT`. See [ADR 0025](docs/adr/0025-huggingface-tei-dense-embedding.md).
+All config is env-var driven via `.env` (copy from `.env.example`) plus Aspire `Section__Property` overrides. **Production runtime is .NET** (`src/CodebaseIndexer.Host`, `docker-compose.aspire.yml`). Config sections live in `appsettings.json` (`Qdrant`, `Tei`, `Embedding`, `Workspace`, `Chunking`, `Indexing`, `Colbert`, `Graph`, `Reindex`, `Discovery`); override with `Section__Property` (e.g. `Qdrant__Url`, `Embedding__DenseModel`). Compose-only caps: `WORKSPACE_ROOT`, `MCP_MEM_LIMIT`, `QDRANT_MEM_LIMIT`, `MCP_CPUS`, `QDRANT_CPUS`, `ACCELERATOR`, `TEI_IMAGE`, `ASPIRE_FASTEMBED_CACHE`. Flat Python-style names (`DENSE_EMBED_MODEL`, `TEI_URL`, …) remain for compose/harness convenience and map to `Embedding__*` / `Tei__*`. See [ADR 0030](docs/adr/0030-migrate-mcp-server-to-dotnet10.md), [ADR 0025](docs/adr/0025-huggingface-tei-dense-embedding.md).
 
 **Important:** `MCP_MEM_LIMIT + QDRANT_MEM_LIMIT` must leave headroom for the Linux VM and Docker daemon. **Windows/WSL:** reserve at least 2–3 GiB. **macOS Docker Desktop:** reserve **4–6 GiB** for macOS + VM overhead — size cgroup caps to the Docker Desktop Memory slider, not host unified RAM. Over-allocating causes silent OOM kills. Apple Silicon presets: [DEPLOYMENT.md § Apple Silicon](docs/DEPLOYMENT.md#apple-silicon-arm64-cpu), [ADR 0028](docs/adr/0028-apple-silicon-arm64-cpu-deployment.md), optional Metal TEI [ADR 0029](docs/adr/0029-macos-host-native-tei-metal-acceleration.md).
 
 ## Development
 
-All Python code lives in `mcp_server/`. The package manager is `uv`.
+**Runtime:** .NET 10 (`CodebaseIndexer.slnx`, `src/`, `test/`). Run `dotnet test CodebaseIndexer.slnx` or `dotnet run --project src/CodebaseIndexer.AppHost`. **C# file layout:** one type per file. **XML docs:** public types/members require `///` (`GenerateDocumentationFile`; CS1591 is an error). **Embedders:** `AddKeyedSingleton` + `EmbedderBackendKeys`. **Re-index after pull** when index shape / ColBERT / graph flags change (no `*_SCHEMA_VERSION` env).
 
-**ADR 0030 (.NET 10 migration):** A C# scaffold at the repo root (`CodebaseIndexer.slnx`, `src/`, `test/`) implements Phases 1–4 (AppHost, Qdrant, TEI via Refit, indexing, hybrid search, cross-ref + discovery tools). Python remains the production Docker image until Phase 7. Run `dotnet test CodebaseIndexer.slnx` or `dotnet run --project src/CodebaseIndexer.AppHost` from the repository root. **Phase 4 tool parity:** `find_cross_references`, `map_service_dependencies`, `recommend_code`, `find_outlier_chunks` (gated by `Discovery__RecommendEnabled`). Path D call sites use indexed `callees` payload — **re-index after pull** for existing collections. Config section `Discovery` in `appsettings.json` (`Discovery__*` env overrides). **C# file layout:** one type per file (`Chunk.cs`, `IDenseEmbedder.cs`, etc.) — no multi-type barrel files. **XML docs:** all public types and members require `///` documentation (`GenerateDocumentationFile` in `Directory.Build.props`; CS1591 is an error). **References:** remove unused NuGet/package, project, and `using` references — do not keep explicit packages already provided transitively. **Embedders:** register with `AddKeyedSingleton` + `EmbedderBackendKeys`; resolve with `[FromKeyedServices(...)]`.
+**Python (dev tooling only):** golden-set eval / label helpers under `benchmarks/` (not MCP runtime). Tracker render: `python scripts/render_adr_tracker.py --check`.
 
 ```bash
-cd mcp_server
+dotnet test CodebaseIndexer.slnx
 
-# Install deps (including dev)
-uv sync
-
-# Lint
-uv run ruff check .
-
-# Type check
-uv run mypy src/
-
-# Run single test file
-uv run pytest tests/test_foo.py -v
-
-# Run server locally (against a running Qdrant)
-uv run python -m codebase_indexer.main
+cd benchmarks
+uv sync --extra dev --extra benchmark
+uv run pytest -q
+uv run python -m benchmarks.eval_retrieval --validate-labels
 ```
 
 ## Architecture
 
-Three Docker services:
-- **Qdrant** (`codeindexer_qdrant`, port 6333/6334) — vector database, persistent via `qdrant_data` volume
-- **MCP server** (`codeindexer_mcp`, port 8000) — FastMCP server, the only service with business logic
-- **Cron** — removed (ADR 0030 Phase 6); .NET Host `Reindex:*` Quartz/interval + LibGit2Sharp; Aspire compose includes `colbert` worker; stdio forwarder is `src/CodebaseIndexer.Proxy`
+Aspire stack services (`docker-compose.aspire.yml`):
+- **Qdrant** (`codeindexer_qdrant`, port 6333/6334) — vector database
+- **TEI** (`codeindexer_tei`, port 8080) — dense embeddings
+- **ColBERT worker** (`codeindexer_colbert`, port 8082) — late-interaction / rerank
+- **MCP host** (`codeindexer_mcp_dotnet`, port 8000) — .NET `CodebaseIndexer.Host`
+- **Proxy** (optional) — `src/CodebaseIndexer.Proxy` stdio forwarder
+- Scheduled reindex is in-process on the Host (`Reindex:*`); cron sidecar removed (Phase 6)
 
 `WORKSPACE_ROOT` on the host is mounted read-only into the container at `/workspace`. Each direct subdirectory of `/workspace` is one **collection** (indexed project). The collection name is always the folder basename.
 
-### Indexing pipeline (`indexer/`)
+### Indexing pipeline (.NET)
 
-`scan_files` → `chunk_file` → `Embedder.embed_chunks` → `QdrantStorage.upsert_chunks`
+Scan → Tree-sitter / sliding-window chunk → TEI dense + ONNX BM25 sparse embed → Qdrant upsert. Chunk IDs: `ChunkId.FromPathAndLine` = SHA-256 of `{rel_path}:{start_line}` (parity with former Python helper).
 
-1. **Scanner** (`scanner.py`) — walks the filesystem, skips dirs in `EXCLUDED_DIRS`, respects `.gitignore` and `.codeindexignore`, detects language by extension.
-2. **Chunker** (`chunker.py`) — uses Tree-sitter AST for supported languages (Python, JS/TS, Go, Rust, Java, C/C++, C#); falls back to sliding window for unsupported languages and markup files. Chunk IDs are deterministic: `sha256("{rel_path}:{start_line}")`.
-3. **Embedder** (`embedder.py`) — **TEI HTTP dense** (`DENSE_EMBED_MODEL`, `TEI_URL`) + sparse lexical BM25 (`SPARSE_EMBED_MODEL`, default `Qdrant/bm25`) in-process. Sparse encoding runs on CPU via fastembed ONNX. `MAX_DENSE_EMBED_TOKENS` caps text sent to TEI (word-split approximation; `0` auto-detects from `DENSE_EMBED_MODEL` registry). `MAX_SPARSE_EMBED_TOKENS` (default `0` = no sparse truncation for BM25). `SEQUENTIAL_EMBED` forces sparse-then-dense during indexing. Sparse BM25 is a **class-level singleton** released via `Embedder.release_models()`; TEI has no in-process dense model. **Memory guard**: cgroup pressure can force sequential sparse+dense embedding. **Idle-timeout**: releases sparse BM25 after `MODEL_IDLE_TIMEOUT` seconds of no embed activity.
-4. **Pipeline** (`pipeline.py`) — double-buffered flushing: while Qdrant ingests batch N (I/O-bound), the CPU embeds batch N+1. Flushes every `FLUSH_EVERY` chunks (default 1500) to keep memory bounded, calls `trim_memory()` after each upsert completes, and logs `rss_mb`. HNSW indexing is deferred during bulk upload (`QdrantStorage.set_indexing`) and restored in a `finally`. **Memory guard**: checks cgroup memory pressure before each flush and aborts with a clear error instead of being OOM-killed silently. **Post-pipeline cleanup**: after the pipeline finishes, runs `gc.collect()` + `trim_memory()` unconditionally and logs RSS before/after — ensures transient allocations (chunk lists, numpy arrays) are returned to the OS regardless of whether models are released.
-5. **Memory** (`memory.py`) — cgroup-aware memory utilities. Reads cgroup v2/v1 memory limits and current usage. Provides `check_memory_pressure()` with configurable warn/halt thresholds for adaptive OOM prevention.
+### MCP tools (Host `Tools/`)
 
-Incremental indexing: existing SHA-256 hashes are fetched from Qdrant before the scan; unchanged files are skipped; stale files (deleted from disk) are purged after the scan.
-
-### MCP tools (`tools/`)
-
-Each tool is a `register_*_tool(mcp, ctx)` function — register all of them in `main.py`. Do not add tool logic directly to `main.py`.
-
-| Tool | File | Description |
-|------|------|-------------|
-| `index_codebase` / `index_status` | `index.py` | Indexes a project; blocks until done by default (`wait=True`). Pass `wait=False` for fire-and-forget; then use `index_status` to poll. Jobs tracked in `IndexJobTracker` |
-| `stop_indexing` | `index.py` | Gracefully cancel a running indexing job |
-| `index_all` | `index.py` | Re-indexes all existing collections sequentially. Discovers collections via `storage.list_collection_stats()`, skips already-running jobs, continues on failure. Same params as `index_codebase` minus `path`/`collection`. |
-| `get_collection_summary` | `summary.py` | **Token-efficient orientation**: language breakdown, dir tree, top files, and `build_dependencies` (which other indexed collections this project depends on via Maven/NuGet/npm/Gradle/Go/Cargo/Python). Zero embedding cost. Call first on an unfamiliar codebase. |
-| `search_symbols` | `symbols.py` | **Token-efficient symbol lookup**: same hybrid search as `search_codebase` but returns only metadata (no code content). `top_k` capped at 30. When `HYBRID_SEARCH` is on (default), RRF ranking applies and `min_score` is ignored; see `docs/SEARCH_BEHAVIOR.md`. Saves ~90% tokens vs `search_codebase`. |
-| `get_file_outline` | `outline.py` | **Token-efficient file structure**: symbol tree for a specific file via Qdrant scroll (zero embedding cost). Know what's in a file before fetching any chunk. |
-| `search_codebase` | `search.py` | Hybrid RRF search (dense + sparse) across one or more collections. `top_k` capped at 20. When `HYBRID_SEARCH` is on (default), RRF ranking applies and `min_score` is ignored; see `docs/SEARCH_BEHAVIOR.md`. Use `max_content_chars` to truncate results; then call `get_chunk` for the 1–2 results you actually need in full. |
-| `get_chunk` | `chunk.py` | Retrieve a specific chunk by ID — use after `search_symbols` or truncated `search_codebase` |
-| `list_collections` | `collections.py` | List all indexed collections with stats |
-| `find_cross_references` | `cross_references.py` | Discover symbol/endpoint links across collections. Reference types: `definition`, `import`, `usage`, `endpoint_definition`, `http_call`, `service_config`, `build_dependency`, `call_site`. Optional `member`/`receiver` for exact call-site lookup. When `RERANK_ENABLED=true`, semantic paths use ColBERT rerank |
-| `map_service_dependencies` | `service_map.py` | Build a full microservice dependency graph. Detects HTTP call chains **and** build-level dependencies (Maven, NuGet, npm, Gradle, Go, Cargo, Python). When `RERANK_ENABLED=true`, batched discovery uses ColBERT rerank |
-| `recommend_code` | `recommend.py` | **Vector discovery**: chunks similar to positive examples and dissimilar from negatives (Qdrant Recommendation API, dense-only). Gated by `RECOMMEND_ENABLED` (default on); capped by `RECOMMEND_MAX_EXAMPLES`. Single collection; see `docs/SEARCH_BEHAVIOR.md` |
-| `find_outlier_chunks` | `recommend.py` | **Vector discovery**: chunks semantically distant from a module context (`BEST_SCORE`, negative-only) + cosine-to-centroid filter. Gated by `RECOMMEND_ENABLED` (default on); see `docs/SEARCH_BEHAVIOR.md` |
-| `expand_search_context` | `graph_search.py` / `ExpandSearchContextTools` | **Graph retrieval** (ADR 0002 Phase 3 + ADR 0030 Phase 5 .NET): hybrid search seeds → bounded Neo4j neighborhood (`expand_subgraph`, chunk_id-only seeding, `1..Graph:MaxHops` / `GRAPH_MAX_HOPS` hops capped by `Graph:MaxNodes` / `GRAPH_MAX_NODES`) → Qdrant payload hydration. Returns `nodes`/`edges`/`related_chunks`/`seeds`, not an answer. Registered **only** when `Graph:Enabled` / `GRAPH_ENABLED=true`; absent by default. Aspire overlay: `docker-compose.aspire.neo4j.yml`. **Re-index after pull** when enabling graph (no schema-version env) |
+| Tool | Host type | Description |
+|------|-----------|-------------|
+| `index_codebase` / `index_status` / `stop_indexing` / `index_all` | `IndexTools` | Index jobs |
+| `get_collection_summary` | `SummaryTools` | Orientation + build deps |
+| `search_symbols` | `SearchTools` | Metadata-only hybrid search |
+| `get_file_outline` | `OutlineTools` | File symbol tree |
+| `search_codebase` | `SearchTools` | Hybrid RRF search |
+| `get_chunk` | `ChunkTools` | Fetch by chunk_id |
+| `list_collections` | `CollectionsTools` | Collection stats |
+| `find_cross_references` | `CrossReferenceTools` | Cross-file / call-site links |
+| `map_service_dependencies` | `ServiceMapTools` | Microservice dependency graph |
+| `recommend_code` / `find_outlier_chunks` | `RecommendTools` | Vector discovery |
+| `expand_search_context` | `ExpandSearchContextTools` | GraphRAG (when `Graph__Enabled`) |
+| `get_health` | `HealthTools` | Health |
 
 ### Token-efficient workflow
 
-Always follow this order to minimize tokens consumed per task:
-
 ```
-1. get_collection_summary   → orient (language, dirs, top files)   [zero embed cost]
-2. search_symbols           → locate symbols (no code content)      [~90% token savings]
-3. get_file_outline         → inspect file structure                [zero embed cost]
-4. search_codebase(..., max_content_chars=300) → narrow candidates  [truncated content]
-5. get_chunk(chunk_id)      → read only the 1-2 chunks you need     [full content]
-6. recommend_code(...)      → "like this, not that" discovery       [embed per text example]
-7. find_outlier_chunks(...) → semantically distant code in a module  [embed per text example]
+1. get_collection_summary
+2. search_symbols
+3. get_file_outline
+4. search_codebase(..., max_content_chars=300)
+5. get_chunk(chunk_id)
+6. recommend_code / find_outlier_chunks when needed
 ```
 
-For **similar-to-X but not-in-tests** discovery, prefer `recommend_code` over a negated `search_codebase` query.
+Never call `search_codebase` without `max_content_chars` when you only need locations — use `search_symbols`.
 
-For **dead code / refactor triage** (chunks unlike the rest of a module), prefer `find_outlier_chunks` with `path_glob` or `context_chunk_ids`.
+## Conventions
 
-Never call `search_codebase` without `max_content_chars` when you only need symbol locations — use `search_symbols` instead.
+- **Config**: add options in the matching `*Options` class + `appsettings.json` section; override with `Section__Property`. Compose caps stay in `.env` / aspire compose.
+- **TEI GPU**: `docker compose $(python scripts/aspire_compose.py)`; `ACCELERATOR=cpu` for CPU-only. Apple Silicon: arm64 TEI image + `--no-gpu-colbert`. External Metal TEI: omit `tei` service, set `Tei__Url=http://host.docker.internal:8080`.
+- **Documentation**: when changing MCP tools or deploy env vars, update:
+  1. `README.md`
+  2. `.github/copilot-instructions.md` (this file)
+  3. `skill/codebase-indexer/SKILL.md`
+  4. `docs/DEPLOYMENT.md`
+  5. Host tool descriptions / MCP instructions in `src/CodebaseIndexer.Host`
+- **stdio fallback**: use `CodebaseIndexer.Proxy` — not a Python stdio proxy.
 
 ### Key conventions
 
-- **Logging**: always use `structlog` and always log to **`stderr`**. Stdout is reserved for the stdio JSON-RPC transport. Never use `print()`.
-- **Async CPU work**: wrap all CPU-bound calls (embedding, Tree-sitter parsing) in `loop.run_in_executor(None, sync_fn, ...)` — they must not block the event loop.
-- **Settings**: add new config in `config.py` as a `pydantic-settings` field. It will automatically read from the matching env var (case-insensitive) or `.env`. Also add `${VAR:-default}` to the `mcp_server.environment` block in `docker-compose.yml` so Docker deployments pick it up.
-- **Path normalization**: `index_codebase` accepts full host paths (e.g. `C:\Users\me\repos\my-project`) and normalizes them to the last path component. Never pass `/` as the indexing path.
-- **Chunk sizes**: verbose/markup languages (`xml`, `yaml`, `json`, `markdown`, etc.) are capped at 60 lines per chunk; all others use `MAX_CHUNK_LINES` (default 150).
-- **Cross-collection search**: pass multiple collection names in the `collections` parameter of `search_codebase` / `find_cross_references`. Single-collection search goes through a faster code path.
-- **Build dependency detection**: `tools/build_deps.py` provides `extract_build_deps(content, rel_path)`, `is_build_manifest(rel_path)`, and `match_deps_to_collections(deps, collection_names)`. These parse Maven/NuGet/npm/Gradle/Go/Cargo/Python manifests and fuzzy-match artifact names against indexed collection names (e.g. artifact `my-core-definitions` matches collection `my-core`). Reference type `build_dependency` is returned by `find_cross_references` for manifest files. `map_service_dependencies` adds a Phase 2b that emits `build_dependency` edges. `get_collection_summary` auto-detects and reports `build_dependencies` when other collections are indexed.
-- **TEI GPU**: default when `ACCELERATOR=gpu` — use `docker compose $(python scripts/compose_files.py)`; set `ACCELERATOR=cpu` for CPU-only. **Apple Silicon (default):** `ACCELERATOR=cpu` + `TEI_IMAGE=cpu-arm64-latest` + `TEI_MKL_INSTRUCTIONS=` (empty) + `COMPOSE_PROFILES=bundled-tei`; see [ADR 0028](docs/adr/0028-apple-silicon-arm64-cpu-deployment.md), [DEPLOYMENT.md § Apple Silicon](docs/DEPLOYMENT.md#apple-silicon-arm64-cpu). **Apple Silicon (optional Metal):** host Homebrew TEI on `127.0.0.1:8080`, `COMPOSE_PROFILES=` empty, `TEI_URL=http://host.docker.internal:8080` — Metal acceleration outside Docker; start host TEI before compose; unified memory shared with Docker VM; see [ADR 0029](docs/adr/0029-macos-host-native-tei-metal-acceleration.md), [DEPLOYMENT.md § macOS host-native TEI (Metal)](docs/DEPLOYMENT.md#macos-host-native-tei-metal). See [ADR 0022](docs/adr/0022-gpu-default-cpu-fallback.md), [ADR 0025](docs/adr/0025-huggingface-tei-dense-embedding.md).
-- **Documentation**: whenever you add, remove, or change an MCP tool (signature, behaviour, description), you **must** also update:
-  1. `README.md` — the tool table and any relevant sections (Quick Start, Configuration, Architecture)
-  2. `.github/copilot-instructions.md` — the tool table and Key conventions
-  3. `skill/codebase-indexer/SKILL.md` — tool ladder / quick reference when user-facing workflow changes
-  4. `mcp_server/src/codebase_indexer/main.py` — `_INSTRUCTIONS` for MCP clients
+- **Logging**: use Microsoft.Extensions.Logging / OpenTelemetry (ADR 0018 .NET path). Python `prometheus_client` host metrics were removed with the Python runtime at Phase 7.
+- **Config**: `*Options` + validators; env overrides via `Section__Property`.
+- **Path normalization**: `index_codebase` accepts folder basename under `WORKSPACE_ROOT` (never `/`).
+- **Cross-collection search**: pass multiple collection names in `collections`.
+- **TEI GPU / Apple Silicon / Metal**: see Running the server above and `docs/DEPLOYMENT.md`.
+- **Documentation sync**: README, this file, SKILL, DEPLOYMENT, Host MCP instructions.
 
 ## MCP transport modes
 
-- **HTTP** (default, recommended): `streamable-http` on `127.0.0.1:8000`. Cursor connects via `"url": "http://localhost:8000/mcp"` in `mcp.json` (auto-reconnects after container restarts). Claude Desktop may also need `"transport": "streamable-http"`. **Copilot CLI** uses `~/.copilot/mcp-config.json` with `"type": "http"` (not `"type": "sse"` — SSE causes HTTP 406 because it sends an incompatible `Accept` header). When `MCP_AUTH_TOKEN` is set, clients pass `headers.Authorization: Bearer <token>`.
-- **stdio fallback**: uncomment the `codeindexer_proxy` sidecar in `docker-compose.yml` and `docker exec` into it — not `codeindexer_mcp`. Use when localhost HTTP is blocked or a client requires stdio. Do **not** use `docker exec … uv run … stdio_proxy` on the main container (deprecated: `uv run` startup failure + stdio pipe breaks on restart).
+- **HTTP** (default): streamable-HTTP on `127.0.0.1:8000`. Cursor: `"url": "http://localhost:8000/mcp"`. Copilot CLI: `"type": "http"`. Bearer auth when `MCP_AUTH_TOKEN` / Host auth options are set.
+- **stdio fallback**: `CodebaseIndexer.Proxy` sidecar — not the MCP container itself.

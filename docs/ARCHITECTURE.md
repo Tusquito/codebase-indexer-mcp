@@ -11,66 +11,70 @@ graph TD
         AI["AI Client\nClaude · Copilot CLI · Cursor"]
     end
 
-    subgraph Docker["Docker Compose"]
-        MCP["codeindexer_mcp :8000\nFastMCP + TEI dense + BM25 sparse"]
+    subgraph Docker["Aspire Compose"]
+        MCP["codeindexer_mcp_dotnet :8000\nCodebaseIndexer.Host"]
+        TEI["codeindexer_tei :8080\nTEI dense"]
+        COL["codeindexer_colbert :8082\nColbertWorker"]
         QD[("codeindexer_qdrant :6333\nQdrant vector DB")]
-        CRON["codeindexer_cron\ncron/reindex.py"]
     end
 
-    AI -- "HTTP streamable (primary)\nstdio sidecar proxy (fallback)" --> MCP
+    AI -- "HTTP streamable (primary)\nProxy stdio (fallback)" --> MCP
     MCP -- "Qdrant HTTP/gRPC" --> QD
+    MCP -- "TEI /v1/embeddings" --> TEI
+    MCP -- "ColBERT HTTP" --> COL
     WS -- "bind mount /workspace" --> MCP
-    WS -- "bind mount (rw)" --> CRON
-    CRON -- "MCP tools/call" --> MCP
 ```
 
-Each direct subdirectory of `/workspace` is one **collection** (indexed project), named after the folder basename. See [ADR 0004](adr/0004-collection-per-project-isolation.md) for why we use collection-per-project instead of Qdrant payload multitenancy.
+Each direct subdirectory of `/workspace` is one **collection** (indexed project), named after the folder basename. See [ADR 0004](adr/0004-collection-per-project-isolation.md).
 
 ## Entry points
 
 | Component | Path | Role |
 |-----------|------|------|
-| HTTP server (Python — production default) | `mcp_server/src/codebase_indexer/main.py` | FastMCP app factory (`create_app`), registers all MCP tools, optional bearer auth middleware, `/health` endpoint |
-| HTTP server (.NET — ADR 0030 Phase 1–3) | `src/CodebaseIndexer.Host/Program.cs` | `WebApplication.CreateSlimBuilder`; MCP at `/mcp`; `/health` via `AddHealthChecks()` + `McpHostHealthCheck`; Phase 3 core search tools (`search_codebase`, `search_symbols`, `get_chunk`, `get_file_outline`, `get_collection_summary`, `list_collections`) on Aspire stack; split `appsettings` sections + FluentValidation; **do not edit** `CodebaseIndexer.ServiceDefaults` (Aspire template) |
-| Aspire AppHost (.NET) | `src/CodebaseIndexer.AppHost/AppHost.cs` | Local dev orchestration: Qdrant (REST `:6333` + gRPC `:6334`) + TEI + MCP host; `docker-compose.aspire.yml` for CPU Aspire stack |
-| stdio proxy | `mcp_server/src/codebase_indexer/stdio_proxy.py` | Optional fallback: runs in a separate `codeindexer_proxy` sidecar; forwards JSON-RPC from stdin/stdout to the HTTP server — no model reload per session. Primary clients (e.g. Cursor) connect via HTTP URL instead. |
-| Cron job | `cron/reindex.py` | Daily git pull + incremental `index_codebase` for changed repos |
-| Benchmark | `mcp_server/benchmarks/bench.py` | Async harness for indexing/search latency and payload-index A/B comparison |
-| Stack tuner *(proposed)* | `scripts/tune_stack.py` ([ADR 0024](adr/0024-resource-aware-stack-tuner.md)) | Allocates compose RSS/CPU from host budget and searches pipeline knobs for best index/search speed |
+| HTTP server (.NET — production) | `src/CodebaseIndexer.Host/Program.cs` | MCP at `/mcp`; `/health`; tools under `Tools/`; `appsettings` + FluentValidation |
+| Aspire AppHost | `src/CodebaseIndexer.AppHost/AppHost.cs` | Local orchestration; checked-in `docker-compose.aspire.yml` is the deploy surface |
+| ColBERT worker | `src/CodebaseIndexer.ColbertWorker` | Late-interaction / rerank sidecar |
+| stdio proxy | `src/CodebaseIndexer.Proxy` | Optional stdio → HTTP forwarder |
+| Eval / golden-set | `benchmarks/benchmarks/eval_retrieval.py` | Dev tooling — MCP HTTP (`--mcp-url`) + ranx; not MCP runtime |
+| .NET microbench | `src/CodebaseIndexer.Benchmarks` | Latency/throughput benches |
+| Stack tuner | `scripts/tune_stack.py` | Compose RSS/CPU allocation ([ADR 0024](adr/0024-resource-aware-stack-tuner.md)) |
+| Integration harness | `scripts/run_compose_integration.py` | Aspire-default deploy + quality validation |
+
+Clean Architecture layers: `Domain` → `Application` → `Infrastructure` → `Host` / `ColbertWorker` / `Proxy`.
 
 ## Configuration
 
-`mcp_server/src/codebase_indexer/config.py` defines `Settings` (pydantic-settings). Environment variables map case-insensitively to fields. Shared constants (`DEFAULT_SERVICE_URL_KEYWORDS`, embedding model dimension tables) live in the same module.
+`src/CodebaseIndexer.Host/appsettings.json` and FluentValidation option types under `src/CodebaseIndexer.Application/Options/` / `src/CodebaseIndexer.Infrastructure/Configuration/` define runtime settings. Environment overrides use ASP.NET Core `Section__Property` syntax (`Qdrant__Url`, `Embedding__DenseModel`, `Tei__Url`, etc.).
 
-Docker Compose passes every `Settings` field from the repo-root `.env` into `mcp_server` via explicit `${VAR:-default}` entries in `docker-compose.yml` — see [DEPLOYMENT.md](DEPLOYMENT.md#docker-compose-env-passthrough). Restart `mcp_server` after env-only changes.
+Aspire Compose injects those into the `mcp` service via `docker-compose.aspire.yml` — see [DEPLOYMENT.md](DEPLOYMENT.md#docker-compose-env-passthrough). Restart `mcp` after env-only changes. Flat names in `.env` (`DENSE_EMBED_MODEL`, `TEI_URL`, `RERANK_ENABLED`, …) remain for harness/compose convenience and map to `Embedding__*` / `Tei__*` / `Embedding__RerankEnabled`.
 
-**.NET MCP host (ADR 0030 Phase 1+):** `src/CodebaseIndexer.Host/appsettings.json` uses split sections (`Qdrant`, `Tei`, `Embedding`, `Workspace`, `Chunking`, `Indexing`) — not `.env`. Container overrides use ASP.NET Core env syntax (`Qdrant__Url`, `Embedding__DenseModel`, etc.) in `docker-compose.aspire.yml`. **`Qdrant__Url` must target gRPC port 6334** (`Qdrant.Client`); REST `:6333` is published for health/metrics only (Python clients still use REST). Required fields are enforced by FluentValidation at startup (`ValidateOnStart`). See [ADR 0030](adr/0030-migrate-mcp-server-to-dotnet10.md).
+**`Qdrant__Url` must target gRPC port 6334** (`Qdrant.Client`); REST `:6333` is published for health/metrics only. Required fields are enforced by FluentValidation at startup (`ValidateOnStart`). See [ADR 0030](adr/0030-migrate-mcp-server-to-dotnet10.md).
 
-`mcp_server/src/codebase_indexer/context.py` builds `AppContext`: wires `Settings`, `QdrantStorage`, `Embedder`, `UrlExtractors`, and `IndexJobTracker` once per process.
+DI wiring lives in `src/CodebaseIndexer.Application/DependencyInjection.cs` and `src/CodebaseIndexer.Host/HostApplicationBuilderExtensions.cs`: `IQdrantVectorStore`, dense/sparse/ColBERT embedders, `IIndexJobService`, `ISearchService`, optional `IGraphStore`.
 
 ## Indexing pipeline
 
-Triggered by `index_codebase` / `index_all` (`mcp_server/src/codebase_indexer/tools/index.py` → `mcp_server/src/codebase_indexer/indexer/pipeline.py`).
+Triggered by `index_codebase` / `index_all` (`src/CodebaseIndexer.Host/Tools/IndexTools.cs` → `src/CodebaseIndexer.Application/Services/IndexCodebaseService.cs`).
 
 ```mermaid
 flowchart LR
     FS[Filesystem]
-    S1[scanner.py]
-    S2[chunker.py]
-    S3[embedder.py]
-    S4[storage/qdrant.py]
+    S1[WorkspaceScanner]
+    S2[TreeSitterChunker]
+    S3[IndexEmbeddingService]
+    S4[QdrantVectorStore]
     FS --> S1 --> S2 --> S3 --> S4
 ```
 
-### 1. Scanner (`indexer/scanner.py`)
+### 1. Scanner (`Infrastructure/Indexing/WorkspaceScanner.cs`)
 
-- Walks `WORKSPACE_PATH` (default `/workspace/<project>`)
-- Skips directories in `EXCLUDED_DIRS`
-- Honors `.gitignore` and `.codeindexignore`
-- Detects language by extension (`indexer/languages.py`)
+- Walks `Workspace:Path` (default `/workspace/<project>`)
+- Skips directories in excluded-dir options
+- Honors `.gitignore` and `.codeindexignore` (`GitIgnoreMatcher`)
+- Detects language by extension (`LanguageRegistry`)
 - mtime pre-filter, then SHA-256 for changed files only
 
-### 2. Chunker (`indexer/chunker.py`)
+### 2. Chunker (`Infrastructure/Indexing/TreeSitterChunker.cs`, `ChunkerCore.cs`)
 
 - Tree-sitter AST for supported languages; extracts top-level symbols
 - Sliding-window fallback for YAML, JSON, XML, Markdown, SQL, etc.
@@ -78,87 +82,87 @@ flowchart LR
 - Prepends relevant import/using lines to chunks for cross-reference signal
 - Chunk IDs: `sha256("{rel_path}:{start_line}")`
 
-### 3. Embedder (`indexer/embedder.py`)
+### 3. Embedder (`Application/Services/IndexEmbeddingService.cs`)
 
-- **Dense**: TEI HTTP (`DENSE_EMBED_MODEL`, `TEI_URL`)
-- **Sparse**: fastembed BM25 (`SPARSE_EMBED_MODEL`) on CPU
-- **ColBERT** (optional): multivector late-interaction when `RERANK_ENABLED=true` — **remote GPU sidecar by default** (`colbert_remote.py`, [ADR 0015](adr/0015-colbert-http-sidecar.md), [ADR 0022](adr/0022-gpu-default-cpu-fallback.md)); in-process ONNX (`colbert_onnx.py`) only under `ACCELERATOR=cpu` with explicit `COLBERT_EMBED_BACKEND=onnx`
-- Sparse model singleton; `release_models_after_index` and `model_idle_timeout` reclaim RAM
-- Cgroup memory guard (`memory.py`) for indexing pressure
+- **Dense**: TEI HTTP (`Embedding:DenseModel`, `Tei:Url`) via `Infrastructure/Tei/TeiDenseEmbedder.cs`
+- **Sparse**: ONNX BM25 (`Embedding:SparseModel`) on CPU via `Infrastructure/Embedding/OnnxSparseEmbedder.cs`
+- **ColBERT** (optional): multivector late-interaction when `Embedding:RerankEnabled=true` — **remote GPU sidecar by default** (`ColbertRemoteEmbedder`, [ADR 0015](adr/0015-colbert-http-sidecar.md), [ADR 0022](adr/0022-gpu-default-cpu-fallback.md)); in-process ONNX (`ColbertOnnxEmbedder`) only under `ACCELERATOR=cpu` with explicit `Colbert:Backend=onnx`
+- Sparse model cache; release-after-index / idle-timeout reclaim RAM
+- Cgroup memory guard (`Infrastructure/Memory/CgroupMemoryGuard.cs`) for indexing pressure
 
-### 4. Pipeline (`indexer/pipeline.py`)
+### 4. Pipeline (`IndexCodebaseService` / `IIndexPipeline`)
 
-- Double-buffered flush every `FLUSH_EVERY` chunks
-- Sub-batch upserts of size `UPSERT_BATCH`
-- Defers HNSW build during bulk upload (`QdrantStorage.set_indexing`)
-- Post-job `gc.collect()` + `malloc_trim`
+- Double-buffered flush every `Indexing:FlushEvery` chunks
+- Sub-batch upserts of size `Indexing:UpsertBatch`
+- Defers HNSW build during bulk upload
+- Post-job GC / native trim where applicable
 
 ## Embedding layer
 
 | Layer | Module | Notes |
 |-------|--------|-------|
-| Dense TEI | `indexer/backends/tei_dense.py` | OpenAI `/v1/embeddings`; MRL `dimensions` for Qwen3 when below native size; orchestrated by `Embedder` facade |
-| Sparse BM25 | `indexer/backends/onnx_sparse.py` | In-process CPU; `SPARSE_THREADS` required in `.env` |
-| ColBERT (opt-in) | `indexer/backends/colbert_remote.py`, `colbert_onnx.py` | Multivector at index time when `RERANK_ENABLED=true`; remote GPU sidecar default; in-process ONNX for `ACCELERATOR=cpu` only |
-| Truncation | `indexer/truncation.py`, `indexer/tokenizer_loader.py` | Dense: model tokenizer from `DENSE_EMBED_MODEL` via `tokenizers` (TEI path); sparse/ColBERT: FastEmbed cache tokenizer; caps via `MAX_DENSE_EMBED_TOKENS` / `MAX_SPARSE_EMBED_TOKENS` |
+| Dense TEI | `Infrastructure/Tei/TeiDenseEmbedder.cs` | OpenAI `/v1/embeddings`; MRL `dimensions` for Qwen3 when below native size |
+| Sparse BM25 | `Infrastructure/Embedding/OnnxSparseEmbedder.cs` | In-process CPU; `SPARSE_THREADS` / sparse thread options |
+| ColBERT (opt-in) | `Infrastructure/Colbert/ColbertRemoteEmbedder.cs`, `ColbertOnnxEmbedder.cs` | Multivector at index time when rerank on; remote GPU sidecar default; in-process ONNX for `ACCELERATOR=cpu` only |
+| Truncation | `Infrastructure/Embedding/EmbeddingTruncation.cs`, `DenseTokenizerLoader.cs` | Dense: model tokenizer from dense model id; caps via `MAX_DENSE_EMBED_TOKENS` / sparse token caps |
 
-Dense embedding is TEI-only ([ADR 0025](adr/0025-huggingface-tei-dense-embedding.md), supersedes [ADR 0011](adr/0011-ollama-only-dense-embedding.md)). Default dense model is **Jina Embeddings v2 base code** at 768 dimensions ([ADR 0021](adr/0021-revert-jina-production-default-retire-qwen3.md)); Qwen3 remains an optional experimental preset ([ADR 0016](adr/0016-qwen3-embedding-default-dense-model.md)). **GPU-default compose** ([ADR 0022](adr/0022-gpu-default-cpu-fallback.md)): bundled TEI and ColBERT sidecar use NVIDIA GPU by default via `scripts/compose_files.py`; sparse BM25 stays **CPU in-process** for all accelerator modes. **Apple Silicon** ([ADR 0028](adr/0028-apple-silicon-arm64-cpu-deployment.md)): operators set `ACCELERATOR=cpu` with native `cpu-arm64-latest` TEI; optional host Metal TEI ([ADR 0029](adr/0029-macos-host-native-tei-metal-acceleration.md)) — see [DEPLOYMENT.md § Apple Silicon](DEPLOYMENT.md#apple-silicon-arm64-cpu).
+Dense embedding is TEI-only ([ADR 0025](adr/0025-huggingface-tei-dense-embedding.md), supersedes [ADR 0011](adr/0011-ollama-only-dense-embedding.md)). Default dense model is **Jina Embeddings v2 base code** at 768 dimensions ([ADR 0021](adr/0021-revert-jina-production-default-retire-qwen3.md)); Qwen3 remains an optional experimental preset ([ADR 0016](adr/0016-qwen3-embedding-default-dense-model.md)). **GPU-default compose** ([ADR 0022](adr/0022-gpu-default-cpu-fallback.md)): Aspire TEI and ColBERT sidecar use NVIDIA GPU by default via `scripts/aspire_compose.py`; sparse BM25 stays **CPU in-process** for all accelerator modes. **Apple Silicon** ([ADR 0028](adr/0028-apple-silicon-arm64-cpu-deployment.md)): operators set `ACCELERATOR=cpu` with native `cpu-arm64-latest` TEI; optional host Metal TEI ([ADR 0029](adr/0029-macos-host-native-tei-metal-acceleration.md)) — see [DEPLOYMENT.md § Apple Silicon](DEPLOYMENT.md#apple-silicon-arm64-cpu).
 
 | Backend | Module | When |
 |---------|--------|------|
-| TEI | `indexer/backends/tei_dense.py` | Always (dense); bundled service via `COMPOSE_PROFILES=bundled-tei`; GPU override merged by default (`ACCELERATOR=gpu`) |
-| Sparse ONNX | `indexer/backends/onnx_sparse.py` | Always (BM25 hybrid search) |
+| TEI | `Infrastructure/Tei/TeiDenseEmbedder.cs` | Always (dense); bundled in `docker-compose.aspire.yml`; GPU when `ACCELERATOR=gpu` |
+| Sparse ONNX | `Infrastructure/Embedding/OnnxSparseEmbedder.cs` | Always (BM25 hybrid search) |
 
-The `Embedder` facade in `indexer/embedder.py` orchestrates backends; factory wiring lives in `indexer/backends/factory.py`.
+`IndexEmbeddingService` orchestrates backends; ColBERT backend selection is post-configured via `ColbertBackendPostConfigure`.
 
 ## Qdrant storage
 
-`mcp_server/src/codebase_indexer/storage/qdrant.py` — `QdrantStorage` class.
+`src/CodebaseIndexer.Infrastructure/Qdrant/QdrantVectorStore.cs` — gRPC client wrapper.
 
-- **Collections**: one per project folder; hybrid dense + sparse vectors when `HYBRID_SEARCH=true`; optional `colbert` multivector when `RERANK_ENABLED=true`
-- **Payload**: `chunk_id`, `rel_path`, `content`, `symbol_name`, `symbol_type`, `language`, line range, `file_sha256`, `file_mtime`, `callees` (omitted when graph indexing is active — see GraphRAG below), `graph_node_ids` (neighbor Neo4j node keys, present only when `GRAPH_ENABLED=true` — see GraphRAG below)
-- **Collection metadata**: `graph_call_sites: true` stamped on collections indexed with `GRAPH_ENABLED=true` ([ADR 0023](adr/0023-neo4j-primary-call-site-lookup.md) Phase 2); drives per-collection Path D routing in `find_cross_references`. `graph_enabled: true` stamped on collections whose chunks carry `graph_node_ids` ([ADR 0002](adr/0002-graphrag-neo4j-qdrant.md) Phase 2)
-- **Indexes**: optional keyword payload indexes (`PAYLOAD_INDEXES`) on `rel_path`, `chunk_id`, `symbol_name`, `language`, `callees`
+- **Collections**: one per project folder; hybrid dense + sparse vectors when hybrid search is on; optional `colbert` multivector when rerank is on
+- **Payload**: `chunk_id`, `rel_path`, `content`, `symbol_name`, `symbol_type`, `language`, line range, `file_sha256`, `file_mtime`, `callees` (omitted when graph indexing is active — see GraphRAG below), `graph_node_ids` (neighbor Neo4j node keys, present only when `Graph:Enabled=true` — see GraphRAG below)
+- **Collection metadata**: `graph_call_sites: true` stamped on collections indexed with graph enabled ([ADR 0023](adr/0023-neo4j-primary-call-site-lookup.md) Phase 2); drives per-collection Path D routing in `find_cross_references`. `graph_enabled: true` stamped on collections whose chunks carry `graph_node_ids` ([ADR 0002](adr/0002-graphrag-neo4j-qdrant.md) Phase 2)
+- **Indexes**: optional keyword payload indexes on `rel_path`, `chunk_id`, `symbol_name`, `language`, `callees`
 - **Tuning**: `VECTORS_ON_DISK`, `SPARSE_ON_DISK`, `QUANTIZATION`, `MEMMAP_THRESHOLD_KB`
-- **Search**: hybrid RRF via `query_points` + `Fusion.RRF`, or dense-only when hybrid disabled; optional ColBERT MAX_SIM rerank over prefetch pool ([ADR 0008](adr/0008-optional-colbert-reranking.md))
-- **Recommendation**: dense-only Qdrant Recommendation API (`RecommendStrategy.AVERAGE_VECTOR`) via `QdrantStorage.recommend` ([ADR 0014](adr/0014-vector-discovery-and-ops-automation.md))
-- **Outlier discovery**: dense-only `RecommendStrategy.BEST_SCORE` negative-only + centroid cosine filter via `QdrantStorage.find_outlier_chunks` ([ADR 0014](adr/0014-vector-discovery-and-ops-automation.md))
+- **Search**: hybrid RRF via `query_points` + RRF fusion, or dense-only when hybrid disabled; optional ColBERT MAX_SIM rerank over prefetch pool ([ADR 0008](adr/0008-optional-colbert-reranking.md))
+- **Recommendation**: dense-only Qdrant Recommendation API via recommend APIs ([ADR 0014](adr/0014-vector-discovery-and-ops-automation.md))
+- **Outlier discovery**: dense-only negative-only + centroid cosine filter ([ADR 0014](adr/0014-vector-discovery-and-ops-automation.md))
 
 ## Hybrid search
 
 See [ADR 0003](adr/0003-hybrid-search-rrf-default.md) (Qdrant [Hybrid Search on PDF Manuals](https://qdrant.tech/documentation/examples/hybrid-search-llamaindex-jinaai/) pattern).
 
-`mcp_server/src/codebase_indexer/tools/search_common.py` orchestrates query embedding and `QdrantStorage.search`.
+`src/CodebaseIndexer.Application/Services/SearchService.cs` orchestrates query embedding and `QdrantVectorStore` search.
 
-When `HYBRID_SEARCH=true` (default):
+When hybrid search is on (default):
 
 1. Embed query → dense vector + sparse vector
 2. Parallel prefetch on dense and sparse channels (`top_k * prefetch_multiplier`, default **5**)
 3. RRF fusion → final `top_k` results
 4. `min_score` is **not** applied (RRF scores ≠ cosine scale)
 
-When `HYBRID_SEARCH=false`:
+When hybrid is off:
 
 - Dense cosine search only; `min_score` filters by similarity threshold
 
 See [SEARCH_BEHAVIOR.md](SEARCH_BEHAVIOR.md) for tool-level caps and `min_score` semantics.
 
-**Implemented** opt-in ColBERT rerank ([ADR 0008](adr/0008-optional-colbert-reranking.md), [ADR 0015](adr/0015-colbert-http-sidecar.md)): set `RERANK_ENABLED=true` and re-index; hybrid prefetch → RRF → MAX_SIM rerank on `search_codebase`, `search_symbols`, `find_cross_references`, and `map_service_dependencies`. **Vector discovery** Phase 1–2 shipped: `recommend_code` and `find_outlier_chunks` via Qdrant Recommendation API ([ADR 0014](adr/0014-vector-discovery-and-ops-automation.md), [SEARCH_BEHAVIOR.md](SEARCH_BEHAVIOR.md#recommend_code)). Remaining Improve Search work: ADR 0008 Phase 2 track 2 (adaptive rerank skip / per-tool overrides), Track B n8n compose (ADR 0014), multi-hop client patterns ([ADR 0009](adr/0009-multi-hop-retrieval-strategies.md), [SEARCH_BEHAVIOR.md](SEARCH_BEHAVIOR.md#multi-hop-retrieval)). Golden-set retrieval evaluation is implemented ([ADR 0007](adr/0007-ranx-retrieval-evaluation.md)). Full prototype map: [adr/README.md](adr/README.md#qdrant-build-prototypes--improve-search-map).
+**Implemented** opt-in ColBERT rerank ([ADR 0008](adr/0008-optional-colbert-reranking.md), [ADR 0015](adr/0015-colbert-http-sidecar.md)): set `Embedding:RerankEnabled=true` and re-index; hybrid prefetch → RRF → MAX_SIM rerank on `search_codebase`, `search_symbols`, `find_cross_references`, and `map_service_dependencies`. **Vector discovery** Phase 1–2 shipped: `recommend_code` and `find_outlier_chunks` via Qdrant Recommendation API ([ADR 0014](adr/0014-vector-discovery-and-ops-automation.md), [SEARCH_BEHAVIOR.md](SEARCH_BEHAVIOR.md#recommend_code)). Remaining Improve Search work: ADR 0008 Phase 2 track 2 (adaptive rerank skip / per-tool overrides), Track B n8n compose (ADR 0014), multi-hop client patterns ([ADR 0009](adr/0009-multi-hop-retrieval-strategies.md), [SEARCH_BEHAVIOR.md](SEARCH_BEHAVIOR.md#multi-hop-retrieval)). Golden-set retrieval evaluation is implemented ([ADR 0007](adr/0007-ranx-retrieval-evaluation.md)). Full prototype map: [adr/README.md](adr/README.md#qdrant-build-prototypes--improve-search-map).
 
 ### Retrieval evaluation (ADR 0007)
 
-Optional offline harness in `mcp_server/benchmarks/eval_retrieval.py` measures `recall@10`, `MRR`, and `NDCG@10` against `benchmarks/fixtures/golden_queries.jsonl` using the same `run_search` path as MCP tools. Requires optional `benchmark` extra (`ranx`); not part of the MCP runtime image.
+Optional offline harness in `benchmarks/benchmarks/eval_retrieval.py` measures `recall@10`, `MRR`, and `NDCG@10` against `benchmarks/fixtures/golden_queries.jsonl` by calling Aspire MCP HTTP (`--mcp-url`). Requires optional `benchmark` extra (`ranx`); not part of the MCP runtime image.
 
 ```bash
-cd mcp_server
+cd benchmarks
 uv sync --extra dev --extra benchmark
-uv run python -m benchmarks.eval_retrieval --output eval-results.json
-uv run python -m benchmarks.eval_retrieval --no-hybrid --output eval-dense-only.json
+uv run python -m benchmarks.eval_retrieval --mcp-url http://127.0.0.1:8000/mcp --output eval-results.json
+uv run python -m benchmarks.eval_retrieval --mcp-url http://127.0.0.1:8000/mcp --no-hybrid --output eval-dense-only.json
 uv run python -m benchmarks.eval_retrieval --validate-labels
-uv run python -m benchmarks.eval_retrieval --rerank --output eval-rerank.json
+uv run python -m benchmarks.eval_retrieval --mcp-url http://127.0.0.1:8000/mcp --rerank --output eval-rerank.json
 uv run python -m benchmarks.suggest_labels "class Embedder embedder.py"
-uv run python -m benchmarks.eval_multihop --output eval-multihop.json
-uv run python -m benchmarks.eval_multihop --compare benchmarks/fixtures/eval_baseline.json
+uv run python -m benchmarks.eval_multihop --mcp-url http://127.0.0.1:8000/mcp --output eval-multihop.json
+uv run python -m benchmarks.eval_multihop --mcp-url http://127.0.0.1:8000/mcp --compare benchmarks/fixtures/eval_baseline.json
 ```
 
 Reports include **`metrics_by_tag`** (`symbol`, `conceptual`, `config`, `cross_file`, `multi_hop`) for slice-level tuning. Baseline: `benchmarks/fixtures/eval_baseline.json`. For the `multi_hop` slice, use `eval_multihop.py` to compare single-pass vs two-hop RRF fusion ([ADR 0009](adr/0009-multi-hop-retrieval-strategies.md)).
@@ -175,7 +179,7 @@ Vector discovery Phase 1–2 is shipped: `recommend_code` and `find_outlier_chun
 
 Optional Neo4j-backed code graph linked to Qdrant chunk IDs for vector→graph retrieval. **Disabled by default** (`GRAPH_ENABLED=false`); no Neo4j driver init or index-time graph I/O unless enabled. See [ADR 0002](adr/0002-graphrag-neo4j-qdrant.md).
 
-**Phase 1 (shipped):** index-time graph writer — `storage/neo4j.py`, `indexer/graph_writer.py`, pipeline hooks mirroring Qdrant flush/delete cadence. Ontology: `Collection`, `File`, `Chunk`, `Symbol`, `Endpoint`, `Artifact` with relationships `IN_COLLECTION`, `IN_FILE`, `DEFINES`, `IMPORTS`, `CALLS`, `DECLARES_ENDPOINT`, `HTTP_CALLS`, `CONFIGURES`, `BUILD_DEPENDS`, `RESOLVES_TO`. Shared link: Qdrant payload `chunk_id` = Neo4j `Chunk.chunk_id`. ADR 0023 Phase 1 adds `call_token` on `CALLS` edges, symbol unification with `DEFINES`, and Neo4j-backed Path D call-site lookup in `find_cross_references` when `GRAPH_ENABLED=true`. Re-index after graph writer changes.
+**Phase 1 (shipped):** index-time graph writer — `Application/Graph/GraphWriter.cs`, `Infrastructure/Neo4j/Neo4jGraphStore.cs`, pipeline hooks mirroring Qdrant flush/delete cadence. Ontology: `Collection`, `File`, `Chunk`, `Symbol`, `Endpoint`, `Artifact` with relationships `IN_COLLECTION`, `IN_FILE`, `DEFINES`, `IMPORTS`, `CALLS`, `DECLARES_ENDPOINT`, `HTTP_CALLS`, `CONFIGURES`, `BUILD_DEPENDS`, `RESOLVES_TO`. Shared link: Qdrant payload `chunk_id` = Neo4j `Chunk.chunk_id`. ADR 0023 Phase 1 adds `call_token` on `CALLS` edges, symbol unification with `DEFINES`, and Neo4j-backed Path D call-site lookup in `find_cross_references` when `Graph:Enabled=true`. Re-index after graph writer changes.
 
 **ADR 0023 Phase 2 (shipped):** when `GRAPH_ENABLED=true`, indexing omits `callees` from Qdrant payloads (Neo4j `CALLS` is authoritative) and stamps collection metadata `graph_call_sites: true`. Full re-index required when enabling graph on existing collections or toggling graph mode.
 
@@ -186,12 +190,12 @@ Optional Neo4j-backed code graph linked to Qdrant chunk IDs for vector→graph r
 **Deploy with Neo4j:**
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.neo4j.yml up -d --build
+docker compose $(python scripts/aspire_compose.py --neo4j) up -d --build
 ```
 
-Set `GRAPH_ENABLED=true`, `NEO4J_PASSWORD`, and re-index collections when enabling graph on existing data.
+Set `GRAPH_ENABLED=true` / `Graph__Enabled=true`, `NEO4J_PASSWORD`, and re-index collections when enabling graph on existing data.
 
-**Phase 3 (shipped):** `expand_search_context` MCP tool (gated by `GRAPH_ENABLED`, backed by `Neo4jStorage.expand_subgraph`) — see the Graph retrieval entry in the MCP tools table below.
+**Phase 3 (shipped):** `expand_search_context` MCP tool (gated by `Graph:Enabled`, backed by `Neo4jGraphStore` expand APIs) — see the Graph retrieval entry in the MCP tools table below.
 
 **Deferred:** Phase 4 Neo4j-backed cross-project queries.
 
@@ -201,32 +205,32 @@ Based on [Qdrant’s GraphRAG + Neo4j pattern](https://qdrant.tech/documentation
 
 Retrieval-only surface — no in-server LLM generation ([ADR 0005](adr/0005-mcp-retrieval-connector.md), Qdrant [Cohere RAG connector](https://qdrant.tech/documentation/examples/cohere-rag-connector/) pattern).
 
-All tools register via `register_*_tool(mcp, ctx)` in `main.py`:
+Tools register from `src/CodebaseIndexer.Host/Tools/`:
 
 | Category | Module |
 |----------|--------|
-| Indexing | `tools/index.py` |
-| Search | `tools/search.py`, `tools/symbols.py`, `tools/search_common.py` |
-| Discovery | `tools/recommend.py` (`recommend_code`; gated by `RECOMMEND_ENABLED`) |
-| Discovery | `tools/outliers.py` (`find_outlier_chunks`; gated by `RECOMMEND_ENABLED`) |
-| Orientation | `tools/summary.py`, `tools/outline.py` |
-| Retrieval | `tools/chunk.py`, `tools/collections.py` |
-| Cross-project | `tools/cross_references.py`, `tools/service_map.py`, `tools/build_deps.py` |
-| Graph retrieval | `tools/graph_search.py` (`expand_search_context`; gated by `GRAPH_ENABLED`, uses `Neo4jStorage.expand_subgraph`) |
+| Indexing | `Tools/IndexTools.cs` |
+| Search | `Tools/SearchTools.cs` |
+| Discovery | `Tools/RecommendTools.cs` (`recommend_code`; gated by recommend options) |
+| Discovery | `Tools/OutlierTools.cs` (`find_outlier_chunks`; gated by recommend options) |
+| Orientation | `Tools/SummaryTools.cs`, `Tools/OutlineTools.cs` |
+| Retrieval | `Tools/ChunkTools.cs`, `Tools/CollectionsTools.cs` |
+| Cross-project | `Tools/CrossReferenceTools.cs`, `Tools/ServiceMapTools.cs` |
+| Graph retrieval | `Tools/ExpandSearchContextTools.cs` (`expand_search_context`; gated by `Graph:Enabled`) |
 
-`tools/cross_references.py` provides `UrlExtractors` (keyword-driven URL/route extraction from `SERVICE_URL_KEYWORDS`).
+`Application/Search/UrlExtractors.cs` provides keyword-driven URL/route extraction from service-url keywords.
 
-## Cron reindex
+## Scheduled reindex (in-process)
 
-`cron/reindex.py`:
+`Application/Services/ScheduledReindexRunner.cs` (replaces deleted `cron/` sidecar):
 
-1. `list_collections` via minimal MCP HTTP client
-2. For each collection name, locate `/workspace/<name>` git repo
-3. `git fetch` + `git pull --ff-only` on default branch when clean
-4. `index_codebase(path=name, force=False, wait=True)` with `INDEX_TIMEOUT`
+1. List indexed collections
+2. For each collection name, locate `/workspace/<name>` git repo (LibGit2Sharp)
+3. Fetch + fast-forward when `Reindex:GitPull=true`
+4. Call `IIndexJobService` directly (no MCP HTTP loopback)
 
-Timeouts: `INDEX_TIMEOUT` (per index job), `MCP_HTTP_TIMEOUT` (per JSON-RPC call), `GIT_TIMEOUT` (subprocess).
+Timeouts: `Reindex:IndexTimeoutSeconds`, `Reindex:GitTimeoutSeconds`. Schedule via `Reindex:Cron` or `Reindex:Interval`.
 
 ## Job tracking
 
-`mcp_server/src/codebase_indexer/index_jobs.py` — `IndexJobTracker` holds in-memory job state for `index_codebase` / `index_status` / `stop_indexing`.
+`Application/Services/IndexJobService.cs` — in-memory job state for `index_codebase` / `index_status` / `stop_indexing`.

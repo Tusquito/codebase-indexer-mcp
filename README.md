@@ -10,20 +10,21 @@ A fully self-hosted, Docker-based MCP server that indexes your codebase into a l
 - **Multi-Language** — Python, JavaScript, TypeScript, Go, Rust, Java, C, C++, C#
 - **Token Efficient** — Returns only relevant code chunks, not full files. Three dedicated low-cost orientation tools (`get_collection_summary`, `search_symbols`, `get_file_outline`) eliminate exploratory searches entirely.
 - **Vector Discovery** — `recommend_code` finds chunks similar to positive examples and dissimilar from negatives; `find_outlier_chunks` finds code semantically distant from a module context (Qdrant Recommendation API)
-- **Optional GraphRAG** — index-time Neo4j code graph alongside Qdrant when `GRAPH_ENABLED=true` and `docker-compose.neo4j.yml` overlay is used ([ADR 0002](docs/adr/0002-graphrag-neo4j-qdrant.md)); disabled by default
+- **Optional GraphRAG** — index-time Neo4j code graph alongside Qdrant when `Graph__Enabled=true` and `docker-compose.aspire.neo4j.yml` overlay is used ([ADR 0002](docs/adr/0002-graphrag-neo4j-qdrant.md)); disabled by default
 - **MCP Compatible** — Works with Claude Desktop, Copilot CLI, Cursor, and more
 - **GPU-default acceleration** — Dense TEI and ColBERT sidecar run on NVIDIA GPU by default ([ADR 0022](docs/adr/0022-gpu-default-cpu-fallback.md)); set `ACCELERATOR=cpu` only for explicit CPU-only hosts
 - **Apple Silicon (arm64 CPU)** — Native `cpu-arm64-latest` TEI profile for M-series Macs without NVIDIA ([ADR 0028](docs/adr/0028-apple-silicon-arm64-cpu-deployment.md)); optional host Metal TEI ([ADR 0029](docs/adr/0029-macos-host-native-tei-metal-acceleration.md))
+- **Aspire/.NET runtime** — Production MCP is `CodebaseIndexer.Host` via `docker-compose.aspire.yml` ([ADR 0030](docs/adr/0030-migrate-mcp-server-to-dotnet10.md)); Python MCP package removed at Phase 7
 
 ## Documentation
 
 | Document | Description |
 |----------|-------------|
 | [AGENTS.md](AGENTS.md) | Pointer to copilot-instructions, ADRs, tracker, and SKILL for AI agents |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Dev setup (Python 3.12, uv; .NET 10 SDK for ADR 0030), CI lint/type-check/test workflow, conventional commits |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Dev setup (.NET 10 primary; Python only for `benchmarks/` + tracker scripts), CI, conventional commits |
 | [CHANGELOG.md](CHANGELOG.md) | Release history (Keep a Changelog format) |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Per-component responsibilities, indexing pipeline, embedding layer, hybrid search |
-| [CodebaseIndexer.slnx](CodebaseIndexer.slnx) | .NET 10 migration scaffold (ADR 0030 Phase 1+) — Python remains production default until Phase 7 |
+| [CodebaseIndexer.slnx](CodebaseIndexer.slnx) | .NET 10 Aspire/.NET MCP runtime (ADR 0030 — production default) |
 | [docs/adr/](docs/adr/) | Architecture Decision Records — see [0025](docs/adr/0025-huggingface-tei-dense-embedding.md) (TEI dense), [0021](docs/adr/0021-revert-jina-production-default-retire-qwen3.md) (Jina production default), [0016](docs/adr/0016-qwen3-embedding-default-dense-model.md) (Qwen3 experimental preset — historical), [0012](docs/adr/0012-retrieval-only-rag-split.md) (retrieval-only RAG), [0008](docs/adr/0008-optional-colbert-reranking.md) (ColBERT rerank), [0014](docs/adr/0014-vector-discovery-and-ops-automation.md) (recommendation search), [0015](docs/adr/0015-colbert-http-sidecar.md) (ColBERT sidecar) |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | GPU-default TEI compose, explicit `ACCELERATOR=cpu` exception, Apple Silicon arm64 profile, GraphRAG overlay, metrics, memory/CPU tuning |
 | [docs/SEARCH_BEHAVIOR.md](docs/SEARCH_BEHAVIOR.md) | `search_codebase` / `search_symbols` caps, `min_score` vs RRF, `recommend_code`, `find_outlier_chunks`, ColBERT rerank |
@@ -37,13 +38,17 @@ graph TD
         AI["AI Client\nClaude · Copilot CLI · Cursor"]
     end
 
-    subgraph Docker["Docker Compose"]
-        MCP["codeindexer_mcp  :8000\n────────────────────────\nFastMCP server\nTEI dense (HTTP)\nBM25 sparse in-process\nTree-sitter parser"]
+    subgraph Docker["Aspire Compose"]
+        MCP["codeindexer_mcp_dotnet  :8000\n────────────────────────\nCodebaseIndexer.Host\nTEI dense (HTTP)\nBM25 sparse in-process\nTree-sitter parser"]
+        TEI["codeindexer_tei  :8080"]
+        COL["codeindexer_colbert  :8082"]
         QD[("codeindexer_qdrant  :6333\n────────────────────────\nQdrant Vector DB\npersistent  qdrant_data  volume")]
     end
 
-    AI -- "MCP — HTTP streamable\n(fallback: stdio sidecar proxy)" --> MCP
-    MCP -- "Qdrant HTTP / gRPC" --> QD
+    AI -- "MCP — HTTP streamable\n(fallback: .NET stdio Proxy)" --> MCP
+    MCP -- "Qdrant gRPC" --> QD
+    MCP -- "TEI /v1/embeddings" --> TEI
+    MCP -- "ColBERT HTTP" --> COL
     WS -- "read-only bind mount\n→ /workspace" --> MCP
 ```
 
@@ -58,17 +63,18 @@ cp .env.example .env
 # Every direct subdirectory becomes a separate indexed collection.
 # Example: WORKSPACE_ROOT=C:\Users\me\repos  (not a single project folder)
 
-# 2. Start services (NVIDIA GPU default; bundled TEI profile)
-docker compose $(python scripts/compose_files.py) --profile bundled-tei up -d --build
-# TEI downloads the model weights to the tei_data volume on first start — no manual pull step
+# 2. Start Aspire/.NET stack (production default — ADR 0030 Phase 7)
+docker compose $(python scripts/aspire_compose.py) up -d --build
+# TEI downloads model weights to the tei_data volume on first start
 
 # 3. Confirm all services are healthy
-docker compose ps
+docker compose $(python scripts/aspire_compose.py) ps
 
 # 4. Stream server logs (indexing progress, errors)
-docker logs -f codeindexer_mcp
+docker logs -f codeindexer_mcp_dotnet
 
 # 5. Add MCP client config (see below)
+# After pull / cutover: call index_all(force=true) once to re-index
 ```
 
 Requires NVIDIA driver + [Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) when `ACCELERATOR=gpu` (default). Verify GPU: `docker exec codeindexer_tei nvidia-smi` lists the GPU and the running TEI process.
@@ -78,8 +84,8 @@ Requires NVIDIA driver + [Container Toolkit](https://docs.nvidia.com/datacenter/
 For CI, air-gapped CPU servers, or hosts without NVIDIA — not the production default. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ```bash
-# In .env: ACCELERATOR=cpu, TEI_GPU=0
-docker compose $(ACCELERATOR=cpu python scripts/compose_files.py) --profile bundled-tei up -d --build
+# In .env: ACCELERATOR=cpu
+docker compose $(ACCELERATOR=cpu python scripts/aspire_compose.py --no-gpu-colbert) up -d --build
 ```
 
 ### Apple Silicon (M1/M2/M3/M4)
@@ -89,14 +95,14 @@ No discrete NVIDIA GPU on Apple Silicon — use the **native arm64 CPU profile**
 - `ACCELERATOR=cpu`
 - `TEI_IMAGE=ghcr.io/huggingface/text-embeddings-inference:cpu-arm64-latest` (set in `.env` for manual compose up; integration harness uses `tei_image_default()`)
 - `TEI_MKL_INSTRUCTIONS=` (empty — do not use x86 AVX2 on arm64)
-- `RERANK_ENABLED=false` (ColBERT GPU sidecar unavailable)
+- `RERANK_ENABLED=false` / `Embedding__RerankEnabled=false` (ColBERT GPU sidecar unavailable)
 - Docker Desktop → Resources → Memory: **24 GiB** recommended (leave 4–6 GiB for macOS on 18 GiB hosts)
 
 ```bash
 cp .env.example .env
 # Paste M3 Pro 24 GiB preset; set WORKSPACE_ROOT=/Users/<user>/Documents/Repositories
 
-docker compose $(ACCELERATOR=cpu python scripts/compose_files.py) --profile bundled-tei up -d --build
+docker compose $(ACCELERATOR=cpu python scripts/aspire_compose.py --no-gpu-colbert) up -d --build
 curl http://localhost:8000/health
 curl http://127.0.0.1:8080/health
 docker version --format '{{.Server.Arch}}'   # expect arm64
@@ -115,10 +121,10 @@ text-embeddings-router \
   --hostname 127.0.0.1 --port 8080 --max-batch-tokens 1024
 ```
 
-In `.env`: `COMPOSE_PROFILES=` (empty), `TEI_URL=http://host.docker.internal:8080`, `ACCELERATOR=cpu`. Use the M3 Pro **host Metal** preset in `.env.example` (`MCP_MEM_LIMIT=12g`, `QDRANT_MEM_LIMIT=8g` — no bundled TEI cgroup). Start host TEI **before** Docker; restart `mcp_server` if TEI was late.
+In `.env`: `TEI_URL=http://host.docker.internal:8080`, `Tei__Url=http://host.docker.internal:8080`, `ACCELERATOR=cpu`. Use the M3 Pro **host Metal** preset in `.env.example`. Start host TEI **before** Docker; restart `mcp` if TEI was late. Omit the bundled `tei` service:
 
 ```bash
-docker compose -f docker-compose.yml up -d --build
+docker compose $(ACCELERATOR=cpu python scripts/aspire_compose.py --no-gpu-colbert) up -d --build qdrant colbert mcp
 curl http://127.0.0.1:8080/health   # host TEI
 curl http://localhost:8000/health    # MCP
 ```
@@ -158,9 +164,9 @@ When `MCP_AUTH_TOKEN` is set in `.env`, add the bearer header:
 }
 ```
 
-Verified with Cursor 3.7.12: remote MCP servers use `"url"` alone (no `type` field). Because Cursor talks directly to the published port, it **reconnects automatically** after `docker compose restart mcp_server` — no manual MCP reload.
+Verified with Cursor 3.7.12: remote MCP servers use `"url"` alone (no `type` field). Because Cursor talks directly to the published port, it **reconnects automatically** after `docker compose restart mcp` — no manual MCP reload.
 
-> **Why HTTP?** The server already publishes `127.0.0.1:8000` with streamable HTTP. Pointing Cursor at that URL avoids coupling the IDE to a `docker exec` session that dies whenever `codeindexer_mcp` restarts.
+> **Why HTTP?** The server already publishes `127.0.0.1:8000` with streamable HTTP. Pointing Cursor at that URL avoids coupling the IDE to a stdio session that dies whenever `codeindexer_mcp_dotnet` restarts.
 
 ### Claude Desktop and other HTTP clients
 
@@ -177,30 +183,24 @@ Verified with Cursor 3.7.12: remote MCP servers use `"url"` alone (no `type` fie
 
 Some clients require an explicit `transport` field; Cursor does not (see above). Add the same `headers.Authorization` entry when `MCP_AUTH_TOKEN` is set.
 
-### Fallback: stdio sidecar proxy
+### Fallback: .NET stdio Proxy
 
 Use when localhost HTTP is blocked (e.g. restrictive network proxies that intercept `localhost` and return 502, which the MCP SDK misreports as `MCPOAuthError`) or when a client only supports stdio.
 
-1. Uncomment the disabled `proxy` service in [`docker-compose.yml`](docker-compose.yml) (block labeled `FALLBACK: stdio sidecar proxy`).
-2. `docker compose up -d` to start `codeindexer_proxy`.
-3. Add to `mcp.json`:
+Run [`src/CodebaseIndexer.Proxy`](src/CodebaseIndexer.Proxy) on the host (forwards stdin JSON-RPC to the Aspire MCP HTTP endpoint). Env: `MCP_URL` (default `http://localhost:8000/mcp`), `MCP_AUTH_TOKEN`.
 
 ```json
 {
   "mcpServers": {
     "codebase-indexer": {
-      "command": "docker",
-      "args": ["exec", "-i", "codeindexer_proxy", "python", "/app/stdio_proxy.py"]
+      "command": "dotnet",
+      "args": ["run", "--project", "src/CodebaseIndexer.Proxy"]
     }
   }
 }
 ```
 
-The sidecar (`codeindexer_proxy`) is a lightweight `python:3.12-slim` container running `sleep infinity` with only `stdio_proxy.py` mounted. Cursor `docker exec`s into this container — not `codeindexer_mcp` — so the stdio session survives `mcp_server` restarts. When auth is enabled, the sidecar reads `MCP_AUTH_TOKEN` from compose env (already wired in the commented block).
-
-> **`stdio_proxy` vs `main`** — the proxy is a thin shim that forwards JSON-RPC to the already-running HTTP server. No embedding models are reloaded on each session start. Indexing and search logs remain visible in `docker logs codeindexer_mcp`.
-
-> **Deprecated:** `docker exec` into `codeindexer_mcp` with `uv run python -m codebase_indexer.stdio_proxy`. `uv run` re-synced the editable package and failed with `OSError: Readme file does not exist: ../README.md`; exec into the main container also broke the stdio pipe on every `mcp_server` restart, requiring a manual Cursor MCP reload.
+The proxy is a thin shim — embedding models stay in `codeindexer_mcp_dotnet`. Indexing and search logs remain visible in `docker logs codeindexer_mcp_dotnet`. See [Stdio Proxy (.NET)](#stdio-proxy-net).
 
 ### Copilot CLI
 
@@ -220,7 +220,7 @@ Add to `~/.copilot/mcp-config.json` (Windows: `%USERPROFILE%\.copilot\mcp-config
 
 > **Important:** Use `"type": "http"` (not `"type": "sse"`). The server uses streamable-http (POST-based) transport. Using `"sse"` causes the CLI to send an incompatible `Accept` header, resulting in HTTP 406 errors. When `MCP_AUTH_TOKEN` is set, add `"headers": {"Authorization": "Bearer <token>"}`.
 
-After editing the config, run `/restart` in the CLI to reconnect. If the connection fails, check that all containers are running with `docker compose ps` — Qdrant stopping is the most common cause. Otherwise use the [stdio sidecar proxy](#fallback-stdio-sidecar-proxy) fallback.
+After editing the config, run `/restart` in the CLI to reconnect. If the connection fails, check that all containers are running with `docker compose ps` — Qdrant stopping is the most common cause. Otherwise use the [.NET stdio Proxy](#fallback-net-stdio-proxy) fallback.
 
 ## MCP Tools
 
@@ -473,15 +473,15 @@ Steps 1–3 use **zero embedding compute** (payload scroll only). Step 4 caps re
 
 ## Configuration
 
-Settings are environment-variable driven. **Required variables** (no Python defaults) must be set in `.env` — see the REQUIRED section in `.env.example`. Docker Compose fails fast if any are missing. Optional knobs keep defaults in `config.py` only.
+Settings are environment-variable driven. **Required compose variables** must be set in `.env` — see the REQUIRED section in `.env.example`. Docker Compose fails fast if any are missing. Runtime options use ASP.NET Core `Section__Property` / `appsettings.json` (see [ARCHITECTURE.md](docs/ARCHITECTURE.md#configuration)).
 
-> **Docker note:** Base `docker-compose.yml` passes core `Settings` env vars into `mcp_server`. Optional overlays add more: `docker-compose.tei.yml` (TEI), `docker-compose.colbert-worker.yml` (ColBERT + metrics on sidecar), `docker-compose.neo4j.yml` (GraphRAG). See [DEPLOYMENT.md](docs/DEPLOYMENT.md#docker-compose-env-passthrough). Run `docker compose restart mcp_server` after env-only edits. Local `uv run` reads `.env` in `mcp_server/` directly.
+> **Docker note:** `docker-compose.aspire.yml` injects `Embedding__*`, `Tei__*`, `Colbert__*`, `Qdrant__*`, `Workspace__*`, `Reindex__*` into the `mcp` service. Optional overlays: `docker-compose.aspire.colbert.gpu.yml` (GPU ColBERT when `ACCELERATOR=gpu`), `docker-compose.aspire.neo4j.yml` (GraphRAG). Canonical `-f` list: `python scripts/aspire_compose.py`. See [DEPLOYMENT.md](docs/DEPLOYMENT.md#docker-compose-env-passthrough). Run `docker compose restart mcp` after env-only edits.
 
 ### Required (`.env` / Docker Compose)
 
 | Variable | Description |
 |----------|-------------|
-| `WORKSPACE_ROOT` | **Host path** bind-mounted into the container at `/workspace` (read-only for the MCP server; read-write for the cron service). Set to the *parent* directory of all your repos so each subdirectory becomes a separate collection. This is a Docker Compose variable — not read by the Python app directly. |
+| `WORKSPACE_ROOT` | **Host path** bind-mounted into the container at `/workspace` (read-only for the MCP server). Set to the *parent* directory of all your repos so each subdirectory becomes a separate collection. Compose-only — Host reads `Workspace:Path` (`/workspace`). |
 | `MCP_MEM_LIMIT` | Hard memory cap for the MCP server container |
 | `QDRANT_MEM_LIMIT` | Hard memory cap for the Qdrant container |
 | `MCP_CPUS` | CPU cap for the MCP server container |
@@ -491,10 +491,9 @@ Settings are environment-variable driven. **Required variables** (no Python defa
 | `SPARSE_EMBED_MODEL` | fastembed sparse model; default `Qdrant/bm25` (lexical BM25) |
 | `DENSE_EMBED_VECTOR_SIZE` | Dense embedding dimensions; default `768` for Jina v2 base code (see [Jina](#jina-embedding-via-tei) and [BGE v1.5](#baai-bge-english-v15)) |
 | `SPARSE_THREADS` | ONNX threads for `SPARSE_EMBED_MODEL`; `2` for `Qdrant/bm25` (default) |
-| `ACCELERATOR` | Compose-only — `gpu` (default) merges GPU compose overrides; `cpu` is explicit exception only ([ADR 0022](docs/adr/0022-gpu-default-cpu-fallback.md)). |
-| `COMPOSE_PROFILES` | Compose profiles to activate. Set to `bundled-tei` with `scripts/compose_files.py` to run TEI inside the stack. |
-| `TEI_URL` | TEI base URL for dense embedding. Default: `http://tei:80` (bundled) or `http://host.docker.internal:8080` (host TEI). |
-| `TEI_GPU` | `1` when `ACCELERATOR=gpu` (default); GPU override merged by `scripts/compose_files.py`. |
+| `ACCELERATOR` | Compose-only — `gpu` (default) merges GPU ColBERT overlay via `aspire_compose.py`; `cpu` is explicit exception only ([ADR 0022](docs/adr/0022-gpu-default-cpu-fallback.md)). |
+| `TEI_URL` / `Tei__Url` | TEI base URL for dense embedding. Default: `http://tei:80` (bundled in Aspire compose) or `http://host.docker.internal:8080` (host TEI; omit `tei` service). |
+| `TEI_GPU` | `1` when `ACCELERATOR=gpu` (default); document flag for GPU TEI. |
 | `TEI_GPU_COUNT` | GPUs reserved for bundled TEI; defaults to `1`. |
 
 ### Jina Embedding (via TEI)
@@ -540,7 +539,7 @@ Two related settings control where code is scanned:
 | Setting | Where set | Meaning |
 |---------|-----------|---------|
 | `WORKSPACE_ROOT` | `.env` / Docker Compose | **Host** directory mounted at `/workspace` inside containers. Example: `C:\Users\me\repos`. |
-| `WORKSPACE_PATH` | `config.py` (default `/workspace`) | **In-container** scan root the MCP server walks. Normally leave at `/workspace` — the mount point of `WORKSPACE_ROOT`. |
+| `WORKSPACE_PATH` | `Workspace:Path` (default `/workspace`) | **In-container** scan root the MCP server walks. Normally leave at `/workspace` — the mount point of `WORKSPACE_ROOT`. |
 
 When calling `index_codebase`, pass the **project folder name** (basename under `/workspace`), e.g. `my-project` — never `/` and never the full host path unless you want it normalized to the last component.
 
@@ -552,7 +551,7 @@ Optional bearer authentication is controlled by `MCP_AUTH_TOKEN`:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MCP_AUTH_TOKEN` | *(empty — auth disabled)* | When set, every HTTP request must include `Authorization: Bearer <token>`. `/health` is exempt. HTTP clients (e.g. Cursor) pass the token via `mcp.json` `headers`; the stdio sidecar proxy and `codeindexer_cron` read the same value from env. Leave empty for trusted local-only use behind the loopback binding. |
+| `MCP_AUTH_TOKEN` | *(empty — auth disabled)* | When set, every HTTP request must include `Authorization: Bearer <token>`. `/health` is exempt. HTTP clients (e.g. Cursor) pass the token via `mcp.json` `headers`; the .NET stdio Proxy reads the same value from env. Leave empty for trusted local-only use behind the loopback binding. |
 
 If you change port bindings to expose the server beyond localhost, set `MCP_AUTH_TOKEN` to a long random string.
 
@@ -567,7 +566,7 @@ If you change port bindings to expose the server beyond localhost, set `MCP_AUTH
 | `HYBRID_SEARCH` | `true` | Enable dense+sparse RRF fusion; when `false`, dense-only search and `min_score` applies |
 | `MAX_CHUNK_LINES` | `150` | Maximum lines per chunk |
 | `CHUNK_OVERLAP_LINES` | `20` | Overlap between sliding-window chunks |
-| `EXCLUDED_DIRS` | `node_modules,.git,__pycache__,…` | Comma-separated directory names skipped during scan (see `config.py` for full default) |
+| `EXCLUDED_DIRS` | `node_modules,.git,__pycache__,…` | Comma-separated directory names skipped during scan (see `Workspace` / chunking options for full default) |
 | `LOG_LEVEL` | `INFO` | Logging level (output visible via `docker logs codeindexer_mcp`) |
 
 > **Important**: `MCP_MEM_LIMIT + QDRANT_MEM_LIMIT` must leave at least 2–3 GiB for the Linux kernel, Docker daemon, and WSL2 overhead. Over-allocating causes silent OOM kills — the container restarts with no error message. Example for 16 GB Docker: MCP `9g` + Qdrant `5g` = 14g leaves 2 GB for the VM kernel and page cache.
@@ -648,7 +647,7 @@ Requires `docker-compose.neo4j.yml` overlay. Full re-index when enabling on exis
 
 ```bash
 # In .env: GRAPH_ENABLED=true, NEO4J_PASSWORD=...
-docker compose -f docker-compose.yml -f docker-compose.neo4j.yml up -d --build
+docker compose $(python scripts/aspire_compose.py --neo4j) up -d --build
 index_codebase(path="my-project", force=True)  # backfill graph + graph_call_sites metadata
 ```
 
@@ -663,13 +662,13 @@ Requires **full re-index** when enabling. See [DEPLOYMENT.md](docs/DEPLOYMENT.md
 | `RERANK_PREFETCH` | `100` | Hybrid candidate pool size before rerank |
 | `RERANK_MAX_QUERY_TOKENS` | `0` | Query token cap (`0` = model registry default) |
 | `COLBERT_EMBED_BACKEND` | `remote` when `RERANK_ENABLED=true`, else `onnx` | `remote` (GPU sidecar default) or `onnx` (in-process; `ACCELERATOR=cpu` only) |
-| `COLBERT_URL` | `http://colbert_worker:8082` | Sidecar URL when `COLBERT_EMBED_BACKEND=remote` |
+| `COLBERT_URL` / `Colbert__Url` | `http://colbert:8082` | Sidecar URL when `COLBERT_EMBED_BACKEND=remote` |
 | `COLBERT_TIMEOUT` | `300` | Sidecar HTTP timeout (seconds) |
 | `COLBERT_EMBED_BATCH_SIZE` | `16` | ColBERT embed batch size |
 
-### Benchmark harness (`mcp_server/benchmarks/bench.py`)
+### Benchmark harness (`benchmarks/benchmarks/bench.py`)
 
-Env-var defaults for the async benchmark runner (also overridable via CLI flags):
+Env-var defaults for the async benchmark runner under `benchmarks/` (also overridable via CLI flags):
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -697,7 +696,7 @@ For CPU-only hosts, set `ACCELERATOR=cpu` in `.env` (see [DEPLOYMENT.md](docs/DE
 
 **Apple Silicon:** use native `cpu-arm64-latest` TEI and M3 Pro presets in `.env.example` — see [DEPLOYMENT.md § Apple Silicon](docs/DEPLOYMENT.md#apple-silicon-arm64-cpu) and [ADR 0028](docs/adr/0028-apple-silicon-arm64-cpu-deployment.md).
 
-GPU is the default when `ACCELERATOR=gpu`: use `docker compose $(python scripts/compose_files.py)`. Verify with `docker exec codeindexer_tei nvidia-smi`.
+GPU is the default when `ACCELERATOR=gpu`: use `docker compose $(python scripts/aspire_compose.py)`. Verify with `docker exec codeindexer_tei nvidia-smi`.
 
 Full re-index required after changing `DENSE_EMBED_MODEL` or `DENSE_EMBED_VECTOR_SIZE`. See [ADR 0025](docs/adr/0025-huggingface-tei-dense-embedding.md).
 
@@ -724,7 +723,7 @@ The .NET Host owns scheduled reindex via `Reindex:*` options (Quartz cron or int
 2. Fetches and fast-forwards the default branch when `Reindex:GitPull=true`
 3. Calls `IIndexJobService` directly (no MCP HTTP loopback) with `force=false`
 
-The former `cron/` sidecar was removed in ADR 0030 Phase 6. Python `docker-compose.yml` no longer includes a cron service — use the Aspire/.NET Host schedule or call `index_all` manually until Phase 7 cutover.
+The former `cron/` sidecar was removed in ADR 0030 Phase 6. The Python MCP runtime and `docker-compose.yml` overlays were removed in Phase 7 — use Aspire compose (`scripts/aspire_compose.py`) and in-process Host reindex / `index_all`.
 
 ### Reindex environment variables (.NET)
 
@@ -744,7 +743,7 @@ The former `cron/` sidecar was removed in ADR 0030 Phase 6. Python `docker-compo
 ## Architecture Summary
 
 - **Qdrant** — Vector database for storing and searching embeddings
-- **MCP Server** — .NET Host (Aspire) or Python FastMCP; dense embedding via TEI HTTP, sparse BM25 in-process; optional ColBERT MAX_SIM when `Embedding:RerankEnabled=true`
+- **MCP Server** — .NET Host (Aspire); dense embedding via TEI HTTP, sparse BM25 in-process; optional ColBERT MAX_SIM when `Embedding:RerankEnabled=true`
 - **ColBERT worker** — `CodebaseIndexer.ColbertWorker` ONNX sidecar (`docker-compose.aspire.yml` service `colbert`)
 - **Reindex** — In-process Host schedule (no cron sidecar)
 
