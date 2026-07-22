@@ -56,6 +56,7 @@ COLBERT_EMBED_MODEL = "colbert-ir/colbertv2.0"
 DOTNET_SDK_IMAGE = os.environ.get("DOTNET_SDK_IMAGE", "mcr.microsoft.com/dotnet/sdk:10.0")
 QDRANT_URL = "http://127.0.0.1:6333"
 MCP_HEALTH_URL = "http://127.0.0.1:8000/health"
+MCP_ALIVE_URL = "http://127.0.0.1:8000/alive"
 MCP_URL = "http://127.0.0.1:8000/mcp"
 TEI_URL = "http://127.0.0.1:8080"
 HOST_TEI_URL = "http://127.0.0.1:8080"
@@ -712,6 +713,8 @@ def main() -> int:
         "host_tei_preflight": {"status": "pending", "detail": ""},
         "qdrant_health": {"status": "pending", "detail": ""},
         "mcp_health": {"status": "pending", "detail": ""},
+        "mcp_alive": {"status": "pending", "detail": ""},
+        "mcp_readiness_tei_down": {"status": "pending", "detail": ""},
         "tei_health": {"status": "pending", "detail": ""},
         "colbert_health": {"status": "pending", "detail": ""},
         "tei_embed_smoke": {"status": "pending", "detail": ""},
@@ -800,8 +803,10 @@ def main() -> int:
                 print(f"FAIL: aspire deploy — {detail}")
             return 1
 
-    ok, detail = wait_http(MCP_HEALTH_URL, attempts=15, interval=1.0)
+    ok, detail = wait_http(MCP_HEALTH_URL, attempts=30, interval=2.0)
     report["mcp_health"] = {"status": "pass" if ok else "fail", "detail": detail}
+    ok, detail = http_ok(MCP_ALIVE_URL)
+    report["mcp_alive"] = {"status": "pass" if ok else "fail", "detail": detail}
     ok, detail = http_ok(f"{QDRANT_URL}/healthz")
     report["qdrant_health"] = {"status": "pass" if ok else "fail", "detail": detail}
 
@@ -851,6 +856,45 @@ def main() -> int:
         "detail": detail,
     }
 
+    # ADR 0031: TEI-down readiness split — /health fails, /alive stays up.
+    if args.external_tei:
+        report["mcp_readiness_tei_down"] = {
+            "status": "skipped",
+            "detail": "external tei — bundled TEI stop not applicable",
+        }
+    else:
+        stop = _run(["docker", "stop", TEI_CONTAINER])
+        if stop.returncode != 0:
+            report["mcp_readiness_tei_down"] = {
+                "status": "fail",
+                "detail": (stop.stderr or stop.stdout or "docker stop tei failed")[-2000:],
+            }
+        else:
+            time.sleep(2.0)
+            ready_ok, ready_detail = http_ok(MCP_HEALTH_URL)
+            alive_ok, alive_detail = http_ok(MCP_ALIVE_URL)
+            split_ok = (not ready_ok) and alive_ok
+            report["mcp_readiness_tei_down"] = {
+                "status": "pass" if split_ok else "fail",
+                "detail": (
+                    f"after TEI stop: /health ok={ready_ok} ({ready_detail}); "
+                    f"/alive ok={alive_ok} ({alive_detail})"
+                ),
+            }
+            start = _run(["docker", "start", TEI_CONTAINER])
+            if start.returncode != 0:
+                report["mcp_readiness_tei_down"] = {
+                    "status": "fail",
+                    "detail": (
+                        report["mcp_readiness_tei_down"]["detail"]
+                        + "; TEI restart failed: "
+                        + (start.stderr or start.stdout or "")[-1000:]
+                    ),
+                }
+            else:
+                wait_http(f"{TEI_URL}/health", attempts=60, interval=5.0)
+                wait_http(MCP_HEALTH_URL, attempts=30, interval=2.0)
+
     if args.graph:
         graph_status, graph_detail = run_graph_validation(external_tei=args.external_tei)
         report["graph_validation"] = {
@@ -888,6 +932,8 @@ def main() -> int:
     required = (
         "deploy",
         "mcp_health",
+        "mcp_alive",
+        "mcp_readiness_tei_down",
         "qdrant_health",
         "tei_health",
         "colbert_health",
