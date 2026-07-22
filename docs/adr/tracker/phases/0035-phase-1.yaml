@@ -1,7 +1,7 @@
 adr_id: "0035"
 phase_key: phase-1
 title: Phase 1 — Wire pairing on Aspire path
-tracker_status: verified
+tracker_status: merged
 chosen_scope: >-
   TeiBatchTokenPairing defaults 1024; Aspire AppHost/compose set
   TEI_MAX_BATCH_TOKENS / Embedding__MaxDenseTokens; flat MAX_DENSE_EMBED_TOKENS
@@ -10,5 +10,7 @@ chosen_scope: >-
   backward compatibility unless ADR documents one); Docker integration
   required; no schema migration version env vars.
 last_updated: "2026-07-22"
+pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/48
 adr_status_note: >-
-  Proposed → Accept ADR 0035 this cycle (yes); finisher after merge
+  Merged — PR #48 (`aa8ffa6`); Accepted (phase 1); accept docs `fe6b248`;
+  release skipped

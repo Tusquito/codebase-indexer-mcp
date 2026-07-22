@@ -92,7 +92,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0032 | Phase 1 — Domain enums + model/port signatures | Merged — PR #45 (`bc5506a`); Accept skipped (already Accepted in PR); release skipped | phase-1 | `merged` | Phase 1 only; wire strings unchanged via `DomainEnumWire` + `JsonStringEnumMemberName`; sibling enums declare-only; NamedVector/Qdrant named-vector literals and MatchType/ReferenceType/LivenessStatus wiring deferred to Phases 2–3; no `*_SCHEMA_VERSION`; Changelog deferred per plan | 2026-07-22 |
 | 0032 | Phase 2 — Indexing + Qdrant | Merged — PR #46 (squash `6c02a7a`); Accept skipped for 0032 (already Accepted); Accept yes for 0033 → Accepted; Accept yes for 0034 → Accepted; release skipped | phase-2 | `merged` | Centralize Qdrant named-vector names via static DenseWire/SparseWire/ColbertWire from DomainEnumWire; expose GetNamedVectorWireMap for tests; ImportHeaderProcessor takes SourceLanguage (registry id via ToWire). NamedVector ↔ Qdrant `"dense"`/`"sparse"`/`"colbert"` via DomainEnumWire in QdrantVectorStore create/query/upsert/recommend (+ schema/retrieve/scroll); chunker/classifier → payload enum round-trip; unit tests; Docker compose integration; CHANGELOG full re-index after pull (no schema-version env); defer Phase 3 search/xref/health; do not implement 0033/0034 in this PR. | 2026-07-22 |
 | 0032 | Phase 3 — Search / cross-ref / health | — | phase-3 | `merged` | DomainMatchType alias for System.IO.MatchType; SearchService typing-only (no body edit); health check maps non-Ok → Unhealthy; ServiceMap edge types deferred. Wire MatchType/ReferenceType/LivenessStatus through CrossReferenceService, search/discovery DTOs, and McpHostHealthCheck via DomainEnumWire; extend ReferenceType with ServiceConfig/BuildDependency; move LivenessStatus to Domain; unit + Aspire Docker integration; defer 0033/0034 and 0026 P4 | 2026-07-22 |
-| 0035 | Phase 1 — Wire pairing on Aspire path | Proposed → Accept ADR 0035 this cycle (yes); finisher after merge | phase-1 | `verified` | TeiBatchTokenPairing defaults 1024; Aspire AppHost/compose set TEI_MAX_BATCH_TOKENS / Embedding__MaxDenseTokens; flat MAX_DENSE_EMBED_TOKENS mapped on Aspire; appsettings MaxDenseTokens: 0 retained for non-Aspire; fail-fast/registry/GPU Phase 2 deferred. Project phase: Pre-release (no backward compatibility unless ADR documents one); Docker integration required; no schema migration version env vars. | 2026-07-22 |
+| 0035 | Phase 1 — Wire pairing on Aspire path | Merged — PR #48 (`aa8ffa6`); Accepted (phase 1); accept docs `fe6b248`; release skipped | phase-1 | `merged` | TeiBatchTokenPairing defaults 1024; Aspire AppHost/compose set TEI_MAX_BATCH_TOKENS / Embedding__MaxDenseTokens; flat MAX_DENSE_EMBED_TOKENS mapped on Aspire; appsettings MaxDenseTokens: 0 retained for non-Aspire; fail-fast/registry/GPU Phase 2 deferred. Project phase: Pre-release (no backward compatibility unless ADR documents one); Docker integration required; no schema migration version env vars. | 2026-07-22 |
 <!-- END GENERATED:summary -->
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
@@ -100,7 +100,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 ## Active and upcoming work
 
 <!-- BEGIN GENERATED:active -->
-- **0035** Phase 1 — Wire pairing on Aspire path — `verified`
+_No active or upcoming phases._
 <!-- END GENERATED:active -->
 
 ### Partial acceptance
@@ -2354,6 +2354,16 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 - **Choices:** Extract `TeiBatchTokenPairing` for unit-testable defaults; Aspire compose must set `Embedding__MaxDenseTokens` (flat `MAX_DENSE_EMBED_TOKENS` does not bind into .NET alone); leave `appsettings.json` `MaxDenseTokens: 0` for non-Aspire; Quality validation required report-only (threshold 0); Performance skip; no registry change; no fail-fast this phase. Assumptions: 0025/0017/0030 shipped; TEI already truncates at 1024 so re-index not required; checked-in `docker-compose.aspire.yml` stays hand-synced with AppHost; Accept yes this cycle. Project phase: Pre-release (no backward compatibility unless ADR documents one); Docker integration required; no schema migration version env vars.
 - **Deviations:** none
 - **Changelog:** no — status planned — CHANGELOG entry planned in-PR; tracker Changelog field = finisher ships release notes — Phase 1 PR includes Unreleased CHANGELOG line; invoker Changelog: no
+
+#### 2026-07-22 — merge
+- **Phase:** Phase 1 — Wire pairing on Aspire path
+- **Tracker status:** `merged`
+- **Choices:** Squash merge PR #48 (`aa8ffa6`); accept docs `fe6b248`; Accepted (phase 1); release skipped. Project phase: Pre-release (no backward compatibility unless ADR documents one); Docker integration required; no schema migration version env vars.
+- **Deviations:** none
+- **Code evidence:** `merged via [PR #48](https://github.com/Tusquito/codebase-indexer-mcp/pull/48) (`adr/0035-phase-1-tei-batch-pairing`; squash `aa8ffa623bbbc65c48b047dbe3d1e09162f56831`; accept docs `fe6b24830a29448d2488f7c5b5a16171f2a85bdd`)`
+- **Verify:** carried from verification — AppHost pairing unit tests (10) + EmbedTokenLimit pairing (1) + aspire compose YAML pytest + plan compliance pass; Docker integration + quality validation (threshold 0) pass per integration report. Review rounds: 1.
+- **Git:** https://github.com/Tusquito/codebase-indexer-mcp/pull/48 — status: merged — commit: aa8ffa623bbbc65c48b047dbe3d1e09162f56831
+- **Changelog:** no — user-facing yes; invoker Changelog: no
 
 #### 2026-07-22 — implementation
 - **Phase:** Phase 1 — Wire pairing on Aspire path
