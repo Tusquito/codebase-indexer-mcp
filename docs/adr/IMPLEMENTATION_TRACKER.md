@@ -89,7 +89,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0030 | Phase 6 — ColBERT + ops | Accepted (phases 1–6); Phase 7 remains | phase-6 | `merged` | One PR; checked-in Aspire compose; separate Proxy; GPU smoke; Refit `/v1/embed/colbert`; remote ColBERT default when rerank on; adaptive rerank; `compose_files.py` until Phase 7; CUDA Option A; no schema-version env | 2026-07-22 |
 | 0030 | Phase 7 — Cutover + delete Python | Accepted (phases 1–7 merged) | phase-7 | `merged` | Aspire/.NET sole production path; Python eval retained under `benchmarks/`; train MCP-HTTP port deferred; Accept 0031/0032/0033 not in this phase | 2026-07-22 |
 | 0031 | Phase 1 — dependency-aware readiness + compose/Aspire MCP healthcheck + unit/integration tests (Accept + .NET Host/Aspire re-scope) | Merged — PR #44 (`73af6dd`); Accept skipped (already Accepted; phase 1 shipped; phase 2 open); release skipped | phase-1 | `merged` | Aspire `/health` readiness + always-on `/alive` (no `/ready`); TEI always ready; ColBERT when remote+rerank; Neo4j when graph; hard-coded ~5s TEI/Neo4j probes; curl in Host Dockerfile for compose healthcheck | 2026-07-22 |
-| 0032 | Phase 1 — Domain enums + model/port signatures | — | phase-1 | `verified` | Phase 1 only; wire strings unchanged via `DomainEnumWire` + `JsonStringEnumMemberName`; sibling enums declare-only; NamedVector/Qdrant named-vector literals and MatchType/ReferenceType/LivenessStatus wiring deferred to Phases 2–3; no `*_SCHEMA_VERSION`; Changelog deferred per plan | 2026-07-22 |
+| 0032 | Phase 1 — Domain enums + model/port signatures | Merged — PR #45 (`bc5506a`); Accept skipped (already Accepted in PR); release skipped | phase-1 | `merged` | Phase 1 only; wire strings unchanged via `DomainEnumWire` + `JsonStringEnumMemberName`; sibling enums declare-only; NamedVector/Qdrant named-vector literals and MatchType/ReferenceType/LivenessStatus wiring deferred to Phases 2–3; no `*_SCHEMA_VERSION`; Changelog deferred per plan | 2026-07-22 |
 <!-- END GENERATED:summary -->
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
@@ -97,7 +97,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 ## Active and upcoming work
 
 <!-- BEGIN GENERATED:active -->
-- **0032** Phase 1 — Domain enums + model/port signatures — `verified`
+_No active or upcoming phases._
 <!-- END GENERATED:active -->
 
 ### Partial acceptance
@@ -2220,6 +2220,16 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 - **Choices:** Formal Accept in-PR (ADR + README); wire-identical `symbol_type`/`language` via `DomainEnumWire` + `[JsonStringEnumMemberName]` (no Phase 1 re-index); declare `NamedVector`/`ReferenceType`/`MatchType`/`LivenessStatus` but wire only symbol/language; compile-fix chunker/Qdrant casts allowed without NamedVector refactor; Quality skip / Perf skip; Docker required; defer Accept 0033; do not Prefer 0033 P1; do not override to 0026 P4. Assumptions: ADR 0030 .NET stack is production SoT; current LanguageRegistry ids define `SourceLanguage`; empty summary language → `Unknown`/`"unknown"`; pre-release allows breaking type APIs without dual stacks; compose integration script remains gate.
 - **Deviations:** none
 - **Changelog:** no — invoker Changelog: no; status planned
+
+#### 2026-07-22 — merge
+- **Phase:** Phase 1 — Domain enums + model/port signatures
+- **Tracker status:** `merged`
+- **Choices:** Merge PR #45 (`bc5506a`); branch `adr/0032-phase-1-domain-enums`; Accept skipped — already Accepted in PR; release skipped
+- **Deviations:** none
+- **Code evidence:** `merged via [PR #45](https://github.com/Tusquito/codebase-indexer-mcp/pull/45) (`adr/0032-phase-1-domain-enums`; `bc5506ad3321bfa94711203781bc7cf8fb6a93ae`)`
+- **Verify:** carried from verification — Review rounds: 1; `dotnet test CodebaseIndexer.slnx` pass (233); Docker integration Verdict pass (quality skip); plan compliance pass
+- **Git:** https://github.com/Tusquito/codebase-indexer-mcp/pull/45 — status: merged — commit: bc5506ad3321bfa94711203781bc7cf8fb6a93ae
+- **Changelog:** no — user-facing yes; invoker Changelog: no
 
 #### 2026-07-22 — implementation
 - **Phase:** Phase 1 — Domain enums + model/port signatures
