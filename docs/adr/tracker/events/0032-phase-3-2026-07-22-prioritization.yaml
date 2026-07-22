@@ -1,0 +1,27 @@
+adr_id: "0032"
+phase_key: phase-3
+phase_title: Phase 3 — Search / cross-ref / health
+event: prioritization
+date: "2026-07-22"
+tracker_status: candidate
+choices: >-
+  Selected 0032 Phase 3 over 0033 Phase 1 (raw score ~30.5 vs ~28.5;
+  tie-breaker delivery-order / finish in-flight ADR); over 0034 Phase 1;
+  over 0031 Phase 2; over 0026 Phase 4 (blocked by Python registry delete);
+  over Proposed 0027 (needs Accept); single phase per pipeline rule; no ADR
+  Accept required (0032 already Accepted). Human decisions 2026-07-22: (1)
+  finish 0032 Phase 3 — do not start 0033 P1; (2) no NVIDIA GPU / Aspire
+  bake-off cycle before 0026 P4; (3) do not Accept ADR 0027.
+  **Why now:** 0030 cutover and 0032 P1–P2 merged; no active tracker phases;
+  Domain enums declared but search/xref/health still magic strings; sequential
+  next phase of Accepted ADR 0032; no Accept required; completes vocabulary
+  hardening before 0033/0034.
+  **Suggested scope:** one phase (= one PR). **Chosen scope:** Wire
+  `MatchType`/`ReferenceType`/`LivenessStatus` through CrossReferenceService,
+  search/discovery DTOs, and McpHostHealthCheck via DomainEnumWire; unit +
+  Aspire Docker integration; defer 0033/0034 and 0026 P4.
+deviations: none
+changelog:
+  update: false
+  reason: "user-facing unknown; invoker Changelog: no"
+user_facing: false

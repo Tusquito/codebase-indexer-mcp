@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using CodebaseIndexer.Application.Options;
+using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Infrastructure.Colbert;
 using CodebaseIndexer.Infrastructure.Tei;
 using Microsoft.AspNetCore.Hosting;
@@ -23,7 +24,7 @@ public sealed class HealthEndpointReadinessTests
         var health = await client.GetAsync("/health");
         health.EnsureSuccessStatusCode();
         var payload = await health.Content.ReadFromJsonAsync<HealthPayload>();
-        Assert.Equal("ok", payload!.Status);
+        Assert.Equal(LivenessStatus.Ok, payload!.Status);
 
         var alive = await client.GetAsync("/alive");
         alive.EnsureSuccessStatusCode();
@@ -77,7 +78,7 @@ public sealed class HealthEndpointReadinessTests
         alive.EnsureSuccessStatusCode();
     }
 
-    private sealed record HealthPayload(string Status, string Runtime);
+    private sealed record HealthPayload(LivenessStatus Status, string Runtime);
 
     private sealed class HealthMatrixFactory : McpHostWebApplicationFactory
     {

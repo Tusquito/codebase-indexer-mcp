@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using CodebaseIndexer.Application.BuildDeps;
 using CodebaseIndexer.Application.Options;
+using CodebaseIndexer.Domain.Models;
 using Microsoft.Extensions.Options;
 
 namespace CodebaseIndexer.Application.Search;
@@ -107,14 +108,14 @@ public sealed partial class UrlExtractors
     }
 
     /// <summary>Classify chunk content as definition, import, http_call, build_dependency, etc.</summary>
-    public string ClassifyReference(string content, string symbolOrQuery, string relPath = "")
+    public ReferenceType ClassifyReference(string content, string symbolOrQuery, string relPath = "")
     {
         if (BuildManifestDetector.IsBuildManifest(relPath))
         {
             var deps = BuildDepExtractor.Extract(content, relPath);
             if (deps.Count > 0)
             {
-                return "build_dependency";
+                return ReferenceType.BuildDependency;
             }
         }
 
@@ -123,7 +124,7 @@ public sealed partial class UrlExtractors
             var (paths, baseUrls) = ConfigUrls(content);
             if (baseUrls.Count > 0 || paths.Count > 0)
             {
-                return "service_config";
+                return ReferenceType.ServiceConfig;
             }
         }
 
@@ -133,25 +134,25 @@ public sealed partial class UrlExtractors
                 content,
                 $@"(?:class|interface|enum|record)\s+{Regex.Escape(symbolOrQuery)}\b"))
         {
-            return "definition";
+            return ReferenceType.Definition;
         }
 
         if (EndpointDefRegex().IsMatch(content))
         {
-            return "endpoint_definition";
+            return ReferenceType.EndpointDefinition;
         }
 
         if (HttpCallRegex().IsMatch(content))
         {
-            return "http_call";
+            return ReferenceType.HttpCall;
         }
 
         if (ImportRegex().IsMatch(content))
         {
-            return "import";
+            return ReferenceType.Import;
         }
 
-        return "usage";
+        return ReferenceType.Usage;
     }
 
     /// <summary>Check if a caller path references an endpoint path (segment-aligned).</summary>

@@ -1,4 +1,5 @@
 using CodebaseIndexer.Application.Services;
+using CodebaseIndexer.Domain.Models;
 
 namespace CodebaseIndexer.Application.Tests;
 
@@ -11,7 +12,7 @@ public sealed class HealthServiceTests
     {
         var service = new HealthService();
         var status = await service.GetStatusAsync();
-        Assert.Equal("ok", status.Status);
+        Assert.Equal(LivenessStatus.Ok, status.Status);
         Assert.Equal("dotnet", status.Runtime);
     }
 }

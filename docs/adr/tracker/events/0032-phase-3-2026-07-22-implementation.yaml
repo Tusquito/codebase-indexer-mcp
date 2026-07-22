@@ -1,0 +1,34 @@
+adr_id: "0032"
+phase_key: phase-3
+phase_title: Phase 3 — Search / cross-ref / health
+event: implementation
+date: "2026-07-22"
+tracker_status: implemented
+choices: >-
+  DomainMatchType alias for System.IO.MatchType clash; McpHostHealthCheck
+  Healthy↔Ok / else Unhealthy + DomainEnumWire.ToWire for description strings
+deviations: >-
+  alias for MatchType ambiguity; SearchService untouched (typing flowed
+  through); Unhealthy health-check branch added (no live behavior change)
+code_evidence:
+  - src/CodebaseIndexer.Domain/Models/ReferenceType.cs
+  - src/CodebaseIndexer.Domain/Models/LivenessStatus.cs
+  - src/CodebaseIndexer.Domain/Serialization/DomainEnumWire.cs
+  - src/CodebaseIndexer.Application/Search/UrlExtractors.cs
+  - src/CodebaseIndexer.Application/Search/ReferenceClassifier.cs
+  - src/CodebaseIndexer.Application/Models/DiscoveryResponseModels.cs
+  - src/CodebaseIndexer.Application/Models/SearchResponseModels.cs
+  - src/CodebaseIndexer.Application/Services/CrossReferenceService.cs
+  - src/CodebaseIndexer.Application/Services/HealthStatus.cs
+  - src/CodebaseIndexer.Application/Services/HealthService.cs
+  - src/CodebaseIndexer.Host/Health/McpHostHealthCheck.cs
+  - CHANGELOG.md
+test_debt:
+  - link-summary enum cases
+  - unhealthy JSON writer
+  - classifier enum matrix
+  - Docker compose step 3.5
+changelog:
+  update: false
+  reason: "invoker Changelog: no; status implemented (changelog at verified if user-facing)"
+user_facing: true

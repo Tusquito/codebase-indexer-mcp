@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using CodebaseIndexer.Domain.Models;
+using DomainMatchType = CodebaseIndexer.Domain.Models.MatchType;
 
 namespace CodebaseIndexer.Application.Models;
 
@@ -23,8 +24,8 @@ public sealed record CrossReferenceHit(
     [property: JsonPropertyName("language")] SourceLanguage Language,
     [property: JsonPropertyName("content")] string Content,
     [property: JsonPropertyName("score")] double Score,
-    [property: JsonPropertyName("match_type")] string MatchType,
-    [property: JsonPropertyName("reference_type")] string ReferenceType);
+    [property: JsonPropertyName("match_type")] DomainMatchType MatchType,
+    [property: JsonPropertyName("reference_type")] ReferenceType ReferenceType);
 
 /// <summary>Cross-collection link summary entry.</summary>
 public sealed record CrossReferenceLink(
@@ -37,7 +38,7 @@ public sealed record CrossReferenceLink(
 public sealed record CrossReferenceLinkEnd(
     [property: JsonPropertyName("collection")] string Collection,
     [property: JsonPropertyName("path")] string Path,
-    [property: JsonPropertyName("reference_type")] string? ReferenceType = null,
+    [property: JsonPropertyName("reference_type")] ReferenceType? ReferenceType = null,
     [property: JsonPropertyName("symbol")] string? Symbol = null);
 
 /// <summary>map_service_dependencies response.</summary>

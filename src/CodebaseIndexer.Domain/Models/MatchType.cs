@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace CodebaseIndexer.Domain.Models;
 
-/// <summary>How a discovery / cross-ref hit was matched (declared for Phase 3 wiring).</summary>
+/// <summary>How a discovery / cross-ref hit was matched.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum MatchType
 {

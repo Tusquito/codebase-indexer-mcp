@@ -1,8 +1,8 @@
 using System.Text.Json.Serialization;
 
-namespace CodebaseIndexer.Application.Services;
+namespace CodebaseIndexer.Domain.Models;
 
-/// <summary>Host liveness JSON status values (declared for Phase 3 wiring).</summary>
+/// <summary>Host liveness JSON status values.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum LivenessStatus
 {

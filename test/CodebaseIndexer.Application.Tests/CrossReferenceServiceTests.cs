@@ -37,7 +37,7 @@ public sealed class CrossReferenceServiceTests
         var response = Assert.IsType<CrossReferenceResponse>(result);
         Assert.Equal(1, response.CollectionCount);
         Assert.True(response.FoundIn.ContainsKey("proj-a"));
-        Assert.Equal("call_site", response.FoundIn["proj-a"][0].ReferenceType);
+        Assert.Equal(ReferenceType.CallSite, response.FoundIn["proj-a"][0].ReferenceType);
         Assert.Equal("isEnabled", store.LastCallerMethod);
         Assert.Equal("featureService", store.LastCallerReceiver);
     }
@@ -59,7 +59,7 @@ public sealed class CrossReferenceServiceTests
         var service = CreateService(store, graph);
         var result = await service.FindCrossReferencesAsync(member: "isEnabled", collections: ["proj-a"]);
         var response = Assert.IsType<CrossReferenceResponse>(result);
-        Assert.Equal("call_site", response.FoundIn["proj-a"][0].ReferenceType);
+        Assert.Equal(ReferenceType.CallSite, response.FoundIn["proj-a"][0].ReferenceType);
         Assert.Equal("isEnabled", graph.LastCallerMethod);
         Assert.Null(store.LastCallerMethod);
     }
@@ -81,7 +81,7 @@ public sealed class CrossReferenceServiceTests
         var service = CreateService(store, graph);
         var result = await service.FindCrossReferencesAsync(member: "isEnabled", collections: ["proj-a"]);
         var response = Assert.IsType<CrossReferenceResponse>(result);
-        Assert.Equal("call_site", response.FoundIn["proj-a"][0].ReferenceType);
+        Assert.Equal(ReferenceType.CallSite, response.FoundIn["proj-a"][0].ReferenceType);
         Assert.Equal("isEnabled", store.LastCallerMethod);
         Assert.Null(graph.LastCallerMethod);
     }
@@ -91,13 +91,13 @@ public sealed class CrossReferenceServiceTests
     {
         var extractors = new UrlExtractors(Array.Empty<string>());
         Assert.Equal(
-            "endpoint_definition",
+            ReferenceType.EndpointDefinition,
             extractors.ClassifyReference("[HttpGet(\"api/users\")]\npublic IActionResult Get()", "Get", "UsersController.cs"));
         Assert.Equal(
-            "http_call",
+            ReferenceType.HttpCall,
             extractors.ClassifyReference("await httpClient.GetAsync(\"https://x\");", "x", "Client.cs"));
         Assert.Equal(
-            "build_dependency",
+            ReferenceType.BuildDependency,
             extractors.ClassifyReference("<PackageReference Include=\"Foo\" Version=\"1.0\" />", "", "App.csproj"));
     }
 

@@ -1,0 +1,27 @@
+adr_id: "0032"
+phase_key: phase-3
+phase_title: Phase 3 — Search / cross-ref / health
+event: plan
+date: "2026-07-22"
+tracker_status: planned
+choices: >-
+  Single PR = Phase 3 only; Quality skip / Perf skip; Docker required;
+  Accept after merge no (already Accepted); Final phase yes; relocate
+  LivenessStatus to Domain for DomainEnumWire; leave ServiceMap edge-type
+  strings alone; do not start 0033/0034; do not Accept 0027; no GPU bake-off.
+  Assumptions: P1/P2 left enums + DomainEnumWire Match/Reference maps unused
+  in production paths; classifier wires today include
+  `service_config`/`build_dependency`; Aspire compose remains integration
+  SoT; pre-release allows typed DTO break with identical JSON wires.
+deviations: none
+changelog:
+  update: false
+  reason: >-
+    status planned — CHANGELOG deferred until verified; invoker Changelog:
+    yes — MatchType/ReferenceType/LivenessStatus wired in cross-ref/search/health
+    MCP surfaces (JSON wires unchanged; no additional re-index beyond Phase 2)
+  bullet: >-
+    MatchType/ReferenceType/LivenessStatus wired in cross-ref/search/health
+    MCP surfaces (JSON wires unchanged; no additional re-index beyond Phase 2).
+user_facing: true
+open_decisions: []

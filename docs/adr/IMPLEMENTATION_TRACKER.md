@@ -91,6 +91,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0031 | Phase 1 — dependency-aware readiness + compose/Aspire MCP healthcheck + unit/integration tests (Accept + .NET Host/Aspire re-scope) | Merged — PR #44 (`73af6dd`); Accept skipped (already Accepted; phase 1 shipped; phase 2 open); release skipped | phase-1 | `merged` | Aspire `/health` readiness + always-on `/alive` (no `/ready`); TEI always ready; ColBERT when remote+rerank; Neo4j when graph; hard-coded ~5s TEI/Neo4j probes; curl in Host Dockerfile for compose healthcheck | 2026-07-22 |
 | 0032 | Phase 1 — Domain enums + model/port signatures | Merged — PR #45 (`bc5506a`); Accept skipped (already Accepted in PR); release skipped | phase-1 | `merged` | Phase 1 only; wire strings unchanged via `DomainEnumWire` + `JsonStringEnumMemberName`; sibling enums declare-only; NamedVector/Qdrant named-vector literals and MatchType/ReferenceType/LivenessStatus wiring deferred to Phases 2–3; no `*_SCHEMA_VERSION`; Changelog deferred per plan | 2026-07-22 |
 | 0032 | Phase 2 — Indexing + Qdrant | Merged — PR #46 (squash `6c02a7a`); Accept skipped for 0032 (already Accepted); Accept yes for 0033 → Accepted; Accept yes for 0034 → Accepted; release skipped | phase-2 | `merged` | Centralize Qdrant named-vector names via static DenseWire/SparseWire/ColbertWire from DomainEnumWire; expose GetNamedVectorWireMap for tests; ImportHeaderProcessor takes SourceLanguage (registry id via ToWire). NamedVector ↔ Qdrant `"dense"`/`"sparse"`/`"colbert"` via DomainEnumWire in QdrantVectorStore create/query/upsert/recommend (+ schema/retrieve/scroll); chunker/classifier → payload enum round-trip; unit tests; Docker compose integration; CHANGELOG full re-index after pull (no schema-version env); defer Phase 3 search/xref/health; do not implement 0033/0034 in this PR. | 2026-07-22 |
+| 0032 | Phase 3 — Search / cross-ref / health | — | phase-3 | `verified` | DomainMatchType alias for System.IO.MatchType; SearchService typing-only (no body edit); health check maps non-Ok → Unhealthy; ServiceMap edge types deferred. Wire MatchType/ReferenceType/LivenessStatus through CrossReferenceService, search/discovery DTOs, and McpHostHealthCheck via DomainEnumWire; extend ReferenceType with ServiceConfig/BuildDependency; move LivenessStatus to Domain; unit + Aspire Docker integration; defer 0033/0034 and 0026 P4 | 2026-07-22 |
 <!-- END GENERATED:summary -->
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
@@ -98,7 +99,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 ## Active and upcoming work
 
 <!-- BEGIN GENERATED:active -->
-_No active or upcoming phases._
+- **0032** Phase 3 — Search / cross-ref / health — `verified`
 <!-- END GENERATED:active -->
 
 ### Partial acceptance
@@ -2218,6 +2219,16 @@ _No active or upcoming phases._
 - **Verify:** review rounds: 1; `dotnet test CodebaseIndexer.slnx` pass (242); Docker integration pass; plan path/task table pass
 - **Changelog:** yes — **Domain NamedVector wire centralization** ([ADR 0032](docs/adr/0032-replace-magic-strings-with-enums.md) Phase 2) — Qdrant named-vector create/query/upsert paths use DomainEnumWire.ToWire(NamedVector.*); operators must full re-index after pull (`index_all(force=true)`); no schema-version env
 
+#### 2026-07-22 — verification
+- **Phase:** Phase 3 — Search / cross-ref / health
+- **Tracker status:** `verified`
+- **Choices:** DomainMatchType alias for System.IO.MatchType; SearchService typing-only (no body edit); health check maps non-Ok → Unhealthy; ServiceMap edge types deferred
+- **Deviations:** none
+- **Code evidence:** `src/CodebaseIndexer.Domain/Models/ReferenceType.cs`, `src/CodebaseIndexer.Domain/Models/LivenessStatus.cs`, `src/CodebaseIndexer.Domain/Serialization/DomainEnumWire.cs`, `src/CodebaseIndexer.Application/Search/UrlExtractors.cs`, `src/CodebaseIndexer.Application/Search/ReferenceClassifier.cs`, `src/CodebaseIndexer.Application/Models/DiscoveryResponseModels.cs`, `src/CodebaseIndexer.Application/Models/SearchResponseModels.cs`, `src/CodebaseIndexer.Application/Services/CrossReferenceService.cs`, `src/CodebaseIndexer.Application/Services/HealthStatus.cs`, `src/CodebaseIndexer.Application/Services/HealthService.cs`, `src/CodebaseIndexer.Host/Health/McpHostHealthCheck.cs`, `test/CodebaseIndexer.Domain.Tests/DomainEnumWireTests.cs`, `test/CodebaseIndexer.Application.Tests/CrossReferenceServiceTests.cs`, `test/CodebaseIndexer.Application.Tests/HealthServiceTests.cs`, `test/CodebaseIndexer.Host.Tests/McpHostSmokeTests.cs`, `CHANGELOG.md`
+- **Test debt:** optional ServiceConfig classify unit assert; optional exhaustive switch for BuildDependency in link summary
+- **Verify:** review rounds: 1; `dotnet test CodebaseIndexer.slnx` pass (250); Docker integration pass (report); plan compliance pass; quality skip
+- **Changelog:** yes — **Domain match/reference/liveness enum wiring** ([ADR 0032](docs/adr/0032-replace-magic-strings-with-enums.md) Phase 3) — Domain match/reference/liveness enums on cross-ref/search DTOs, classifiers, and host liveness JSON via `DomainEnumWire`; MCP wire strings unchanged; no additional re-index beyond Phase 2
+
 #### 2026-07-22 — prioritization
 - **Phase:** Phase 1 — Domain enums + model/port signatures
 - **Tracker status:** `candidate`
@@ -2229,6 +2240,13 @@ _No active or upcoming phases._
 - **Phase:** Phase 2 — Indexing + Qdrant
 - **Tracker status:** `candidate`
 - **Choices:** Selected over 0026 P4 (tie on score; lower scope/risk / no GPU session); over 0033 P1 (still Proposed; prior open decisions deferred behind 0032); over 0031 P2 / 0034 P1 / 0027; single phase per pipeline rule; no new ADR Accept required (0032 already Accepted). Human decisions applied: (1) no override to 0026 P4 — proceed 0032 P2; (2) accept 0033 and/or 0034 docs-only this cycle; (3) yes — CHANGELOG full re-index operator note for 0032 P2. **Why now:** 0030 P7 and 0032 P1 merged; active work empty; Qdrant still hard-codes named-vector string literals while Domain enums exist — finish Accepted Phase 2 before Proposed Result/TUnit or GPU bake-off. **Suggested scope:** one phase (= one PR). **Chosen scope:** Centralize `NamedVector` ↔ Qdrant `"dense"`/`"sparse"`/`"colbert"` via `DomainEnumWire` (or single helper) in `QdrantVectorStore` create/query/upsert/recommend paths; confirm chunker/classifier → payload enum round-trip; unit tests; Docker `scripts/run_compose_integration.py`; document re-index after pull (no schema-version env); defer Phase 3 search/xref/health enum surfaces.
+- **Deviations:** none
+- **Changelog:** no — user-facing unknown; invoker Changelog: no
+
+#### 2026-07-22 — prioritization
+- **Phase:** Phase 3 — Search / cross-ref / health
+- **Tracker status:** `candidate`
+- **Choices:** Selected 0032 Phase 3 over 0033 Phase 1 (raw score ~30.5 vs ~28.5; tie-breaker delivery-order / finish in-flight ADR); over 0034 Phase 1; over 0031 Phase 2; over 0026 Phase 4 (blocked by Python registry delete); over Proposed 0027 (needs Accept); single phase per pipeline rule; no ADR Accept required (0032 already Accepted). Human decisions 2026-07-22: (1) finish 0032 Phase 3 — do not start 0033 P1; (2) no NVIDIA GPU / Aspire bake-off cycle before 0026 P4; (3) do not Accept ADR 0027. **Why now:** 0030 cutover and 0032 P1–P2 merged; no active tracker phases; Domain enums declared but search/xref/health still magic strings; sequential next phase of Accepted ADR 0032; no Accept required; completes vocabulary hardening before 0033/0034. **Suggested scope:** one phase (= one PR). **Chosen scope:** Wire `MatchType`/`ReferenceType`/`LivenessStatus` through CrossReferenceService, search/discovery DTOs, and McpHostHealthCheck via DomainEnumWire; unit + Aspire Docker integration; defer 0033/0034 and 0026 P4.
 - **Deviations:** none
 - **Changelog:** no — user-facing unknown; invoker Changelog: no
 
@@ -2245,6 +2263,13 @@ _No active or upcoming phases._
 - **Choices:** Proceed 0032 P2 only (not 0026 P4); Quality skip / Perf skip; Docker required; Accept after merge no (already Accepted); NamedVector via `DomainEnumWire` (optional private aliases still sourced from helper); ImportHeaderProcessor deeper typing in-scope from P1 debt; 0033/0034 docs-only Accept is finisher/post-merge follow-up only. Assumptions: P1 left payload symbol/language enum round-trip in place; NamedVector maps exist unused; wire strings stay identical; Aspire compose remains integration SoT; pre-release allows breaking default without dual stacks.
 - **Deviations:** none
 - **Changelog:** no — Operators: after pull, full re-index with index_all(force=true) — no schema-version env vars (ADR 0032 Phase 2).
+
+#### 2026-07-22 — plan
+- **Phase:** Phase 3 — Search / cross-ref / health
+- **Tracker status:** `planned`
+- **Choices:** Single PR = Phase 3 only; Quality skip / Perf skip; Docker required; Accept after merge no (already Accepted); Final phase yes; relocate LivenessStatus to Domain for DomainEnumWire; leave ServiceMap edge-type strings alone; do not start 0033/0034; do not Accept 0027; no GPU bake-off. Assumptions: P1/P2 left enums + DomainEnumWire Match/Reference maps unused in production paths; classifier wires today include `service_config`/`build_dependency`; Aspire compose remains integration SoT; pre-release allows typed DTO break with identical JSON wires.
+- **Deviations:** none
+- **Changelog:** no — MatchType/ReferenceType/LivenessStatus wired in cross-ref/search/health MCP surfaces (JSON wires unchanged; no additional re-index beyond Phase 2).
 
 #### 2026-07-22 — merge
 - **Phase:** Phase 1 — Domain enums + model/port signatures
@@ -2282,6 +2307,15 @@ _No active or upcoming phases._
 - **Deviations:** chunker Method separate-chunk assert omitted (extractor folds nested methods into parent class chunk)
 - **Code evidence:** `src/CodebaseIndexer.Infrastructure/Qdrant/QdrantVectorStore.cs`, `src/CodebaseIndexer.Infrastructure/Indexing/ImportHeaderProcessor.cs`, `src/CodebaseIndexer.Infrastructure/Indexing/TreeSitterChunker.cs`, `src/CodebaseIndexer.Domain/Serialization/DomainEnumWire.cs`, `test/CodebaseIndexer.Domain.Tests/DomainEnumWireTests.cs`, `test/CodebaseIndexer.Infrastructure.Tests/QdrantNamedVectorWireTests.cs`, `test/CodebaseIndexer.Infrastructure.Tests/ChunkerGoldenTests.cs`, `CHANGELOG.md`, `docs/DEPLOYMENT.md`
 - **Test debt:** compose live named-vector schema check; optional oversized-class Method extract; ImportHeaderProcessor direct units
+- **Changelog:** no — invoker Changelog: no; status implemented (changelog at verified if user-facing)
+
+#### 2026-07-22 — implementation
+- **Phase:** Phase 3 — Search / cross-ref / health
+- **Tracker status:** `implemented`
+- **Choices:** DomainMatchType alias for System.IO.MatchType clash; McpHostHealthCheck Healthy↔Ok / else Unhealthy + DomainEnumWire.ToWire for description strings
+- **Deviations:** alias for MatchType ambiguity; SearchService untouched (typing flowed through); Unhealthy health-check branch added (no live behavior change)
+- **Code evidence:** `src/CodebaseIndexer.Domain/Models/ReferenceType.cs`, `src/CodebaseIndexer.Domain/Models/LivenessStatus.cs`, `src/CodebaseIndexer.Domain/Serialization/DomainEnumWire.cs`, `src/CodebaseIndexer.Application/Search/UrlExtractors.cs`, `src/CodebaseIndexer.Application/Search/ReferenceClassifier.cs`, `src/CodebaseIndexer.Application/Models/DiscoveryResponseModels.cs`, `src/CodebaseIndexer.Application/Models/SearchResponseModels.cs`, `src/CodebaseIndexer.Application/Services/CrossReferenceService.cs`, `src/CodebaseIndexer.Application/Services/HealthStatus.cs`, `src/CodebaseIndexer.Application/Services/HealthService.cs`, `src/CodebaseIndexer.Host/Health/McpHostHealthCheck.cs`, `CHANGELOG.md`
+- **Test debt:** link-summary enum cases; unhealthy JSON writer; classifier enum matrix; Docker compose step 3.5
 - **Changelog:** no — invoker Changelog: no; status implemented (changelog at verified if user-facing)
 <!-- END GENERATED:phase-logs -->
 

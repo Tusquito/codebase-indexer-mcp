@@ -42,6 +42,12 @@ public static class DomainEnumWire
     private static readonly FrozenDictionary<string, DomainMatchType> WireToMatchType =
         BuildFromWireMap<DomainMatchType>();
 
+    private static readonly FrozenDictionary<LivenessStatus, string> LivenessStatusToWire =
+        BuildToWireMap<LivenessStatus>();
+
+    private static readonly FrozenDictionary<string, LivenessStatus> WireToLivenessStatus =
+        BuildFromWireMap<LivenessStatus>();
+
     /// <summary>Canonical wire form for <see cref="SymbolType"/>.</summary>
     public static string ToWire(SymbolType value) => SymbolTypeToWire[value];
 
@@ -51,11 +57,14 @@ public static class DomainEnumWire
     /// <summary>Canonical wire form for <see cref="NamedVector"/> (Qdrant named-vector names).</summary>
     public static string ToWire(NamedVector value) => NamedVectorToWire[value];
 
-    /// <summary>Canonical wire form for <see cref="ReferenceType"/> (Phase 3).</summary>
+    /// <summary>Canonical wire form for <see cref="ReferenceType"/>.</summary>
     public static string ToWire(ReferenceType value) => ReferenceTypeToWire[value];
 
-    /// <summary>Canonical wire form for <see cref="DomainMatchType"/> (Phase 3).</summary>
+    /// <summary>Canonical wire form for <see cref="DomainMatchType"/>.</summary>
     public static string ToWire(DomainMatchType value) => MatchTypeToWire[value];
+
+    /// <summary>Canonical wire form for <see cref="LivenessStatus"/>.</summary>
+    public static string ToWire(LivenessStatus value) => LivenessStatusToWire[value];
 
     /// <summary>Try parse a wire string to <see cref="SymbolType"/>.</summary>
     public static bool TryParse(string? wire, out SymbolType value)
@@ -109,6 +118,18 @@ public static class DomainEnumWire
     public static bool TryParse(string? wire, out DomainMatchType value)
     {
         if (!string.IsNullOrEmpty(wire) && WireToMatchType.TryGetValue(wire, out value))
+        {
+            return true;
+        }
+
+        value = default;
+        return false;
+    }
+
+    /// <summary>Try parse a wire string to <see cref="LivenessStatus"/>.</summary>
+    public static bool TryParse(string? wire, out LivenessStatus value)
+    {
+        if (!string.IsNullOrEmpty(wire) && WireToLivenessStatus.TryGetValue(wire, out value))
         {
             return true;
         }
