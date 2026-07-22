@@ -48,7 +48,7 @@ public static class DomainEnumWire
     /// <summary>Canonical wire form for <see cref="SourceLanguage"/>.</summary>
     public static string ToWire(SourceLanguage value) => SourceLanguageToWire[value];
 
-    /// <summary>Canonical wire form for <see cref="NamedVector"/> (Phase 2).</summary>
+    /// <summary>Canonical wire form for <see cref="NamedVector"/> (Qdrant named-vector names).</summary>
     public static string ToWire(NamedVector value) => NamedVectorToWire[value];
 
     /// <summary>Canonical wire form for <see cref="ReferenceType"/> (Phase 3).</summary>

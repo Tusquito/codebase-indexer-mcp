@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Domain NamedVector wire centralization** ([ADR 0032](docs/adr/0032-replace-magic-strings-with-enums.md) Phase 2) — Qdrant named-vector create/query/upsert/recommend paths obtain `"dense"` / `"sparse"` / `"colbert"` only via `DomainEnumWire.ToWire(NamedVector.*)`; operators must **full re-index after pull** (`index_all(force=true)` / equivalent); no schema-version env
 - **MCP readiness vs liveness** ([ADR 0031](docs/adr/0031-mcp-liveness-vs-readiness.md)) — `GET /health` fails closed on TEI (and remote ColBERT / Neo4j when enabled); always-on `GET /alive` is process liveness; Compose and AppHost probe `/health`
 - **Aspire/.NET production cutover** ([ADR 0030](docs/adr/0030-migrate-mcp-server-to-dotnet10.md) Phase 7) — Python MCP runtime, Python ColBERT Dockerfiles, and legacy `docker-compose.yml` overlays removed; `docker-compose.aspire.yml` + `scripts/aspire_compose.py` are the sole deploy path; golden-set eval lives under `benchmarks/`; **re-index after pull** (`index_all(force=true)`); Python `prometheus_client` host metrics superseded by OTel/.NET (ADR 0018)
 

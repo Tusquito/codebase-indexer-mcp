@@ -1,0 +1,29 @@
+adr_id: "0032"
+phase_key: phase-2
+phase_title: Phase 2 — Indexing + Qdrant
+event: verification
+date: "2026-07-22"
+tracker_status: verified
+choices: >-
+  Centralize Qdrant named-vector names via static DenseWire/SparseWire/ColbertWire
+  from DomainEnumWire; expose GetNamedVectorWireMap for tests; ImportHeaderProcessor
+  takes SourceLanguage (registry id via ToWire)
+deviations: none
+code_evidence:
+  - src/CodebaseIndexer.Infrastructure/Qdrant/QdrantVectorStore.cs
+  - src/CodebaseIndexer.Infrastructure/Indexing/ImportHeaderProcessor.cs
+  - src/CodebaseIndexer.Infrastructure/Indexing/TreeSitterChunker.cs
+  - src/CodebaseIndexer.Domain/Serialization/DomainEnumWire.cs
+  - test/CodebaseIndexer.Infrastructure.Tests/QdrantNamedVectorWireTests.cs
+  - CHANGELOG.md
+test_debt:
+  - optional Method-chunk golden assert if/when chunker emits nested methods as separate chunks
+verify: >-
+  review rounds: 1; `dotnet test CodebaseIndexer.slnx` pass (242);
+  Docker integration pass; plan path/task table pass
+changelog:
+  update: true
+  bullet: >-
+    **Domain NamedVector wire centralization** ([ADR 0032](docs/adr/0032-replace-magic-strings-with-enums.md) Phase 2) — Qdrant named-vector create/query/upsert paths use DomainEnumWire.ToWire(NamedVector.*); operators must full re-index after pull (`index_all(force=true)`); no schema-version env
+  reason: already present in [Unreleased]; no duplicate edit
+user_facing: true

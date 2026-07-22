@@ -1,0 +1,26 @@
+adr_id: "0032"
+phase_key: phase-2
+phase_title: Phase 2 — Indexing + Qdrant
+event: plan
+date: "2026-07-22"
+tracker_status: planned
+choices: >-
+  Proceed 0032 P2 only (not 0026 P4); Quality skip / Perf skip; Docker
+  required; Accept after merge no (already Accepted); NamedVector via
+  `DomainEnumWire` (optional private aliases still sourced from helper);
+  ImportHeaderProcessor deeper typing in-scope from P1 debt; 0033/0034
+  docs-only Accept is finisher/post-merge follow-up only. Assumptions: P1
+  left payload symbol/language enum round-trip in place; NamedVector maps
+  exist unused; wire strings stay identical; Aspire compose remains
+  integration SoT; pre-release allows breaking default without dual stacks.
+deviations: none
+changelog:
+  update: false
+  reason: >-
+    status planned — CHANGELOG deferred until verified; invoker Changelog:
+    yes with full re-index operator note required (index_all(force=true))
+  bullet: >-
+    Operators: after pull, full re-index with index_all(force=true) — no
+    schema-version env vars (ADR 0032 Phase 2).
+user_facing: true
+open_decisions: []

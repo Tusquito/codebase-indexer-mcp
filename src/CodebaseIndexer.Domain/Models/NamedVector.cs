@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace CodebaseIndexer.Domain.Models;
 
-/// <summary>Qdrant named-vector identifiers (declared for Phase 2 adoption).</summary>
+/// <summary>Qdrant named-vector identifiers.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum NamedVector
 {

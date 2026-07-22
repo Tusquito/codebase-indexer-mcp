@@ -74,6 +74,20 @@ public sealed class DomainEnumWireTests
         Assert.Equal(value, JsonSerializer.Deserialize<SourceLanguage>($"\"{wire}\"", JsonOptions));
     }
 
+    /// <summary>Every <see cref="NamedVector"/> member maps to its canonical Qdrant wire form.</summary>
+    [Theory]
+    [InlineData(NamedVector.Dense, "dense")]
+    [InlineData(NamedVector.Sparse, "sparse")]
+    [InlineData(NamedVector.Colbert, "colbert")]
+    public void NamedVector_round_trips_wire(NamedVector value, string wire)
+    {
+        Assert.Equal(wire, DomainEnumWire.ToWire(value));
+        Assert.True(DomainEnumWire.TryParse(wire, out NamedVector parsed));
+        Assert.Equal(value, parsed);
+        Assert.Equal(wire, JsonSerializer.Serialize(value, JsonOptions).Trim('"'));
+        Assert.Equal(value, JsonSerializer.Deserialize<NamedVector>($"\"{wire}\"", JsonOptions));
+    }
+
     /// <summary>Phase 3 reserved match/reference wire names are declared on sibling enums.</summary>
     [Theory]
     [InlineData(DomainMatchType.CallSite, "call_site")]
@@ -145,6 +159,19 @@ public sealed class DomainEnumWireTests
             var wire = DomainEnumWire.ToWire(value);
             Assert.False(string.IsNullOrWhiteSpace(wire));
             Assert.True(DomainEnumWire.TryParse(wire, out SourceLanguage parsed));
+            Assert.Equal(value, parsed);
+        }
+    }
+
+    /// <summary>DomainEnumWire covers every <see cref="NamedVector"/> member.</summary>
+    [Fact]
+    public void DomainEnumWire_covers_all_NamedVector_members()
+    {
+        foreach (NamedVector value in Enum.GetValues<NamedVector>())
+        {
+            var wire = DomainEnumWire.ToWire(value);
+            Assert.False(string.IsNullOrWhiteSpace(wire));
+            Assert.True(DomainEnumWire.TryParse(wire, out NamedVector parsed));
             Assert.Equal(value, parsed);
         }
     }

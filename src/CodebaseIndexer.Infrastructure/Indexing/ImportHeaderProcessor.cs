@@ -33,9 +33,10 @@ internal static partial class ImportHeaderProcessor
         IReadOnlyList<Chunk> chunks,
         Node rootNode,
         IReadOnlyList<string> lines,
-        string language)
+        SourceLanguage language)
     {
-        if (chunks.Count == 0 || !ImportNodeTypes.TryGetValue(language, out var importTypes))
+        var languageKey = LanguageRegistry.ToRegistryId(language);
+        if (chunks.Count == 0 || !ImportNodeTypes.TryGetValue(languageKey, out var importTypes))
         {
             return chunks;
         }
@@ -49,7 +50,7 @@ internal static partial class ImportHeaderProcessor
         return chunks
             .Select(chunk =>
             {
-                var relevant = FilterRelevantImports(importLines, chunk.Content, language);
+                var relevant = FilterRelevantImports(importLines, chunk.Content, languageKey);
                 return relevant.Count == 0 ? chunk : PrependImportHeader(chunk, string.Join('\n', relevant));
             })
             .ToArray();
