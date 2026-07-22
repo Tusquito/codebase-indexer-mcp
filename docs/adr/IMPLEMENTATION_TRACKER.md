@@ -87,6 +87,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0030 | Phase 4 — Cross-ref + discovery | Accepted (phases 1–4) | phase-4 | `merged` | Qdrant-only Path D (`callees` scroll); `Discovery:RecommendEnabled` gating; `UrlExtractors` supersedes Phase 3 minimal classifier; quality report-only (`threshold 0`); no schema-version env (re-index after pull) | 2026-07-21 |
 | 0030 | Phase 5 — GraphRAG | Accepted (phases 1–4; phase 5 merged; Accept skipped) | phase-5 | `merged` | Aspire-specific neo4j overlay; NullGraphStore when disabled; no `GRAPH_SCHEMA_VERSION` (re-index after pull); quality/perf skip; host tool gating via early config read | 2026-07-21 |
 | 0030 | Phase 6 — ColBERT + ops | Accepted (phases 1–6); Phase 7 remains | phase-6 | `merged` | One PR; checked-in Aspire compose; separate Proxy; GPU smoke; Refit `/v1/embed/colbert`; remote ColBERT default when rerank on; adaptive rerank; `compose_files.py` until Phase 7; CUDA Option A; no schema-version env | 2026-07-22 |
+| 0030 | Phase 7 — Cutover + delete Python | Accepted (phases 1–6 merged; Phase 7 verified) | phase-7 | `verified` | Aspire/.NET sole production path; Python eval retained under `benchmarks/`; train MCP-HTTP port deferred; Accept 0031/0032/0033 not in this phase | 2026-07-22 |
 <!-- END GENERATED:summary -->
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
@@ -94,7 +95,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 ## Active and upcoming work
 
 <!-- BEGIN GENERATED:active -->
-_No active or upcoming phases._
+- **0030** Phase 7 — Cutover + delete Python — `verified`
 <!-- END GENERATED:active -->
 
 ### Partial acceptance
@@ -1838,6 +1839,30 @@ _No active or upcoming phases._
 - **Verify:** Infrastructure adaptive/schema 12 passed; Application ScheduledReindex 13 passed; useRerank 10 passed; eval_retrieval AST ok; plan compliance pass; Docker integration Verdict pass (Aspire GPU + quality-rerank threshold 0, recall@10 0.4423); R1–R3 closed. Review rounds: 2.
 - **Changelog:** yes — Add .NET ColBERT rerank (remote GPU worker default, in-process ONNX), Aspire compose with ColBERT, stdio Proxy, and in-process scheduled reindex (cron sidecar removed); re-index after pull when enabling ColBERT.
 
+#### 2026-07-22 — verification
+- **Phase:** Phase 7 — Cutover + delete Python
+- **Tracker status:** `verified`
+- **Choices:** Aspire/.NET sole production path; Python eval retained under `benchmarks/`; train MCP-HTTP port deferred; Accept 0031/0032/0033 not in this phase
+- **Deviations:** none
+- **Code evidence:** `benchmarks/`, `scripts/aspire_compose.py`, `scripts/run_compose_integration.py`, `docker-compose.aspire.yml`, `.github/workflows/ci.yml`, `README.md`, `docs/DEPLOYMENT.md`, `docs/ARCHITECTURE.md`, `.env.example`, `CHANGELOG.md`, `deleted mcp_server/, scripts/compose_files.py, Python compose overlays`
+- **Test debt:** harness JSON unit coverage; MCP HTTP client unit tests; train MCP-HTTP port; Proxy.Tests NU1504 PackageReference cleanup (R4)
+- **Verify:** `dotnet test CodebaseIndexer.slnx` pass (168); `uv run pytest -q` in `benchmarks/` pass (70); Docker integration + quality validation pass (recall@10 0.5764, threshold 0); plan compliance pass; R1–R3 closed. Review rounds: 2.
+- **Changelog:** yes — Aspire/.NET production cutover (ADR 0030 Phase 7) — Python MCP runtime and legacy compose overlays removed; `docker-compose.aspire.yml` + `scripts/aspire_compose.py` are the sole deploy path; golden-set eval under `benchmarks/`; re-index after pull (`index_all(force=true)`)
+
+#### 2026-07-22 — prioritization
+- **Phase:** Phase 7 — Cutover + delete Python
+- **Tracker status:** `candidate`
+- **Choices:** Selected 0030 Phase 7 over 0026 Phase 4 (GPU open), over 0032/0033 Phase 1 (Proposed — need Accept), over 0031 (needs .NET re-scope before Accept), over 0027/0023 P3; single phase per pipeline rule; no ADR Accept required (0030 already Accepted). **Why now:** Phases 1–6 merged; dual Python/.NET stack and `compose_files.py` remain only until Phase 7; next Accepted sequential phase with highest unlock; Proposed 0031–0033 still need Accept / re-scope per open decisions. **Suggested scope:** one phase (= one PR). **Chosen scope:** Flip production default to Aspire/.NET; delete Python MCP runtime package and legacy ColBERT/cron/compose helper paths per ADR 0030 §Deleted artifacts; update CI + four-surface docs; refresh eval baseline / CHANGELOG migration note; Docker integration on aspire-stack must pass; defer Python benchmark port unless human overrides ADR default (keep Python eval tooling).
+- **Deviations:** none
+- **Changelog:** no — user-facing unknown; invoker Changelog: no
+
+#### 2026-07-22 — plan
+- **Phase:** Phase 7 — Cutover + delete Python
+- **Tracker status:** `planned`
+- **Choices:** One PR = entire Phase 7; Aspire compose is sole production deploy; relocate `mcp_server/benchmarks` → `benchmarks/` with slim pyproject; `eval_retrieval` MCP-url-only (no `codebase_indexer`); delete `compose_files.py` after lifting TEI arch helpers; Quality validation required threshold 0 / rerank no / perf skip; Accept 0030 after merge (final phase); do not Accept 0031–0033; do not intercalate 0026 P4. Assumptions: Phase 6 Aspire stack merge-complete; `cron/` already deleted; `--mcp-url` quality path sufficient for baseline refresh; train scripts may be relocated but not fully re-homed onto MCP HTTP in this PR. Pre-release: no backward-compat requirement unless ADR documents one; Docker integration always required; no schema migration version env vars — document re-index after pull instead.
+- **Deviations:** none
+- **Changelog:** no — invoker Changelog: no; status planned
+
 #### 2026-07-22 — merge
 - **Phase:** Phase 6 — ColBERT + ops
 - **Tracker status:** `merged`
@@ -1847,6 +1872,15 @@ _No active or upcoming phases._
 - **Verify:** carried from verification — Infrastructure adaptive/schema 12 passed; Application ScheduledReindex 13 passed; useRerank 10 passed; eval_retrieval AST ok; plan compliance pass; Docker integration Verdict pass (Aspire GPU + quality-rerank threshold 0, recall@10 0.4423); R1–R3 closed. Review rounds: 2.
 - **Git:** https://github.com/Tusquito/codebase-indexer-mcp/pull/42 — status: merged — commit: d264b02
 - **Changelog:** no — user-facing yes; invoker Changelog: no
+
+#### 2026-07-22 — implementation
+- **Phase:** Phase 7 — Cutover + delete Python
+- **Tracker status:** `implemented`
+- **Choices:** Proceed 0030 P7 this cycle; keep Python eval under `benchmarks/`; do not Accept 0031/0032/0033; do not switch to 0026 P4; GPU reserved for later 0026 P4 only
+- **Deviations:** golden set retargeted to 24 .NET queries; train scripts deferred (documented); harness JSON tee buffering (metrics still from real Aspire run)
+- **Code evidence:** `benchmarks/`, `scripts/aspire_compose.py`, `scripts/accelerator.py`, `scripts/run_compose_integration.py`, `scripts/tune_alloc.py`, `.github/workflows/ci.yml`, `docker-compose.aspire.yml`, `README.md`, `docs/DEPLOYMENT.md`, `.github/copilot-instructions.md`, `skill/codebase-indexer/SKILL.md`, `docs/ARCHITECTURE.md`, `CONTRIBUTING.md`, `.env.example`, `CHANGELOG.md`, `docs/adr/0030-migrate-mcp-server-to-dotnet10.md`, `docs/adr/README.md`, `docs/adr/0018-telemetry-observability-otel-prometheus.md`, `deleted mcp_server/, scripts/compose_files.py, Python compose overlays, colbert_worker/Dockerfile*`
+- **Test debt:** harness JSON unit coverage; MCP HTTP client unit tests; train MCP-HTTP port; Proxy.Tests package-ref cleanup
+- **Changelog:** no — entry already written under Unreleased; finisher decides release
 
 #### 2026-07-21 — verification
 - **Phase:** Phase 3 — Core search tools
@@ -2167,6 +2201,10 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 - RESOLVED — keep 0026 Phase 4 deferred behind 0030
 - RESOLVED — defer 0032/0033 Accept to later cycle
 - RESOLVED — ADR 0031 re-scope to .NET then Accept later (not this cycle)
+- RESOLVED — (1) Proceed with P7 this cycle — do not intercalate 0032
+- RESOLVED — (2) Keep Python benchmarks under a non-runtime path (ADR default)
+- RESOLVED — (3) GPU available this cycle for later 0026 Phase 4 scheduling only — do NOT switch away from 0030 Phase 7
+- RESOLVED — (4) Do not Accept 0031/0032/0033 this cycle
 <!-- END GENERATED:open-decisions -->
 
 ---

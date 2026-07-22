@@ -1,6 +1,6 @@
 # 0030. Migrate MCP server runtime from Python to C# .NET 10
 
-- **Status:** Accepted (phases 1–6)
+- **Status:** Accepted (phases 1–6; Phase 7 implemented — finisher Accepts all phases after merge)
 - **Date:** 2026-07-12
 - **Deciders:** Maintainers
 - **Related:** [0002](0002-graphrag-neo4j-qdrant.md), [0003](0003-hybrid-search-rrf-default.md), [0005](0005-mcp-retrieval-connector.md), [0006](0006-explicit-fastembed-pipeline.md), [0008](0008-optional-colbert-reranking.md), [0014](0014-vector-discovery-and-ops-automation.md), [0015](0015-colbert-http-sidecar.md), [0017](0017-model-tokenizer-tei-dense-truncation.md), [0018](0018-telemetry-observability-otel-prometheus.md), [0022](0022-gpu-default-cpu-fallback.md), [0025](0025-huggingface-tei-dense-embedding.md), [0028](0028-apple-silicon-arm64-cpu-deployment.md), [MCP C# SDK](https://github.com/modelcontextprotocol/csharp-sdk), [Qdrant .NET SDK](https://github.com/qdrant/qdrant-dotnet), [TreeSitter.DotNet](https://www.nuget.org/packages/TreeSitter.DotNet), [Refit](https://github.com/reactiveui/refit), [.NET Aspire](https://learn.microsoft.com/en-us/dotnet/aspire/)
