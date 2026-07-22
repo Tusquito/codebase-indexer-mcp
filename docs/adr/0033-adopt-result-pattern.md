@@ -1,6 +1,6 @@
 # 0033. Adopt Result pattern for expected failures
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-07-21
 - **Deciders:** Maintainers
 - **Related:** [0030](0030-migrate-mcp-server-to-dotnet10.md) (.NET Domain/Application/Host layers), [0031](0031-mcp-liveness-vs-readiness.md) (dependency failure surfacing), [0032](0032-replace-magic-strings-with-enums.md) (typed vocabularies), [project-phase.md](../../.cursor/agents/project-phase.md) (pre-release: no backward compatibility)

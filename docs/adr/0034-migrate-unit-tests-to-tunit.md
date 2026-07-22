@@ -1,6 +1,6 @@
 # 0034. Adopt TUnit as the full .NET test stack
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-07-22
 - **Deciders:** Maintainers
 - **Related:** [0030](0030-migrate-mcp-server-to-dotnet10.md) (.NET `test/` projects), [TUnit intro](https://tunit.dev/docs/intro), [Assertions](https://tunit.dev/docs/assertions/getting-started), [Things to know](https://tunit.dev/docs/writing-tests/things-to-know), [TUnit.Mocks](https://tunit.dev/docs/writing-tests/mocking/), [Mock setup](https://tunit.dev/docs/writing-tests/mocking/setup), [Aspire integration](https://tunit.dev/docs/examples/aspire), [Code coverage](https://tunit.dev/docs/extending/code-coverage), [Migrate from xUnit](https://tunit.dev/docs/migration/xunit), [Framework differences](https://tunit.dev/docs/comparison/framework-differences), [Microsoft.Testing.Platform](https://learn.microsoft.com/en-us/dotnet/core/testing/microsoft-testing-platform-intro), [project-phase.md](../../.cursor/agents/project-phase.md) (pre-release: no backward compatibility)

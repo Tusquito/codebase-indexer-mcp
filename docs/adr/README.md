@@ -85,8 +85,8 @@ Invoke the full pipeline with **`adr-orchestrator`**; resume a phase with `Resum
 | [0030](0030-migrate-mcp-server-to-dotnet10.md) | Migrate MCP server runtime from Python to C# .NET 10 | Accepted | 2026-07-12 |
 | [0031](0031-mcp-liveness-vs-readiness.md) | Split MCP liveness from dependency readiness | Accepted (phase 1 shipped; phase 2 open) | 2026-07-21 |
 | [0032](0032-replace-magic-strings-with-enums.md) | Replace closed-set magic strings with domain enums | Accepted | 2026-07-21 |
-| [0033](0033-adopt-result-pattern.md) | Adopt Result pattern for expected failures | Proposed | 2026-07-21 |
-| [0034](0034-migrate-unit-tests-to-tunit.md) | Adopt TUnit as the full .NET test stack | Proposed | 2026-07-22 |
+| [0033](0033-adopt-result-pattern.md) | Adopt Result pattern for expected failures | Accepted | 2026-07-21 |
+| [0034](0034-migrate-unit-tests-to-tunit.md) | Adopt TUnit as the full .NET test stack | Accepted | 2026-07-22 |
 
 ## Qdrant Build Prototypes & Improve Search map
 
