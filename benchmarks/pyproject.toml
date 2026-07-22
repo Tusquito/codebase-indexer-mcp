@@ -1,0 +1,41 @@
+[project]
+name = "codebase-indexer-benchmarks"
+version = "0.1.0"
+description = "Dev-only eval/label tooling for codebase-indexer (not the MCP runtime)"
+license = { text = "MIT" }
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.28.1",
+    "qdrant-client[fastembed]>=1.18.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+]
+benchmark = [
+    "ranx>=0.3.16",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["benchmarks"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-m 'not benchmark and not slow and not gpu'"
+markers = [
+    "benchmark: performance benchmark (needs live services; excluded by default)",
+    "slow: loads real embedding models; excluded from default run",
+    "gpu: requires CUDA GPU; excluded from default run",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100

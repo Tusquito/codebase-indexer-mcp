@@ -1,0 +1,17 @@
+adr_id: "0001"
+phase_key: phase-1
+phase_title: "Phase 1 — alpha"
+event: implementation
+date: 2026-01-02
+tracker_status: implemented
+choices: "alpha implementation choices"
+deviations: none
+code_evidence:
+  - scripts/alpha.py
+open_decisions:
+  - "alpha: decision B"
+  - "alpha: decision C"
+changelog:
+  update: false
+  reason: tooling only
+user_facing: false

@@ -1,0 +1,324 @@
+{
+  "schema": 1,
+  "params": {
+    "golden": "D:\\Repositories\\codebase-indexer-mcp\\benchmarks\\benchmarks\\fixtures\\golden_queries.jsonl",
+    "hybrid_search": true,
+    "rerank_enabled": false,
+    "top_k": 10,
+    "mcp_url": "http://127.0.0.1:8000/mcp",
+    "qdrant_url": "http://127.0.0.1:6333",
+    "search_path": "dotnet_mcp_search_codebase",
+    "note": "ADR 0030 Phase 7 Aspire/.NET cutover baseline. Golden set retargeted to .NET sources (24 queries). Captured via run_compose_integration.py --quality-validation --mcp-url http://127.0.0.1:8000/mcp against docker-compose.aspire.yml (ACCELERATOR=cpu, jinaai/jina-embeddings-v2-base-code @ 768, RERANK_ENABLED=false). Re-index after pull (index_all force=true).",
+    "golden_set_version": "v5-dotnet-cutover-24q",
+    "accelerator": "cpu",
+    "dense_embed_model": "jinaai/jina-embeddings-v2-base-code",
+    "dense_embed_vector_size": 768,
+    "sparse_embed_model": "Qdrant/bm25"
+  },
+  "metrics": {
+    "recall@10": 0.576389,
+    "mrr": 0.403125,
+    "ndcg@10": 0.388203
+  },
+  "metrics_by_tag": {
+    "conceptual": {
+      "recall@10": 0.5,
+      "mrr": 0.208333,
+      "ndcg@10": 0.272374
+    },
+    "config": {
+      "recall@10": 0.583333,
+      "mrr": 0.355556,
+      "ndcg@10": 0.321228
+    },
+    "cross_file": {
+      "recall@10": 0.458333,
+      "mrr": 0.541667,
+      "ndcg@10": 0.459113
+    },
+    "multi_hop": {
+      "recall@10": 0.111111,
+      "mrr": 0.055556,
+      "ndcg@10": 0.063126
+    },
+    "symbol": {
+      "recall@10": 0.65,
+      "mrr": 0.454167,
+      "ndcg@10": 0.446355
+    }
+  },
+  "per_query": [
+    {
+      "query_id": "q_chunk_id",
+      "collection": "codebase-indexer-mcp",
+      "tags": [
+        "symbol"
+      ],
+      "retrieved": 10,
+      "hits_in_top_k": 2,
+      "labels": 2,
+      "top_hit_in_labels": false
+    },
+    {
+      "query_id": "q_search_service",
+      "collection": "codebase-indexer-mcp",
+      "tags": [
+        "symbol"
+      ],
+      "retrieved": 10,
+      "hits_in_top_k": 1,
+      "labels": 2,
+      "top_hit_in_labels": true
+    },
+    {
+      "query_id": "q_search_codebase_tool",
+      "collection": "codebase-indexer-mcp",
+      "tags": [
+        "symbol"
+      ],
+      "retrieved": 10,
+      "hits_in_top_k": 1,
+      "labels": 2,
+      "top_hit_in_labels": false
+    },
+    {
+      "query_id": "q_cross_collection_rrf",
+      "collection": "codebase-indexer-mcp",
+      "tags": [
+        "conceptual"
+      ],
+      "retrieved": 10,
+      "hits_in_top_k": 1,
+      "labels": 1,
+      "top_hit_in_labels": false
+    },
+    {
+      "query_id": "q_tei_dense",
+      "collection": "codebase-indexer-mcp",
+      "tags": [
+        "symbol"
+      ],
+      "retrieved": 10,
+      "hits_in_top_k": 2,
+      "labels": 2,
+      "top_hit_in_labels": false
+    },
+    {
+      "query_id": "q_qdrant_vector_store",
+      "collection": "codebase-indexer-mcp",
+      "tags": [
+        "symbol"
+      ],
+      "retrieved": 10,
+      "hits_in_top_k": 1,
+      "labels": 2,
+      "top_hit_in_labels": false
+    },
+    {
+      "query_id": "q_index_codebase_tool",
+      "collection": "codebase-indexer-mcp",
+      "tags": [
+        "symbol"
+      ],
+      "retrieved": 10,
+      "hits_in_top_k": 1,
+      "labels": 2,
+      "top_hit_in_labels": false
+    },
+    {
+      "query_id": "q_index_service",
+      "collection": "codebase-indexer-mcp",
+      "tags": [
+        "conceptual"
+      ],
+      "retrieved": 10,
+      "hits_in_top_k": 0,
+      "labels": 2,
+      "top_hit_in_labels": false
+    },
+    {
+      "query_id": "q_tree_sitter_chunker",
+      "collection": "codebase-indexer-mcp",
+      "tags": [
+        "symbol"
+      ],
+      "retrieved": 10,
+      "hits_in_top_k": 1,
+      "labels": 2,
+      "top_hit_in_labels": false
+    },
+    {
+      "query_id": "q_hybrid_default",
+      "collection": "codebase-indexer-mcp",
+      "tags": [
+        "config"
+      ],
+      "retrieved": 10,
+      "hits_in_top_k": 1,
+      "labels": 2,
+      "top_hit_in_labels": false
+    },
+    {
+      "query_id": "q_embedding_options",
+      "collection": "codebase-indexer-mcp",
+      "tags": [
+        "config"
+      ],
+      "retrieved": 10,
+      "hits_in_top_k": 1,
+      "labels": 1,
+      "top_hit_in_labels": false
+    },
+    {
+      "query_id": "q_cross_references",
+      "collection": "codebase-indexer-mcp",
+      "tags": [
+        "cross_file"
+      ],
+      "retrieved": 10,
+      "hits_in_top_k": 2,
+      "labels": 2,
+      "top_hit_in_labels": true
+    },
+    {
+      "query_id": "q_service_map",
+      "collection": "codebase-indexer-mcp",
+      "tags": [
+        "cross_file"
+      ],
+      "retrieved": 10,
+      "hits_in_top_k": 1,
+      "labels": 2,
+      "top_hit_in_labels": true
+    },
+    {
+      "query_id": "q_host_builder",
+      "collection": "codebase-indexer-mcp",
+      "tags": [
+        "symbol"
+      ],
+      "retrieved": 10,
+      "hits_in_top_k": 0,
+      "labels": 1,
+      "top_hit_in_labels": false
+    },
+    {
+      "query_id": "q_infra_di",
+      "collection": "codebase-indexer-mcp",
+      "tags": [
+        "symbol"
+      ],
+      "retrieved": 10,
+      "hits_in_top_k": 2,
+      "labels": 2,
+      "top_hit_in_labels": false
+    },
+    {
+      "query_id": "q_collection_isolation",
+      "collection": "codebase-indexer-mcp",
+      "tags": [
+        "conceptual"
+      ],
+      "retrieved": 10,
+      "hits_in_top_k": 2,
+      "labels": 2,
+      "top_hit_in_labels": false
+    },
+    {
+      "query_id": "q_aspire_compose",
+      "collection": "codebase-indexer-mcp",
+      "tags": [
+        "config"
+      ],
+      "retrieved": 10,
+      "hits_in_top_k": 1,
+      "labels": 2,
+      "top_hit_in_labels": true
+    },
+    {
+      "query_id": "q_mh_reindex_pipeline",
+      "collection": "codebase-indexer-mcp",
+      "tags": [
+        "multi_hop",
+        "cross_file"
+      ],
+      "retrieved": 10,
+      "hits_in_top_k": 0,
+      "labels": 3,
+      "top_hit_in_labels": false
+    },
+    {
+      "query_id": "q_mh_search_stack",
+      "collection": "codebase-indexer-mcp",
+      "tags": [
+        "multi_hop",
+        "conceptual"
+      ],
+      "retrieved": 10,
+      "hits_in_top_k": 0,
+      "labels": 3,
+      "top_hit_in_labels": false
+    },
+    {
+      "query_id": "q_mh_xref_service_map",
+      "collection": "codebase-indexer-mcp",
+      "tags": [
+        "multi_hop",
+        "cross_file"
+      ],
+      "retrieved": 10,
+      "hits_in_top_k": 1,
+      "labels": 3,
+      "top_hit_in_labels": false
+    },
+    {
+      "query_id": "q_sparse_bm25",
+      "collection": "codebase-indexer-mcp",
+      "tags": [
+        "config"
+      ],
+      "retrieved": 10,
+      "hits_in_top_k": 1,
+      "labels": 2,
+      "top_hit_in_labels": false
+    },
+    {
+      "query_id": "q_payload_indexes",
+      "collection": "codebase-indexer-mcp",
+      "tags": [
+        "config"
+      ],
+      "retrieved": 10,
+      "hits_in_top_k": 0,
+      "labels": 1,
+      "top_hit_in_labels": false
+    },
+    {
+      "query_id": "q_recommend",
+      "collection": "codebase-indexer-mcp",
+      "tags": [
+        "symbol"
+      ],
+      "retrieved": 10,
+      "hits_in_top_k": 1,
+      "labels": 1,
+      "top_hit_in_labels": true
+    },
+    {
+      "query_id": "q_colbert_options",
+      "collection": "codebase-indexer-mcp",
+      "tags": [
+        "config"
+      ],
+      "retrieved": 10,
+      "hits_in_top_k": 2,
+      "labels": 2,
+      "top_hit_in_labels": false
+    }
+  ],
+  "n_queries": 24,
+  "label_drift": {
+    "drifted": 32,
+    "unresolved": 0
+  }
+}

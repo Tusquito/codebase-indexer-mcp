@@ -1,0 +1,17 @@
+adr_id: "0002"
+phase_key: phase-1
+phase_title: "Phase 1 — beta"
+event: merge
+date: 2026-01-03
+tracker_status: merged
+choices: "beta merge choices"
+deviations: none
+git:
+  status: merged
+  pr_url: https://example.test/pr/1
+open_decisions:
+  - "alpha: decision A"
+changelog:
+  update: false
+  reason: tooling only
+user_facing: false

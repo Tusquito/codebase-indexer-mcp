@@ -25,6 +25,11 @@ skill-workspace/
 
 # Offline Qwen3 fine-tuning outputs (ADR 0020)
 mcp_server/benchmarks/train/outputs/
+benchmarks/benchmarks/train/outputs/
+benchmarks/.venv/
+benchmarks/.eval-integration-results.json
+benchmarks/.bench-integration-results.json
+
 
 # Local scratch, build logs, and machine diagnostics (never publish)
 *.log
