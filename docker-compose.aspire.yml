@@ -126,6 +126,15 @@ services:
       Indexing__FlushEvery: ${FLUSH_EVERY:-128}
       Indexing__UpsertBatch: ${UPSERT_BATCH:-64}
       Indexing__BatchSize: ${INDEX_BATCH_SIZE:-16}
+    # Readiness probe (ADR 0031): /health fails closed when TEI (and optional
+    # remote ColBERT / Neo4j) is down. mcp depends_on tei healthy first, so
+    # start_period covers MCP cold start only — not TEI model download.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8000/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 12
+      start_period: 60s
 
 volumes:
   qdrant_data:

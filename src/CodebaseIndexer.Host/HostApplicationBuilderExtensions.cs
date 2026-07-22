@@ -27,7 +27,8 @@ public static class HostApplicationBuilderExtensions
             .AddIndexingServices()
             .AddScheduledReindex(builder.Configuration)
             .AddHealthChecks()
-            .AddCheck<McpHostHealthCheck>("codebase-indexer", tags: ["ready"]);
+            .AddCheck<McpHostHealthCheck>("codebase-indexer", tags: ["live"])
+            .AddCheck<TeiHealthCheck>("tei", tags: ["ready"]);
 
         var rerankEnabled = builder.Configuration
             .GetSection(EmbeddingOptions.SectionName)
@@ -41,6 +42,15 @@ public static class HostApplicationBuilderExtensions
         {
             builder.Services.AddHealthChecks()
                 .AddCheck<ColbertRemoteHealthCheck>("colbert", tags: ["ready"]);
+        }
+
+        var graphEnabled = builder.Configuration
+            .GetSection(GraphOptions.SectionName)
+            .GetValue(nameof(GraphOptions.Enabled), false);
+        if (graphEnabled)
+        {
+            builder.Services.AddHealthChecks()
+                .AddCheck<Neo4jHealthCheck>("neo4j", tags: ["ready"]);
         }
 
         var mcp = builder.Services
@@ -66,9 +76,6 @@ public static class HostApplicationBuilderExtensions
                 .WithTools<OutlierTools>();
         }
 
-        var graphEnabled = builder.Configuration
-            .GetSection(GraphOptions.SectionName)
-            .GetValue(nameof(GraphOptions.Enabled), false);
         if (graphEnabled)
         {
             mcp.WithTools<ExpandSearchContextTools>();
