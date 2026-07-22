@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace CodebaseIndexer.Domain.Models;
 
-/// <summary>Cross-reference classification kinds (declared for Phase 3 wiring).</summary>
+/// <summary>Cross-reference classification kinds.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum ReferenceType
 {
@@ -29,4 +29,12 @@ public enum ReferenceType
     /// <summary>Method / function call site.</summary>
     [JsonStringEnumMemberName("call_site")]
     CallSite,
+
+    /// <summary>Service URL / route config file.</summary>
+    [JsonStringEnumMemberName("service_config")]
+    ServiceConfig,
+
+    /// <summary>Build-manifest dependency declaration.</summary>
+    [JsonStringEnumMemberName("build_dependency")]
+    BuildDependency,
 }
