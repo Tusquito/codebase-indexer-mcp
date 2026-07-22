@@ -198,8 +198,9 @@ docker compose restart mcp   # if TEI starts after MCP
 ### Health and architecture verification
 
 ```bash
-# MCP and TEI health (TEI may take several minutes on first Jina download)
+# MCP readiness (/health) + liveness (/alive); TEI may take several minutes on first Jina download
 curl http://localhost:8000/health
+curl http://localhost:8000/alive
 curl http://127.0.0.1:8080/health
 
 # Confirm native arm64 (not amd64 emulation)
@@ -210,7 +211,7 @@ docker inspect codeindexer_tei --format '{{.Architecture}}'   # expect: arm64
 docker pull --platform linux/arm64 ghcr.io/huggingface/text-embeddings-inference:cpu-arm64-latest
 ```
 
-MCP logs should show `tei_embed_ready` after TEI warmup. First TEI start can take several minutes; `start_period: 480s` healthcheck accounts for CPU Jina load.
+MCP logs should show `tei_embed_ready` after TEI warmup. First TEI start can take several minutes; TEI `start_period: 480s` accounts for CPU Jina load. Compose marks `mcp` healthy only after `/health` readiness passes (mcp waits on TEI healthy first).
 
 ### Stack tuner (darwin)
 
@@ -329,8 +330,9 @@ MCP may log a TEI preload failure when TEI is unreachable at boot — this is ex
 # Host TEI (loopback)
 curl http://127.0.0.1:8080/health
 
-# MCP (Docker)
+# MCP readiness + liveness (Docker)
 curl http://localhost:8000/health
+curl http://localhost:8000/alive
 ```
 
 Confirm no `codeindexer_tei` container exists:
@@ -402,7 +404,7 @@ docker compose restart mcp
 | `TEI_CPUS` | `4` | CPU limit for bundled TEI |
 | `TEI_IMAGE` | `89-1.9` (GPU) / `cpu-1.9` (amd64 CPU) / `cpu-arm64-latest` (arm64 CPU) | Compose-only TEI Docker tag override; on Apple Silicon use `cpu-arm64-latest` ([§ Apple Silicon](#apple-silicon-arm64-cpu)) |
 
-Verify MCP: `curl http://localhost:8000/health`. If TEI is down at startup, MCP still serves `/health` until TEI is reachable (restart `mcp` after TEI is ready). **Proposed** [ADR 0031](adr/0031-mcp-liveness-vs-readiness.md) splits liveness (`/health`) from dependency readiness (`/ready`).
+Verify MCP readiness: `curl http://localhost:8000/health`. Liveness (process up, no deps): `curl http://localhost:8000/alive`. When TEI is down, `/health` fails closed and Compose marks `mcp` unhealthy; `/alive` stays 200. Compose `mcp` healthcheck and AppHost probe both target `/health` ([ADR 0031](adr/0031-mcp-liveness-vs-readiness.md)).
 
 **Full re-index required** after changing `DENSE_EMBED_MODEL` or `DENSE_EMBED_VECTOR_SIZE`. See [ADR 0025](adr/0025-huggingface-tei-dense-embedding.md).
 
@@ -622,7 +624,7 @@ Application metrics are **opt-in** via `METRICS_ENABLED=true` ([ADR 0018](adr/00
 
 When enabled, the MCP server exposes `GET /metrics` on the same HTTP port as streamable-http (default `127.0.0.1:8000`). Metric names use the `codeindexer_*` prefix (tool latency histograms, index job counters, embed backend error rates, memory pressure events, etc.).
 
-If `MCP_AUTH_TOKEN` is set, `/metrics` follows the same bearer-auth rule as other routes — only `/health` stays unauthenticated. Loopback binding remains the primary guard.
+If `MCP_AUTH_TOKEN` is set, `/metrics` follows the same bearer-auth rule as other routes — only `/health` and `/alive` stay unauthenticated. Loopback binding remains the primary guard.
 
 Example scrape config:
 

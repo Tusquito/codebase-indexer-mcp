@@ -31,7 +31,7 @@ Each direct subdirectory of `/workspace` is one **collection** (indexed project)
 
 | Component | Path | Role |
 |-----------|------|------|
-| HTTP server (.NET — production) | `src/CodebaseIndexer.Host/Program.cs` | MCP at `/mcp`; `/health`; tools under `Tools/`; `appsettings` + FluentValidation |
+| HTTP server (.NET — production) | `src/CodebaseIndexer.Host/Program.cs` | MCP at `/mcp`; `GET /health` readiness + `GET /alive` liveness ([ADR 0031](adr/0031-mcp-liveness-vs-readiness.md)); tools under `Tools/`; `appsettings` + FluentValidation |
 | Aspire AppHost | `src/CodebaseIndexer.AppHost/AppHost.cs` | Local orchestration; checked-in `docker-compose.aspire.yml` is the deploy surface |
 | ColBERT worker | `src/CodebaseIndexer.ColbertWorker` | Late-interaction / rerank sidecar |
 | stdio proxy | `src/CodebaseIndexer.Proxy` | Optional stdio → HTTP forwarder |

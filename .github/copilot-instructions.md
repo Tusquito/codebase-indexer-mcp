@@ -26,8 +26,9 @@ docker compose $(ACCELERATOR=cpu python scripts/aspire_compose.py --no-gpu-colbe
 # docker compose $(ACCELERATOR=cpu python scripts/aspire_compose.py --no-gpu-colbert) up -d --build qdrant colbert mcp
 # See docs/DEPLOYMENT.md § macOS host-native TEI (Metal)
 
-# Check health
+# Check readiness (deps) and liveness (process)
 curl http://localhost:8000/health
+curl http://localhost:8000/alive
 
 # View MCP server logs
 docker logs -f codeindexer_mcp_dotnet
