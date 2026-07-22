@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using CodebaseIndexer.AppHost;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
@@ -26,6 +27,13 @@ var colbertBackend = Environment.GetEnvironmentVariable("Colbert__EmbedBackend")
 // Always publish ColBERT in Aspire compose (opt-in via Embedding__RerankEnabled).
 var includeColbert = true;
 
+// ADR 0035: pair TEI --max-batch-tokens with client Embedding__MaxDenseTokens (default 1024).
+var teiMaxBatchTokens = TeiBatchTokenPairing.ResolveTeiMaxBatchTokens(
+    Environment.GetEnvironmentVariable("TEI_MAX_BATCH_TOKENS"));
+var clientMaxDenseTokens = TeiBatchTokenPairing.ResolveClientMaxDenseTokens(
+    Environment.GetEnvironmentVariable("Embedding__MaxDenseTokens"),
+    Environment.GetEnvironmentVariable("MAX_DENSE_EMBED_TOKENS"));
+
 // REST :6333 for health/metrics; gRPC :6334 for Qdrant.Client (PROTOCOL_ERROR if REST used as gRPC).
 var qdrant = builder.AddContainer("qdrant", "qdrant/qdrant", "v1.18.2")
     .WithHttpEndpoint(port: 6333, targetPort: 6333, name: "http")
@@ -39,7 +47,7 @@ var tei = builder.AddContainer("tei", teiImageName)
     .WithEnvironment("MODEL_ID", denseModel)
     .WithEnvironment("HF_TOKEN", hfToken)
     .WithVolume("tei_data", "/data")
-    .WithArgs("--port", "80", "--max-batch-tokens", "1024")
+    .WithArgs("--port", "80", "--max-batch-tokens", teiMaxBatchTokens)
     .WithHttpHealthCheck("/health");
 
 var graphEnabledEnv = Environment.GetEnvironmentVariable("GRAPH_ENABLED")
@@ -88,6 +96,7 @@ var mcp = builder.AddProject<Projects.CodebaseIndexer_Host>("mcp")
     .WithEnvironment("Embedding__DenseVectorSize", denseVectorSize)
     .WithEnvironment("Embedding__SparseModel", "Qdrant/bm25")
     .WithEnvironment("Embedding__HybridSearch", "true")
+    .WithEnvironment("Embedding__MaxDenseTokens", clientMaxDenseTokens)
     .WithEnvironment("Embedding__RerankEnabled", rerankEnabled ? "true" : "false")
     .WithEnvironment("Colbert__EmbedBackend", colbertBackend);
 

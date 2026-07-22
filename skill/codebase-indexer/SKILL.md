@@ -162,6 +162,7 @@ map_service_dependencies(collections=["project-a", "project-b"])
 Apple Silicon Macs without NVIDIA GPU use the **native arm64 CPU Aspire profile** ([ADR 0028](docs/adr/0028-apple-silicon-arm64-cpu-deployment.md)):
 
 - `.env`: `ACCELERATOR=cpu`, `TEI_IMAGE=ghcr.io/huggingface/text-embeddings-inference:cpu-arm64-latest`, `Embedding__RerankEnabled=false`
+- Aspire pairs `TEI_MAX_BATCH_TOKENS` / `MAX_DENSE_EMBED_TOKENS` → `Embedding__MaxDenseTokens` @ **1024** ([ADR 0035](docs/adr/0035-tei-max-batch-tokens-client-pairing.md)); keep client ≤ TEI batch tokens
 - Docker Desktop Memory: **24 GiB** recommended (M3 Pro preset in `.env.example`)
 - `docker compose $(ACCELERATOR=cpu python scripts/aspire_compose.py --no-gpu-colbert) up -d --build`
 

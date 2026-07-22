@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Aspire TEI / client dense-token pairing** ([ADR 0035](docs/adr/0035-tei-max-batch-tokens-client-pairing.md) Phase 1) — Aspire default dense client cap paired to TEI 1024 (`TEI_MAX_BATCH_TOKENS` / `Embedding__MaxDenseTokens`); no re-index required for existing TEI-1024 embeddings
 - **Domain match/reference/liveness enum wiring** ([ADR 0032](docs/adr/0032-replace-magic-strings-with-enums.md) Phase 3) — cross-ref/search discovery DTOs, classifiers, and host liveness JSON use `MatchType` / `ReferenceType` / `LivenessStatus` via `DomainEnumWire`; **MCP wire strings unchanged** (`"semantic"`, `"call_site"`, `"ok"`, etc.); no additional re-index beyond Phase 2
 - **Domain NamedVector wire centralization** ([ADR 0032](docs/adr/0032-replace-magic-strings-with-enums.md) Phase 2) — Qdrant named-vector create/query/upsert/recommend paths obtain `"dense"` / `"sparse"` / `"colbert"` only via `DomainEnumWire.ToWire(NamedVector.*)`; operators must **full re-index after pull** (`index_all(force=true)` / equivalent); no schema-version env
 - **MCP readiness vs liveness** ([ADR 0031](docs/adr/0031-mcp-liveness-vs-readiness.md)) — `GET /health` fails closed on TEI (and remote ColBERT / Neo4j when enabled); always-on `GET /alive` is process liveness; Compose and AppHost probe `/health`

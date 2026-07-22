@@ -86,3 +86,10 @@ def test_container_arch_falls_back_to_platform_machine():
     ):
         with patch("scripts.accelerator.platform.machine", return_value="aarch64"):
             assert container_arch() == "arm64"
+
+
+def test_aspire_compose_yaml_pairs_tei_and_client_dense_tokens():
+    """ADR 0035: aspire compose wires env-driven TEI / MaxDenseTokens pairing @ 1024."""
+    compose = (REPO_ROOT / "docker-compose.aspire.yml").read_text(encoding="utf-8")
+    assert "${TEI_MAX_BATCH_TOKENS:-1024}" in compose
+    assert "Embedding__MaxDenseTokens: ${MAX_DENSE_EMBED_TOKENS:-1024}" in compose

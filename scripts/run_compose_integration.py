@@ -422,6 +422,92 @@ def check_tei_container_absent(
     return True, "no bundled tei container"
 
 
+def check_tei_client_token_pairing(
+    *,
+    external_tei: bool = False,
+    expected_tokens: str = "1024",
+    tei_container: str = TEI_CONTAINER,
+    mcp_container: str = ASPIRE_MCP_CONTAINER,
+    run_cmd: Callable[..., subprocess.CompletedProcess] | None = None,
+) -> tuple[bool, str]:
+    """Assert Aspire TEI args and MCP Embedding__MaxDenseTokens pairing (ADR 0035)."""
+    runner = run_cmd or _run
+    parts: list[str] = []
+
+    if not external_tei:
+        tei_proc = runner(
+            [
+                "docker",
+                "inspect",
+                "-f",
+                "{{json .Config.Cmd}}",
+                tei_container,
+            ]
+        )
+        if tei_proc.returncode != 0:
+            detail = (tei_proc.stderr or tei_proc.stdout or "docker inspect tei failed").strip()
+            return False, detail[-2000:]
+        tei_cmd = (tei_proc.stdout or "").strip()
+        if "--max-batch-tokens" not in tei_cmd or expected_tokens not in tei_cmd:
+            return False, (
+                f"TEI Cmd missing --max-batch-tokens {expected_tokens}: {tei_cmd[:500]}"
+            )
+        parts.append(f"tei Cmd has --max-batch-tokens {expected_tokens}")
+
+    mcp_proc = runner(
+        [
+            "docker",
+            "inspect",
+            "-f",
+            "{{range .Config.Env}}{{println .}}{{end}}",
+            mcp_container,
+        ]
+    )
+    if mcp_proc.returncode != 0:
+        detail = (mcp_proc.stderr or mcp_proc.stdout or "docker inspect mcp failed").strip()
+        return False, detail[-2000:]
+    mcp_env = mcp_proc.stdout or ""
+    expected_env = f"Embedding__MaxDenseTokens={expected_tokens}"
+    if expected_env not in mcp_env:
+        return False, f"MCP missing {expected_env}; env snippet:\n{mcp_env[-1500:]}"
+    parts.append(expected_env)
+
+    # Compose config sanity (resolved substitution) when bundled TEI is present.
+    if not external_tei and ENV_FILE.is_file():
+        cfg = runner(
+            aspire_compose_cmd(
+                "config",
+                graph=False,
+                gpu_colbert=get_accelerator() == "gpu",
+                external_tei=False,
+            )
+        )
+        if cfg.returncode != 0:
+            detail = (cfg.stderr or cfg.stdout or "compose config failed").strip()
+            return False, detail[-2000:]
+        cfg_text = cfg.stdout or ""
+        if f"--max-batch-tokens {expected_tokens}" not in cfg_text and (
+            f"--max-batch-tokens={expected_tokens}" not in cfg_text
+        ):
+            # YAML may split command; accept token adjacent to flag in rendered config.
+            if (
+                "--max-batch-tokens" not in cfg_text
+                or expected_tokens not in cfg_text
+            ):
+                return False, (
+                    f"compose config missing --max-batch-tokens {expected_tokens}"
+                )
+        if f"Embedding__MaxDenseTokens: \"{expected_tokens}\"" not in cfg_text and (
+            f"Embedding__MaxDenseTokens: {expected_tokens}" not in cfg_text
+        ):
+            return False, (
+                f"compose config missing Embedding__MaxDenseTokens={expected_tokens}"
+            )
+        parts.append("compose config pairing ok")
+
+    return True, "; ".join(parts)
+
+
 def tei_embed_smoke(
     *,
     tei_url: str = TEI_URL,
@@ -719,6 +805,7 @@ def main() -> int:
         "colbert_health": {"status": "pending", "detail": ""},
         "tei_embed_smoke": {"status": "pending", "detail": ""},
         "tei_container_absent": {"status": "pending", "detail": ""},
+        "tei_client_token_pairing": {"status": "pending", "detail": ""},
         "dotnet_smoke": {"status": "pending", "detail": ""},
         "aspire_service_map_smoke": {"status": "pending", "detail": ""},
         "quality_validation": {
@@ -847,6 +934,13 @@ def main() -> int:
                 "detail": f"ColBERT GPU health parse failed: {exc}",
             }
 
+    # ADR 0035: assert TEI --max-batch-tokens and MCP Embedding__MaxDenseTokens pairing.
+    ok, detail = check_tei_client_token_pairing(external_tei=args.external_tei)
+    report["tei_client_token_pairing"] = {
+        "status": "pass" if ok else "fail",
+        "detail": detail,
+    }
+
     ok, detail = run_dotnet_smoke()
     report["dotnet_smoke"] = {"status": "pass" if ok else "fail", "detail": detail}
 
@@ -937,6 +1031,7 @@ def main() -> int:
         "qdrant_health",
         "tei_health",
         "colbert_health",
+        "tei_client_token_pairing",
         "dotnet_smoke",
         "aspire_service_map_smoke",
     )

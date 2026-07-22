@@ -1,0 +1,44 @@
+adr_id: "0035"
+phase_key: phase-1
+phase_title: Phase 1 — Wire pairing on Aspire path
+event: verification
+date: "2026-07-22"
+tracker_status: verified
+choices: >-
+  TeiBatchTokenPairing defaults 1024; Aspire AppHost/compose set
+  TEI_MAX_BATCH_TOKENS / Embedding__MaxDenseTokens; flat MAX_DENSE_EMBED_TOKENS
+  mapped on Aspire; appsettings MaxDenseTokens: 0 retained for non-Aspire;
+  fail-fast/registry/GPU Phase 2 deferred. Project phase: Pre-release (no
+  backward compatibility unless ADR documents one); Docker integration
+  required; no schema migration version env vars.
+deviations: none
+code_evidence:
+  - src/CodebaseIndexer.AppHost/TeiBatchTokenPairing.cs
+  - src/CodebaseIndexer.AppHost/AppHost.cs
+  - docker-compose.aspire.yml
+  - .env.example
+  - docs/DEPLOYMENT.md
+  - README.md
+  - .github/copilot-instructions.md
+  - skill/codebase-indexer/SKILL.md
+  - CHANGELOG.md
+  - test/CodebaseIndexer.AppHost.Tests/TeiBatchTokenPairingTests.cs
+  - benchmarks/tests/test_aspire_compose.py
+  - scripts/run_compose_integration.py
+  - test/CodebaseIndexer.Infrastructure.Tests/CsharpPatternTests.cs
+test_debt:
+  - mocked pairing-helper unit tests for check_tei_client_token_pairing (optional)
+  - Aspire explicit 0 still means registry auto
+verify: >-
+  AppHost pairing unit tests (10) + EmbedTokenLimit pairing (1) + aspire
+  compose YAML pytest + plan compliance pass; Docker integration + quality
+  validation (threshold 0) pass per integration report. Review rounds: 1.
+changelog:
+  update: true
+  bullet: >-
+    Aspire TEI / client dense-token pairing (ADR 0035 Phase 1) — Aspire
+    default dense client cap paired to TEI 1024 (TEI_MAX_BATCH_TOKENS /
+    Embedding__MaxDenseTokens); no re-index required for existing TEI-1024
+    embeddings
+  reason: verified + user-facing yes
+user_facing: true

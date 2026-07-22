@@ -40,7 +40,7 @@ services:
     environment:
       MODEL_ID: ${DENSE_EMBED_MODEL:-jinaai/jina-embeddings-v2-base-code}
       HF_TOKEN: ${HF_TOKEN:-}
-    command: --model-id ${DENSE_EMBED_MODEL:-jinaai/jina-embeddings-v2-base-code} --port 80 --max-batch-tokens 1024
+    command: --model-id ${DENSE_EMBED_MODEL:-jinaai/jina-embeddings-v2-base-code} --port 80 --max-batch-tokens ${TEI_MAX_BATCH_TOKENS:-1024}
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:80/health || exit 1"]
       interval: 15s
@@ -108,6 +108,7 @@ services:
       Embedding__DenseVectorSize: ${DENSE_EMBED_VECTOR_SIZE:-768}
       Embedding__SparseModel: ${SPARSE_EMBED_MODEL:-Qdrant/bm25}
       Embedding__HybridSearch: ${HYBRID_SEARCH:-true}
+      Embedding__MaxDenseTokens: ${MAX_DENSE_EMBED_TOKENS:-1024}
       Embedding__RerankEnabled: ${RERANK_ENABLED:-false}
       Embedding__ColbertEmbedModel: ${COLBERT_EMBED_MODEL:-colbert-ir/colbertv2.0}
       Embedding__RerankPrefetch: ${RERANK_PREFETCH:-100}
