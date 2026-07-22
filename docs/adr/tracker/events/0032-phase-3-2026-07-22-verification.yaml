@@ -1,0 +1,40 @@
+adr_id: "0032"
+phase_key: phase-3
+phase_title: Phase 3 — Search / cross-ref / health
+event: verification
+date: "2026-07-22"
+tracker_status: verified
+choices: >-
+  DomainMatchType alias for System.IO.MatchType; SearchService typing-only
+  (no body edit); health check maps non-Ok → Unhealthy; ServiceMap edge
+  types deferred
+deviations: none
+code_evidence:
+  - src/CodebaseIndexer.Domain/Models/ReferenceType.cs
+  - src/CodebaseIndexer.Domain/Models/LivenessStatus.cs
+  - src/CodebaseIndexer.Domain/Serialization/DomainEnumWire.cs
+  - src/CodebaseIndexer.Application/Search/UrlExtractors.cs
+  - src/CodebaseIndexer.Application/Search/ReferenceClassifier.cs
+  - src/CodebaseIndexer.Application/Models/DiscoveryResponseModels.cs
+  - src/CodebaseIndexer.Application/Models/SearchResponseModels.cs
+  - src/CodebaseIndexer.Application/Services/CrossReferenceService.cs
+  - src/CodebaseIndexer.Application/Services/HealthStatus.cs
+  - src/CodebaseIndexer.Application/Services/HealthService.cs
+  - src/CodebaseIndexer.Host/Health/McpHostHealthCheck.cs
+  - test/CodebaseIndexer.Domain.Tests/DomainEnumWireTests.cs
+  - test/CodebaseIndexer.Application.Tests/CrossReferenceServiceTests.cs
+  - test/CodebaseIndexer.Application.Tests/HealthServiceTests.cs
+  - test/CodebaseIndexer.Host.Tests/McpHostSmokeTests.cs
+  - CHANGELOG.md
+test_debt:
+  - optional ServiceConfig classify unit assert
+  - optional exhaustive switch for BuildDependency in link summary
+verify: >-
+  review rounds: 1; `dotnet test CodebaseIndexer.slnx` pass (250);
+  Docker integration pass (report); plan compliance pass; quality skip
+changelog:
+  update: true
+  bullet: >-
+    **Domain match/reference/liveness enum wiring** ([ADR 0032](docs/adr/0032-replace-magic-strings-with-enums.md) Phase 3) — Domain match/reference/liveness enums on cross-ref/search DTOs, classifiers, and host liveness JSON via `DomainEnumWire`; MCP wire strings unchanged; no additional re-index beyond Phase 2
+  reason: already present in [Unreleased]; no duplicate edit
+user_facing: true

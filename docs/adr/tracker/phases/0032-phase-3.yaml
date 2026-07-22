@@ -1,0 +1,13 @@
+adr_id: "0032"
+phase_key: phase-3
+title: Phase 3 — Search / cross-ref / health
+tracker_status: verified
+chosen_scope: >-
+  DomainMatchType alias for System.IO.MatchType; SearchService typing-only
+  (no body edit); health check maps non-Ok → Unhealthy; ServiceMap edge
+  types deferred. Wire MatchType/ReferenceType/LivenessStatus through
+  CrossReferenceService, search/discovery DTOs, and McpHostHealthCheck via
+  DomainEnumWire; extend ReferenceType with ServiceConfig/BuildDependency;
+  move LivenessStatus to Domain; unit + Aspire Docker integration; defer
+  0033/0034 and 0026 P4
+last_updated: "2026-07-22"
