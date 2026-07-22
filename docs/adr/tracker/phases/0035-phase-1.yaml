@@ -1,0 +1,14 @@
+adr_id: "0035"
+phase_key: phase-1
+title: Phase 1 — Wire pairing on Aspire path
+tracker_status: verified
+chosen_scope: >-
+  TeiBatchTokenPairing defaults 1024; Aspire AppHost/compose set
+  TEI_MAX_BATCH_TOKENS / Embedding__MaxDenseTokens; flat MAX_DENSE_EMBED_TOKENS
+  mapped on Aspire; appsettings MaxDenseTokens: 0 retained for non-Aspire;
+  fail-fast/registry/GPU Phase 2 deferred. Project phase: Pre-release (no
+  backward compatibility unless ADR documents one); Docker integration
+  required; no schema migration version env vars.
+last_updated: "2026-07-22"
+adr_status_note: >-
+  Proposed → Accept ADR 0035 this cycle (yes); finisher after merge

@@ -1,0 +1,26 @@
+adr_id: "0035"
+phase_key: phase-1
+phase_title: Phase 1 — Wire pairing on Aspire path
+event: plan
+date: "2026-07-22"
+tracker_status: planned
+choices: >-
+  Extract `TeiBatchTokenPairing` for unit-testable defaults; Aspire compose
+  must set `Embedding__MaxDenseTokens` (flat `MAX_DENSE_EMBED_TOKENS` does
+  not bind into .NET alone); leave `appsettings.json` `MaxDenseTokens: 0` for
+  non-Aspire; Quality validation required report-only (threshold 0);
+  Performance skip; no registry change; no fail-fast this phase.
+  Assumptions: 0025/0017/0030 shipped; TEI already truncates at 1024 so
+  re-index not required; checked-in `docker-compose.aspire.yml` stays
+  hand-synced with AppHost; Accept yes this cycle. Project phase: Pre-release
+  (no backward compatibility unless ADR documents one); Docker integration
+  required; no schema migration version env vars.
+deviations: none
+changelog:
+  update: false
+  reason: >-
+    status planned — CHANGELOG entry planned in-PR; tracker Changelog field =
+    finisher ships release notes — Phase 1 PR includes Unreleased CHANGELOG
+    line; invoker Changelog: no
+user_facing: true
+open_decisions: []

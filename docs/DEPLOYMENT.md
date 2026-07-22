@@ -33,6 +33,27 @@ Flat names (`DENSE_EMBED_MODEL`, `TEI_URL`, `RERANK_ENABLED`, …) remain for ha
 
 **Compose-only variables:** `WORKSPACE_ROOT`, `MCP_MEM_LIMIT`, `QDRANT_MEM_LIMIT`, `MCP_CPUS`, `QDRANT_CPUS`, `ACCELERATOR`, `TEI_IMAGE`, `TEI_MKL_INSTRUCTIONS`, `TEI_MEM_LIMIT`, `TEI_CPUS`, `COLBERT_MEM_LIMIT`, `COLBERT_CPUS`, `NEO4J_MEM_LIMIT`, `NEO4J_CPUS`, `ASPIRE_FASTEMBED_CACHE`.
 
+## Aspire TEI / client dense-token pairing ([ADR 0035](adr/0035-tei-max-batch-tokens-client-pairing.md))
+
+Aspire AppHost and `docker-compose.aspire.yml` default both knobs to **1024**:
+
+| Knob | Env | Aspire default | Surface |
+|------|-----|----------------|---------|
+| TEI `--max-batch-tokens` | `TEI_MAX_BATCH_TOKENS` | `1024` | `tei.command` / AppHost `.WithArgs` |
+| MCP client dense cap | `MAX_DENSE_EMBED_TOKENS` → `Embedding__MaxDenseTokens` | `1024` | `mcp.environment` / AppHost `.WithEnvironment` |
+
+**Pair rule:** keep `MaxDenseTokens ≤ TEI_MAX_BATCH_TOKENS`. Raise both together (e.g. GPU hosts → `8192` / `8192` for Jina). Flat `MAX_DENSE_EMBED_TOKENS` alone does **not** bind into .NET — Aspire compose/AppHost must set `Embedding__MaxDenseTokens`. Non-Aspire local Host still uses `appsettings.json` `MaxDenseTokens: 0` (registry auto).
+
+When caps match at 1024, TEI may log that model `max_input_length` (8192) exceeds `--max-batch-tokens` — **expected**, not a defect.
+
+### Non-actionable TEI warnings (same startup log)
+
+| Log line | Verdict |
+|----------|---------|
+| `404` for `config_sentence_transformers.json` | **Ignore** — optional Sentence-Transformers metadata; TEI continues |
+| `Backend does not support a batch size > 8` / `forcing max_batch_requests=8` | **Ignore** — ONNX CPU backend limit; TEI self-corrects |
+| `Invalid hostname, defaulting to 0.0.0.0` | **Ignore** — Docker hostname is not a bind address; `0.0.0.0:80` is correct |
+
 ## GPU-default compose ([ADR 0022](adr/0022-gpu-default-cpu-fallback.md))
 
 **Default:** `ACCELERATOR=gpu` (when unset). Aspire compose merges the ColBERT GPU overlay (`docker-compose.aspire.colbert.gpu.yml`) automatically via `scripts/aspire_compose.py` — do not hand-assemble `-f` lists.

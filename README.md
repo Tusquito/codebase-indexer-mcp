@@ -507,7 +507,7 @@ Production default dense model ([ADR 0021](docs/adr/0021-revert-jina-production-
 | **Default** | `jinaai/jina-embeddings-v2-base-code` | `768` | Production code search (GPU or CPU TEI) |
 | CPU / minimal | `nomic-ai/nomic-embed-text-v1.5` | `768` | No GPU; smallest download |
 
-`MAX_DENSE_EMBED_TOKENS=0` auto-detects **8192** for Jina code models.
+`MAX_DENSE_EMBED_TOKENS=0` auto-detects **8192** for Jina code models on non-Aspire local Host runs. **Aspire production default** is `MAX_DENSE_EMBED_TOKENS=1024` paired with `TEI_MAX_BATCH_TOKENS=1024` ([ADR 0035](docs/adr/0035-tei-max-batch-tokens-client-pairing.md)).
 
 ### Qwen3 Embedding (experimental / CoIR preset)
 
@@ -581,7 +581,7 @@ If you change port bindings to expose the server beyond localhost, set `MCP_AUTH
 | `FLUSH_EVERY` | `1500` | Chunks per embed+upsert flush. Peak RAM ≈ 2× this. With ColBERT rerank, use **64–128** (see [DEPLOYMENT.md](docs/DEPLOYMENT.md#colbert-rerank-qdrant-upsert-batching)). |
 | `UPSERT_BATCH` | `500` | Points per Qdrant upsert sub-batch. With **`RERANK_ENABLED=true`**, use **10–25** — large ColBERT multivectors exceed HTTP body limits at the default. |
 | `READAHEAD_BUFFER` | `100` | Files queued ahead of the consumer during scan |
-| `MAX_DENSE_EMBED_TOKENS` | `0` (auto) | Caps text sent to TEI (word-split approximation); auto from `DENSE_EMBED_MODEL` registry when `0` |
+| `MAX_DENSE_EMBED_TOKENS` | `1024` (Aspire); `0` auto non-Aspire | Aspire pairs with `TEI_MAX_BATCH_TOKENS` ([ADR 0035](docs/adr/0035-tei-max-batch-tokens-client-pairing.md)); keep ≤ TEI batch tokens. Non-Aspire `0` = registry auto |
 | `MAX_SPARSE_EMBED_TOKENS` | `0` (no limit) | Token cap for sparse input. `0` = no truncation with `Qdrant/bm25` (default). Set explicitly only for other sparse transformer models. |
 | `SEQUENTIAL_EMBED` | `false` | Run sparse then dense sequentially during indexing (~lower peak RAM, slower) |
 

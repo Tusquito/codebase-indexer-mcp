@@ -1,0 +1,28 @@
+adr_id: "0035"
+phase_key: phase-1
+phase_title: >-
+  Phase 1 — env-driven TEI `--max-batch-tokens` + client
+  `MaxDenseTokens`/`MAX_DENSE_EMBED_TOKENS` pairing (default 1024)
+event: prioritization
+date: "2026-07-22"
+tracker_status: candidate
+choices: >-
+  Prefer 0035 P1 over 0033 P1 (tie-break: production truncation defect) and
+  over 0026 P4 (GPU/session size); single phase per pipeline rule; Proposed →
+  needs Accept. **Why now:** Empty active queue after 0032 P3; Aspire TEI
+  1024 vs client registry 8192 silent truncation confirmed in AppHost/compose/
+  `MaxDenseTokens=0`/`EmbeddingTruncation`; prerequisites 0025/0017/0030
+  shipped; smallest measurable correctness PR. **Suggested scope:** one phase
+  (= one PR). **Chosen scope:** Phase 1 — env-driven `--max-batch-tokens`
+  (`TEI_MAX_BATCH_TOKENS` default 1024); Aspire compose/AppHost set
+  `Embedding__MaxDenseTokens` / `MAX_DENSE_EMBED_TOKENS` default 1024; docs +
+  four-surface sync; unit/integration pairing asserts; Docker integration
+  required; defer Phase 2 GPU dual-raise; **Accept ADR 0035** as part of
+  cycle. Human decision 2026-07-22: Accept ADR 0035 this cycle — yes.
+deviations: none
+changelog:
+  update: false
+  reason: "user-facing unknown; invoker Changelog: no"
+user_facing: false
+open_decisions:
+  - "RESOLVED — Accept ADR 0035 this cycle: yes"
