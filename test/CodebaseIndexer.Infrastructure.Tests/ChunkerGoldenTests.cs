@@ -36,6 +36,21 @@ public sealed class ChunkerGoldenTests
         Assert.Contains(first, c => c.SymbolName == "foo");
     }
 
+    /// <summary>Python sample yields SymbolType and SourceLanguage enums (not string compares).</summary>
+    [Fact]
+    public void Python_sample_yields_symbol_type_and_language_enums()
+    {
+        var chunker = new TreeSitterChunker(
+            Microsoft.Extensions.Options.Options.Create(TestSettingsFactory.CreateChunkingOptions()),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<TreeSitterChunker>.Instance);
+
+        var chunks = chunker.ChunkFile("sample.py", PySample, SourceLanguage.Python, "deadbeef");
+        Assert.NotEmpty(chunks);
+        Assert.All(chunks, c => Assert.Equal(SourceLanguage.Python, c.Language));
+        Assert.Contains(chunks, c => c.SymbolName == "foo" && c.SymbolType == SymbolType.Function);
+        Assert.Contains(chunks, c => c.SymbolName == "Bar" && c.SymbolType == SymbolType.Class);
+    }
+
     /// <summary>Chunk IDs match the Python SHA-256 formula.</summary>
     [Fact]
     public void Chunk_id_matches_python_sha256_formula()
@@ -132,5 +147,6 @@ public sealed class ChunkerGoldenTests
             Microsoft.Extensions.Logging.Abstractions.NullLogger<TreeSitterChunker>.Instance);
         var chunks = chunker.ChunkFile("Widget.cs", csharp, SourceLanguage.CSharp, "abc");
         Assert.Contains(chunks, c => c.SymbolName == "Widget" && c.SymbolType == SymbolType.Class);
+        Assert.All(chunks, c => Assert.Equal(SourceLanguage.CSharp, c.Language));
     }
 }
