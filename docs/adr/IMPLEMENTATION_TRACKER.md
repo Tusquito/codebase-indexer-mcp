@@ -90,7 +90,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0030 | Phase 7 — Cutover + delete Python | Accepted (phases 1–7 merged) | phase-7 | `merged` | Aspire/.NET sole production path; Python eval retained under `benchmarks/`; train MCP-HTTP port deferred; Accept 0031/0032/0033 not in this phase | 2026-07-22 |
 | 0031 | Phase 1 — dependency-aware readiness + compose/Aspire MCP healthcheck + unit/integration tests (Accept + .NET Host/Aspire re-scope) | Merged — PR #44 (`73af6dd`); Accept skipped (already Accepted; phase 1 shipped; phase 2 open); release skipped | phase-1 | `merged` | Aspire `/health` readiness + always-on `/alive` (no `/ready`); TEI always ready; ColBERT when remote+rerank; Neo4j when graph; hard-coded ~5s TEI/Neo4j probes; curl in Host Dockerfile for compose healthcheck | 2026-07-22 |
 | 0032 | Phase 1 — Domain enums + model/port signatures | Merged — PR #45 (`bc5506a`); Accept skipped (already Accepted in PR); release skipped | phase-1 | `merged` | Phase 1 only; wire strings unchanged via `DomainEnumWire` + `JsonStringEnumMemberName`; sibling enums declare-only; NamedVector/Qdrant named-vector literals and MatchType/ReferenceType/LivenessStatus wiring deferred to Phases 2–3; no `*_SCHEMA_VERSION`; Changelog deferred per plan | 2026-07-22 |
-| 0032 | Phase 2 — Indexing + Qdrant | Verified — 0032 P2 NamedVector via DomainEnumWire; ImportHeaderProcessor SourceLanguage typing; Docker + unit tests pass; CHANGELOG re-index note present; 0033/0034 docs-only Accept post-merge follow-up | phase-2 | `verified` | Centralize Qdrant named-vector names via static DenseWire/SparseWire/ColbertWire from DomainEnumWire; expose GetNamedVectorWireMap for tests; ImportHeaderProcessor takes SourceLanguage (registry id via ToWire). NamedVector ↔ Qdrant `"dense"`/`"sparse"`/`"colbert"` via DomainEnumWire in QdrantVectorStore create/query/upsert/recommend (+ schema/retrieve/scroll); chunker/classifier → payload enum round-trip; unit tests; Docker compose integration; CHANGELOG full re-index after pull (no schema-version env); defer Phase 3 search/xref/health; do not implement 0033/0034 in this PR. | 2026-07-22 |
+| 0032 | Phase 2 — Indexing + Qdrant | Merged — PR #46 (squash `6c02a7a`); Accept skipped for 0032 (already Accepted); Accept yes for 0033 → Accepted; Accept yes for 0034 → Accepted; release skipped | phase-2 | `merged` | Centralize Qdrant named-vector names via static DenseWire/SparseWire/ColbertWire from DomainEnumWire; expose GetNamedVectorWireMap for tests; ImportHeaderProcessor takes SourceLanguage (registry id via ToWire). NamedVector ↔ Qdrant `"dense"`/`"sparse"`/`"colbert"` via DomainEnumWire in QdrantVectorStore create/query/upsert/recommend (+ schema/retrieve/scroll); chunker/classifier → payload enum round-trip; unit tests; Docker compose integration; CHANGELOG full re-index after pull (no schema-version env); defer Phase 3 search/xref/health; do not implement 0033/0034 in this PR. | 2026-07-22 |
 <!-- END GENERATED:summary -->
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
@@ -98,7 +98,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 ## Active and upcoming work
 
 <!-- BEGIN GENERATED:active -->
-- **0032** Phase 2 — Indexing + Qdrant — `verified`
+_No active or upcoming phases._
 <!-- END GENERATED:active -->
 
 ### Partial acceptance
@@ -2254,6 +2254,16 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 - **Code evidence:** `merged via [PR #45](https://github.com/Tusquito/codebase-indexer-mcp/pull/45) (`adr/0032-phase-1-domain-enums`; `bc5506ad3321bfa94711203781bc7cf8fb6a93ae`)`
 - **Verify:** carried from verification — Review rounds: 1; `dotnet test CodebaseIndexer.slnx` pass (233); Docker integration Verdict pass (quality skip); plan compliance pass
 - **Git:** https://github.com/Tusquito/codebase-indexer-mcp/pull/45 — status: merged — commit: bc5506ad3321bfa94711203781bc7cf8fb6a93ae
+- **Changelog:** no — user-facing yes; invoker Changelog: no
+
+#### 2026-07-22 — merge
+- **Phase:** Phase 2 — Indexing + Qdrant
+- **Tracker status:** `merged`
+- **Choices:** Merge PR #46 (squash `6c02a7a`; commits `0f54b65`, `30f94f5`, `fc6270d`, `28ebd8c`); branch `adr/0032-phase-2-indexing-qdrant`; Accept skipped for 0032 (already Accepted); Accept yes for 0033 → Accepted; Accept yes for 0034 → Accepted; release skipped
+- **Deviations:** none
+- **Code evidence:** `merged via [PR #46](https://github.com/Tusquito/codebase-indexer-mcp/pull/46) (`adr/0032-phase-2-indexing-qdrant`; squash `6c02a7a`)`
+- **Verify:** carried from verification — review rounds: 1; `dotnet test CodebaseIndexer.slnx` pass (242); Docker integration pass; plan path/task table pass
+- **Git:** https://github.com/Tusquito/codebase-indexer-mcp/pull/46 — status: merged — commit: 6c02a7a
 - **Changelog:** no — user-facing yes; invoker Changelog: no
 
 #### 2026-07-22 — implementation

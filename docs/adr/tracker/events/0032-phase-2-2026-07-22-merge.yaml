@@ -1,0 +1,27 @@
+adr_id: "0032"
+phase_key: phase-2
+phase_title: Phase 2 — Indexing + Qdrant
+event: merge
+date: "2026-07-22"
+tracker_status: merged
+choices: >-
+  Merge PR #46 (squash `6c02a7a`; commits `0f54b65`, `30f94f5`, `fc6270d`,
+  `28ebd8c`); branch `adr/0032-phase-2-indexing-qdrant`; Accept skipped for
+  0032 (already Accepted); Accept yes for 0033 → Accepted; Accept yes for
+  0034 → Accepted; release skipped
+deviations: none
+code_evidence:
+  - >-
+    merged via [PR #46](https://github.com/Tusquito/codebase-indexer-mcp/pull/46)
+    (`adr/0032-phase-2-indexing-qdrant`; squash `6c02a7a`)
+verify: >-
+  carried from verification — review rounds: 1; `dotnet test CodebaseIndexer.slnx`
+  pass (242); Docker integration pass; plan path/task table pass
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/46
+  commit: 6c02a7a
+  status: merged
+changelog:
+  update: false
+  reason: "user-facing yes; invoker Changelog: no"
+user_facing: true

@@ -1,7 +1,7 @@
 adr_id: "0032"
 phase_key: phase-2
 title: Phase 2 — Indexing + Qdrant
-tracker_status: verified
+tracker_status: merged
 chosen_scope: >-
   Centralize Qdrant named-vector names via static DenseWire/SparseWire/ColbertWire
   from DomainEnumWire; expose GetNamedVectorWireMap for tests; ImportHeaderProcessor
@@ -12,8 +12,8 @@ chosen_scope: >-
   full re-index after pull (no schema-version env); defer Phase 3
   search/xref/health; do not implement 0033/0034 in this PR.
 last_updated: "2026-07-22"
+pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/46
 adr_status_note: >-
-  Verified — 0032 P2 NamedVector via DomainEnumWire;
-  ImportHeaderProcessor SourceLanguage typing; Docker + unit tests pass;
-  CHANGELOG re-index note present; 0033/0034 docs-only Accept post-merge
-  follow-up
+  Merged — PR #46 (squash `6c02a7a`); Accept skipped for 0032 (already
+  Accepted); Accept yes for 0033 → Accepted; Accept yes for 0034 → Accepted;
+  release skipped
