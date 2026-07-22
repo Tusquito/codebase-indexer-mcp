@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-> **Note:** The MCP surface is **14 tools** when `RECOMMEND_ENABLED=true` (default). Historical release `[0.1.0]` below lists **12 tools** from before `recommend_code` shipped.
+> **Note:** The MCP surface is **14 tools** when recommend/discovery is enabled (default). Historical release `[0.1.0]` below lists **12 tools** from before `recommend_code` shipped.
+
+### Changed
+
+- **Aspire/.NET production cutover** ([ADR 0030](docs/adr/0030-migrate-mcp-server-to-dotnet10.md) Phase 7) — Python MCP runtime, Python ColBERT Dockerfiles, and legacy `docker-compose.yml` overlays removed; `docker-compose.aspire.yml` + `scripts/aspire_compose.py` are the sole deploy path; golden-set eval lives under `benchmarks/`; **re-index after pull** (`index_all(force=true)`); Python `prometheus_client` host metrics superseded by OTel/.NET (ADR 0018)
 
 ### Added
 
@@ -15,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Opt-in .NET GraphRAG** ([ADR 0030](docs/adr/0030-migrate-mcp-server-to-dotnet10.md)) — Neo4j writer, Path D CALLS routing, and `expand_search_context` behind `Graph:Enabled` with Aspire neo4j overlay (re-index after pull; no schema-version env)
 - **.NET MCP discovery tools** ([ADR 0030](docs/adr/0030-migrate-mcp-server-to-dotnet10.md)) — `find_cross_references`, `map_service_dependencies`, `recommend_code`, `find_outlier_chunks`, plus build-deps matching in summaries/service-map and Qdrant Path D `callees` call-site lookup; re-index after pull
 - **Aspire/.NET MCP hybrid search and core read tools** ([ADR 0030](docs/adr/0030-migrate-mcp-server-to-dotnet10.md)) — hybrid dense+sparse RRF search and core read tools (`search_codebase`, `search_symbols`, `get_chunk`, `get_file_outline`, `get_collection_summary`, `list_collections`); re-index after pull for quantization/HNSW/`symbol_type` parity
-- **.NET 10 MCP scaffold (opt-in)** ([ADR 0030](docs/adr/0030-migrate-mcp-server-to-dotnet10.md)) — `docker-compose.aspire.yml` adds Aspire AppHost, Qdrant + TEI, and stub `get_health` MCP tool; Python runtime remains default until ADR 0030 Phase 7
+- **.NET 10 MCP scaffold (opt-in)** ([ADR 0030](docs/adr/0030-migrate-mcp-server-to-dotnet10.md)) — `docker-compose.aspire.yml` adds Aspire AppHost, Qdrant + TEI, and stub `get_health` MCP tool; historical opt-in path (superseded by Phase 7 Aspire/.NET cutover above)
 - **Opt-in Prometheus application metrics** ([ADR 0018](docs/adr/0018-telemetry-observability-otel-prometheus.md)) — set `METRICS_ENABLED=true` on MCP and ColBERT worker for `GET /metrics`; tool latency histograms, index/embed/memory counters, and deployment scrape documentation for MCP, ColBERT, and Qdrant; default unchanged (`METRICS_ENABLED=false`)
 - **Optional GraphRAG Phase 1 (Neo4j code graph)** ([ADR 0002](docs/adr/0002-graphrag-neo4j-qdrant.md)) — enable with `GRAPH_ENABLED=true` and `docker-compose.neo4j.yml` to index a Neo4j code graph alongside Qdrant; disabled by default with no behavior change; full re-index required when enabling on existing collections
 - **GraphRAG Phase 2 — Qdrant payload linking** ([ADR 0002](docs/adr/0002-graphrag-neo4j-qdrant.md)) — `GRAPH_ENABLED=true` now writes `graph_node_ids` neighbor links on each indexed Qdrant chunk and stamps collections `graph_enabled=true`; search warns once per collection lacking graph linkage; full re-index required when enabling on existing collections

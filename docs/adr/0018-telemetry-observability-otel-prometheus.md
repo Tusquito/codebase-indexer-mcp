@@ -5,9 +5,9 @@
 - **Status:** Accepted (phase 1 — Application Prometheus metrics (MCP + ColBERT worker))
 - **Date:** 2026-07-03
 - **Deciders:** Maintainers
-- **Related:** [FastMCP OpenTelemetry](https://gofastmcp.com/servers/telemetry), [Qdrant observability](https://qdrant.tech/documentation/observability/), [0014](0014-vector-discovery-and-ops-automation.md) (Track B n8n ops hooks), [0015](0015-colbert-http-sidecar.md) (multi-container topology), [0017](0017-model-tokenizer-tei-dense-truncation.md) (Phase 2 truncation observability), [0004](0004-collection-per-project-isolation.md) (collection-per-project ↔ Qdrant per-collection metrics), [0007](0007-ranx-retrieval-evaluation.md) (offline retrieval quality — out of scope here)
+- **Related:** [FastMCP OpenTelemetry](https://gofastmcp.com/servers/telemetry), [Qdrant observability](https://qdrant.tech/documentation/observability/), [0014](0014-vector-discovery-and-ops-automation.md) (Track B n8n ops hooks), [0015](0015-colbert-http-sidecar.md) (multi-container topology), [0017](0017-model-tokenizer-tei-dense-truncation.md) (Phase 2 truncation observability), [0004](0004-collection-per-project-isolation.md) (collection-per-project ↔ Qdrant per-collection metrics), [0007](0007-ranx-retrieval-evaluation.md) (offline retrieval quality — out of scope here), [0030](0030-migrate-mcp-server-to-dotnet10.md) (Phase 7 removes Python `prometheus_client` host `/metrics`; .NET OTel / ServiceDefaults is the live path)
 - **Supersedes:** *(none)*
-
+- **Superseded in part by:** [0030](0030-migrate-mcp-server-to-dotnet10.md) Phase 7 for the Python MCP/ColBERT `prometheus_client` implementation (runtime deleted)
 ## Context
 
 The codebase-indexer is a **self-hosted, Docker Compose–first** retrieval platform: MCP server (FastMCP / Starlette), Qdrant, TEI dense sidecar, optional ColBERT sidecar, optional Neo4j, and a cron reindex sidecar. Operators debug production-like issues that logs alone do not surface cleanly:

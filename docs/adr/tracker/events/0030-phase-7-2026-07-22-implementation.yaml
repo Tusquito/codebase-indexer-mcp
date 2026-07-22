@@ -1,0 +1,43 @@
+adr_id: "0030"
+phase_key: phase-7
+phase_title: Phase 7 — Cutover + delete Python
+event: implementation
+date: "2026-07-22"
+tracker_status: implemented
+choices: >-
+  Proceed 0030 P7 this cycle; keep Python eval under `benchmarks/`; do not
+  Accept 0031/0032/0033; do not switch to 0026 P4; GPU reserved for later
+  0026 P4 only
+deviations: >-
+  golden set retargeted to 24 .NET queries; train scripts deferred
+  (documented); harness JSON tee buffering (metrics still from real Aspire run)
+code_evidence:
+  - benchmarks/
+  - scripts/aspire_compose.py
+  - scripts/accelerator.py
+  - scripts/run_compose_integration.py
+  - scripts/tune_alloc.py
+  - .github/workflows/ci.yml
+  - docker-compose.aspire.yml
+  - README.md
+  - docs/DEPLOYMENT.md
+  - .github/copilot-instructions.md
+  - skill/codebase-indexer/SKILL.md
+  - docs/ARCHITECTURE.md
+  - CONTRIBUTING.md
+  - .env.example
+  - CHANGELOG.md
+  - docs/adr/0030-migrate-mcp-server-to-dotnet10.md
+  - docs/adr/README.md
+  - docs/adr/0018-telemetry-observability-otel-prometheus.md
+  - "deleted mcp_server/, scripts/compose_files.py, Python compose overlays, colbert_worker/Dockerfile*"
+test_debt:
+  - harness JSON unit coverage
+  - MCP HTTP client unit tests
+  - train MCP-HTTP port
+  - Proxy.Tests package-ref cleanup
+changelog:
+  update: false
+  reason: >-
+    entry already written under Unreleased; finisher decides release
+user_facing: true

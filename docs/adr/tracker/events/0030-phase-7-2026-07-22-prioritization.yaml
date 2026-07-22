@@ -1,0 +1,30 @@
+adr_id: "0030"
+phase_key: phase-7
+phase_title: Phase 7 — Cutover + delete Python
+event: prioritization
+date: "2026-07-22"
+tracker_status: candidate
+choices: >-
+  Selected 0030 Phase 7 over 0026 Phase 4 (GPU open), over 0032/0033 Phase 1
+  (Proposed — need Accept), over 0031 (needs .NET re-scope before Accept),
+  over 0027/0023 P3; single phase per pipeline rule; no ADR Accept required
+  (0030 already Accepted). **Why now:** Phases 1–6 merged; dual Python/.NET
+  stack and `compose_files.py` remain only until Phase 7; next Accepted
+  sequential phase with highest unlock; Proposed 0031–0033 still need Accept /
+  re-scope per open decisions. **Suggested scope:** one phase (= one PR).
+  **Chosen scope:** Flip production default to Aspire/.NET; delete Python MCP
+  runtime package and legacy ColBERT/cron/compose helper paths per ADR 0030
+  §Deleted artifacts; update CI + four-surface docs; refresh eval baseline /
+  CHANGELOG migration note; Docker integration on aspire-stack must pass;
+  defer Python benchmark port unless human overrides ADR default (keep Python
+  eval tooling).
+deviations: none
+changelog:
+  update: false
+  reason: "user-facing unknown; invoker Changelog: no"
+user_facing: false
+open_decisions:
+  - "RESOLVED — (1) Proceed with P7 this cycle — do not intercalate 0032"
+  - "RESOLVED — (2) Keep Python benchmarks under a non-runtime path (ADR default)"
+  - "RESOLVED — (3) GPU available this cycle for later 0026 Phase 4 scheduling only — do NOT switch away from 0030 Phase 7"
+  - "RESOLVED — (4) Do not Accept 0031/0032/0033 this cycle"

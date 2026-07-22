@@ -1,0 +1,43 @@
+adr_id: "0030"
+phase_key: phase-7
+phase_title: Phase 7 — Cutover + delete Python
+event: verification
+date: "2026-07-22"
+tracker_status: verified
+choices: >-
+  Aspire/.NET sole production path; Python eval retained under `benchmarks/`;
+  train MCP-HTTP port deferred; Accept 0031/0032/0033 not in this phase
+deviations: none
+code_evidence:
+  - benchmarks/
+  - scripts/aspire_compose.py
+  - scripts/run_compose_integration.py
+  - docker-compose.aspire.yml
+  - .github/workflows/ci.yml
+  - README.md
+  - docs/DEPLOYMENT.md
+  - docs/ARCHITECTURE.md
+  - .env.example
+  - CHANGELOG.md
+  - "deleted mcp_server/, scripts/compose_files.py, Python compose overlays"
+test_debt:
+  - harness JSON unit coverage
+  - MCP HTTP client unit tests
+  - train MCP-HTTP port
+  - Proxy.Tests NU1504 PackageReference cleanup (R4)
+verify: >-
+  `dotnet test CodebaseIndexer.slnx` pass (168); `uv run pytest -q` in
+  `benchmarks/` pass (70); Docker integration + quality validation pass
+  (recall@10 0.5764, threshold 0); plan compliance pass; R1–R3 closed.
+  Review rounds: 2.
+changelog:
+  update: true
+  bullet: >-
+    Aspire/.NET production cutover (ADR 0030 Phase 7) — Python MCP runtime
+    and legacy compose overlays removed; `docker-compose.aspire.yml` +
+    `scripts/aspire_compose.py` are the sole deploy path; golden-set eval
+    under `benchmarks/`; re-index after pull (`index_all(force=true)`)
+  reason: >-
+    verified + user-facing; Unreleased bullet already present from
+    implementation — no duplicate added
+user_facing: true

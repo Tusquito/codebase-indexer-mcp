@@ -1,1 +1,0 @@
-"""ColBERT HTTP sidecar package."""

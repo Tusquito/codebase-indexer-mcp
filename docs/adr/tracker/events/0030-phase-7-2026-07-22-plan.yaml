@@ -1,0 +1,23 @@
+adr_id: "0030"
+phase_key: phase-7
+phase_title: Phase 7 — Cutover + delete Python
+event: plan
+date: "2026-07-22"
+tracker_status: planned
+choices: >-
+  One PR = entire Phase 7; Aspire compose is sole production deploy; relocate
+  `mcp_server/benchmarks` → `benchmarks/` with slim pyproject; `eval_retrieval`
+  MCP-url-only (no `codebase_indexer`); delete `compose_files.py` after lifting
+  TEI arch helpers; Quality validation required threshold 0 / rerank no / perf
+  skip; Accept 0030 after merge (final phase); do not Accept 0031–0033; do not
+  intercalate 0026 P4. Assumptions: Phase 6 Aspire stack merge-complete;
+  `cron/` already deleted; `--mcp-url` quality path sufficient for baseline
+  refresh; train scripts may be relocated but not fully re-homed onto MCP HTTP
+  in this PR. Pre-release: no backward-compat requirement unless ADR documents
+  one; Docker integration always required; no schema migration version env
+  vars — document re-index after pull instead.
+deviations: none
+changelog:
+  update: false
+  reason: "invoker Changelog: no; status planned"
+user_facing: true

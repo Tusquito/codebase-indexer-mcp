@@ -4,117 +4,50 @@ Thank you for contributing to the codebase-indexer MCP server. This guide covers
 
 ## Prerequisites
 
-- **Python 3.12** (matches CI and Docker images)
-- **[uv](https://docs.astral.sh/uv/)** package manager
-- **.NET SDK 10** (for ADR 0030 C# scaffold — see `global.json`)
-- A running **Qdrant** instance for integration tests (CI uses `http://localhost:6333`)
+- **.NET SDK 10** (see `global.json`) — primary runtime
+- **Python 3.12** + **[uv](https://docs.astral.sh/uv/)** — only for `benchmarks/` eval tooling and tracker scripts
+- **Docker** for Aspire compose integration
+- A running **Qdrant** instance for live eval (CI may use a service container)
 
 ## Development setup
 
-All Python code lives in `mcp_server/`. From the repository root:
+### .NET (runtime)
 
 ```bash
-cd mcp_server
-
-# Install dependencies (including dev extras)
-uv sync --extra dev
-
-# Install Python 3.12 if uv does not already have it
-uv python install 3.12
+dotnet test CodebaseIndexer.slnx
+dotnet run --project src/CodebaseIndexer.AppHost
 ```
 
-Copy `.env.example` to `.env` at the repo root and set the required variables before running Docker or local integration tests against Qdrant.
-
-## CI workflow
-
-CI is defined in `.github/workflows/ci.yml`. The **test** job runs from `mcp_server/` with Python 3.12 and a Qdrant service container. Reproduce locally:
+### Python (benchmarks / tracker only)
 
 ```bash
-cd mcp_server
-
-# Lint
-uv run ruff check .
-
-# Type check (non-blocking in CI: failures do not fail the job)
-uv run mypy src
-
-# Tests (requires QDRANT_URL=http://localhost:6333 or similar)
+cd benchmarks
+uv sync --extra dev --extra benchmark
 uv run pytest -q
 ```
 
-Set `QDRANT_URL` when running tests against a local or containerized Qdrant instance.
-
-### .NET solution (ADR 0030 Phase 1+)
-
-The C# migration scaffold lives at the repository root (`CodebaseIndexer.slnx`, `src/`, `test/`). Python remains the production Docker image until Phase 7.
+From repo root:
 
 ```bash
-# From repository root
-dotnet test CodebaseIndexer.slnx
-
-# Local Aspire dev stack (Qdrant + TEI + MCP host)
-dotnet run --project src/CodebaseIndexer.AppHost
-
-# Optional: .NET compose stack (arm64 CPU profile)
-docker compose -f docker-compose.aspire.yml up -d --build
+uv run --directory benchmarks python scripts/render_adr_tracker.py --check
 ```
 
-### Docker Compose integration (ADR pipeline)
+Copy `.env.example` to `.env` at the repo root and set required compose variables before `docker compose $(python scripts/aspire_compose.py) up`.
 
-Deploy the real stack and run integration checks from the **repository root**:
+## CI workflow
+
+CI is defined in `.github/workflows/ci.yml`:
+
+- **dotnet-test** (blocking) — `dotnet test CodebaseIndexer.slnx`
+- **python-devtools** (blocking) — benchmarks pytest + ADR tracker `--check`
+- **aspire-integration** (non-blocking in GH) — `scripts/run_compose_integration.py` with quality validation
+
+Reproduce compose smoke locally:
 
 ```bash
-python scripts/run_compose_integration.py
-python scripts/run_compose_integration.py --json    # machine-readable report
-python scripts/run_compose_integration.py --keep    # leave stack up for debugging
-python scripts/run_compose_integration.py --json --quality-validation   # + golden-set eval
-python scripts/run_compose_integration.py --json --quality-validation --quality-rerank --quality-threshold 5
-python scripts/run_compose_integration.py --json --performance-report   # + bench.py (report-only)
-ACCELERATOR=cpu python scripts/run_compose_integration.py --json --external-tei   # host Metal TEI (Mac maintainer smoke)
+ACCELERATOR=cpu python scripts/run_compose_integration.py --json --quality-validation --quality-threshold 0
 ```
-
-This builds `mcp_server`, starts Qdrant + bundled TEI + MCP via Compose (or Qdrant + MCP only with `--external-tei` when host TEI is on `127.0.0.1:8080`), waits for health, runs `tests/test_storage_integration.py` against live Qdrant, and checks `http://127.0.0.1:8000/health`. When `--quality-validation` is set, it validates golden labels (auto-indexing via MCP if missing), runs `eval_retrieval` vs `fixtures/eval_baseline.json`, and optionally compares latency via `bench.py` with `--performance-report`. Uses generated `.env.compose.integration` (does not overwrite your `.env`).
-
-The ADR pipeline runs this via **`adr-integration-tester`** (step 3.5) before code review on **every phase** — it is **mandatory locally**. Search/embed/rerank phases also require **`--quality-validation`** per the implementation plan.
-
-In GitHub CI, the `compose-integration` job runs the same harness but is **optional** (`continue-on-error`): the full Compose deploy adds 15min+ to every PR, so failures surface without blocking merges. See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md#continuous-integration-adr-0022-phase-3) for the full CI job table.
-
-### Integration smoke tests
-
-Optional scripts under `mcp_server/scripts/` exercise live Qdrant + TEI (skipped when services are unreachable):
-
-```bash
-cd mcp_server
-python scripts/smoke_recommend_code.py   # recommend_code end-to-end
-```
-
-Requires an indexed collection (default `codebase-indexer-mcp`). Set `COLLECTION` to target another project. When running on the host against Docker, the script falls back to `localhost` for TEI/Qdrant if `.env` uses in-compose hostnames.
 
 ## Commit conventions
 
-Use [Conventional Commits](https://www.conventionalcommits.org/):
-
-```
-type(scope): description
-```
-
-**Types:** `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`, `ci`, `build`
-
-**Examples:**
-
-- `feat(search): add language filter to symbols tool`
-- `fix(indexer): skip symlinks during scan walk`
-- `docs(readme): document HYBRID_SEARCH behavior`
-
-Keep the subject line imperative, under ~50 characters when possible, and focused on *why* the change matters.
-
-## Documentation sync policy
-
-When you add, remove, or change an MCP tool (signature, behavior, or description string), update **both**:
-
-1. `README.md` — tool tables and relevant sections
-2. `.github/copilot-instructions.md` — tool table and Key conventions
-
-Search-tool description changes should also stay aligned with `docs/SEARCH_BEHAVIOR.md`.
-
-When adding discovery or orientation tools, also update `skill/codebase-indexer/SKILL.md` and `docs/ARCHITECTURE.md` MCP tools table.
+Use [Conventional Commits](https://www.conventionalcommits.org/): `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`, `ci`, `build`. Keep subjects under 50 characters when practical.

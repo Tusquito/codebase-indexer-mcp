@@ -1,5 +1,6 @@
+# Production default Aspire/.NET stack (ADR 0030 Phase 7).
 # Generated from CodebaseIndexer.AppHost (ADR 0030 Phase 6).
-# CPU Aspire stack — TEI image via TEI_IMAGE (arch-aware; see scripts/compose_files.py
+# CPU Aspire stack — TEI image via TEI_IMAGE (arch-aware; see scripts/accelerator.py
 # tei_image_default / ADR 0028). Default is amd64 cpu-1.9; arm64 hosts/harness set
 # cpu-arm64-latest. fastembed sparse + ColBERT cache at /root/.cache/fastembed.
 # ColBERT worker is always present; enable via Embedding__RerankEnabled=true
@@ -7,8 +8,8 @@
 # when ACCELERATOR=gpu. Neo4j is off by default — merge docker-compose.aspire.neo4j.yml
 # for GraphRAG (ADR 0030 Phase 5).
 #
-# Re-index after pull when enabling ColBERT (collections recreate for multivector shape;
-# no schema-version env).
+# Canonical compose args: python scripts/aspire_compose.py
+# Re-index after pull (index_all(force=true)); no schema-version env.
 
 services:
   qdrant:

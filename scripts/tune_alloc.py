@@ -3,7 +3,7 @@
 
 This module is intentionally free of argparse, Docker, and any file writes so the
 allocation math can be unit-tested in isolation. It mirrors the feature-flag
-precedence used by :mod:`scripts.compose_files` (explicit flag -> env -> default).
+precedence used by :mod:`scripts.aspire_compose` (explicit flag -> env -> default).
 
 Allocation tables (Phase B RAM shares, Phase C CPU slices, Phase D knob seeds)
 are transcribed from ``docs/adr/0024-resource-aware-stack-tuner.md``.
@@ -237,7 +237,7 @@ def resolve_budget(
 
 
 # ---------------------------------------------------------------------------
-# Feature-flag / service resolution (mirrors compose_files.py precedence)
+# Feature-flag / service resolution (mirrors aspire_compose.py precedence)
 # ---------------------------------------------------------------------------
 
 
@@ -466,14 +466,15 @@ def render_env_fragment(
     """
     values: dict[str, str] = {}
 
-    # Feature vars so `compose_files.py` reproduces the topology without re-flagging.
+    # Feature vars so Aspire compose reproduces the topology without re-flagging.
     values["ACCELERATOR"] = services.accelerator
-    if services.tei and not services.tei_external:
-        values["COMPOSE_PROFILES"] = "bundled-tei"
     values["RERANK_ENABLED"] = "true" if services.colbert else "false"
+    values["Embedding__RerankEnabled"] = values["RERANK_ENABLED"]
     if services.colbert:
         values["COLBERT_EMBED_BACKEND"] = "remote"
+        values["Colbert__EmbedBackend"] = "remote"
     values["GRAPH_ENABLED"] = "true" if services.neo4j else "false"
+    values["Graph__Enabled"] = values["GRAPH_ENABLED"]
 
     # Compose caps for active services.
     for svc in services.active:
