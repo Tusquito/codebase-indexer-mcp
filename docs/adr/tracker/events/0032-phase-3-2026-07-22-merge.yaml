@@ -1,0 +1,26 @@
+adr_id: "0032"
+phase_key: phase-3
+phase_title: Phase 3 — Search / cross-ref / health
+event: merge
+date: "2026-07-22"
+tracker_status: merged
+choices: >-
+  Merge PR #47 (squash `3e193ef`; commits `2368ff9`, `870cccb`, `003a421`,
+  `cb27764`); branch `adr/0032-phase-3-search-crossref-health`; Accept
+  skipped (already Accepted); release skipped
+deviations: none
+code_evidence:
+  - >-
+    merged via [PR #47](https://github.com/Tusquito/codebase-indexer-mcp/pull/47)
+    (`adr/0032-phase-3-search-crossref-health`; squash `3e193ef`)
+verify: >-
+  carried from verification — review rounds: 1; `dotnet test CodebaseIndexer.slnx`
+  pass (250); Docker integration pass (report); plan compliance pass; quality skip
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/47
+  commit: 3e193ef46b492862d1c9d8c09f32711640ead4bd
+  status: merged
+changelog:
+  update: false
+  reason: "user-facing yes; invoker Changelog: no"
+user_facing: true

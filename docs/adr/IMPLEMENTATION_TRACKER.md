@@ -91,7 +91,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0031 | Phase 1 — dependency-aware readiness + compose/Aspire MCP healthcheck + unit/integration tests (Accept + .NET Host/Aspire re-scope) | Merged — PR #44 (`73af6dd`); Accept skipped (already Accepted; phase 1 shipped; phase 2 open); release skipped | phase-1 | `merged` | Aspire `/health` readiness + always-on `/alive` (no `/ready`); TEI always ready; ColBERT when remote+rerank; Neo4j when graph; hard-coded ~5s TEI/Neo4j probes; curl in Host Dockerfile for compose healthcheck | 2026-07-22 |
 | 0032 | Phase 1 — Domain enums + model/port signatures | Merged — PR #45 (`bc5506a`); Accept skipped (already Accepted in PR); release skipped | phase-1 | `merged` | Phase 1 only; wire strings unchanged via `DomainEnumWire` + `JsonStringEnumMemberName`; sibling enums declare-only; NamedVector/Qdrant named-vector literals and MatchType/ReferenceType/LivenessStatus wiring deferred to Phases 2–3; no `*_SCHEMA_VERSION`; Changelog deferred per plan | 2026-07-22 |
 | 0032 | Phase 2 — Indexing + Qdrant | Merged — PR #46 (squash `6c02a7a`); Accept skipped for 0032 (already Accepted); Accept yes for 0033 → Accepted; Accept yes for 0034 → Accepted; release skipped | phase-2 | `merged` | Centralize Qdrant named-vector names via static DenseWire/SparseWire/ColbertWire from DomainEnumWire; expose GetNamedVectorWireMap for tests; ImportHeaderProcessor takes SourceLanguage (registry id via ToWire). NamedVector ↔ Qdrant `"dense"`/`"sparse"`/`"colbert"` via DomainEnumWire in QdrantVectorStore create/query/upsert/recommend (+ schema/retrieve/scroll); chunker/classifier → payload enum round-trip; unit tests; Docker compose integration; CHANGELOG full re-index after pull (no schema-version env); defer Phase 3 search/xref/health; do not implement 0033/0034 in this PR. | 2026-07-22 |
-| 0032 | Phase 3 — Search / cross-ref / health | — | phase-3 | `verified` | DomainMatchType alias for System.IO.MatchType; SearchService typing-only (no body edit); health check maps non-Ok → Unhealthy; ServiceMap edge types deferred. Wire MatchType/ReferenceType/LivenessStatus through CrossReferenceService, search/discovery DTOs, and McpHostHealthCheck via DomainEnumWire; extend ReferenceType with ServiceConfig/BuildDependency; move LivenessStatus to Domain; unit + Aspire Docker integration; defer 0033/0034 and 0026 P4 | 2026-07-22 |
+| 0032 | Phase 3 — Search / cross-ref / health | — | phase-3 | `merged` | DomainMatchType alias for System.IO.MatchType; SearchService typing-only (no body edit); health check maps non-Ok → Unhealthy; ServiceMap edge types deferred. Wire MatchType/ReferenceType/LivenessStatus through CrossReferenceService, search/discovery DTOs, and McpHostHealthCheck via DomainEnumWire; extend ReferenceType with ServiceConfig/BuildDependency; move LivenessStatus to Domain; unit + Aspire Docker integration; defer 0033/0034 and 0026 P4 | 2026-07-22 |
 <!-- END GENERATED:summary -->
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
@@ -99,7 +99,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 ## Active and upcoming work
 
 <!-- BEGIN GENERATED:active -->
-- **0032** Phase 3 — Search / cross-ref / health — `verified`
+_No active or upcoming phases._
 <!-- END GENERATED:active -->
 
 ### Partial acceptance
@@ -2289,6 +2289,16 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 - **Code evidence:** `merged via [PR #46](https://github.com/Tusquito/codebase-indexer-mcp/pull/46) (`adr/0032-phase-2-indexing-qdrant`; squash `6c02a7a`)`
 - **Verify:** carried from verification — review rounds: 1; `dotnet test CodebaseIndexer.slnx` pass (242); Docker integration pass; plan path/task table pass
 - **Git:** https://github.com/Tusquito/codebase-indexer-mcp/pull/46 — status: merged — commit: 6c02a7a
+- **Changelog:** no — user-facing yes; invoker Changelog: no
+
+#### 2026-07-22 — merge
+- **Phase:** Phase 3 — Search / cross-ref / health
+- **Tracker status:** `merged`
+- **Choices:** Merge PR #47 (squash `3e193ef`; commits `2368ff9`, `870cccb`, `003a421`, `cb27764`); branch `adr/0032-phase-3-search-crossref-health`; Accept skipped (already Accepted); release skipped
+- **Deviations:** none
+- **Code evidence:** `merged via [PR #47](https://github.com/Tusquito/codebase-indexer-mcp/pull/47) (`adr/0032-phase-3-search-crossref-health`; squash `3e193ef`)`
+- **Verify:** carried from verification — review rounds: 1; `dotnet test CodebaseIndexer.slnx` pass (250); Docker integration pass (report); plan compliance pass; quality skip
+- **Git:** https://github.com/Tusquito/codebase-indexer-mcp/pull/47 — status: merged — commit: 3e193ef46b492862d1c9d8c09f32711640ead4bd
 - **Changelog:** no — user-facing yes; invoker Changelog: no
 
 #### 2026-07-22 — implementation
