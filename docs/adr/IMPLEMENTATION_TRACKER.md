@@ -87,7 +87,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0030 | Phase 4 — Cross-ref + discovery | Accepted (phases 1–4) | phase-4 | `merged` | Qdrant-only Path D (`callees` scroll); `Discovery:RecommendEnabled` gating; `UrlExtractors` supersedes Phase 3 minimal classifier; quality report-only (`threshold 0`); no schema-version env (re-index after pull) | 2026-07-21 |
 | 0030 | Phase 5 — GraphRAG | Accepted (phases 1–4; phase 5 merged; Accept skipped) | phase-5 | `merged` | Aspire-specific neo4j overlay; NullGraphStore when disabled; no `GRAPH_SCHEMA_VERSION` (re-index after pull); quality/perf skip; host tool gating via early config read | 2026-07-21 |
 | 0030 | Phase 6 — ColBERT + ops | Accepted (phases 1–6); Phase 7 remains | phase-6 | `merged` | One PR; checked-in Aspire compose; separate Proxy; GPU smoke; Refit `/v1/embed/colbert`; remote ColBERT default when rerank on; adaptive rerank; `compose_files.py` until Phase 7; CUDA Option A; no schema-version env | 2026-07-22 |
-| 0030 | Phase 7 — Cutover + delete Python | Accepted (phases 1–6 merged; Phase 7 verified) | phase-7 | `verified` | Aspire/.NET sole production path; Python eval retained under `benchmarks/`; train MCP-HTTP port deferred; Accept 0031/0032/0033 not in this phase | 2026-07-22 |
+| 0030 | Phase 7 — Cutover + delete Python | Accepted (phases 1–7 merged) | phase-7 | `merged` | Aspire/.NET sole production path; Python eval retained under `benchmarks/`; train MCP-HTTP port deferred; Accept 0031/0032/0033 not in this phase | 2026-07-22 |
 <!-- END GENERATED:summary -->
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
@@ -95,7 +95,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 ## Active and upcoming work
 
 <!-- BEGIN GENERATED:active -->
-- **0030** Phase 7 — Cutover + delete Python — `verified`
+_No active or upcoming phases._
 <!-- END GENERATED:active -->
 
 ### Partial acceptance
@@ -1871,6 +1871,16 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 - **Code evidence:** `merged via [PR #42](https://github.com/Tusquito/codebase-indexer-mcp/pull/42) (`adr/0030-phase-6-colbert-ops`; squash `d264b02`; accept docs `30c0168`)`
 - **Verify:** carried from verification — Infrastructure adaptive/schema 12 passed; Application ScheduledReindex 13 passed; useRerank 10 passed; eval_retrieval AST ok; plan compliance pass; Docker integration Verdict pass (Aspire GPU + quality-rerank threshold 0, recall@10 0.4423); R1–R3 closed. Review rounds: 2.
 - **Git:** https://github.com/Tusquito/codebase-indexer-mcp/pull/42 — status: merged — commit: d264b02
+- **Changelog:** no — user-facing yes; invoker Changelog: no
+
+#### 2026-07-22 — merge
+- **Phase:** Phase 7 — Cutover + delete Python
+- **Tracker status:** `merged`
+- **Choices:** Squash merge PR #43 (`31e5c6d`); accept docs `34d423f`; Accept updated; release skipped
+- **Deviations:** none
+- **Code evidence:** `merged via [PR #43](https://github.com/Tusquito/codebase-indexer-mcp/pull/43) (`adr/0030-phase-7-python-cutover`; squash `31e5c6d3e935d0256d59682c1110c96b8f65365a`; accept docs `34d423f6ee9bcc33d864fe30dc341a97f43d0ca5`)`
+- **Verify:** carried from verification — `dotnet test CodebaseIndexer.slnx` pass (168); `uv run pytest -q` in `benchmarks/` pass (70); Docker integration + quality validation pass (recall@10 0.5764, threshold 0); plan compliance pass; R1–R3 closed. Review rounds: 2.
+- **Git:** https://github.com/Tusquito/codebase-indexer-mcp/pull/43 — status: merged — commit: 31e5c6d3e935d0256d59682c1110c96b8f65365a
 - **Changelog:** no — user-facing yes; invoker Changelog: no
 
 #### 2026-07-22 — implementation
