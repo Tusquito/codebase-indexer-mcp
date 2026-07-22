@@ -1,6 +1,6 @@
 # 0035. Pair TEI `--max-batch-tokens` with client dense truncation
 
-- **Status:** Proposed
+- **Status:** Accepted (phase 1)
 - **Date:** 2026-07-22
 - **Deciders:** Maintainers
 - **Related:** [0025](0025-huggingface-tei-dense-embedding.md) (TEI dense sidecar), [0017](0017-model-tokenizer-tei-dense-truncation.md) (client tokenizer truncation), [0028](0028-apple-silicon-arm64-cpu-deployment.md) (CPU TEI defaults), [0030](0030-migrate-mcp-server-to-dotnet10.md) (Aspire production path), [DEPLOYMENT.md](../DEPLOYMENT.md)
