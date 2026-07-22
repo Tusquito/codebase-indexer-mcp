@@ -88,6 +88,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0030 | Phase 5 — GraphRAG | Accepted (phases 1–4; phase 5 merged; Accept skipped) | phase-5 | `merged` | Aspire-specific neo4j overlay; NullGraphStore when disabled; no `GRAPH_SCHEMA_VERSION` (re-index after pull); quality/perf skip; host tool gating via early config read | 2026-07-21 |
 | 0030 | Phase 6 — ColBERT + ops | Accepted (phases 1–6); Phase 7 remains | phase-6 | `merged` | One PR; checked-in Aspire compose; separate Proxy; GPU smoke; Refit `/v1/embed/colbert`; remote ColBERT default when rerank on; adaptive rerank; `compose_files.py` until Phase 7; CUDA Option A; no schema-version env | 2026-07-22 |
 | 0030 | Phase 7 — Cutover + delete Python | Accepted (phases 1–7 merged) | phase-7 | `merged` | Aspire/.NET sole production path; Python eval retained under `benchmarks/`; train MCP-HTTP port deferred; Accept 0031/0032/0033 not in this phase | 2026-07-22 |
+| 0031 | Phase 1 — dependency-aware readiness + compose/Aspire MCP healthcheck + unit/integration tests (Accept + .NET Host/Aspire re-scope) | Verified — Review rounds: 1; dotnet test 180 pass; Docker integration Verdict pass (mcp_alive + TEI-down); plan compliance pass | phase-1 | `verified` | Aspire `/health` readiness + always-on `/alive` (no `/ready`); TEI always ready; ColBERT when remote+rerank; Neo4j when graph; hard-coded ~5s TEI/Neo4j probes; curl in Host Dockerfile for compose healthcheck | 2026-07-22 |
 <!-- END GENERATED:summary -->
 
 Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementation superseded by [0011](0011-ollama-only-dense-embedding.md).
@@ -95,7 +96,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 ## Active and upcoming work
 
 <!-- BEGIN GENERATED:active -->
-_No active or upcoming phases._
+- **0031** Phase 1 — dependency-aware readiness + compose/Aspire MCP healthcheck + unit/integration tests (Accept + .NET Host/Aspire re-scope) — `verified`
 <!-- END GENERATED:active -->
 
 ### Partial acceptance
@@ -2147,6 +2148,41 @@ _No active or upcoming phases._
 - **Code evidence:** `WorkspaceScanner.cs`, `TreeSitterChunker.cs`, `OnnxSparseEmbedder.cs`, `IndexCodebaseService.cs`, `IndexJobService.cs`, `IndexTools.cs`, `docker-compose.aspire.yml`, `run_compose_integration.py --aspire-stack`
 - **Test debt:** Sparse parity; full chunker golden; Testcontainers E2E; aspire-stack Docker smoke
 - **Changelog:** no — invoker Changelog: no; status implemented
+
+### ADR 0031 — Phase 1 — dependency-aware readiness + compose/Aspire MCP healthcheck + unit/integration tests (Accept + .NET Host/Aspire re-scope)
+
+#### 2026-07-22 — verification
+- **Phase:** Phase 1 — dependency-aware readiness + compose/Aspire MCP healthcheck + unit/integration tests (Accept + .NET Host/Aspire re-scope)
+- **Tracker status:** `verified`
+- **Choices:** Aspire `/health` readiness + always-on `/alive` (no `/ready`); TEI always ready; ColBERT when remote+rerank; Neo4j when graph; hard-coded ~5s TEI/Neo4j probes; curl in Host Dockerfile for compose healthcheck
+- **Deviations:** none
+- **Code evidence:** `src/CodebaseIndexer.Host/Health/TeiHealthCheck.cs`, `src/CodebaseIndexer.Host/Health/Neo4jHealthCheck.cs`, `src/CodebaseIndexer.Host/Health/McpHostHealthCheck.cs`, `src/CodebaseIndexer.Host/HostApplicationBuilderExtensions.cs`, `src/CodebaseIndexer.Host/EndpointRouteBuilderExtensions.cs`, `src/CodebaseIndexer.Infrastructure/DependencyInjection.cs`, `docker-compose.aspire.yml`, `src/CodebaseIndexer.AppHost/AppHost.cs`, `scripts/run_compose_integration.py`, `test/CodebaseIndexer.Host.Tests/HealthEndpointReadinessTests.cs`, `docs/adr/0031-mcp-liveness-vs-readiness.md`
+- **Test debt:** optional align ColBERT probe timeout to ~5s; optional split HealthCheckJsonResponseWriter to its own file
+- **Verify:** Review rounds: 1; dotnet test CodebaseIndexer.slnx 180 pass; Docker integration Verdict pass (mcp_alive + TEI-down); plan compliance pass
+- **Changelog:** yes — MCP readiness vs liveness ([ADR 0031](docs/adr/0031-mcp-liveness-vs-readiness.md)) — `GET /health` fails closed on TEI (and remote ColBERT / Neo4j when enabled); always-on `GET /alive` is process liveness; Compose and AppHost probe `/health`
+
+#### 2026-07-22 — prioritization
+- **Phase:** Phase 1 — `/ready` (or Aspire-equivalent readiness) + compose/Aspire MCP healthcheck + unit/integration tests
+- **Tracker status:** `candidate`
+- **Choices:** Prioritize 0031 P1 over tied 0026 P4 (lower scope/risk; post-cutover ops); over 0032/0033 P1 (Accept needed; Domain hygiene next); over 0027 (Accept repeatedly deferred); over 0023 P3; single phase; **requires formal Accept** before implementation. **Why now:** ADR 0030 Phase 7 merged; P7 deferred Accept of 0031–0033; `HealthService` still always-ok; Aspire `mcp` has no healthcheck; DEPLOYMENT documents soft health — close readiness gap on the new production stack before Domain enum/Result or GPU bake-off. **Suggested scope:** one phase (= one PR). **Chosen scope:** Accept ADR 0031 with .NET Host/Aspire re-scope; implement Phase 1 dependency-aware readiness (TEI required; ColBERT when remote rerank; Neo4j when graph on); separate liveness; wire compose/Aspire MCP probe to readiness; unit + Docker integration; defer Phase 2 preload fail-closed. Human decisions applied 2026-07-22: (1) Accept 0031 this cycle with .NET re-scope — yes; (2) Probe URL naming — adopt Aspire `/health`=readiness + always-on `/alive`=liveness and update the ADR; (3) Override to 0026 P4 — no; (4) Accept 0032/0033 docs-only this cycle — wait until after 0031 implements.
+- **Deviations:** none
+- **Changelog:** no — user-facing unknown; invoker Changelog: no
+
+#### 2026-07-22 — plan
+- **Phase:** Phase 1 — dependency-aware readiness + compose/Aspire MCP healthcheck + unit/integration tests (Accept + .NET Host/Aspire re-scope)
+- **Tracker status:** `planned`
+- **Choices:** Aspire probe URLs `/health`=readiness + `/alive`=liveness (update ADR body; no `/ready`); Accept in this PR; retag `McpHostHealthCheck` to `live`; add `TeiHealthCheck` + `Neo4jHealthCheck`; keep existing `ColbertRemoteHealthCheck` gate; compose `mcp` healthcheck + AppHost `WithHttpHealthCheck("/health")`; Quality skip / Perf skip; Docker integration required; stay on 0031 P1 (not 0026 P4); do not Accept 0032/0033 this cycle. Assumptions: Post–0030 P7 Aspire/.NET is sole production path; `docker-compose.aspire.yml` is checked-in deploy SoT; unit host must mock TEI for `/health` 200; pre-release allows breaking soft-health behavior. Project phase policy: pre-release — no backward compatibility requirement unless ADR documents one; Docker integration required; no schema-version env vars.
+- **Deviations:** none
+- **Changelog:** no — invoker Changelog: no; status planned
+
+#### 2026-07-22 — implementation
+- **Phase:** Phase 1 — dependency-aware readiness + compose/Aspire MCP healthcheck + unit/integration tests (Accept + .NET Host/Aspire re-scope)
+- **Tracker status:** `implemented`
+- **Choices:** Accept 0031 with Aspire URL re-scope (`/health` readiness, always-on `/alive` liveness, no `/ready`); TEI always ready; ColBERT when remote+rerank; Neo4j when graph; compose+AppHost probe `/health`; hard-coded ~5s probe timeout
+- **Deviations:** no `Health__ReadyCheckTimeoutSeconds`; curl added to Host Dockerfile for compose healthcheck
+- **Code evidence:** `src/CodebaseIndexer.Host/Health/TeiHealthCheck.cs`, `src/CodebaseIndexer.Host/Health/Neo4jHealthCheck.cs`, `src/CodebaseIndexer.Host/HostApplicationBuilderExtensions.cs`, `src/CodebaseIndexer.Host/EndpointRouteBuilderExtensions.cs`, `src/CodebaseIndexer.Infrastructure/DependencyInjection.cs`, `docker-compose.aspire.yml`, `src/CodebaseIndexer.AppHost/AppHost.cs`, `scripts/run_compose_integration.py`, `docs/adr/0031-mcp-liveness-vs-readiness.md`
+- **Test debt:** auth-exempt probe tests when Host auth lands; compose Neo4j/external-TEI negative paths; probe timeout unit coverage
+- **Changelog:** no — invoker Changelog: no; status implemented (changelog at verified if user-facing)
 <!-- END GENERATED:phase-logs -->
 
 ---
@@ -2215,6 +2251,10 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 - RESOLVED — (2) Keep Python benchmarks under a non-runtime path (ADR default)
 - RESOLVED — (3) GPU available this cycle for later 0026 Phase 4 scheduling only — do NOT switch away from 0030 Phase 7
 - RESOLVED — (4) Do not Accept 0031/0032/0033 this cycle
+- RESOLVED — (1) Accept 0031 this cycle with .NET Host/Aspire re-scope — yes
+- RESOLVED — (2) Probe URL naming — adopt Aspire `/health`=readiness + always-on `/alive`=liveness; update ADR accordingly
+- RESOLVED — (3) Override to 0026 P4 — no
+- RESOLVED — (4) Accept 0032/0033 docs-only this cycle — wait until after 0031 implements
 <!-- END GENERATED:open-decisions -->
 
 ---

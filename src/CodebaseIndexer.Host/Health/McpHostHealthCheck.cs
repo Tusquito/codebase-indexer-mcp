@@ -5,7 +5,10 @@ using HostHealthStatus = CodebaseIndexer.Application.Services.HealthStatus;
 
 namespace CodebaseIndexer.Host.Health;
 
-/// <summary>ASP.NET Core health check backed by <see cref="IHealthService"/>.</summary>
+/// <summary>
+/// Process liveness check backed by <see cref="IHealthService"/> (no dependency probes).
+/// Tagged <c>live</c> for <c>GET /alive</c>; readiness deps live on separate checks.
+/// </summary>
 public sealed class McpHostHealthCheck(IHealthService health) : IHealthCheck
 {
     /// <inheritdoc />

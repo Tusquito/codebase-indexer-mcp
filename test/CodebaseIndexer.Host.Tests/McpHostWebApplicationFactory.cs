@@ -1,7 +1,11 @@
 using CodebaseIndexer.Application.Options;
 using CodebaseIndexer.Infrastructure.Configuration;
+using CodebaseIndexer.Infrastructure.Tei;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 
 namespace CodebaseIndexer.Host.Tests;
@@ -62,6 +66,13 @@ public class McpHostWebApplicationFactory : WebApplicationFactory<Program>
             }
 
             config.AddInMemoryCollection(values);
+        });
+
+        // Default: mock TEI healthy so /health readiness passes in smoke tests (ADR 0031).
+        builder.ConfigureTestServices(services =>
+        {
+            services.RemoveAll<ITeiEmbeddingsApi>();
+            services.AddSingleton<ITeiEmbeddingsApi>(new StubTeiEmbeddingsApi(healthy: true));
         });
     }
 

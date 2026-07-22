@@ -11,19 +11,18 @@ public static class EndpointRouteBuilderExtensions
     /// <returns>The same application for chaining.</returns>
     public static WebApplication MapCodebaseIndexerEndpoints(this WebApplication app)
     {
+        // GET /health = readiness (TEI + optional remote ColBERT + optional Neo4j).
         app.MapHealthChecks("/health", new HealthCheckOptions
         {
             Predicate = registration => registration.Tags.Contains("ready"),
             ResponseWriter = HealthCheckJsonResponseWriter.WriteAsync,
         });
 
-        if (app.Environment.IsDevelopment())
+        // GET /alive = liveness (process up); always-on for compose/K8s probes.
+        app.MapHealthChecks("/alive", new HealthCheckOptions
         {
-            app.MapHealthChecks("/alive", new HealthCheckOptions
-            {
-                Predicate = registration => registration.Tags.Contains("live"),
-            });
-        }
+            Predicate = registration => registration.Tags.Contains("live"),
+        });
 
         app.MapMcp("/mcp");
         return app;

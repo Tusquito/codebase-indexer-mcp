@@ -103,7 +103,8 @@ cp .env.example .env
 # Paste M3 Pro 24 GiB preset; set WORKSPACE_ROOT=/Users/<user>/Documents/Repositories
 
 docker compose $(ACCELERATOR=cpu python scripts/aspire_compose.py --no-gpu-colbert) up -d --build
-curl http://localhost:8000/health
+curl http://localhost:8000/health   # readiness (TEI + optional ColBERT/Neo4j)
+curl http://localhost:8000/alive    # liveness (process up)
 curl http://127.0.0.1:8080/health
 docker version --format '{{.Server.Arch}}'   # expect arm64
 ```
@@ -126,7 +127,8 @@ In `.env`: `TEI_URL=http://host.docker.internal:8080`, `Tei__Url=http://host.doc
 ```bash
 docker compose $(ACCELERATOR=cpu python scripts/aspire_compose.py --no-gpu-colbert) up -d --build qdrant colbert mcp
 curl http://127.0.0.1:8080/health   # host TEI
-curl http://localhost:8000/health    # MCP
+curl http://localhost:8000/health    # MCP readiness
+curl http://localhost:8000/alive     # MCP liveness
 ```
 
 Host TEI and the Docker VM share **unified memory** — monitor Activity Monitor on first index. Check TEI logs on first embed for Metal or CPU fallback. Full guide: [docs/DEPLOYMENT.md § macOS host-native TEI (Metal)](docs/DEPLOYMENT.md#macos-host-native-tei-metal).
@@ -551,7 +553,7 @@ Optional bearer authentication is controlled by `MCP_AUTH_TOKEN`:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MCP_AUTH_TOKEN` | *(empty — auth disabled)* | When set, every HTTP request must include `Authorization: Bearer <token>`. `/health` is exempt. HTTP clients (e.g. Cursor) pass the token via `mcp.json` `headers`; the .NET stdio Proxy reads the same value from env. Leave empty for trusted local-only use behind the loopback binding. |
+| `MCP_AUTH_TOKEN` | *(empty — auth disabled)* | When set, every HTTP request must include `Authorization: Bearer <token>`. `/health` and `/alive` are exempt. HTTP clients (e.g. Cursor) pass the token via `mcp.json` `headers`; the .NET stdio Proxy reads the same value from env. Leave empty for trusted local-only use behind the loopback binding. |
 
 If you change port bindings to expose the server beyond localhost, set `MCP_AUTH_TOKEN` to a long random string.
 
@@ -628,7 +630,7 @@ If you change port bindings to expose the server beyond localhost, set `MCP_AUTH
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `METRICS_ENABLED` | `false` | Expose `GET /metrics` on MCP (port 8000) and ColBERT sidecar (port 8082). `/health` stays unauthenticated. See [DEPLOYMENT.md](docs/DEPLOYMENT.md#observability-prometheus-metrics). |
+| `METRICS_ENABLED` | `false` | Expose `GET /metrics` on MCP (port 8000) and ColBERT sidecar (port 8082). `/health` and `/alive` stay unauthenticated. See [DEPLOYMENT.md](docs/DEPLOYMENT.md#observability-prometheus-metrics). |
 
 ### Optional GraphRAG (ADR 0002 / 0023)
 

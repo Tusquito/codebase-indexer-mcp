@@ -1,0 +1,33 @@
+adr_id: "0031"
+phase_key: phase-1
+phase_title: >-
+  Phase 1 — dependency-aware readiness + compose/Aspire MCP healthcheck +
+  unit/integration tests (Accept + .NET Host/Aspire re-scope)
+event: implementation
+date: "2026-07-22"
+tracker_status: implemented
+choices: >-
+  Accept 0031 with Aspire URL re-scope (`/health` readiness, always-on `/alive`
+  liveness, no `/ready`); TEI always ready; ColBERT when remote+rerank; Neo4j
+  when graph; compose+AppHost probe `/health`; hard-coded ~5s probe timeout
+deviations: >-
+  no `Health__ReadyCheckTimeoutSeconds`; curl added to Host Dockerfile for
+  compose healthcheck
+code_evidence:
+  - src/CodebaseIndexer.Host/Health/TeiHealthCheck.cs
+  - src/CodebaseIndexer.Host/Health/Neo4jHealthCheck.cs
+  - src/CodebaseIndexer.Host/HostApplicationBuilderExtensions.cs
+  - src/CodebaseIndexer.Host/EndpointRouteBuilderExtensions.cs
+  - src/CodebaseIndexer.Infrastructure/DependencyInjection.cs
+  - docker-compose.aspire.yml
+  - src/CodebaseIndexer.AppHost/AppHost.cs
+  - scripts/run_compose_integration.py
+  - docs/adr/0031-mcp-liveness-vs-readiness.md
+test_debt:
+  - auth-exempt probe tests when Host auth lands
+  - compose Neo4j/external-TEI negative paths
+  - probe timeout unit coverage
+changelog:
+  update: false
+  reason: "invoker Changelog: no; status implemented (changelog at verified if user-facing)"
+user_facing: true

@@ -1,0 +1,26 @@
+adr_id: "0031"
+phase_key: phase-1
+phase_title: >-
+  Phase 1 — dependency-aware readiness + compose/Aspire MCP healthcheck +
+  unit/integration tests (Accept + .NET Host/Aspire re-scope)
+event: plan
+date: "2026-07-22"
+tracker_status: planned
+choices: >-
+  Aspire probe URLs `/health`=readiness + `/alive`=liveness (update ADR body; no
+  `/ready`); Accept in this PR; retag `McpHostHealthCheck` to `live`; add
+  `TeiHealthCheck` + `Neo4jHealthCheck`; keep existing `ColbertRemoteHealthCheck`
+  gate; compose `mcp` healthcheck + AppHost `WithHttpHealthCheck("/health")`;
+  Quality skip / Perf skip; Docker integration required; stay on 0031 P1 (not
+  0026 P4); do not Accept 0032/0033 this cycle. Assumptions: Post–0030 P7
+  Aspire/.NET is sole production path; `docker-compose.aspire.yml` is checked-in
+  deploy SoT; unit host must mock TEI for `/health` 200; pre-release allows
+  breaking soft-health behavior. Project phase policy: pre-release — no
+  backward compatibility requirement unless ADR documents one; Docker
+  integration required; no schema-version env vars.
+deviations: none
+changelog:
+  update: false
+  reason: "invoker Changelog: no; status planned"
+user_facing: true
+open_decisions: []

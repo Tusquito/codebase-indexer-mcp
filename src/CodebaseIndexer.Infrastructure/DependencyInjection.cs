@@ -77,6 +77,21 @@ public static class DependencyInjection
 
     private static IServiceCollection AddGraphStore(this IServiceCollection services)
     {
+        // Shared bolt driver for Neo4jGraphStore + Host Neo4jHealthCheck (resolved only when Graph:Enabled).
+        services.TryAddSingleton<IDriver>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<GraphOptions>>().Value;
+            if (!options.Enabled)
+            {
+                throw new InvalidOperationException(
+                    "Neo4j IDriver requires Graph:Enabled=true.");
+            }
+
+            return GraphDatabase.Driver(
+                options.Neo4jUri,
+                AuthTokens.Basic(options.Neo4jUser, options.Neo4jPassword));
+        });
+
         services.TryAddSingleton<IGraphStore>(sp =>
         {
             var options = sp.GetRequiredService<IOptions<GraphOptions>>();
@@ -85,11 +100,9 @@ public static class DependencyInjection
                 return new NullGraphStore();
             }
 
-            var driver = GraphDatabase.Driver(
-                options.Value.Neo4jUri,
-                AuthTokens.Basic(options.Value.Neo4jUser, options.Value.Neo4jPassword));
+            var driver = sp.GetRequiredService<IDriver>();
             var logger = sp.GetRequiredService<ILogger<Neo4jGraphStore>>();
-            return new Neo4jGraphStore(driver, options, logger, ownsDriver: true);
+            return new Neo4jGraphStore(driver, options, logger, ownsDriver: false);
         });
 
         return services;

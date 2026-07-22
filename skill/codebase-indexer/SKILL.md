@@ -171,7 +171,7 @@ Apple Silicon Macs without NVIDIA GPU use the **native arm64 CPU Aspire profile*
 2. Start host TEI: `text-embeddings-router --model-id jinaai/jina-embeddings-v2-base-code --hostname 127.0.0.1 --port 8080 --max-batch-tokens 1024`
 3. `.env`: `TEI_URL` / `Tei__Url=http://host.docker.internal:8080`, `MCP_MEM_LIMIT=12g`, `QDRANT_MEM_LIMIT=8g`
 4. `docker compose $(ACCELERATOR=cpu python scripts/aspire_compose.py --no-gpu-colbert) up -d --build qdrant colbert mcp` — start host TEI **before** Docker; restart `mcp` if TEI was late
-5. Verify: `curl http://127.0.0.1:8080/health` (host) and `curl http://localhost:8000/health` (MCP)
+5. Verify: `curl http://127.0.0.1:8080/health` (host TEI), `curl http://localhost:8000/health` (MCP readiness), `curl http://localhost:8000/alive` (MCP liveness)
 
 Host TEI and Docker VM share **unified memory** — monitor Activity Monitor on first index. Full operator guide: [docs/DEPLOYMENT.md § macOS host-native TEI (Metal)](docs/DEPLOYMENT.md#macos-host-native-tei-metal).
 
