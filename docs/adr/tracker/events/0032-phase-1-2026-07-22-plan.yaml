@@ -1,0 +1,23 @@
+adr_id: "0032"
+phase_key: phase-1
+phase_title: Phase 1 — Domain enums + model/port signatures
+event: plan
+date: "2026-07-22"
+tracker_status: planned
+choices: >-
+  Formal Accept in-PR (ADR + README); wire-identical `symbol_type`/`language`
+  via `DomainEnumWire` + `[JsonStringEnumMemberName]` (no Phase 1 re-index);
+  declare `NamedVector`/`ReferenceType`/`MatchType`/`LivenessStatus` but wire
+  only symbol/language; compile-fix chunker/Qdrant casts allowed without
+  NamedVector refactor; Quality skip / Perf skip; Docker required; defer Accept
+  0033; do not Prefer 0033 P1; do not override to 0026 P4. Assumptions: ADR 0030
+  .NET stack is production SoT; current LanguageRegistry ids define
+  `SourceLanguage`; empty summary language → `Unknown`/`"unknown"`; pre-release
+  allows breaking type APIs without dual stacks; compose integration script
+  remains gate.
+deviations: none
+changelog:
+  update: false
+  reason: "invoker Changelog: no; status planned"
+user_facing: true
+open_decisions: []

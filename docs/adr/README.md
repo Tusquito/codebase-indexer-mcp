@@ -84,7 +84,7 @@ Invoke the full pipeline with **`adr-orchestrator`**; resume a phase with `Resum
 | [0029](0029-macos-host-native-tei-metal-acceleration.md) | macOS host-native TEI with Metal for dense embedding acceleration | Accepted | 2026-07-12 |
 | [0030](0030-migrate-mcp-server-to-dotnet10.md) | Migrate MCP server runtime from Python to C# .NET 10 | Accepted | 2026-07-12 |
 | [0031](0031-mcp-liveness-vs-readiness.md) | Split MCP liveness from dependency readiness | Accepted (phase 1 shipped; phase 2 open) | 2026-07-21 |
-| [0032](0032-replace-magic-strings-with-enums.md) | Replace closed-set magic strings with domain enums | Proposed | 2026-07-21 |
+| [0032](0032-replace-magic-strings-with-enums.md) | Replace closed-set magic strings with domain enums | Accepted | 2026-07-21 |
 | [0033](0033-adopt-result-pattern.md) | Adopt Result pattern for expected failures | Proposed | 2026-07-21 |
 
 ## Qdrant Build Prototypes & Improve Search map

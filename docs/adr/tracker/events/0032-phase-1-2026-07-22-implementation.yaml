@@ -1,0 +1,34 @@
+adr_id: "0032"
+phase_key: phase-1
+phase_title: Phase 1 — Domain enums + model/port signatures
+event: implementation
+date: "2026-07-22"
+tracker_status: implemented
+choices: >-
+  MCP JSON naming = `JsonStringEnumConverter` + `[JsonStringEnumMemberName]`
+  preserving lowercase/snake wires; `LanguageRegistry.DetectLanguage` returns
+  `SourceLanguage?`; Qdrant/Neo4j use `DomainEnumWire` only (no NamedVector yet)
+deviations: none
+code_evidence:
+  - src/CodebaseIndexer.Domain/Models/SymbolType.cs
+  - src/CodebaseIndexer.Domain/Models/SourceLanguage.cs
+  - src/CodebaseIndexer.Domain/Models/NamedVector.cs
+  - src/CodebaseIndexer.Domain/Models/ReferenceType.cs
+  - src/CodebaseIndexer.Domain/Models/MatchType.cs
+  - src/CodebaseIndexer.Domain/Serialization/DomainEnumWire.cs
+  - src/CodebaseIndexer.Application/Services/LivenessStatus.cs
+  - Domain models/ports
+  - Application DTOs/services
+  - Host tools
+  - Infrastructure chunker/registry/Qdrant/Neo4j
+  - test/CodebaseIndexer.Domain.Tests/DomainEnumWireTests.cs
+  - docs/adr/0032-replace-magic-strings-with-enums.md
+  - docs/adr/README.md
+test_debt:
+  - Phase 2 NamedVector + re-index ops note
+  - Phase 3 classifier/match/health wiring tests
+  - compose integration (pipeline)
+changelog:
+  update: false
+  reason: "invoker Changelog: no; status implemented (changelog at verified if user-facing)"
+user_facing: true

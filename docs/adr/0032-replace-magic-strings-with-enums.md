@@ -1,6 +1,6 @@
 # 0032. Replace closed-set magic strings with domain enums
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-07-21
 - **Deciders:** Maintainers
 - **Related:** [0030](0030-migrate-mcp-server-to-dotnet10.md) (.NET Domain / MCP surface), [0003](0003-hybrid-search-rrf-default.md) (named vectors), [0004](0004-collection-per-project-isolation.md) (payload schema), [project-phase.md](../../.cursor/agents/project-phase.md) (pre-release: no backward compatibility)
