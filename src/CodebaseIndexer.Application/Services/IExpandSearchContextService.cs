@@ -1,3 +1,5 @@
+using CodebaseIndexer.Domain.Models;
+
 namespace CodebaseIndexer.Application.Services;
 
 /// <summary>Graph-augmented retrieval use case (expand_search_context).</summary>
@@ -10,7 +12,7 @@ public interface IExpandSearchContextService
         string? collection = null,
         IReadOnlyList<string>? collections = null,
         int? graphHops = null,
-        string? language = null,
+        SourceLanguage? language = null,
         float minScore = 0.5f,
         int? maxContentChars = null,
         CancellationToken cancellationToken = default);

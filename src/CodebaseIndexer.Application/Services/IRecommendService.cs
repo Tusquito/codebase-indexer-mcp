@@ -1,3 +1,5 @@
+using CodebaseIndexer.Domain.Models;
+
 namespace CodebaseIndexer.Application.Services;
 
 /// <summary>Vector discovery: recommend_code and find_outlier_chunks.</summary>
@@ -11,7 +13,7 @@ public interface IRecommendService
         IReadOnlyList<string>? negativeChunkIds = null,
         string? negativeQuery = null,
         int limit = 5,
-        string? language = null,
+        SourceLanguage? language = null,
         string? pathGlob = null,
         int? maxContentChars = null,
         CancellationToken cancellationToken = default);
@@ -21,7 +23,7 @@ public interface IRecommendService
         string collection,
         IReadOnlyList<string>? contextChunkIds = null,
         int limit = 5,
-        string? language = null,
+        SourceLanguage? language = null,
         string? pathGlob = null,
         float? maxSimilarity = null,
         int? maxContentChars = null,

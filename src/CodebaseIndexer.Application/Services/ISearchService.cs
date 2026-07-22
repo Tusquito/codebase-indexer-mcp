@@ -12,7 +12,7 @@ public interface ISearchService
         int topK = 5,
         string? collection = null,
         IReadOnlyList<string>? collections = null,
-        string? language = null,
+        SourceLanguage? language = null,
         float minScore = 0.5f,
         int? maxContentChars = null,
         bool? rerank = null,
@@ -24,7 +24,7 @@ public interface ISearchService
         int topK = 10,
         string? collection = null,
         IReadOnlyList<string>? collections = null,
-        string? language = null,
+        SourceLanguage? language = null,
         float minScore = 0.4f,
         bool? rerank = null,
         CancellationToken cancellationToken = default);

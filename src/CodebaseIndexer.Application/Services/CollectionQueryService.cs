@@ -1,6 +1,7 @@
 using CodebaseIndexer.Application.BuildDeps;
 using CodebaseIndexer.Application.Models;
 using CodebaseIndexer.Domain.Ports;
+using CodebaseIndexer.Domain.Serialization;
 using Microsoft.Extensions.Caching.Memory;
 
 namespace CodebaseIndexer.Application.Services;
@@ -41,10 +42,10 @@ public sealed class CollectionQueryService : ICollectionQueryService
             ["content"] = payload.Content,
             ["start_line"] = payload.StartLine,
             ["end_line"] = payload.EndLine,
-            ["language"] = payload.Language,
+            ["language"] = DomainEnumWire.ToWire(payload.Language),
             ["file_sha256"] = payload.FileSha256,
             ["symbol_name"] = payload.SymbolName ?? string.Empty,
-            ["symbol_type"] = payload.SymbolType,
+            ["symbol_type"] = DomainEnumWire.ToWire(payload.SymbolType),
             ["file_mtime"] = 0.0,
         };
     }
@@ -115,20 +116,20 @@ public sealed class CollectionQueryService : ICollectionQueryService
 
         foreach (var row in rows)
         {
-            var language = string.IsNullOrEmpty(row.Language) ? "unknown" : row.Language;
-            var symbolType = string.IsNullOrEmpty(row.SymbolType) ? "other" : row.SymbolType;
+            var languageWire = DomainEnumWire.ToWire(row.Language);
+            var symbolTypeWire = DomainEnumWire.ToWire(row.SymbolType);
 
             if (!filesByPath.ContainsKey(row.RelPath))
             {
-                filesByPath[row.RelPath] = language;
-                langCounter[language] = langCounter.GetValueOrDefault(language) + 1;
+                filesByPath[row.RelPath] = languageWire;
+                langCounter[languageWire] = langCounter.GetValueOrDefault(languageWire) + 1;
                 if (BuildManifestDetector.IsBuildManifest(row.RelPath))
                 {
                     manifestPaths.Add(row.RelPath);
                 }
             }
 
-            symbolTypeCounter[symbolType] = symbolTypeCounter.GetValueOrDefault(symbolType) + 1;
+            symbolTypeCounter[symbolTypeWire] = symbolTypeCounter.GetValueOrDefault(symbolTypeWire) + 1;
             chunksPerFile[row.RelPath] = chunksPerFile.GetValueOrDefault(row.RelPath) + 1;
         }
 

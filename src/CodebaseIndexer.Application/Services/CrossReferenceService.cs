@@ -372,8 +372,8 @@ public sealed class CrossReferenceService : ICrossReferenceService
     private sealed class CrossReferenceHitInternal
     {
         public CrossReferenceHitInternal(
-            string relPath, string? symbolName, string symbolType, int startLine, int endLine,
-            string language, string content, double score, string collection, string matchType, string referenceType)
+            string relPath, string? symbolName, SymbolType symbolType, int startLine, int endLine,
+            SourceLanguage language, string content, double score, string collection, string matchType, string referenceType)
         {
             RelPath = relPath;
             SymbolName = symbolName;
@@ -390,10 +390,10 @@ public sealed class CrossReferenceService : ICrossReferenceService
 
         public string RelPath { get; }
         public string? SymbolName { get; }
-        public string SymbolType { get; }
+        public SymbolType SymbolType { get; }
         public int StartLine { get; }
         public int EndLine { get; }
-        public string Language { get; }
+        public SourceLanguage Language { get; }
         public string Content { get; }
         public double Score { get; set; }
         public string Collection { get; }

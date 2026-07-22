@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using CodebaseIndexer.Domain.Models;
 
 namespace CodebaseIndexer.Application.Models;
 
@@ -16,10 +17,10 @@ public sealed record CrossReferenceResponse(
 public sealed record CrossReferenceHit(
     [property: JsonPropertyName("rel_path")] string RelPath,
     [property: JsonPropertyName("symbol_name")] string? SymbolName,
-    [property: JsonPropertyName("symbol_type")] string SymbolType,
+    [property: JsonPropertyName("symbol_type")] SymbolType SymbolType,
     [property: JsonPropertyName("start_line")] int StartLine,
     [property: JsonPropertyName("end_line")] int EndLine,
-    [property: JsonPropertyName("language")] string Language,
+    [property: JsonPropertyName("language")] SourceLanguage Language,
     [property: JsonPropertyName("content")] string Content,
     [property: JsonPropertyName("score")] double Score,
     [property: JsonPropertyName("match_type")] string MatchType,
@@ -90,10 +91,10 @@ public sealed record DiscoveryHit(
     [property: JsonPropertyName("collection")] string Collection,
     [property: JsonPropertyName("rel_path")] string RelPath,
     [property: JsonPropertyName("symbol_name")] string? SymbolName,
-    [property: JsonPropertyName("symbol_type")] string SymbolType,
+    [property: JsonPropertyName("symbol_type")] SymbolType SymbolType,
     [property: JsonPropertyName("start_line")] int StartLine,
     [property: JsonPropertyName("end_line")] int EndLine,
-    [property: JsonPropertyName("language")] string Language,
+    [property: JsonPropertyName("language")] SourceLanguage Language,
     [property: JsonPropertyName("content")] string Content,
     [property: JsonPropertyName("content_truncated")] bool? ContentTruncated = null,
     [property: JsonPropertyName("similarity_to_context")] double? SimilarityToContext = null);

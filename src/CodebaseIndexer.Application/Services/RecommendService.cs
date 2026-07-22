@@ -34,7 +34,7 @@ public sealed class RecommendService : IRecommendService
         IReadOnlyList<string>? negativeChunkIds = null,
         string? negativeQuery = null,
         int limit = 5,
-        string? language = null,
+        SourceLanguage? language = null,
         string? pathGlob = null,
         int? maxContentChars = null,
         CancellationToken cancellationToken = default)
@@ -129,7 +129,7 @@ public sealed class RecommendService : IRecommendService
         string collection,
         IReadOnlyList<string>? contextChunkIds = null,
         int limit = 5,
-        string? language = null,
+        SourceLanguage? language = null,
         string? pathGlob = null,
         float? maxSimilarity = null,
         int? maxContentChars = null,

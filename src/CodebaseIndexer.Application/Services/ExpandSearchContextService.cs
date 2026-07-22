@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using CodebaseIndexer.Application.Options;
+using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
 using Microsoft.Extensions.Options;
 
@@ -33,7 +34,7 @@ public sealed class ExpandSearchContextService : IExpandSearchContextService
         string? collection = null,
         IReadOnlyList<string>? collections = null,
         int? graphHops = null,
-        string? language = null,
+        SourceLanguage? language = null,
         float minScore = 0.5f,
         int? maxContentChars = null,
         CancellationToken cancellationToken = default)
@@ -142,20 +143,20 @@ public sealed class ExpandSearchContextService : IExpandSearchContextService
         [property: JsonPropertyName("collection")] string Collection,
         [property: JsonPropertyName("rel_path")] string RelPath,
         [property: JsonPropertyName("symbol_name")] string? SymbolName,
-        [property: JsonPropertyName("symbol_type")] string SymbolType,
+        [property: JsonPropertyName("symbol_type")] SymbolType SymbolType,
         [property: JsonPropertyName("start_line")] int StartLine,
         [property: JsonPropertyName("end_line")] int EndLine,
-        [property: JsonPropertyName("language")] string Language);
+        [property: JsonPropertyName("language")] SourceLanguage Language);
 
     private sealed record ExpandRelatedChunk(
         [property: JsonPropertyName("chunk_id")] string ChunkId,
         [property: JsonPropertyName("collection")] string? Collection,
         [property: JsonPropertyName("rel_path")] string RelPath,
         [property: JsonPropertyName("symbol_name")] string? SymbolName,
-        [property: JsonPropertyName("symbol_type")] string SymbolType,
+        [property: JsonPropertyName("symbol_type")] SymbolType SymbolType,
         [property: JsonPropertyName("start_line")] int StartLine,
         [property: JsonPropertyName("end_line")] int EndLine,
-        [property: JsonPropertyName("language")] string Language,
+        [property: JsonPropertyName("language")] SourceLanguage Language,
         [property: JsonPropertyName("content")] string Content,
         [property: JsonPropertyName("content_truncated")] bool? ContentTruncated);
 }
