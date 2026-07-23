@@ -1,0 +1,31 @@
+adr_id: "0033"
+phase_key: phase-2
+phase_title: Phase 2 — Application + index/job ports
+event: implementation
+date: "2026-07-23"
+tracker_status: implemented
+choices: >-
+  Domain `IndexErrorCodes` for stable codes; pipeline completed runs always
+  `Result.Success` with typed `Errors`; embed/port `EmbeddingException` mapped
+  at Application edge; Host keeps Phase-1-style one-off MCP DTOs
+deviations: >-
+  `stop_indexing` maps terminal Cancel Success → `IndexJobNotRunningResponse`
+  (was always Cancelled response)
+code_evidence:
+  - src/CodebaseIndexer.Domain/Results/IndexErrorCodes.cs
+  - src/CodebaseIndexer.Domain/Ports/IIndexPipeline.cs
+  - src/CodebaseIndexer.Application/Services/IndexJobService.cs
+  - src/CodebaseIndexer.Application/Services/IndexCodebaseService.cs
+  - src/CodebaseIndexer.Application/Services/IndexEmbeddingService.cs
+  - src/CodebaseIndexer.Host/Tools/IndexTools.cs
+  - test/CodebaseIndexer.Application.Tests/IndexJobServiceTests.cs
+  - test/CodebaseIndexer.Application.Tests/IndexEmbeddingServiceTests.cs
+test_debt:
+  - Wait-on-running / pipeline Failure job status
+  - embed Exception→batch code
+  - embed Failure continue-loop
+  - Host DTO mapping unit tests
+changelog:
+  update: false
+  reason: "invoker Changelog: no; status implemented; user-facing yes"
+user_facing: true

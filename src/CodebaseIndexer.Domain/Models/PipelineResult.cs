@@ -1,3 +1,5 @@
+using CodebaseIndexer.Domain.Results;
+
 namespace CodebaseIndexer.Domain.Models;
 
 /// <summary>Outcome metrics produced by a completed indexing pipeline run.</summary>
@@ -6,14 +8,14 @@ namespace CodebaseIndexer.Domain.Models;
 /// <param name="SkippedFiles">Files skipped because they were unchanged.</param>
 /// <param name="TotalChunks">Total chunks written during indexing.</param>
 /// <param name="ElapsedSeconds">Seconds elapsed for the pipeline run.</param>
-/// <param name="Errors">Per-file or per-step error messages collected during the run.</param>
+/// <param name="Errors">Typed per-file or per-step errors collected during a completed run (partial failures).</param>
 public sealed record PipelineResult(
     int TotalFiles = 0,
     int IndexedFiles = 0,
     int SkippedFiles = 0,
     int TotalChunks = 0,
     double ElapsedSeconds = 0,
-    IReadOnlyList<string> Errors = null!)
+    IReadOnlyList<Error> Errors = null!)
 {
     /// <summary>Total files discovered for indexing.</summary>
     public int TotalFiles { get; init; } = TotalFiles;
@@ -30,6 +32,6 @@ public sealed record PipelineResult(
     /// <summary>Seconds elapsed for the pipeline run.</summary>
     public double ElapsedSeconds { get; init; } = ElapsedSeconds;
 
-    /// <summary>Per-file or per-step error messages collected during the run.</summary>
-    public IReadOnlyList<string> Errors { get; init; } = Errors ?? Array.Empty<string>();
+    /// <summary>Typed per-file or per-step errors collected during a completed run (partial failures).</summary>
+    public IReadOnlyList<Error> Errors { get; init; } = Errors ?? Array.Empty<Error>();
 }

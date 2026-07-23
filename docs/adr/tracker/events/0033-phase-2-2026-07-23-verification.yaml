@@ -1,0 +1,37 @@
+adr_id: "0033"
+phase_key: phase-2
+phase_title: Phase 2 — Application + index/job ports
+event: verification
+date: "2026-07-23"
+tracker_status: verified
+choices: >-
+  Completed pipeline runs return Result.Success with typed partial Errors;
+  Host keeps one-off MCP DTOs (envelope in Phase 3); stop_indexing returns
+  NotRunning for terminal jobs; exception-type deletion deferred to Phase 3
+deviations: none
+code_evidence:
+  - IndexErrorCodes.cs
+  - IIndexPipeline.cs
+  - IndexJobService.cs
+  - IndexCodebaseService.cs
+  - IndexEmbeddingService.cs
+  - IndexTools.cs
+  - ScheduledReindexRunner.cs
+  - Application.Tests (IndexJobServiceTests, IndexEmbeddingServiceTests, updated pipeline/reindex tests)
+test_debt:
+  - wait-on-running Success
+  - pipeline Failure→Failed status
+  - EmbeddingException→index.embed.batch
+  - embed Failure append+continue
+  - Host IndexTools Conflict/NotFound unit mapping (medium/low)
+verify: >-
+  dotnet test CodebaseIndexer.slnx 286 passed; Docker integration Verdict
+  pass; plan compliance pass; quality skip; review rounds: 1
+changelog:
+  update: false
+  reason: "invoker Changelog: no despite user-facing yes"
+  bullet: >-
+    Index/job APIs now return typed Result errors; job snapshots expose
+    structured Error entries instead of string lists (MCP one-off DTOs
+    unchanged until Phase 3)
+user_facing: true

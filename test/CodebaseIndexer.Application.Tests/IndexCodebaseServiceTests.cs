@@ -4,6 +4,7 @@ using CodebaseIndexer.Application.Search;
 using CodebaseIndexer.Application.Services;
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
+using CodebaseIndexer.Domain.Results;
 using Microsoft.Extensions.Logging.Abstractions;
 using MsOptions = Microsoft.Extensions.Options.Options;
 
@@ -21,9 +22,10 @@ public sealed class IndexCodebaseServiceTests
 
         var result = await service.RunAsync("demo", subPath: "", force: true, CancellationToken.None);
 
+        Assert.True(result.IsSuccess);
         Assert.Empty(graph.EnsuredSchemaCalls);
         Assert.Empty(graph.WrittenBatches);
-        Assert.Empty(result.Errors);
+        Assert.Empty(result.Value.Errors);
         Assert.Empty(vector.UpsertCalls);
     }
 
@@ -48,9 +50,14 @@ public sealed class IndexCodebaseServiceTests
 
         var result = await service.RunAsync("demo", subPath: "", force: true, CancellationToken.None);
 
+        Assert.True(result.IsSuccess);
         Assert.Single(graph.EnsuredSchemaCalls);
         Assert.Empty(graph.WrittenBatches);
-        Assert.Contains(result.Errors, e => e.Contains("Graph schema init error", StringComparison.Ordinal));
+        Assert.Contains(
+            result.Value.Errors,
+            e => e.Code == IndexErrorCodes.GraphSchemaInit
+                && e.Kind == ErrorKind.Dependency
+                && e.Message.Contains("Graph schema init error", StringComparison.Ordinal));
         Assert.Single(vector.UpsertCalls);
         Assert.False(vector.UpsertCalls[0].OmitCallees);
         Assert.Null(vector.UpsertCalls[0].GraphNodeIdsByChunk);
@@ -75,7 +82,8 @@ public sealed class IndexCodebaseServiceTests
 
         var result = await service.RunAsync("demo", subPath: "", force: true, CancellationToken.None);
 
-        Assert.Empty(result.Errors);
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value.Errors);
         Assert.Single(graph.EnsuredSchemaCalls);
         Assert.Single(graph.WrittenBatches);
         Assert.Equal("demo", graph.WrittenBatches[0].Collection);
@@ -104,7 +112,12 @@ public sealed class IndexCodebaseServiceTests
 
         var result = await service.RunAsync("demo", subPath: "", force: true, CancellationToken.None);
 
-        Assert.Contains(result.Errors, e => e.Contains("Graph batch build error", StringComparison.Ordinal));
+        Assert.True(result.IsSuccess);
+        Assert.Contains(
+            result.Value.Errors,
+            e => e.Code == IndexErrorCodes.GraphBatchBuild
+                && e.Kind == ErrorKind.Dependency
+                && e.Message.Contains("Graph batch build error", StringComparison.Ordinal));
         Assert.Empty(graph.WrittenBatches);
         Assert.Single(vector.UpsertCalls);
         Assert.False(vector.UpsertCalls[0].OmitCallees);
@@ -124,8 +137,9 @@ public sealed class IndexCodebaseServiceTests
         };
         var service = CreateService(graph, vector, files: []);
 
-        await service.RunAsync("demo", subPath: "", force: true, CancellationToken.None);
+        var result = await service.RunAsync("demo", subPath: "", force: true, CancellationToken.None);
 
+        Assert.True(result.IsSuccess);
         Assert.Single(graph.DeleteCalls);
         Assert.Equal("demo", graph.DeleteCalls[0].Collection);
         Assert.Equal(["gone.py"], graph.DeleteCalls[0].Paths);
@@ -154,8 +168,9 @@ public sealed class IndexCodebaseServiceTests
                 ["a.py"] = [chunk],
             });
 
-        await service.RunAsync("demo", subPath: "", force: false, CancellationToken.None);
+        var result = await service.RunAsync("demo", subPath: "", force: false, CancellationToken.None);
 
+        Assert.True(result.IsSuccess);
         Assert.Contains(graph.DeleteCalls, d => d.Paths.Contains("a.py"));
         Assert.Single(graph.WrittenBatches);
         Assert.True(vector.UpsertCalls[0].OmitCallees);
@@ -276,14 +291,14 @@ public sealed class IndexCodebaseServiceTests
         {
         }
 
-        public Task<IReadOnlyList<EmbeddedChunk>> EmbedChunksAsync(
+        public Task<Result<IReadOnlyList<EmbeddedChunk>>> EmbedChunksAsync(
             IReadOnlyList<Chunk> chunks,
             CancellationToken cancellationToken = default)
         {
             IReadOnlyList<EmbeddedChunk> embedded = chunks
                 .Select(c => new EmbeddedChunk(c, [0.1f, 0.2f], null))
                 .ToArray();
-            return Task.FromResult(embedded);
+            return Task.FromResult(Result<IReadOnlyList<EmbeddedChunk>>.Success(embedded));
         }
     }
 

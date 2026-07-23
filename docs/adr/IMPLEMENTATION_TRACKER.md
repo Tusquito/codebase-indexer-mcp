@@ -93,6 +93,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0032 | Phase 2 — Indexing + Qdrant | Merged — PR #46 (squash `6c02a7a`); Accept skipped for 0032 (already Accepted); Accept yes for 0033 → Accepted; Accept yes for 0034 → Accepted; release skipped | phase-2 | `merged` | Centralize Qdrant named-vector names via static DenseWire/SparseWire/ColbertWire from DomainEnumWire; expose GetNamedVectorWireMap for tests; ImportHeaderProcessor takes SourceLanguage (registry id via ToWire). NamedVector ↔ Qdrant `"dense"`/`"sparse"`/`"colbert"` via DomainEnumWire in QdrantVectorStore create/query/upsert/recommend (+ schema/retrieve/scroll); chunker/classifier → payload enum round-trip; unit tests; Docker compose integration; CHANGELOG full re-index after pull (no schema-version env); defer Phase 3 search/xref/health; do not implement 0033/0034 in this PR. | 2026-07-22 |
 | 0032 | Phase 3 — Search / cross-ref / health | — | phase-3 | `merged` | DomainMatchType alias for System.IO.MatchType; SearchService typing-only (no body edit); health check maps non-Ok → Unhealthy; ServiceMap edge types deferred. Wire MatchType/ReferenceType/LivenessStatus through CrossReferenceService, search/discovery DTOs, and McpHostHealthCheck via DomainEnumWire; extend ReferenceType with ServiceConfig/BuildDependency; move LivenessStatus to Domain; unit + Aspire Docker integration; defer 0033/0034 and 0026 P4 | 2026-07-22 |
 | 0033 | Phase 1 — Core types + conventions | Merged — 2026-07-23; PR #49 (`64c37bf`); Accept skipped — already Accepted; release no; Phases 2–3 deferred | phase-1 | `merged` | readonly struct Result/ResultT; sealed record Error; instance Match; Cancelled rare / prefer OCE; no Domain NuGet Result libs | 2026-07-23 |
+| 0033 | Phase 2 — Application + index/job ports | Verified — 2026-07-23; Phase 1 merged (PR #49); Accept skipped — already Accepted; Phase 3 deferred | phase-2 | `verified` | Completed pipeline runs return Result.Success with typed partial Errors; Host keeps one-off MCP DTOs (envelope in Phase 3); stop_indexing returns NotRunning for terminal jobs; exception-type deletion deferred to Phase 3 | 2026-07-23 |
 | 0035 | Phase 1 — Wire pairing on Aspire path | Merged — PR #48 (`aa8ffa6`); Accepted (phase 1); accept docs `fe6b248`; release skipped | phase-1 | `merged` | TeiBatchTokenPairing defaults 1024; Aspire AppHost/compose set TEI_MAX_BATCH_TOKENS / Embedding__MaxDenseTokens; flat MAX_DENSE_EMBED_TOKENS mapped on Aspire; appsettings MaxDenseTokens: 0 retained for non-Aspire; fail-fast/registry/GPU Phase 2 deferred. Project phase: Pre-release (no backward compatibility unless ADR documents one); Docker integration required; no schema migration version env vars. | 2026-07-22 |
 <!-- END GENERATED:summary -->
 
@@ -101,7 +102,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 ## Active and upcoming work
 
 <!-- BEGIN GENERATED:active -->
-_No active or upcoming phases._
+- **0033** Phase 2 — Application + index/job ports — `verified`
 <!-- END GENERATED:active -->
 
 ### Partial acceptance
@@ -2342,10 +2343,27 @@ _No active or upcoming phases._
 - **Verify:** Domain.Tests 86 pass; full dotnet test CodebaseIndexer.slnx pass; Docker compose integration Verdict pass; plan compliance pass; review rounds: 1
 - **Changelog:** no — invoker Changelog: no; user-facing no
 
+#### 2026-07-23 — verification
+- **Phase:** Phase 2 — Application + index/job ports
+- **Tracker status:** `verified`
+- **Choices:** Completed pipeline runs return Result.Success with typed partial Errors; Host keeps one-off MCP DTOs (envelope in Phase 3); stop_indexing returns NotRunning for terminal jobs; exception-type deletion deferred to Phase 3
+- **Deviations:** none
+- **Code evidence:** `IndexErrorCodes.cs`, `IIndexPipeline.cs`, `IndexJobService.cs`, `IndexCodebaseService.cs`, `IndexEmbeddingService.cs`, `IndexTools.cs`, `ScheduledReindexRunner.cs`, `Application.Tests (IndexJobServiceTests, IndexEmbeddingServiceTests, updated pipeline/reindex tests)`
+- **Test debt:** wait-on-running Success; pipeline Failure→Failed status; EmbeddingException→index.embed.batch; embed Failure append+continue; Host IndexTools Conflict/NotFound unit mapping (medium/low)
+- **Verify:** dotnet test CodebaseIndexer.slnx 286 passed; Docker integration Verdict pass; plan compliance pass; quality skip; review rounds: 1
+- **Changelog:** no — Index/job APIs now return typed Result errors; job snapshots expose structured Error entries instead of string lists (MCP one-off DTOs unchanged until Phase 3)
+
 #### 2026-07-23 — prioritization
 - **Phase:** Phase 1 — Core types + conventions
 - **Tracker status:** `candidate`
 - **Choices:** Prefer finish 0033 P1 (~32.5) over 0026 P4 (~28, GPU-blocked/session), over 0034 P1 (~25.5), over 0031 P2 / 0035 P2 (~23.5), over Proposed 0027 (~21.5, needs Accept); single phase per pipeline rule; no ADR Accept required (0033 already Accepted). Reaffirmation of 2026-07-22 prioritization with updated evidence that implementation has started but not shipped. **Why now:** Active tracker already has 0033 P1 `planned`; Domain `Result`/`Error` types and `ResultTests` exist but phase not merged; 0030/0032 complete; ports still throw/`*ErrorResponse`; finishing P1 unlocks typed Application/MCP migration without Accept work. **Suggested scope:** one phase (= one PR). **Chosen scope:** Finish ADR 0033 Phase 1 only — Domain `Result` / `Result<T>` / `Error` / `ErrorKind` under `src/CodebaseIndexer.Domain/Results/` (one type per file; `readonly struct` Results + `sealed record` Error per locked plan); XML failure-vs-exception policy; unit tests success/failure/`Match`; Docker compose integration required; do not migrate Application ports, Infrastructure adapters, MCP tools, or delete domain exceptions / Host one-off error DTOs (Phases 2–3); Quality skip / Perf skip; Changelog no. Defer 0034 P1, 0026 P4, 0031 P2, 0035 P2, 0027.
+- **Deviations:** none
+- **Changelog:** no — user-facing unknown; invoker Changelog: no
+
+#### 2026-07-23 — prioritization
+- **Phase:** Phase 2 — Application + index/job ports
+- **Tracker status:** `candidate`
+- **Choices:** Prefer 0033 P2 (~29.5) over 0026 P4 (~28, GPU-blocked), over 0034 P1 (~25.5), over 0031 P2 / 0035 P2, over Proposed 0027 (needs Accept); single phase per pipeline rule; no ADR Accept required (0033 already Accepted). **Why now:** 0033 Phase 1 merged (PR #49); Domain Result types exist but Application still throws/`*ErrorResponse`; continuing the Accepted Result arc unlocks Phase 3 MCP envelope without Accept or GPU; 0026 P4 remains GPU-gated. **Suggested scope:** one phase (= one PR). **Chosen scope:** Migrate `IIndexJobService`, index pipeline / embed orchestration to `Result`/`Error`; replace job-conflict throws and untyped pipeline error bags; unit tests + Docker `scripts/run_compose_integration.py`; defer Phase 3 storage/embed ports + Host unified MCP error envelope; do not implement 0034/0026/0027 in this PR.
 - **Deviations:** none
 - **Changelog:** no — user-facing unknown; invoker Changelog: no
 
@@ -2355,6 +2373,13 @@ _No active or upcoming phases._
 - **Choices:** One PR = entire Phase 1; finish interrupted Domain Results baseline rather than rewrite; representation stays `readonly struct` + `sealed record` + instance `Match` (optional `ResultExtensions` only if needed); keep Domain PackageReference-free; leave `Exceptions/*` and `PipelineResult.Errors` strings and Host `*ErrorResponse` intact; xUnit this cycle (defer 0034); Docker smoke without quality/perf; Accept after merge = no (already Accepted); final phase = no. Assumptions: ADR 0030 .NET Domain is production SoT; ADR 0033 already Accepted (no Accept work); pre-release allows introducing types now and breaking port/tool APIs in later phases without dual stacks; unused types do not change MCP JSON this phase; compose integration script remains the Docker gate; no config/env/re-index for Phase 1. Project phase policy: pre-release — no backward compatibility requirement unless ADR documents one; Docker integration always required; quality validation when required; no schema migration version env vars.
 - **Deviations:** none
 - **Changelog:** no — invoker Changelog: no; status planned; user-facing no
+
+#### 2026-07-23 — plan
+- **Phase:** Phase 2 — Application + index/job ports
+- **Tracker status:** `planned`
+- **Choices:** One PR = entire Phase 2; `IIndexPipeline` → `Task<Result<PipelineResult>>` with Success-with-multiple-`Error`s for partial step failures; `IIndexJobService` Start/Get/Cancel → `Result` (Conflict/NotFound); `IIndexEmbeddingService.EmbedChunksAsync` → `Result` (memory pressure + catch port exceptions); `PipelineResult`/`IndexJobSnapshot.Errors` → `IReadOnlyList<Error>`; Host maps Result to existing `*Response` DTOs (no unified envelope); leave Infrastructure port exceptions + exception-type deletion to Phase 3; quality/perf skip; Accept after merge = no; final phase = no; Docker required; xUnit retained. **Assumptions:** Phase 1 Domain Result types merged (PR #49); ADR 0033 already Accepted; pre-release allows breaking job snapshot `errors[]` item shape and port signatures without dual APIs; compose script remains Docker gate; no config/env/re-index. Project phase policy: pre-release — no backward compatibility requirement unless ADR documents one; Docker integration always required; no schema migration version env vars.
+- **Deviations:** none
+- **Changelog:** no — invoker Changelog: no; status planned; user-facing yes
 
 #### 2026-07-23 — merge
 - **Phase:** Phase 1 — Core types + conventions
@@ -2374,6 +2399,15 @@ _No active or upcoming phases._
 - **Code evidence:** `src/CodebaseIndexer.Domain/Results/ErrorKind.cs`, `src/CodebaseIndexer.Domain/Results/Error.cs`, `src/CodebaseIndexer.Domain/Results/Result.cs`, `src/CodebaseIndexer.Domain/Results/ResultT.cs`, `test/CodebaseIndexer.Domain.Tests/ResultTests.cs`, `test/CodebaseIndexer.Domain.Tests/DomainLayerTests.cs`
 - **Test debt:** Phase 2–3 boundary/adapter/MCP envelope tests not added (out of scope); optional default-Match edge case low priority
 - **Changelog:** no — invoker Changelog: no; status implemented; user-facing no
+
+#### 2026-07-23 — implementation
+- **Phase:** Phase 2 — Application + index/job ports
+- **Tracker status:** `implemented`
+- **Choices:** Domain `IndexErrorCodes` for stable codes; pipeline completed runs always `Result.Success` with typed `Errors`; embed/port `EmbeddingException` mapped at Application edge; Host keeps Phase-1-style one-off MCP DTOs
+- **Deviations:** `stop_indexing` maps terminal Cancel Success → `IndexJobNotRunningResponse` (was always Cancelled response)
+- **Code evidence:** `src/CodebaseIndexer.Domain/Results/IndexErrorCodes.cs`, `src/CodebaseIndexer.Domain/Ports/IIndexPipeline.cs`, `src/CodebaseIndexer.Application/Services/IndexJobService.cs`, `src/CodebaseIndexer.Application/Services/IndexCodebaseService.cs`, `src/CodebaseIndexer.Application/Services/IndexEmbeddingService.cs`, `src/CodebaseIndexer.Host/Tools/IndexTools.cs`, `test/CodebaseIndexer.Application.Tests/IndexJobServiceTests.cs`, `test/CodebaseIndexer.Application.Tests/IndexEmbeddingServiceTests.cs`
+- **Test debt:** Wait-on-running / pipeline Failure job status; embed Exception→batch code; embed Failure continue-loop; Host DTO mapping unit tests
+- **Changelog:** no — invoker Changelog: no; status implemented; user-facing yes
 
 #### 2026-07-22 — prioritization
 - **Phase:** Phase 1 — Core types + conventions
@@ -2512,6 +2546,8 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 - Prefer 0034 Phase 1 instead?
 - NVIDIA GPU available for a later 0026 Phase 4?
 - Proceed finish 0033 Phase 1 this cycle? → RESOLVED by invoker 2026-07-23: Yes — finish ADR 0033 Phase 1 this cycle. Remaining out-of-scope items (Prefer 0034 instead; After P1 ordering; NVIDIA GPU for 0026 P4; Accept 0027) not blocking this phase.
+- Override to 0026 Phase 4 if NVIDIA GPU confirmed this cycle?
+- Prefer 0034 Phase 1 immediately after 0033 P2 vs finish 0033 P3 first?
 - RESOLVED — Accept ADR 0035 this cycle: yes
 <!-- END GENERATED:open-decisions -->
 

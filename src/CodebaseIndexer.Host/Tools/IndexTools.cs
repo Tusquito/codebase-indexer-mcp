@@ -4,8 +4,8 @@ using CodebaseIndexer.Application.Models;
 using CodebaseIndexer.Application.Services;
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
+using CodebaseIndexer.Domain.Results;
 using CodebaseIndexer.Application.Options;
-using CodebaseIndexer.Infrastructure.Configuration;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
 
@@ -61,33 +61,43 @@ public sealed class IndexTools
         collection ??= DeriveCollectionName(_workspace.Path, path);
         if (await _jobs.IsRunningAsync(collection, cancellationToken).ConfigureAwait(false))
         {
-            var existing = await _jobs.GetJobAsync(collection, cancellationToken).ConfigureAwait(false);
-            if (wait && existing is not null)
+            var existingResult = await _jobs.GetJobAsync(collection, cancellationToken).ConfigureAwait(false);
+            if (wait && existingResult.IsSuccess)
             {
-                return await _jobs.StartAsync(
-                    new IndexCodebaseCommand(collection, path, force, wait, timeout),
-                    cancellationToken).ConfigureAwait(false);
+                return await MapStartResultAsync(
+                    await _jobs.StartAsync(
+                        new IndexCodebaseCommand(collection, path, force, wait, timeout),
+                        cancellationToken).ConfigureAwait(false),
+                    collection,
+                    path,
+                    wait).ConfigureAwait(false);
             }
 
-            return new IndexAlreadyRunningResponse(
-                Message: $"Indexing already in progress for '{collection}'",
-                Status: existing!);
+            return existingResult.Match<object>(
+                onSuccess: snapshot => new IndexAlreadyRunningResponse(
+                    Message: $"Indexing already in progress for '{collection}'",
+                    Status: snapshot),
+                onFailure: _ => new IndexAlreadyRunningResponse(
+                    Message: $"Indexing already in progress for '{collection}'",
+                    Status: new IndexJobSnapshot(
+                        collection,
+                        path,
+                        IndexJobStatus.Running,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        Array.Empty<Error>())));
         }
 
-        var snapshot = await _jobs.StartAsync(
-            new IndexCodebaseCommand(collection, path, force, wait, timeout),
-            cancellationToken).ConfigureAwait(false);
-
-        if (!wait)
-        {
-            return new IndexStartedResponse(
-                Message: $"Indexing started for '{collection}' in the background.",
-                Collection: collection,
-                Path: path,
-                Hint: "Use index_status to check progress.");
-        }
-
-        return snapshot;
+        return await MapStartResultAsync(
+            await _jobs.StartAsync(
+                new IndexCodebaseCommand(collection, path, force, wait, timeout),
+                cancellationToken).ConfigureAwait(false),
+            collection,
+            path,
+            wait).ConfigureAwait(false);
     }
 
     /// <summary>Checks indexing job status for one or all collections.</summary>
@@ -101,10 +111,10 @@ public sealed class IndexTools
     {
         if (!string.IsNullOrEmpty(collection))
         {
-            var job = await _jobs.GetJobAsync(collection, cancellationToken).ConfigureAwait(false);
-            return job is null
-                ? new IndexJobNotFoundResponse(Error: $"No indexing job found for '{collection}'.")
-                : job;
+            var jobResult = await _jobs.GetJobAsync(collection, cancellationToken).ConfigureAwait(false);
+            return jobResult.Match<object>(
+                onSuccess: job => job,
+                onFailure: _ => new IndexJobNotFoundResponse(Error: $"No indexing job found for '{collection}'."));
         }
 
         var jobs = await _jobs.GetAllJobsAsync(cancellationToken).ConfigureAwait(false);
@@ -122,15 +132,19 @@ public sealed class IndexTools
         [Description("Collection name")] string collection,
         CancellationToken cancellationToken = default)
     {
-        var cancelled = await _jobs.CancelAsync(collection, cancellationToken).ConfigureAwait(false);
-        if (cancelled is null)
+        var cancelResult = await _jobs.CancelAsync(collection, cancellationToken).ConfigureAwait(false);
+        if (!cancelResult.IsSuccess)
         {
-            var existing = await _jobs.GetJobAsync(collection, cancellationToken).ConfigureAwait(false);
-            return existing is null
-                ? new IndexJobNotFoundResponse(Error: $"No indexing job found for '{collection}'.")
-                : new IndexJobNotRunningResponse(
-                    Error: $"Job '{collection}' is not running (status: {existing.Status}).",
-                    Status: existing);
+            return new IndexJobNotFoundResponse(Error: $"No indexing job found for '{collection}'.");
+        }
+
+        var snapshot = cancelResult.Value;
+        if (snapshot.Status is not (IndexJobStatus.Queued or IndexJobStatus.Running))
+        {
+            // CancelAsync succeeds for terminal jobs without requesting cancel; preserve prior NotRunning UX.
+            return new IndexJobNotRunningResponse(
+                Error: $"Job '{collection}' is not running (status: {snapshot.Status}).",
+                Status: snapshot);
         }
 
         return new IndexCancelledResponse(
@@ -167,18 +181,21 @@ public sealed class IndexTools
             if (await _jobs.IsRunningAsync(name, cancellationToken).ConfigureAwait(false))
             {
                 var existing = await _jobs.GetJobAsync(name, cancellationToken).ConfigureAwait(false);
-                if (existing is not null)
+                if (existing.IsSuccess)
                 {
-                    results.Add(existing);
+                    results.Add(existing.Value);
                 }
 
                 continue;
             }
 
-            var snapshot = await _jobs.StartAsync(
+            var startResult = await _jobs.StartAsync(
                 new IndexCodebaseCommand(name, path, force, wait, timeout),
                 cancellationToken).ConfigureAwait(false);
-            results.Add(snapshot);
+            if (startResult.IsSuccess)
+            {
+                results.Add(startResult.Value);
+            }
         }
 
         var succeeded = results.Count(r => r.Status == IndexJobStatus.Done);
@@ -186,6 +203,44 @@ public sealed class IndexTools
             Message: $"Indexed {succeeded}/{collections.Count} collections",
             Results: results);
     }
+
+    private static Task<object> MapStartResultAsync(
+        Result<IndexJobSnapshot> startResult,
+        string collection,
+        string path,
+        bool wait) =>
+        Task.FromResult(startResult.Match(
+            onSuccess: snapshot =>
+            {
+                if (!wait)
+                {
+                    return (object)new IndexStartedResponse(
+                        Message: $"Indexing started for '{collection}' in the background.",
+                        Collection: collection,
+                        Path: path,
+                        Hint: "Use index_status to check progress.");
+                }
+
+                return snapshot;
+            },
+            onFailure: error => error.Kind switch
+            {
+                ErrorKind.Conflict => (object)new IndexAlreadyRunningResponse(
+                    Message: $"Indexing already in progress for '{collection}'",
+                    Status: new IndexJobSnapshot(
+                        collection,
+                        path,
+                        IndexJobStatus.Running,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        Array.Empty<Error>(),
+                        error.Message)),
+                ErrorKind.NotFound => new IndexJobNotFoundResponse(Error: error.Message),
+                _ => new IndexJobNotFoundResponse(Error: error.Message),
+            }));
 
     internal static string NormalizePath(string rawPath)
     {

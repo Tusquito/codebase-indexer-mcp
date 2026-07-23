@@ -1,4 +1,5 @@
 using CodebaseIndexer.Domain.Models;
+using CodebaseIndexer.Domain.Results;
 
 namespace CodebaseIndexer.Application.Services;
 
@@ -39,6 +40,6 @@ internal sealed class IndexJobState
         Result?.IndexedFiles ?? 0,
         Result?.SkippedFiles ?? 0,
         Result?.TotalChunks ?? 0,
-        Result?.Errors ?? Array.Empty<string>(),
+        Result?.Errors ?? Array.Empty<Error>(),
         ErrorMessage);
 }

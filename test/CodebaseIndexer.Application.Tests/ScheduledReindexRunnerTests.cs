@@ -2,6 +2,7 @@ using CodebaseIndexer.Application.Options;
 using CodebaseIndexer.Application.Services;
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
+using CodebaseIndexer.Domain.Results;
 using Microsoft.Extensions.Logging.Abstractions;
 using MsOptions = Microsoft.Extensions.Options.Options;
 
@@ -116,6 +117,31 @@ public sealed class ScheduledReindexRunnerTests
         }
     }
 
+    [Fact]
+    public async Task RunOnce_start_failure_increments_errors_without_throw()
+    {
+        var root = Directory.CreateTempSubdirectory("reindex-fail-");
+        try
+        {
+            var collection = "fail-coll";
+            Directory.CreateDirectory(Path.Combine(root.FullName, collection));
+            var jobs = new FakeJobs
+            {
+                StartFailure = new Error(ErrorKind.Conflict, IndexErrorCodes.JobAlreadyRunning, "busy"),
+            };
+            var store = new FakeStore([collection]);
+            var runner = CreateRunner(jobs, store, gitPull: false, workspace: root.FullName);
+
+            await runner.RunOnceAsync();
+
+            Assert.Single(jobs.Starts);
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+
     private static ScheduledReindexRunner CreateRunner(
         FakeJobs jobs,
         FakeStore store,
@@ -141,20 +167,29 @@ public sealed class ScheduledReindexRunnerTests
     {
         public List<IndexCodebaseCommand> Starts { get; } = [];
         public HashSet<string> Running { get; init; } = [];
+        public Error? StartFailure { get; init; }
 
         public ValueTask<bool> IsRunningAsync(string collection, CancellationToken cancellationToken = default) =>
             ValueTask.FromResult(Running.Contains(collection));
 
-        public ValueTask<IndexJobSnapshot?> GetJobAsync(string collection, CancellationToken cancellationToken = default) =>
-            ValueTask.FromResult<IndexJobSnapshot?>(null);
+        public ValueTask<Result<IndexJobSnapshot>> GetJobAsync(string collection, CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(Result<IndexJobSnapshot>.Failure(new Error(
+                ErrorKind.NotFound,
+                IndexErrorCodes.JobNotFound,
+                $"No indexing job found for '{collection}'.")));
 
         public ValueTask<IReadOnlyList<IndexJobSnapshot>> GetAllJobsAsync(CancellationToken cancellationToken = default) =>
             ValueTask.FromResult<IReadOnlyList<IndexJobSnapshot>>([]);
 
-        public Task<IndexJobSnapshot> StartAsync(IndexCodebaseCommand command, CancellationToken cancellationToken = default)
+        public Task<Result<IndexJobSnapshot>> StartAsync(IndexCodebaseCommand command, CancellationToken cancellationToken = default)
         {
             Starts.Add(command);
-            return Task.FromResult(new IndexJobSnapshot(
+            if (StartFailure is not null)
+            {
+                return Task.FromResult(Result<IndexJobSnapshot>.Failure(StartFailure));
+            }
+
+            return Task.FromResult(Result<IndexJobSnapshot>.Success(new IndexJobSnapshot(
                 command.Collection,
                 command.Path,
                 IndexJobStatus.Done,
@@ -163,11 +198,14 @@ public sealed class ScheduledReindexRunnerTests
                 0,
                 0,
                 0,
-                []));
+                [])));
         }
 
-        public ValueTask<IndexJobSnapshot?> CancelAsync(string collection, CancellationToken cancellationToken = default) =>
-            ValueTask.FromResult<IndexJobSnapshot?>(null);
+        public ValueTask<Result<IndexJobSnapshot>> CancelAsync(string collection, CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(Result<IndexJobSnapshot>.Failure(new Error(
+                ErrorKind.NotFound,
+                IndexErrorCodes.JobNotFound,
+                $"No indexing job found for '{collection}'.")));
 
         public Task<IReadOnlyList<IndexJobSnapshot>> IndexAllAsync(
             IndexAllCommand command,

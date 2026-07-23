@@ -1,0 +1,12 @@
+adr_id: "0033"
+phase_key: phase-2
+title: Phase 2 — Application + index/job ports
+tracker_status: verified
+chosen_scope: >-
+  Completed pipeline runs return Result.Success with typed partial Errors;
+  Host keeps one-off MCP DTOs (envelope in Phase 3); stop_indexing returns
+  NotRunning for terminal jobs; exception-type deletion deferred to Phase 3
+last_updated: "2026-07-23"
+adr_status_note: >-
+  Verified — 2026-07-23; Phase 1 merged (PR #49); Accept skipped — already
+  Accepted; Phase 3 deferred
