@@ -96,15 +96,15 @@ public sealed class ScheduledReindexRunner : IScheduledReindexRunner
                     message);
             }
 
+            if (await _jobs.IsRunningAsync(name, cancellationToken).ConfigureAwait(false))
+            {
+                skipped++;
+                continue;
+            }
+
             try
             {
-                if (await _jobs.IsRunningAsync(name, cancellationToken).ConfigureAwait(false))
-                {
-                    skipped++;
-                    continue;
-                }
-
-                await _jobs.StartAsync(
+                var startResult = await _jobs.StartAsync(
                     new IndexCodebaseCommand(
                         name,
                         "/" + name,
@@ -112,7 +112,18 @@ public sealed class ScheduledReindexRunner : IScheduledReindexRunner
                         Wait: true,
                         TimeoutSeconds: _reindex.IndexTimeoutSeconds),
                     cancellationToken).ConfigureAwait(false);
-                reindexed++;
+
+                startResult.Match(
+                    onSuccess: _ => reindexed++,
+                    onFailure: error =>
+                    {
+                        errors++;
+                        _logger.LogError(
+                            "scheduled_reindex_failed collection={Collection} code={Code} message={Message}",
+                            name,
+                            error.Code,
+                            error.Message);
+                    });
             }
             catch (Exception ex)
             {

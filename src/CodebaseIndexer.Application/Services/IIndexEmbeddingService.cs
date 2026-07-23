@@ -1,4 +1,5 @@
 using CodebaseIndexer.Domain.Models;
+using CodebaseIndexer.Domain.Results;
 
 namespace CodebaseIndexer.Application.Services;
 
@@ -15,8 +16,12 @@ public interface IIndexEmbeddingService
     /// <summary>Embeds a batch of code chunks.</summary>
     /// <param name="chunks">Chunks to embed.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Embedded chunks with dense and optional sparse vectors.</returns>
-    Task<IReadOnlyList<EmbeddedChunk>> EmbedChunksAsync(
+    /// <returns>
+    /// Success with embedded chunks, or Failure for expected embedding failures
+    /// (memory pressure, dependency/SDK errors). Cooperative cancel throws
+    /// <see cref="OperationCanceledException"/>.
+    /// </returns>
+    Task<Result<IReadOnlyList<EmbeddedChunk>>> EmbedChunksAsync(
         IReadOnlyList<Chunk> chunks,
         CancellationToken cancellationToken = default);
 }

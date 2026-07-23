@@ -3,9 +3,9 @@ using System.Threading.Channels;
 using CodebaseIndexer.Application.Graph;
 using CodebaseIndexer.Application.Options;
 using CodebaseIndexer.Application.Search;
-using CodebaseIndexer.Domain.Exceptions;
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
+using CodebaseIndexer.Domain.Results;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -81,14 +81,14 @@ public sealed class IndexCodebaseService : IIndexCodebaseService, IIndexPipeline
     }
 
     /// <inheritdoc />
-    public Task<PipelineResult> RunAsync(
+    public Task<Result<PipelineResult>> RunAsync(
         string collection,
         string subPath,
         bool force,
         CancellationToken cancellationToken) =>
         RunPipelineAsync(collection, subPath, force, cancellationToken);
 
-    private async Task<PipelineResult> RunPipelineAsync(
+    private async Task<Result<PipelineResult>> RunPipelineAsync(
         string collection,
         string subPath,
         bool force,
@@ -96,7 +96,7 @@ public sealed class IndexCodebaseService : IIndexCodebaseService, IIndexPipeline
     {
         var stopwatch = Stopwatch.StartNew();
         var progress = new PipelineProgress();
-        var errors = new List<string>();
+        var errors = new List<Error>();
 
         await _vectorStore.EnsureCollectionAsync(collection, force, cancellationToken).ConfigureAwait(false);
         var existingMetadata = await _vectorStore.GetFileMetadataAsync(collection, cancellationToken).ConfigureAwait(false);
@@ -119,10 +119,17 @@ public sealed class IndexCodebaseService : IIndexCodebaseService, IIndexPipeline
 
                 collectionNames = names;
             }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "graph_schema_init_error");
-                errors.Add($"Graph schema init error: {ex.Message}");
+                errors.Add(new Error(
+                    ErrorKind.Dependency,
+                    IndexErrorCodes.GraphSchemaInit,
+                    $"Graph schema init error: {ex.Message}"));
                 graphActive = false;
             }
         }
@@ -168,18 +175,20 @@ public sealed class IndexCodebaseService : IIndexCodebaseService, IIndexPipeline
                         await _graphStore.DeleteFilesAsync(collection, stalePaths, cancellationToken)
                             .ConfigureAwait(false);
                     }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
                     catch (Exception ex)
                     {
                         _logger.LogError(ex, "graph_stale_delete_error");
-                        errors.Add($"Graph stale delete error: {ex.Message}");
+                        errors.Add(new Error(
+                            ErrorKind.Dependency,
+                            IndexErrorCodes.GraphStaleDelete,
+                            $"Graph stale delete error: {ex.Message}"));
                     }
                 }
             }
-        }
-        catch (IndexCancelledException ex)
-        {
-            errors.Add(ex.Message);
-            throw;
         }
         finally
         {
@@ -201,10 +210,17 @@ public sealed class IndexCodebaseService : IIndexCodebaseService, IIndexPipeline
                 await _vectorStore.SetCollectionGraphCallSitesAsync(collection, enabled: true, cancellationToken)
                     .ConfigureAwait(false);
             }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "graph_call_sites_metadata_error collection={Collection}", collection);
-                errors.Add($"Graph call-sites metadata error: {ex.Message}");
+                errors.Add(new Error(
+                    ErrorKind.Dependency,
+                    IndexErrorCodes.GraphCallSitesMetadata,
+                    $"Graph call-sites metadata error: {ex.Message}"));
             }
 
             try
@@ -212,21 +228,28 @@ public sealed class IndexCodebaseService : IIndexCodebaseService, IIndexPipeline
                 await _vectorStore.SetCollectionGraphEnabledAsync(collection, enabled: true, cancellationToken)
                     .ConfigureAwait(false);
             }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "graph_enabled_metadata_error collection={Collection}", collection);
-                errors.Add($"Graph enabled metadata error: {ex.Message}");
+                errors.Add(new Error(
+                    ErrorKind.Dependency,
+                    IndexErrorCodes.GraphEnabledMetadata,
+                    $"Graph enabled metadata error: {ex.Message}"));
             }
         }
 
         stopwatch.Stop();
-        return new PipelineResult(
+        return Result<PipelineResult>.Success(new PipelineResult(
             progress.TotalFiles,
             progress.IndexedFiles,
             progress.SkippedFiles,
             progress.TotalChunks,
             Math.Round(stopwatch.Elapsed.TotalSeconds, 2),
-            errors);
+            errors));
     }
 
     private async Task ParseFilesAsync(
@@ -310,7 +333,7 @@ public sealed class IndexCodebaseService : IIndexCodebaseService, IIndexPipeline
         ChannelReader<ChunkFlushBatch> reader,
         string collection,
         PipelineProgress progress,
-        List<string> errors,
+        List<Error> errors,
         bool graphActive,
         IReadOnlyList<string> collectionNames,
         CancellationToken cancellationToken)
@@ -325,9 +348,16 @@ public sealed class IndexCodebaseService : IIndexCodebaseService, IIndexPipeline
                 {
                     await inflightUpsert.ConfigureAwait(false);
                 }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
                 catch (Exception ex)
                 {
-                    errors.Add($"Upsert error: {ex.Message}");
+                    errors.Add(new Error(
+                        ErrorKind.Dependency,
+                        IndexErrorCodes.Upsert,
+                        $"Upsert error: {ex.Message}"));
                 }
             }
 
@@ -342,10 +372,17 @@ public sealed class IndexCodebaseService : IIndexCodebaseService, IIndexPipeline
                         await _graphStore.DeleteFilesAsync(collection, batch.ModifiedPaths, cancellationToken)
                             .ConfigureAwait(false);
                     }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
                     catch (Exception ex)
                     {
                         _logger.LogError(ex, "graph_delete_error");
-                        errors.Add($"Graph delete error: {ex.Message}");
+                        errors.Add(new Error(
+                            ErrorKind.Dependency,
+                            IndexErrorCodes.GraphDelete,
+                            $"Graph delete error: {ex.Message}"));
                     }
                 }
             }
@@ -355,17 +392,16 @@ public sealed class IndexCodebaseService : IIndexCodebaseService, IIndexPipeline
                 continue;
             }
 
-            try
+            var embedResult = await _embedder.EmbedChunksAsync(batch.Chunks, cancellationToken).ConfigureAwait(false);
+            if (!embedResult.IsSuccess)
             {
-                var embedded = await _embedder.EmbedChunksAsync(batch.Chunks, cancellationToken).ConfigureAwait(false);
-                progress.AddChunks(batch.Chunks.Count);
-                inflightUpsert = UpsertBatchesAsync(
-                    collection, embedded, graphActive, collectionNames, errors, cancellationToken);
+                errors.Add(embedResult.Error);
+                continue;
             }
-            catch (Exception ex)
-            {
-                errors.Add($"Batch embed/upsert error: {ex.Message}");
-            }
+
+            progress.AddChunks(batch.Chunks.Count);
+            inflightUpsert = UpsertBatchesAsync(
+                collection, embedResult.Value, graphActive, collectionNames, errors, cancellationToken);
         }
 
         if (inflightUpsert is not null)
@@ -379,7 +415,7 @@ public sealed class IndexCodebaseService : IIndexCodebaseService, IIndexPipeline
         IReadOnlyList<EmbeddedChunk> embedded,
         bool graphActive,
         IReadOnlyList<string> collectionNames,
-        List<string> errors,
+        List<Error> errors,
         CancellationToken cancellationToken)
     {
         GraphBatch? graphBatch = null;
@@ -400,7 +436,10 @@ public sealed class IndexCodebaseService : IIndexCodebaseService, IIndexPipeline
             catch (Exception ex)
             {
                 _logger.LogError(ex, "graph_batch_build_error");
-                errors.Add($"Graph batch build error: {ex.Message}");
+                errors.Add(new Error(
+                    ErrorKind.Dependency,
+                    IndexErrorCodes.GraphBatchBuild,
+                    $"Graph batch build error: {ex.Message}"));
             }
         }
 
@@ -429,10 +468,17 @@ public sealed class IndexCodebaseService : IIndexCodebaseService, IIndexPipeline
             {
                 await _graphStore.WriteBatchAsync(graphBatch, cancellationToken).ConfigureAwait(false);
             }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "graph_write_error");
-                errors.Add($"Graph write error: {ex.Message}");
+                errors.Add(new Error(
+                    ErrorKind.Dependency,
+                    IndexErrorCodes.GraphWrite,
+                    $"Graph write error: {ex.Message}"));
             }
         }
     }

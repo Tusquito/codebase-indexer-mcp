@@ -1,4 +1,5 @@
 using CodebaseIndexer.Domain.Models;
+using CodebaseIndexer.Domain.Results;
 
 namespace CodebaseIndexer.Application.Services;
 
@@ -11,11 +12,11 @@ public interface IIndexJobService
     /// <returns><see langword="true"/> if a job is active.</returns>
     ValueTask<bool> IsRunningAsync(string collection, CancellationToken cancellationToken = default);
 
-    /// <summary>Gets the job snapshot for a collection, if tracked.</summary>
+    /// <summary>Gets the job snapshot for a collection.</summary>
     /// <param name="collection">Target collection name.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Job snapshot, or <see langword="null"/> if not found.</returns>
-    ValueTask<IndexJobSnapshot?> GetJobAsync(string collection, CancellationToken cancellationToken = default);
+    /// <returns>Success with snapshot, or Failure <see cref="ErrorKind.NotFound"/> when not tracked.</returns>
+    ValueTask<Result<IndexJobSnapshot>> GetJobAsync(string collection, CancellationToken cancellationToken = default);
 
     /// <summary>Gets snapshots of all tracked jobs.</summary>
     /// <param name="cancellationToken">Cancellation token.</param>
@@ -25,14 +26,17 @@ public interface IIndexJobService
     /// <summary>Starts an index job for a collection.</summary>
     /// <param name="command">Start parameters.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Job snapshot after start (and optional wait).</returns>
-    Task<IndexJobSnapshot> StartAsync(IndexCodebaseCommand command, CancellationToken cancellationToken = default);
+    /// <returns>
+    /// Success with job snapshot after start (and optional wait),
+    /// or Failure <see cref="ErrorKind.Conflict"/> when a job is already running and wait is false.
+    /// </returns>
+    Task<Result<IndexJobSnapshot>> StartAsync(IndexCodebaseCommand command, CancellationToken cancellationToken = default);
 
     /// <summary>Requests cancellation of a running or queued job.</summary>
     /// <param name="collection">Target collection name.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Updated job snapshot, or <see langword="null"/> if not found.</returns>
-    ValueTask<IndexJobSnapshot?> CancelAsync(string collection, CancellationToken cancellationToken = default);
+    /// <returns>Success with updated snapshot, or Failure <see cref="ErrorKind.NotFound"/> when not tracked.</returns>
+    ValueTask<Result<IndexJobSnapshot>> CancelAsync(string collection, CancellationToken cancellationToken = default);
 
     /// <summary>Starts index jobs for all discovered collections.</summary>
     /// <param name="command">Index-all parameters.</param>

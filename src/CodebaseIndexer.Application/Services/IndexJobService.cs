@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
-using CodebaseIndexer.Domain.Exceptions;
 using CodebaseIndexer.Domain.Models;
+using CodebaseIndexer.Domain.Results;
 using Microsoft.Extensions.Logging;
 
 namespace CodebaseIndexer.Application.Services;
@@ -34,26 +34,38 @@ public sealed class IndexJobService : IIndexJobService
     }
 
     /// <inheritdoc />
-    public ValueTask<IndexJobSnapshot?> GetJobAsync(string collection, CancellationToken cancellationToken = default) =>
-        ValueTask.FromResult(_jobs.TryGetValue(collection, out var job) ? job.ToSnapshot() : null);
+    public ValueTask<Result<IndexJobSnapshot>> GetJobAsync(string collection, CancellationToken cancellationToken = default)
+    {
+        if (_jobs.TryGetValue(collection, out var job))
+        {
+            return ValueTask.FromResult(Result<IndexJobSnapshot>.Success(job.ToSnapshot()));
+        }
+
+        return ValueTask.FromResult(Result<IndexJobSnapshot>.Failure(new Error(
+            ErrorKind.NotFound,
+            IndexErrorCodes.JobNotFound,
+            $"No indexing job found for '{collection}'.")));
+    }
 
     /// <inheritdoc />
     public ValueTask<IReadOnlyList<IndexJobSnapshot>> GetAllJobsAsync(CancellationToken cancellationToken = default) =>
         ValueTask.FromResult<IReadOnlyList<IndexJobSnapshot>>(_jobs.Values.Select(j => j.ToSnapshot()).ToArray());
 
     /// <inheritdoc />
-    public async Task<IndexJobSnapshot> StartAsync(IndexCodebaseCommand command, CancellationToken cancellationToken = default)
+    public async Task<Result<IndexJobSnapshot>> StartAsync(IndexCodebaseCommand command, CancellationToken cancellationToken = default)
     {
         if (await IsRunningAsync(command.Collection, cancellationToken).ConfigureAwait(false))
         {
-            var existing = await GetJobAsync(command.Collection, cancellationToken).ConfigureAwait(false);
-            if (command.Wait && existing is not null && _jobs.TryGetValue(command.Collection, out var running))
+            if (command.Wait && _jobs.TryGetValue(command.Collection, out var running))
             {
                 await WaitForJobAsync(running, command.TimeoutSeconds, cancellationToken).ConfigureAwait(false);
-                return running.ToSnapshot();
+                return Result<IndexJobSnapshot>.Success(running.ToSnapshot());
             }
 
-            return existing ?? throw new InvalidOperationException($"Job '{command.Collection}' already running.");
+            return Result<IndexJobSnapshot>.Failure(new Error(
+                ErrorKind.Conflict,
+                IndexErrorCodes.JobAlreadyRunning,
+                $"Job '{command.Collection}' already running."));
         }
 
         var job = new IndexJobState
@@ -69,35 +81,39 @@ public sealed class IndexJobService : IIndexJobService
         job.RunTask = RunJobAsync(job);
         if (!command.Wait)
         {
-            return job.ToSnapshot();
+            return Result<IndexJobSnapshot>.Success(job.ToSnapshot());
         }
 
         await WaitForJobAsync(job, command.TimeoutSeconds, cancellationToken).ConfigureAwait(false);
-        return job.ToSnapshot();
+        return Result<IndexJobSnapshot>.Success(job.ToSnapshot());
     }
 
     /// <inheritdoc />
-    public ValueTask<IndexJobSnapshot?> CancelAsync(string collection, CancellationToken cancellationToken = default)
+    public ValueTask<Result<IndexJobSnapshot>> CancelAsync(string collection, CancellationToken cancellationToken = default)
     {
         if (!_jobs.TryGetValue(collection, out var job))
         {
-            return ValueTask.FromResult<IndexJobSnapshot?>(null);
+            return ValueTask.FromResult(Result<IndexJobSnapshot>.Failure(new Error(
+                ErrorKind.NotFound,
+                IndexErrorCodes.JobNotFound,
+                $"No indexing job found for '{collection}'.")));
         }
 
-        if (job.Status is not (IndexJobStatus.Queued or IndexJobStatus.Running))
+        if (job.Status is IndexJobStatus.Queued or IndexJobStatus.Running)
         {
-            return ValueTask.FromResult<IndexJobSnapshot?>(job.ToSnapshot());
+            job.Cancellation.Cancel();
         }
 
-        job.Cancellation.Cancel();
-        return ValueTask.FromResult<IndexJobSnapshot?>(job.ToSnapshot());
+        return ValueTask.FromResult(Result<IndexJobSnapshot>.Success(job.ToSnapshot()));
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<IndexJobSnapshot>> IndexAllAsync(IndexAllCommand command, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<IndexJobSnapshot>> IndexAllAsync(IndexAllCommand command, CancellationToken cancellationToken = default)
     {
         // Index-all discovers collections via job tracker + vector store list in tools layer.
-        return Array.Empty<IndexJobSnapshot>();
+        _ = command;
+        _ = cancellationToken;
+        return Task.FromResult<IReadOnlyList<IndexJobSnapshot>>([]);
     }
 
     internal async Task RunJobAsync(IndexJobState job)
@@ -105,23 +121,34 @@ public sealed class IndexJobService : IIndexJobService
         job.Status = IndexJobStatus.Running;
         try
         {
-            var result = await _indexer.RunAsync(
+            var pipelineResult = await _indexer.RunAsync(
                 job.Collection,
                 job.Path,
                 job.Force,
                 job.Cancellation.Token).ConfigureAwait(false);
-            job.Result = result;
-            job.Status = IndexJobStatus.Done;
+
+            pipelineResult.Match(
+                onSuccess: result =>
+                {
+                    job.Result = result;
+                    job.Status = IndexJobStatus.Done;
+                },
+                onFailure: error =>
+                {
+                    job.Status = IndexJobStatus.Failed;
+                    job.ErrorMessage = error.Message;
+                    _logger.LogError(
+                        "index_job_failed collection={Collection} code={Code} kind={Kind} message={Message}",
+                        job.Collection,
+                        error.Code,
+                        error.Kind,
+                        error.Message);
+                });
         }
         catch (OperationCanceledException)
         {
             job.Status = IndexJobStatus.Cancelled;
             job.ErrorMessage = "Indexing cancelled.";
-        }
-        catch (IndexCancelledException ex)
-        {
-            job.Status = IndexJobStatus.Cancelled;
-            job.ErrorMessage = ex.Message;
         }
         catch (Exception ex)
         {
