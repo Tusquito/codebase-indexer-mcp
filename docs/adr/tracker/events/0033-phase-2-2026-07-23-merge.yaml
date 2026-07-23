@@ -1,0 +1,29 @@
+adr_id: "0033"
+phase_key: phase-2
+phase_title: Phase 2 — Application + index/job ports
+event: merge
+date: "2026-07-23"
+tracker_status: merged
+choices: >-
+  Merge PR #50 (`60bb7e6`); branch `adr/0033-phase-2-app-index-ports`;
+  Accept skipped — already Accepted; release no. Project phase: Pre-release
+  (no backward compatibility unless ADR documents one); Docker integration
+  required; no schema migration version env vars.
+deviations: none
+code_evidence:
+  - >-
+    merged via [PR #50](https://github.com/Tusquito/codebase-indexer-mcp/pull/50)
+    (`adr/0033-phase-2-app-index-ports`;
+    `60bb7e637a9f736ed579323a2b2d59cb8917f0e5`)
+verify: >-
+  carried from verification — dotnet test CodebaseIndexer.slnx 286 passed;
+  Docker integration Verdict pass; plan compliance pass; quality skip;
+  review rounds: 1
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/50
+  commit: 60bb7e637a9f736ed579323a2b2d59cb8917f0e5
+  status: merged
+changelog:
+  update: false
+  reason: "invoker Changelog: no; merged status does not draft CHANGELOG"
+user_facing: true

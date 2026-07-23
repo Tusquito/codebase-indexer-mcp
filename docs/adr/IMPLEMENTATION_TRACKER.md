@@ -93,7 +93,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0032 | Phase 2 — Indexing + Qdrant | Merged — PR #46 (squash `6c02a7a`); Accept skipped for 0032 (already Accepted); Accept yes for 0033 → Accepted; Accept yes for 0034 → Accepted; release skipped | phase-2 | `merged` | Centralize Qdrant named-vector names via static DenseWire/SparseWire/ColbertWire from DomainEnumWire; expose GetNamedVectorWireMap for tests; ImportHeaderProcessor takes SourceLanguage (registry id via ToWire). NamedVector ↔ Qdrant `"dense"`/`"sparse"`/`"colbert"` via DomainEnumWire in QdrantVectorStore create/query/upsert/recommend (+ schema/retrieve/scroll); chunker/classifier → payload enum round-trip; unit tests; Docker compose integration; CHANGELOG full re-index after pull (no schema-version env); defer Phase 3 search/xref/health; do not implement 0033/0034 in this PR. | 2026-07-22 |
 | 0032 | Phase 3 — Search / cross-ref / health | — | phase-3 | `merged` | DomainMatchType alias for System.IO.MatchType; SearchService typing-only (no body edit); health check maps non-Ok → Unhealthy; ServiceMap edge types deferred. Wire MatchType/ReferenceType/LivenessStatus through CrossReferenceService, search/discovery DTOs, and McpHostHealthCheck via DomainEnumWire; extend ReferenceType with ServiceConfig/BuildDependency; move LivenessStatus to Domain; unit + Aspire Docker integration; defer 0033/0034 and 0026 P4 | 2026-07-22 |
 | 0033 | Phase 1 — Core types + conventions | Merged — 2026-07-23; PR #49 (`64c37bf`); Accept skipped — already Accepted; release no; Phases 2–3 deferred | phase-1 | `merged` | readonly struct Result/ResultT; sealed record Error; instance Match; Cancelled rare / prefer OCE; no Domain NuGet Result libs | 2026-07-23 |
-| 0033 | Phase 2 — Application + index/job ports | Verified — 2026-07-23; Phase 1 merged (PR #49); Accept skipped — already Accepted; Phase 3 deferred | phase-2 | `verified` | Completed pipeline runs return Result.Success with typed partial Errors; Host keeps one-off MCP DTOs (envelope in Phase 3); stop_indexing returns NotRunning for terminal jobs; exception-type deletion deferred to Phase 3 | 2026-07-23 |
+| 0033 | Phase 2 — Application + index/job ports | Merged — 2026-07-23 via PR #50; Accept skipped — already Accepted; Phase 3 deferred; release no | phase-2 | `merged` | Completed pipeline runs return Result.Success with typed partial Errors; Host keeps one-off MCP DTOs (envelope in Phase 3); stop_indexing returns NotRunning for terminal jobs; exception-type deletion deferred to Phase 3 | 2026-07-23 |
 | 0035 | Phase 1 — Wire pairing on Aspire path | Merged — PR #48 (`aa8ffa6`); Accepted (phase 1); accept docs `fe6b248`; release skipped | phase-1 | `merged` | TeiBatchTokenPairing defaults 1024; Aspire AppHost/compose set TEI_MAX_BATCH_TOKENS / Embedding__MaxDenseTokens; flat MAX_DENSE_EMBED_TOKENS mapped on Aspire; appsettings MaxDenseTokens: 0 retained for non-Aspire; fail-fast/registry/GPU Phase 2 deferred. Project phase: Pre-release (no backward compatibility unless ADR documents one); Docker integration required; no schema migration version env vars. | 2026-07-22 |
 <!-- END GENERATED:summary -->
 
@@ -102,7 +102,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 ## Active and upcoming work
 
 <!-- BEGIN GENERATED:active -->
-- **0033** Phase 2 — Application + index/job ports — `verified`
+_No active or upcoming phases._
 <!-- END GENERATED:active -->
 
 ### Partial acceptance
@@ -2390,6 +2390,16 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 - **Verify:** carried from verification — Domain.Tests 86 pass; full solution tests pass; Docker compose integration Verdict pass; plan compliance pass; Phases 2–3 deferred. Review rounds: 1.
 - **Git:** https://github.com/Tusquito/codebase-indexer-mcp/pull/49 — status: merged — commit: 64c37bf71c18e1a740bcc6a453cafdce30382802
 - **Changelog:** no — invoker Changelog: no; user-facing no
+
+#### 2026-07-23 — merge
+- **Phase:** Phase 2 — Application + index/job ports
+- **Tracker status:** `merged`
+- **Choices:** Merge PR #50 (`60bb7e6`); branch `adr/0033-phase-2-app-index-ports`; Accept skipped — already Accepted; release no. Project phase: Pre-release (no backward compatibility unless ADR documents one); Docker integration required; no schema migration version env vars.
+- **Deviations:** none
+- **Code evidence:** `merged via [PR #50](https://github.com/Tusquito/codebase-indexer-mcp/pull/50) (`adr/0033-phase-2-app-index-ports`; `60bb7e637a9f736ed579323a2b2d59cb8917f0e5`)`
+- **Verify:** carried from verification — dotnet test CodebaseIndexer.slnx 286 passed; Docker integration Verdict pass; plan compliance pass; quality skip; review rounds: 1
+- **Git:** https://github.com/Tusquito/codebase-indexer-mcp/pull/50 — status: merged — commit: 60bb7e637a9f736ed579323a2b2d59cb8917f0e5
+- **Changelog:** no — invoker Changelog: no; merged status does not draft CHANGELOG
 
 #### 2026-07-23 — implementation
 - **Phase:** Phase 1 — Core types + conventions
