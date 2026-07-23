@@ -1,0 +1,28 @@
+adr_id: "0033"
+phase_key: phase-2
+phase_title: Phase 2 — Application + index/job ports
+event: plan
+date: "2026-07-23"
+tracker_status: planned
+choices: >-
+  One PR = entire Phase 2; `IIndexPipeline` → `Task<Result<PipelineResult>>`
+  with Success-with-multiple-`Error`s for partial step failures;
+  `IIndexJobService` Start/Get/Cancel → `Result` (Conflict/NotFound);
+  `IIndexEmbeddingService.EmbedChunksAsync` → `Result` (memory pressure +
+  catch port exceptions); `PipelineResult`/`IndexJobSnapshot.Errors` →
+  `IReadOnlyList<Error>`; Host maps Result to existing `*Response` DTOs (no
+  unified envelope); leave Infrastructure port exceptions + exception-type
+  deletion to Phase 3; quality/perf skip; Accept after merge = no; final
+  phase = no; Docker required; xUnit retained. **Assumptions:** Phase 1
+  Domain Result types merged (PR #49); ADR 0033 already Accepted; pre-release
+  allows breaking job snapshot `errors[]` item shape and port signatures
+  without dual APIs; compose script remains Docker gate; no
+  config/env/re-index. Project phase policy: pre-release — no backward
+  compatibility requirement unless ADR documents one; Docker integration
+  always required; no schema migration version env vars.
+deviations: none
+changelog:
+  update: false
+  reason: "invoker Changelog: no; status planned; user-facing yes"
+user_facing: true
+open_decisions: []
