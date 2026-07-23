@@ -1,0 +1,29 @@
+adr_id: "0033"
+phase_key: phase-1
+phase_title: Phase 1 — Core types + conventions
+event: merge
+date: "2026-07-23"
+tracker_status: merged
+choices: >-
+  Merge PR #49 (`64c37bf`); branch `adr/0033-phase-1-result-pattern`;
+  Accept skipped — already Accepted; release no. Project phase: Pre-release
+  (no backward compatibility unless ADR documents one); Docker integration
+  required; no schema migration version env vars.
+deviations: none
+code_evidence:
+  - >-
+    merged via [PR #49](https://github.com/Tusquito/codebase-indexer-mcp/pull/49)
+    (`adr/0033-phase-1-result-pattern`;
+    `64c37bf71c18e1a740bcc6a453cafdce30382802`)
+verify: >-
+  carried from verification — Domain.Tests 86 pass; full solution tests pass;
+  Docker compose integration Verdict pass; plan compliance pass; Phases 2–3
+  deferred. Review rounds: 1.
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/49
+  commit: 64c37bf71c18e1a740bcc6a453cafdce30382802
+  status: merged
+changelog:
+  update: false
+  reason: "invoker Changelog: no; user-facing no"
+user_facing: false

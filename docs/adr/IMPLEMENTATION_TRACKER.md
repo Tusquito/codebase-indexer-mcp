@@ -92,7 +92,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0032 | Phase 1 — Domain enums + model/port signatures | Merged — PR #45 (`bc5506a`); Accept skipped (already Accepted in PR); release skipped | phase-1 | `merged` | Phase 1 only; wire strings unchanged via `DomainEnumWire` + `JsonStringEnumMemberName`; sibling enums declare-only; NamedVector/Qdrant named-vector literals and MatchType/ReferenceType/LivenessStatus wiring deferred to Phases 2–3; no `*_SCHEMA_VERSION`; Changelog deferred per plan | 2026-07-22 |
 | 0032 | Phase 2 — Indexing + Qdrant | Merged — PR #46 (squash `6c02a7a`); Accept skipped for 0032 (already Accepted); Accept yes for 0033 → Accepted; Accept yes for 0034 → Accepted; release skipped | phase-2 | `merged` | Centralize Qdrant named-vector names via static DenseWire/SparseWire/ColbertWire from DomainEnumWire; expose GetNamedVectorWireMap for tests; ImportHeaderProcessor takes SourceLanguage (registry id via ToWire). NamedVector ↔ Qdrant `"dense"`/`"sparse"`/`"colbert"` via DomainEnumWire in QdrantVectorStore create/query/upsert/recommend (+ schema/retrieve/scroll); chunker/classifier → payload enum round-trip; unit tests; Docker compose integration; CHANGELOG full re-index after pull (no schema-version env); defer Phase 3 search/xref/health; do not implement 0033/0034 in this PR. | 2026-07-22 |
 | 0032 | Phase 3 — Search / cross-ref / health | — | phase-3 | `merged` | DomainMatchType alias for System.IO.MatchType; SearchService typing-only (no body edit); health check maps non-Ok → Unhealthy; ServiceMap edge types deferred. Wire MatchType/ReferenceType/LivenessStatus through CrossReferenceService, search/discovery DTOs, and McpHostHealthCheck via DomainEnumWire; extend ReferenceType with ServiceConfig/BuildDependency; move LivenessStatus to Domain; unit + Aspire Docker integration; defer 0033/0034 and 0026 P4 | 2026-07-22 |
-| 0033 | Phase 1 — Core types + conventions | Verified — 2026-07-23; Domain.Tests 86 pass; full solution tests pass; Docker compose integration Verdict pass; plan compliance pass; Phases 2–3 deferred | phase-1 | `verified` | readonly struct Result/ResultT; sealed record Error; instance Match; Cancelled rare / prefer OCE; no Domain NuGet Result libs | 2026-07-23 |
+| 0033 | Phase 1 — Core types + conventions | Merged — 2026-07-23; PR #49 (`64c37bf`); Accept skipped — already Accepted; release no; Phases 2–3 deferred | phase-1 | `merged` | readonly struct Result/ResultT; sealed record Error; instance Match; Cancelled rare / prefer OCE; no Domain NuGet Result libs | 2026-07-23 |
 | 0035 | Phase 1 — Wire pairing on Aspire path | Merged — PR #48 (`aa8ffa6`); Accepted (phase 1); accept docs `fe6b248`; release skipped | phase-1 | `merged` | TeiBatchTokenPairing defaults 1024; Aspire AppHost/compose set TEI_MAX_BATCH_TOKENS / Embedding__MaxDenseTokens; flat MAX_DENSE_EMBED_TOKENS mapped on Aspire; appsettings MaxDenseTokens: 0 retained for non-Aspire; fail-fast/registry/GPU Phase 2 deferred. Project phase: Pre-release (no backward compatibility unless ADR documents one); Docker integration required; no schema migration version env vars. | 2026-07-22 |
 <!-- END GENERATED:summary -->
 
@@ -101,7 +101,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 ## Active and upcoming work
 
 <!-- BEGIN GENERATED:active -->
-- **0033** Phase 1 — Core types + conventions — `verified`
+_No active or upcoming phases._
 <!-- END GENERATED:active -->
 
 ### Partial acceptance
@@ -2355,6 +2355,16 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 - **Choices:** One PR = entire Phase 1; finish interrupted Domain Results baseline rather than rewrite; representation stays `readonly struct` + `sealed record` + instance `Match` (optional `ResultExtensions` only if needed); keep Domain PackageReference-free; leave `Exceptions/*` and `PipelineResult.Errors` strings and Host `*ErrorResponse` intact; xUnit this cycle (defer 0034); Docker smoke without quality/perf; Accept after merge = no (already Accepted); final phase = no. Assumptions: ADR 0030 .NET Domain is production SoT; ADR 0033 already Accepted (no Accept work); pre-release allows introducing types now and breaking port/tool APIs in later phases without dual stacks; unused types do not change MCP JSON this phase; compose integration script remains the Docker gate; no config/env/re-index for Phase 1. Project phase policy: pre-release — no backward compatibility requirement unless ADR documents one; Docker integration always required; quality validation when required; no schema migration version env vars.
 - **Deviations:** none
 - **Changelog:** no — invoker Changelog: no; status planned; user-facing no
+
+#### 2026-07-23 — merge
+- **Phase:** Phase 1 — Core types + conventions
+- **Tracker status:** `merged`
+- **Choices:** Merge PR #49 (`64c37bf`); branch `adr/0033-phase-1-result-pattern`; Accept skipped — already Accepted; release no. Project phase: Pre-release (no backward compatibility unless ADR documents one); Docker integration required; no schema migration version env vars.
+- **Deviations:** none
+- **Code evidence:** `merged via [PR #49](https://github.com/Tusquito/codebase-indexer-mcp/pull/49) (`adr/0033-phase-1-result-pattern`; `64c37bf71c18e1a740bcc6a453cafdce30382802`)`
+- **Verify:** carried from verification — Domain.Tests 86 pass; full solution tests pass; Docker compose integration Verdict pass; plan compliance pass; Phases 2–3 deferred. Review rounds: 1.
+- **Git:** https://github.com/Tusquito/codebase-indexer-mcp/pull/49 — status: merged — commit: 64c37bf71c18e1a740bcc6a453cafdce30382802
+- **Changelog:** no — invoker Changelog: no; user-facing no
 
 #### 2026-07-23 — implementation
 - **Phase:** Phase 1 — Core types + conventions

@@ -1,12 +1,12 @@
 adr_id: "0033"
 phase_key: phase-1
 title: Phase 1 — Core types + conventions
-tracker_status: verified
+tracker_status: merged
 chosen_scope: >-
   readonly struct Result/ResultT; sealed record Error; instance Match;
   Cancelled rare / prefer OCE; no Domain NuGet Result libs
 last_updated: "2026-07-23"
+pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/49
 adr_status_note: >-
-  Verified — 2026-07-23; Domain.Tests 86 pass; full solution tests pass;
-  Docker compose integration Verdict pass; plan compliance pass; Phases 2–3
-  deferred
+  Merged — 2026-07-23; PR #49 (`64c37bf`); Accept skipped — already Accepted;
+  release no; Phases 2–3 deferred
