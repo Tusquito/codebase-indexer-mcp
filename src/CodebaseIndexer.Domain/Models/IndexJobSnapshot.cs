@@ -1,3 +1,5 @@
+using CodebaseIndexer.Domain.Results;
+
 namespace CodebaseIndexer.Domain.Models;
 
 /// <summary>Point-in-time snapshot of an indexing job's progress and outcome.</summary>
@@ -9,7 +11,7 @@ namespace CodebaseIndexer.Domain.Models;
 /// <param name="IndexedFiles">Files successfully indexed in this run.</param>
 /// <param name="SkippedFiles">Files skipped because they were unchanged.</param>
 /// <param name="TotalChunks">Total chunks written during indexing.</param>
-/// <param name="Errors">Per-file or per-step error messages collected during the run.</param>
+/// <param name="Errors">Typed per-file or per-step errors collected during the run.</param>
 /// <param name="ErrorMessage">Top-level failure message when the job terminates abnormally.</param>
 public sealed record IndexJobSnapshot(
     string Collection,
@@ -20,7 +22,7 @@ public sealed record IndexJobSnapshot(
     int IndexedFiles,
     int SkippedFiles,
     int TotalChunks,
-    IReadOnlyList<string> Errors,
+    IReadOnlyList<Error> Errors,
     string ErrorMessage = "")
 {
     /// <summary>Name of the collection being indexed.</summary>
@@ -47,8 +49,8 @@ public sealed record IndexJobSnapshot(
     /// <summary>Total chunks written during indexing.</summary>
     public int TotalChunks { get; init; } = TotalChunks;
 
-    /// <summary>Per-file or per-step error messages collected during the run.</summary>
-    public IReadOnlyList<string> Errors { get; init; } = Errors;
+    /// <summary>Typed per-file or per-step errors collected during the run.</summary>
+    public IReadOnlyList<Error> Errors { get; init; } = Errors;
 
     /// <summary>Top-level failure message when the job terminates abnormally.</summary>
     public string ErrorMessage { get; init; } = ErrorMessage;
