@@ -17,6 +17,10 @@ public sealed class DomainLayerTests
         Assert.DoesNotContain("CodebaseIndexer.Infrastructure", referencedAssemblies);
         Assert.DoesNotContain("Qdrant.Client", referencedAssemblies);
         Assert.DoesNotContain("Refit", referencedAssemblies);
+        // ADR 0033: Domain-owned Result — no FluentResults / ErrorOr / OneOf NuGet in Domain.
+        Assert.DoesNotContain("FluentResults", referencedAssemblies);
+        Assert.DoesNotContain("ErrorOr", referencedAssemblies);
+        Assert.DoesNotContain("OneOf", referencedAssemblies);
     }
 
     /// <summary><see cref="Chunk"/> is a sealed record with clone support.</summary>
