@@ -1,0 +1,35 @@
+adr_id: "0033"
+phase_key: phase-1
+phase_title: Phase 1 — Core types + conventions
+event: prioritization
+date: "2026-07-23"
+tracker_status: candidate
+choices: >-
+  Prefer finish 0033 P1 (~32.5) over 0026 P4 (~28, GPU-blocked/session), over
+  0034 P1 (~25.5), over 0031 P2 / 0035 P2 (~23.5), over Proposed 0027 (~21.5,
+  needs Accept); single phase per pipeline rule; no ADR Accept required (0033
+  already Accepted). Reaffirmation of 2026-07-22 prioritization with updated
+  evidence that implementation has started but not shipped. **Why now:** Active
+  tracker already has 0033 P1 `planned`; Domain `Result`/`Error` types and
+  `ResultTests` exist but phase not merged; 0030/0032 complete; ports still
+  throw/`*ErrorResponse`; finishing P1 unlocks typed Application/MCP migration
+  without Accept work. **Suggested scope:** one phase (= one PR). **Chosen
+  scope:** Finish ADR 0033 Phase 1 only — Domain `Result` / `Result<T>` /
+  `Error` / `ErrorKind` under `src/CodebaseIndexer.Domain/Results/` (one type
+  per file; `readonly struct` Results + `sealed record` Error per locked plan);
+  XML failure-vs-exception policy; unit tests success/failure/`Match`; Docker
+  compose integration required; do not migrate Application ports, Infrastructure
+  adapters, MCP tools, or delete domain exceptions / Host one-off error DTOs
+  (Phases 2–3); Quality skip / Perf skip; Changelog no. Defer 0034 P1, 0026 P4,
+  0031 P2, 0035 P2, 0027.
+deviations: none
+changelog:
+  update: false
+  reason: "user-facing unknown; invoker Changelog: no"
+user_facing: false
+open_decisions:
+  - >-
+    Proceed finish 0033 Phase 1 this cycle? → RESOLVED by invoker 2026-07-23:
+    Yes — finish ADR 0033 Phase 1 this cycle. Remaining out-of-scope items
+    (Prefer 0034 instead; After P1 ordering; NVIDIA GPU for 0026 P4; Accept
+    0027) not blocking this phase.

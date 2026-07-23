@@ -1,0 +1,27 @@
+adr_id: "0033"
+phase_key: phase-1
+phase_title: Phase 1 — Core types + conventions
+event: plan
+date: "2026-07-23"
+tracker_status: planned
+choices: >-
+  One PR = entire Phase 1; finish interrupted Domain Results baseline rather
+  than rewrite; representation stays `readonly struct` + `sealed record` +
+  instance `Match` (optional `ResultExtensions` only if needed); keep Domain
+  PackageReference-free; leave `Exceptions/*` and `PipelineResult.Errors`
+  strings and Host `*ErrorResponse` intact; xUnit this cycle (defer 0034);
+  Docker smoke without quality/perf; Accept after merge = no (already
+  Accepted); final phase = no. Assumptions: ADR 0030 .NET Domain is production
+  SoT; ADR 0033 already Accepted (no Accept work); pre-release allows
+  introducing types now and breaking port/tool APIs in later phases without
+  dual stacks; unused types do not change MCP JSON this phase; compose
+  integration script remains the Docker gate; no config/env/re-index for Phase
+  1. Project phase policy: pre-release — no backward compatibility requirement
+  unless ADR documents one; Docker integration always required; quality
+  validation when required; no schema migration version env vars.
+deviations: none
+changelog:
+  update: false
+  reason: "invoker Changelog: no; status planned; user-facing no"
+user_facing: false
+open_decisions: []

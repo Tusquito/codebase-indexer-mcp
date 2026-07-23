@@ -92,6 +92,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0032 | Phase 1 — Domain enums + model/port signatures | Merged — PR #45 (`bc5506a`); Accept skipped (already Accepted in PR); release skipped | phase-1 | `merged` | Phase 1 only; wire strings unchanged via `DomainEnumWire` + `JsonStringEnumMemberName`; sibling enums declare-only; NamedVector/Qdrant named-vector literals and MatchType/ReferenceType/LivenessStatus wiring deferred to Phases 2–3; no `*_SCHEMA_VERSION`; Changelog deferred per plan | 2026-07-22 |
 | 0032 | Phase 2 — Indexing + Qdrant | Merged — PR #46 (squash `6c02a7a`); Accept skipped for 0032 (already Accepted); Accept yes for 0033 → Accepted; Accept yes for 0034 → Accepted; release skipped | phase-2 | `merged` | Centralize Qdrant named-vector names via static DenseWire/SparseWire/ColbertWire from DomainEnumWire; expose GetNamedVectorWireMap for tests; ImportHeaderProcessor takes SourceLanguage (registry id via ToWire). NamedVector ↔ Qdrant `"dense"`/`"sparse"`/`"colbert"` via DomainEnumWire in QdrantVectorStore create/query/upsert/recommend (+ schema/retrieve/scroll); chunker/classifier → payload enum round-trip; unit tests; Docker compose integration; CHANGELOG full re-index after pull (no schema-version env); defer Phase 3 search/xref/health; do not implement 0033/0034 in this PR. | 2026-07-22 |
 | 0032 | Phase 3 — Search / cross-ref / health | — | phase-3 | `merged` | DomainMatchType alias for System.IO.MatchType; SearchService typing-only (no body edit); health check maps non-Ok → Unhealthy; ServiceMap edge types deferred. Wire MatchType/ReferenceType/LivenessStatus through CrossReferenceService, search/discovery DTOs, and McpHostHealthCheck via DomainEnumWire; extend ReferenceType with ServiceConfig/BuildDependency; move LivenessStatus to Domain; unit + Aspire Docker integration; defer 0033/0034 and 0026 P4 | 2026-07-22 |
+| 0033 | Phase 1 — Core types + conventions | Verified — 2026-07-23; Domain.Tests 86 pass; full solution tests pass; Docker compose integration Verdict pass; plan compliance pass; Phases 2–3 deferred | phase-1 | `verified` | readonly struct Result/ResultT; sealed record Error; instance Match; Cancelled rare / prefer OCE; no Domain NuGet Result libs | 2026-07-23 |
 | 0035 | Phase 1 — Wire pairing on Aspire path | Merged — PR #48 (`aa8ffa6`); Accepted (phase 1); accept docs `fe6b248`; release skipped | phase-1 | `merged` | TeiBatchTokenPairing defaults 1024; Aspire AppHost/compose set TEI_MAX_BATCH_TOKENS / Embedding__MaxDenseTokens; flat MAX_DENSE_EMBED_TOKENS mapped on Aspire; appsettings MaxDenseTokens: 0 retained for non-Aspire; fail-fast/registry/GPU Phase 2 deferred. Project phase: Pre-release (no backward compatibility unless ADR documents one); Docker integration required; no schema migration version env vars. | 2026-07-22 |
 <!-- END GENERATED:summary -->
 
@@ -100,7 +101,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 ## Active and upcoming work
 
 <!-- BEGIN GENERATED:active -->
-_No active or upcoming phases._
+- **0033** Phase 1 — Core types + conventions — `verified`
 <!-- END GENERATED:active -->
 
 ### Partial acceptance
@@ -2329,6 +2330,55 @@ _No active or upcoming phases._
 - **Test debt:** link-summary enum cases; unhealthy JSON writer; classifier enum matrix; Docker compose step 3.5
 - **Changelog:** no — invoker Changelog: no; status implemented (changelog at verified if user-facing)
 
+### ADR 0033 — Phase 1 — Core types + conventions
+
+#### 2026-07-23 — verification
+- **Phase:** Phase 1 — Core types + conventions
+- **Tracker status:** `verified`
+- **Choices:** readonly struct Result/ResultT; sealed record Error; instance Match; Cancelled rare / prefer OCE; no Domain NuGet Result libs
+- **Deviations:** none
+- **Code evidence:** `src/CodebaseIndexer.Domain/Results/ErrorKind.cs`, `src/CodebaseIndexer.Domain/Results/Error.cs`, `src/CodebaseIndexer.Domain/Results/Result.cs`, `src/CodebaseIndexer.Domain/Results/ResultT.cs`, `test/CodebaseIndexer.Domain.Tests/ResultTests.cs`, `test/CodebaseIndexer.Domain.Tests/DomainLayerTests.cs`
+- **Test debt:** optional Match-on-default coverage; optional clearer default Value exception message (suggestions only)
+- **Verify:** Domain.Tests 86 pass; full dotnet test CodebaseIndexer.slnx pass; Docker compose integration Verdict pass; plan compliance pass; review rounds: 1
+- **Changelog:** no — invoker Changelog: no; user-facing no
+
+#### 2026-07-23 — prioritization
+- **Phase:** Phase 1 — Core types + conventions
+- **Tracker status:** `candidate`
+- **Choices:** Prefer finish 0033 P1 (~32.5) over 0026 P4 (~28, GPU-blocked/session), over 0034 P1 (~25.5), over 0031 P2 / 0035 P2 (~23.5), over Proposed 0027 (~21.5, needs Accept); single phase per pipeline rule; no ADR Accept required (0033 already Accepted). Reaffirmation of 2026-07-22 prioritization with updated evidence that implementation has started but not shipped. **Why now:** Active tracker already has 0033 P1 `planned`; Domain `Result`/`Error` types and `ResultTests` exist but phase not merged; 0030/0032 complete; ports still throw/`*ErrorResponse`; finishing P1 unlocks typed Application/MCP migration without Accept work. **Suggested scope:** one phase (= one PR). **Chosen scope:** Finish ADR 0033 Phase 1 only — Domain `Result` / `Result<T>` / `Error` / `ErrorKind` under `src/CodebaseIndexer.Domain/Results/` (one type per file; `readonly struct` Results + `sealed record` Error per locked plan); XML failure-vs-exception policy; unit tests success/failure/`Match`; Docker compose integration required; do not migrate Application ports, Infrastructure adapters, MCP tools, or delete domain exceptions / Host one-off error DTOs (Phases 2–3); Quality skip / Perf skip; Changelog no. Defer 0034 P1, 0026 P4, 0031 P2, 0035 P2, 0027.
+- **Deviations:** none
+- **Changelog:** no — user-facing unknown; invoker Changelog: no
+
+#### 2026-07-23 — plan
+- **Phase:** Phase 1 — Core types + conventions
+- **Tracker status:** `planned`
+- **Choices:** One PR = entire Phase 1; finish interrupted Domain Results baseline rather than rewrite; representation stays `readonly struct` + `sealed record` + instance `Match` (optional `ResultExtensions` only if needed); keep Domain PackageReference-free; leave `Exceptions/*` and `PipelineResult.Errors` strings and Host `*ErrorResponse` intact; xUnit this cycle (defer 0034); Docker smoke without quality/perf; Accept after merge = no (already Accepted); final phase = no. Assumptions: ADR 0030 .NET Domain is production SoT; ADR 0033 already Accepted (no Accept work); pre-release allows introducing types now and breaking port/tool APIs in later phases without dual stacks; unused types do not change MCP JSON this phase; compose integration script remains the Docker gate; no config/env/re-index for Phase 1. Project phase policy: pre-release — no backward compatibility requirement unless ADR documents one; Docker integration always required; quality validation when required; no schema migration version env vars.
+- **Deviations:** none
+- **Changelog:** no — invoker Changelog: no; status planned; user-facing no
+
+#### 2026-07-23 — implementation
+- **Phase:** Phase 1 — Core types + conventions
+- **Tracker status:** `implemented`
+- **Choices:** readonly struct Result/Result<T>; sealed record Error; instance Match (no ResultExtensions); Domain-owned (no FluentResults/ErrorOr/OneOf)
+- **Deviations:** Docker compose integration not run in developer smoke (deferred to adr-integration-tester)
+- **Code evidence:** `src/CodebaseIndexer.Domain/Results/ErrorKind.cs`, `src/CodebaseIndexer.Domain/Results/Error.cs`, `src/CodebaseIndexer.Domain/Results/Result.cs`, `src/CodebaseIndexer.Domain/Results/ResultT.cs`, `test/CodebaseIndexer.Domain.Tests/ResultTests.cs`, `test/CodebaseIndexer.Domain.Tests/DomainLayerTests.cs`
+- **Test debt:** Phase 2–3 boundary/adapter/MCP envelope tests not added (out of scope); optional default-Match edge case low priority
+- **Changelog:** no — invoker Changelog: no; status implemented; user-facing no
+
+#### 2026-07-22 — prioritization
+- **Phase:** Phase 1 — Core types + conventions
+- **Tracker status:** `candidate`
+- **Choices:** Prefer 0033 P1 over 0034 P1 (~27), over Proposed 0027 (~24, needs Accept), over 0031 P2 / 0035 P2, over 0026 P4 (registry/GPU blocked); single phase per pipeline rule; no ADR Accept required (0033 already Accepted). **Why now:** ADR 0032 Phases 1–3 merged; Active tracker empty; prior prioritization deferred 0033 behind 0032; zero Result types in Domain while EmbeddingException/VectorStoreException and IndexJobNotFoundResponse remain; Accepted with clear Phase 1 validation; unlocks typed expected-failure path for Application/MCP without Accept work. **Suggested scope:** one phase (= one PR). **Chosen scope:** Add Domain `Result` / `Result<T>` / `Error` / `ErrorKind` (one type per file) + failure-vs-exception policy docs + unit tests for success/failure/`Match`; pick struct vs class in-phase; do not migrate Application ports or MCP tools (Phases 2–3); Docker integration required; defer 0034, 0031 P2, 0035 P2, 0026 P4, 0027.
+- **Deviations:** none
+- **Changelog:** no — user-facing unknown; invoker Changelog: no
+
+#### 2026-07-22 — plan
+- **Phase:** Phase 1 — Core types + conventions
+- **Tracker status:** `planned`
+- **Choices:** One PR = entire Phase 1; `readonly struct` Result + `sealed record` Error; instance `Match` on Result types (optional `ResultExtensions` only if needed); keep Domain PackageReference-free (no FluentResults/ErrorOr); leave `Exceptions/*` and `PipelineResult.Errors` strings intact; xUnit tests this cycle (defer 0034); Docker smoke without quality/perf; Accept after merge = no (already Accepted); final phase = no. Assumptions: ADR 0030 .NET Domain is production SoT; ADR 0033 already Accepted (no Accept work); pre-release allows introducing breaking APIs later without dual stacks; unused types do not change MCP JSON this phase; compose integration script remains the Docker gate; no config/env/re-index for Phase 1. Project phase policy: pre-release — no backward compatibility requirement unless ADR documents one; Docker integration always required; quality validation when required; no schema migration version env vars.
+- **Deviations:** none
+- **Changelog:** no — invoker Changelog: no; status planned; user-facing no
+
 ### ADR 0035 — Phase 1 — Wire pairing on Aspire path
 
 #### 2026-07-22 — verification
@@ -2448,6 +2498,10 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 - RESOLVED — (1) Accept ADR 0032 + implement Phase 1 — yes
 - RESOLVED — (2) Prefer 0033 P1 — no
 - RESOLVED — (4) Accept 0033 docs-only — defer
+- Proceed with 0033 Phase 1 this cycle?
+- Prefer 0034 Phase 1 instead?
+- NVIDIA GPU available for a later 0026 Phase 4?
+- Proceed finish 0033 Phase 1 this cycle? → RESOLVED by invoker 2026-07-23: Yes — finish ADR 0033 Phase 1 this cycle. Remaining out-of-scope items (Prefer 0034 instead; After P1 ordering; NVIDIA GPU for 0026 P4; Accept 0027) not blocking this phase.
 - RESOLVED — Accept ADR 0035 this cycle: yes
 <!-- END GENERATED:open-decisions -->
 
