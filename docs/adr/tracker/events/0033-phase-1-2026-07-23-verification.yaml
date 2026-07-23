@@ -1,0 +1,27 @@
+adr_id: "0033"
+phase_key: phase-1
+phase_title: Phase 1 — Core types + conventions
+event: verification
+date: "2026-07-23"
+tracker_status: verified
+choices: >-
+  readonly struct Result/ResultT; sealed record Error; instance Match;
+  Cancelled rare / prefer OCE; no Domain NuGet Result libs
+deviations: none
+code_evidence:
+  - src/CodebaseIndexer.Domain/Results/ErrorKind.cs
+  - src/CodebaseIndexer.Domain/Results/Error.cs
+  - src/CodebaseIndexer.Domain/Results/Result.cs
+  - src/CodebaseIndexer.Domain/Results/ResultT.cs
+  - test/CodebaseIndexer.Domain.Tests/ResultTests.cs
+  - test/CodebaseIndexer.Domain.Tests/DomainLayerTests.cs
+test_debt:
+  - optional Match-on-default coverage
+  - optional clearer default Value exception message (suggestions only)
+verify: >-
+  Domain.Tests 86 pass; full dotnet test CodebaseIndexer.slnx pass; Docker
+  compose integration Verdict pass; plan compliance pass; review rounds: 1
+changelog:
+  update: false
+  reason: "invoker Changelog: no; user-facing no"
+user_facing: false

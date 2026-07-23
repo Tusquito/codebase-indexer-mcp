@@ -1,0 +1,26 @@
+adr_id: "0033"
+phase_key: phase-1
+phase_title: Phase 1 — Core types + conventions
+event: implementation
+date: "2026-07-23"
+tracker_status: implemented
+choices: >-
+  readonly struct Result/Result<T>; sealed record Error; instance Match (no
+  ResultExtensions); Domain-owned (no FluentResults/ErrorOr/OneOf)
+deviations: >-
+  Docker compose integration not run in developer smoke (deferred to
+  adr-integration-tester)
+code_evidence:
+  - src/CodebaseIndexer.Domain/Results/ErrorKind.cs
+  - src/CodebaseIndexer.Domain/Results/Error.cs
+  - src/CodebaseIndexer.Domain/Results/Result.cs
+  - src/CodebaseIndexer.Domain/Results/ResultT.cs
+  - test/CodebaseIndexer.Domain.Tests/ResultTests.cs
+  - test/CodebaseIndexer.Domain.Tests/DomainLayerTests.cs
+test_debt:
+  - Phase 2–3 boundary/adapter/MCP envelope tests not added (out of scope)
+  - optional default-Match edge case low priority
+changelog:
+  update: false
+  reason: "invoker Changelog: no; status implemented; user-facing no"
+user_facing: false
