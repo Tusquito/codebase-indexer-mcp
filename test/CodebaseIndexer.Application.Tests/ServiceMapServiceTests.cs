@@ -6,22 +6,23 @@ using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
 using MsOptions = Microsoft.Extensions.Options.Options;
 using CodebaseIndexer.Domain.Results;
+using System.Threading.Tasks;
 
 namespace CodebaseIndexer.Application.Tests;
 
 /// <summary>Contract tests for map_service_dependencies.</summary>
 public sealed class ServiceMapServiceTests
 {
-    [Fact]
+    [Test]
     public async Task MapServiceDependencies_errors_with_fewer_than_two_collections()
     {
         var service = CreateService(new FakeStore(["only-one"]));
         var result = await service.MapServiceDependenciesAsync(["only-one"]);
-        Assert.False(result.IsSuccess);
-        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+        await Assert.That(result.IsSuccess).IsFalse();
+        await Assert.That(result.Error.Kind).IsEqualTo(ErrorKind.Validation);
     }
 
-    [Fact]
+    [Test]
     public async Task MapServiceDependencies_builds_http_call_edges_from_hits()
     {
         var store = new FakeStore(["svc-a", "svc-b"])
@@ -48,9 +49,9 @@ public sealed class ServiceMapServiceTests
         };
         var service = CreateService(store);
         var result = await service.MapServiceDependenciesAsync(["svc-a", "svc-b"], topK: 5);
-        Assert.True(result.IsSuccess);
-        var response = Assert.IsType<ServiceMapResponse>(result.Value);
-        Assert.Contains(response.Edges, e => e.Type == "http_call");
+        await Assert.That(result.IsSuccess).IsTrue();
+        var response = await Assert.That(result.Value).IsTypeOf<ServiceMapResponse>();
+        await Assert.That(response!.Edges).Contains(e => e.Type == "http_call");
     }
 
     private static ServiceMapService CreateService(FakeStore store) =>

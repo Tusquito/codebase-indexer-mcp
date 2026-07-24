@@ -3,6 +3,7 @@ using CodebaseIndexer.Infrastructure.Tei;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Refit;
+using System.Threading.Tasks;
 
 namespace CodebaseIndexer.Infrastructure.Tests;
 
@@ -10,7 +11,7 @@ namespace CodebaseIndexer.Infrastructure.Tests;
 public sealed class TeiDenseEmbedderSmokeTests
 {
     /// <summary>EmbedBatchAsync returns empty for empty input.</summary>
-    [Fact]
+    [Test]
     public async Task EmbedBatch_returns_empty_for_empty_input()
     {
         var handler = new StubTeiHandler();
@@ -25,12 +26,12 @@ public sealed class TeiDenseEmbedderSmokeTests
         using var provider = services.BuildServiceProvider();
         var embedder = provider.GetRequiredService<TeiDenseEmbedder>();
         var result = await embedder.EmbedBatchAsync([]);
-        Assert.True(result.IsSuccess);
-        Assert.Empty(result.Value);
+        await Assert.That(result.IsSuccess).IsTrue();
+        await Assert.That(result.Value).IsEmpty();
     }
 
     /// <summary>PreloadAsync calls health and embeddings endpoints via Refit.</summary>
-    [Fact]
+    [Test]
     public async Task PreloadAsync_uses_refit_health_and_embeddings()
     {
         var handler = new StubTeiHandler();
@@ -46,9 +47,9 @@ public sealed class TeiDenseEmbedderSmokeTests
         var embedder = provider.GetRequiredService<TeiDenseEmbedder>();
         await embedder.PreloadAsync();
 
-        Assert.True(embedder.IsLoaded);
-        Assert.Equal(1, handler.HealthCallCount);
-        Assert.Equal(1, handler.EmbeddingsCallCount);
+        await Assert.That(embedder.IsLoaded).IsTrue();
+        await Assert.That(handler.HealthCallCount).IsEqualTo(1);
+        await Assert.That(handler.EmbeddingsCallCount).IsEqualTo(1);
     }
 
     private static ITeiEmbeddingsApi CreateTeiApi(HttpMessageHandler handler)

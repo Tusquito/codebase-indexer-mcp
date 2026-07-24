@@ -2,6 +2,7 @@ using CodebaseIndexer.Application.Options;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using System.Threading.Tasks;
 
 namespace CodebaseIndexer.Application.Tests;
 
@@ -9,8 +10,8 @@ namespace CodebaseIndexer.Application.Tests;
 public sealed class FluentValidateOptionsTests
 {
     /// <summary>Validate-on-start throws <see cref="OptionsValidationException"/> with FluentValidation message format.</summary>
-    [Fact]
-    public void ValidateOnStart_uses_fluent_validation_error_format()
+    [Test]
+    public async Task ValidateOnStart_uses_fluent_validation_error_format()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -35,6 +36,6 @@ public sealed class FluentValidateOptionsTests
         var exception = Assert.Throws<OptionsValidationException>(() =>
             _ = provider.GetRequiredService<IOptions<EmbeddingOptions>>().Value);
 
-        Assert.Contains("Validation failed for EmbeddingOptions.DenseModel", exception.Message, StringComparison.Ordinal);
+        await Assert.That(exception.Message).Contains("Validation failed for EmbeddingOptions.DenseModel");
     }
 }

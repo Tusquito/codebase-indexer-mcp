@@ -8,7 +8,7 @@ namespace CodebaseIndexer.Infrastructure.Tests;
 public sealed class SettingsValidatorTests
 {
     /// <summary>Valid Qdrant options pass validation.</summary>
-    [Fact]
+    [Test]
     public void Valid_qdrant_options_pass()
     {
         var validator = new QdrantOptionsValidator();
@@ -17,7 +17,7 @@ public sealed class SettingsValidatorTests
     }
 
     /// <summary>Empty Qdrant URL fails validation.</summary>
-    [Fact]
+    [Test]
     public void Qdrant_url_fails_when_empty()
     {
         var validator = new QdrantOptionsValidator();
@@ -26,7 +26,7 @@ public sealed class SettingsValidatorTests
     }
 
     /// <summary>Empty TEI URL fails validation.</summary>
-    [Fact]
+    [Test]
     public void Tei_url_fails_when_empty()
     {
         var validator = new TeiOptionsValidator();
@@ -35,7 +35,7 @@ public sealed class SettingsValidatorTests
     }
 
     /// <summary>Dense vector size must be positive.</summary>
-    [Fact]
+    [Test]
     public void Dense_vector_size_must_be_positive()
     {
         var validator = new EmbeddingOptionsValidator();

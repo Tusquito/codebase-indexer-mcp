@@ -1,0 +1,13 @@
+adr_id: "0034"
+phase_key: phase-1
+title: Phase 1 — Core stack + unit projects (Domain / Application / Infrastructure)
+tracker_status: verified
+chosen_scope: >-
+  Host/Proxy/AppHost unloaded; Strict mocks; Proxy xUnit PackageReferences
+  stripped; TUnit 1.61.38; MTP `--nologo` compat shim via
+  TestingPlatformBuilderHook
+last_updated: "2026-07-24"
+adr_status_note: >-
+  Verified — Phase 1 core stack + Domain/Application/Infrastructure unit
+  projects on TUnit; `dotnet test` 242/0; Host/Proxy/AppHost unloaded pending
+  P2/P3

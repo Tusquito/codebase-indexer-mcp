@@ -1,0 +1,28 @@
+adr_id: "0034"
+phase_key: phase-1
+phase_title: Phase 1 — Core stack + unit projects (Domain / Application / Infrastructure)
+event: implementation
+date: "2026-07-24"
+tracker_status: implemented
+choices: >-
+  Keep Host/Proxy/AppHost unloaded; Strict mocks; Proxy PackageReferences
+  stripped; pin TUnit 1.61.38; register shared MTP `--nologo` no-op via
+  `TestingPlatformBuilderHook` so MTP-mode `dotnet test … --nologo` does not
+  exit 5
+deviations: >-
+  MTP `--nologo` compatibility shim added (not in original P1 path table);
+  harness left unchanged
+code_evidence:
+  - test/Directory.Build.props
+  - test/Shared/NoLogoCompatBuilderHook.cs
+  - test/Shared/NoLogoCommandLineOptionsProvider.cs
+  - global.json
+  - CodebaseIndexer.slnx
+test_debt:
+  - MTP nologo shim unit coverage
+  - Remaining Application fakes
+  - Host/Proxy/AppHost + coverage/docs in P2/P3
+changelog:
+  update: false
+  reason: "invoker Changelog: no; status implemented (CHANGELOG only at verified + user-facing)"
+user_facing: true

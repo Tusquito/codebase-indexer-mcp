@@ -1,0 +1,30 @@
+adr_id: "0034"
+phase_key: phase-1
+phase_title: Phase 1 — Core stack + unit projects (Domain / Application / Infrastructure)
+event: prioritization
+date: "2026-07-24"
+tracker_status: candidate
+choices: >-
+  Prefer 0034 P1 (~30) over 0026 P4 (tied score but GPU-gated), over 0023 P3
+  (~26.5), over 0031 P2 (~25), over 0035 P2 / 0024 P2, over Proposed 0027
+  (needs Accept); single phase per pipeline rule; no ADR Accept required
+  (0034 already Accepted). **Why now:** Empty active queue after ADR 0033
+  Phase 3 merge; prior cycle ranked 0034 P1 immediately behind finishing
+  Result; ADR Accepted with no tracker phases; `test/Directory.Build.props`
+  still on xUnit/VSTest/Coverlet; 0030 cutover complete; no Accept or GPU
+  required. **Suggested scope:** one phase (= one PR). **Chosen scope:** Cut
+  over shared test props to TUnit + TUnit.Mocks; remove
+  xUnit/Test.Sdk/Coverlet from shared props; migrate Domain/Application/
+  Infrastructure assertions and interface doubles; parallel/isolation
+  conventions; `dotnet test` green for those three; Docker
+  `scripts/run_compose_integration.py`; defer Host/Proxy (P2) and
+  Aspire/coverage/docs (P3).
+deviations: none
+changelog:
+  update: false
+  reason: "user-facing unknown; invoker Changelog: no"
+user_facing: false
+open_decisions:
+  - "Confirm 0034 P1 this cycle vs override to 0026 P4 if NVIDIA GPU confirmed?"
+  - "NVIDIA GPU available for later 0026 P4?"
+  - "Accept ADR 0027 in a future cycle?"

@@ -3,6 +3,7 @@ using System.Text.Json;
 using CodebaseIndexer.Infrastructure.Tei;
 using Microsoft.Extensions.DependencyInjection;
 using Refit;
+using System.Threading.Tasks;
 
 namespace CodebaseIndexer.Infrastructure.Tests;
 
@@ -10,18 +11,18 @@ namespace CodebaseIndexer.Infrastructure.Tests;
 public sealed class TeiApiContractTests
 {
     /// <summary>EmbeddingsRequest serializes to the OpenAI-compatible shape.</summary>
-    [Fact]
-    public void EmbeddingsRequest_serializes_openai_shape()
+    [Test]
+    public async Task EmbeddingsRequest_serializes_openai_shape()
     {
         var json = JsonSerializer.Serialize(new EmbeddingsRequest("model", ["hello"], 768));
         using var document = JsonDocument.Parse(json);
-        Assert.True(document.RootElement.TryGetProperty("model", out var model) || document.RootElement.TryGetProperty("Model", out model));
-        Assert.Equal("model", model.GetString());
+        await Assert.That(document.RootElement.TryGetProperty("model", out var model) || document.RootElement.TryGetProperty("Model", out model)).IsTrue();
+        await Assert.That(model.GetString()).IsEqualTo("model");
     }
 
     /// <summary>Refit client for ITeiEmbeddingsApi registers without throwing.</summary>
-    [Fact]
-    public void Refit_client_registers_without_throwing()
+    [Test]
+    public async Task Refit_client_registers_without_throwing()
     {
         var services = new ServiceCollection();
         services.AddRefitClient<ITeiEmbeddingsApi>()
@@ -29,6 +30,6 @@ public sealed class TeiApiContractTests
 
         using var provider = services.BuildServiceProvider();
         var api = provider.GetRequiredService<ITeiEmbeddingsApi>();
-        Assert.NotNull(api);
+        await Assert.That(api).IsNotNull();
     }
 }

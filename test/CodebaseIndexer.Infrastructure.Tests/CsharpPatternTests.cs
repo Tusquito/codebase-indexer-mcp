@@ -1,6 +1,7 @@
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Infrastructure.Embedding;
 using CodebaseIndexer.Infrastructure.Memory;
+using System.Threading.Tasks;
 
 namespace CodebaseIndexer.Infrastructure.Tests;
 
@@ -8,27 +9,27 @@ namespace CodebaseIndexer.Infrastructure.Tests;
 public sealed class CsharpPatternTests
 {
     /// <summary>ChunkId.FromPathAndLine produces deterministic values.</summary>
-    [Fact]
-    public void ChunkId_FromPathAndLine_is_deterministic()
+    [Test]
+    public async Task ChunkId_FromPathAndLine_is_deterministic()
     {
         var first = ChunkId.FromPathAndLine("src/foo.cs", 12);
         var second = ChunkId.FromPathAndLine("src/foo.cs", 12);
-        Assert.Equal(first, second);
-        Assert.NotEqual(first, ChunkId.FromPathAndLine("src/foo.cs", 13));
+        await Assert.That(second).IsEqualTo(first);
+        await Assert.That(ChunkId.FromPathAndLine("src/foo.cs", 13)).IsNotEqualTo(first);
     }
 
     /// <summary>MemoryPressureResult reports halt severity at threshold.</summary>
-    [Fact]
-    public void MemoryPressureResult_reports_halt_at_threshold()
+    [Test]
+    public async Task MemoryPressureResult_reports_halt_at_threshold()
     {
         var result = new MemoryPressureResult(MemoryPressureSeverity.Halt, 91.2);
-        Assert.Equal(MemoryPressureSeverity.Halt, result.Severity);
-        Assert.Equal(91.2, result.Percent);
+        await Assert.That(result.Severity).IsEqualTo(MemoryPressureSeverity.Halt);
+        await Assert.That(result.Percent).IsEqualTo(91.2);
     }
 
     /// <summary>EmbedTokenLimit honors environment override source.</summary>
-    [Fact]
-    public void EmbedTokenLimit_uses_env_override_source()
+    [Test]
+    public async Task EmbedTokenLimit_uses_env_override_source()
     {
         var limit = EmbeddingTruncation.ResolveMaxEmbedTokens(
             EmbedRole.Dense,
@@ -38,13 +39,13 @@ public sealed class CsharpPatternTests
             knownRegistry: new Dictionary<string, int>(),
             logger: null);
 
-        Assert.Equal(512, limit.MaxTokens);
-        Assert.Equal(TruncationSource.EnvOverride, limit.Source);
+        await Assert.That(limit.MaxTokens).IsEqualTo(512);
+        await Assert.That(limit.Source).IsEqualTo(TruncationSource.EnvOverride);
     }
 
     /// <summary>Aspire pairing invariant: env 1024 beats registry 8192 (ADR 0035).</summary>
-    [Fact]
-    public void EmbedTokenLimit_pairing_1024_overrides_registry()
+    [Test]
+    public async Task EmbedTokenLimit_pairing_1024_overrides_registry()
     {
         var limit = EmbeddingTruncation.ResolveMaxEmbedTokens(
             EmbedRole.Dense,
@@ -57,24 +58,24 @@ public sealed class CsharpPatternTests
             },
             logger: null);
 
-        Assert.Equal(1024, limit.MaxTokens);
-        Assert.Equal(TruncationSource.EnvOverride, limit.Source);
+        await Assert.That(limit.MaxTokens).IsEqualTo(1024);
+        await Assert.That(limit.Source).IsEqualTo(TruncationSource.EnvOverride);
     }
 
     /// <summary>TruncateBm25Text preserves input shorter than the token limit.</summary>
-    [Fact]
-    public void TruncatedText_preserves_short_input()
+    [Test]
+    public async Task TruncatedText_preserves_short_input()
     {
         var truncated = EmbeddingTruncation.TruncateBm25Text("alpha beta gamma", maxTokens: 10);
-        Assert.Equal("alpha beta gamma", truncated.Text);
-        Assert.Equal(3, truncated.TokenCount);
+        await Assert.That(truncated.Text).IsEqualTo("alpha beta gamma");
+        await Assert.That(truncated.TokenCount).IsEqualTo(3);
     }
 
     /// <summary>CgroupMemoryGuard returns ok when memory is unmetered.</summary>
-    [Fact]
-    public void CgroupMemoryGuard_returns_ok_when_unmetered()
+    [Test]
+    public async Task CgroupMemoryGuard_returns_ok_when_unmetered()
     {
         var result = CgroupMemoryGuard.CheckMemoryPressure(warnPct: 70, haltPct: 85);
-        Assert.Equal(MemoryPressureSeverity.Ok, result.Severity);
+        await Assert.That(result.Severity).IsEqualTo(MemoryPressureSeverity.Ok);
     }
 }

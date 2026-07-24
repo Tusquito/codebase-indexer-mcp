@@ -2,22 +2,21 @@ using CodebaseIndexer.Application.Graph;
 using CodebaseIndexer.Application.Search;
 using CodebaseIndexer.Domain.Models;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Threading.Tasks;
 
 namespace CodebaseIndexer.Application.Tests;
 
 /// <summary>Unit tests for index-time graph writer (Python test_graph_writer parity).</summary>
 public sealed class GraphWriterTests
 {
-    [Fact]
-    public void Symbol_qualified_name_format()
+    [Test]
+    public async Task Symbol_qualified_name_format()
     {
-        Assert.Equal(
-            "coll:src/a.py::MyClass",
-            GraphWriter.SymbolQualifiedName("coll", "src/a.py", "MyClass"));
+        await Assert.That(GraphWriter.SymbolQualifiedName("coll", "src/a.py", "MyClass")).IsEqualTo("coll:src/a.py::MyClass");
     }
 
-    [Fact]
-    public void Resolve_call_target_unifies_unique_method_name()
+    [Test]
+    public async Task Resolve_call_target_unifies_unique_method_name()
     {
         var defines = new Dictionary<string, List<GraphDefineEntry>>(StringComparer.Ordinal)
         {
@@ -28,12 +27,12 @@ public sealed class GraphWriterTests
         };
 
         var (qn, name) = GraphWriter.ResolveCallTarget("isEnabled", "demo", "Caller.java", defines, []);
-        Assert.Equal("demo:Feature.java::isEnabled", qn);
-        Assert.Equal("isEnabled", name);
+        await Assert.That(qn).IsEqualTo("demo:Feature.java::isEnabled");
+        await Assert.That(name).IsEqualTo("isEnabled");
     }
 
-    [Fact]
-    public void Resolve_call_target_falls_back_to_callee_token()
+    [Test]
+    public async Task Resolve_call_target_falls_back_to_callee_token()
     {
         var (qn, name) = GraphWriter.ResolveCallTarget(
             "featureService.isEnabled",
@@ -41,12 +40,12 @@ public sealed class GraphWriterTests
             "Caller.java",
             new Dictionary<string, List<GraphDefineEntry>>(),
             []);
-        Assert.Equal("demo::callee::featureService.isEnabled", qn);
-        Assert.Equal("featureService.isEnabled", name);
+        await Assert.That(qn).IsEqualTo("demo::callee::featureService.isEnabled");
+        await Assert.That(name).IsEqualTo("featureService.isEnabled");
     }
 
-    [Fact]
-    public void Graph_node_ids_from_batch_neighbor_keys_only()
+    [Test]
+    public async Task Graph_node_ids_from_batch_neighbor_keys_only()
     {
         var batch = new GraphBatch("demo");
         batch.Chunks.Add(new GraphChunkRow("c1", "a.py", 1, 5));
@@ -60,25 +59,23 @@ public sealed class GraphWriterTests
 
         var mapping = GraphWriter.GraphNodeIdsFromBatch(batch);
 
-        Assert.Equal(
-            ["demo:a.py::foo", "demo::callee::bar", "demo:/api/users", "demo::import::os"],
-            mapping["c1"]);
-        Assert.Equal(["demo:/api/profile", "demo::import::os"], mapping["c2"]);
+        await Assert.That(mapping["c1"]).IsEquivalentTo(["demo:a.py::foo", "demo::callee::bar", "demo:/api/users", "demo::import::os"]);
+        await Assert.That(mapping["c2"]).IsEquivalentTo(["demo:/api/profile", "demo::import::os"]);
         foreach (var keys in mapping.Values)
         {
-            Assert.DoesNotContain("c1", keys);
-            Assert.DoesNotContain("c2", keys);
+            await Assert.That(keys).DoesNotContain("c1");
+            await Assert.That(keys).DoesNotContain("c2");
         }
     }
 
-    [Fact]
-    public void Graph_node_ids_from_batch_empty()
+    [Test]
+    public async Task Graph_node_ids_from_batch_empty()
     {
-        Assert.Empty(GraphWriter.GraphNodeIdsFromBatch(new GraphBatch("demo")));
+        await Assert.That(GraphWriter.GraphNodeIdsFromBatch(new GraphBatch("demo"))).IsEmpty();
     }
 
-    [Fact]
-    public void Build_graph_batch_from_chunks()
+    [Test]
+    public async Task Build_graph_batch_from_chunks()
     {
         var writer = new GraphWriter(NullLogger<GraphWriter>.Instance);
         var chunks = new[]
@@ -105,11 +102,11 @@ public sealed class GraphWriterTests
             workspacePath: Path.GetTempPath(),
             collectionNames: ["demo", "other"]);
 
-        Assert.Equal("demo", batch.Collection);
-        Assert.Single(batch.Files);
-        Assert.Single(batch.Chunks);
-        Assert.Contains(batch.Defines, d => d.Name == "getUsers");
-        Assert.Contains(batch.Calls, c => c.Name == "get" && c.CallToken == "get");
-        Assert.True(batch.DeclaresEndpoint.Count > 0 || batch.HttpCalls.Count > 0);
+        await Assert.That(batch.Collection).IsEqualTo("demo");
+        await Assert.That(batch.Files).HasSingleItem();
+        await Assert.That(batch.Chunks).HasSingleItem();
+        await Assert.That(batch.Defines).Contains(d => d.Name == "getUsers");
+        await Assert.That(batch.Calls).Contains(c => c.Name == "get" && c.CallToken == "get");
+        await Assert.That(batch.DeclaresEndpoint.Count > 0 || batch.HttpCalls.Count > 0).IsTrue();
     }
 }

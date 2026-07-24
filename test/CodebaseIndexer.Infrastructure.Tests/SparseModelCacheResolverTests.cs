@@ -1,12 +1,14 @@
+using System.IO;
 using CodebaseIndexer.Infrastructure.Embedding;
+using System.Threading.Tasks;
 
 namespace CodebaseIndexer.Infrastructure.Tests;
 
 /// <summary>Tests for fastembed / Hugging Face hub sparse model cache resolution.</summary>
 public sealed class SparseModelCacheResolverTests
 {
-    [Fact]
-    public void Resolve_direct_org_model_path()
+    [Test]
+    public async Task Resolve_direct_org_model_path()
     {
         var root = CreateTempDir();
         try
@@ -16,7 +18,7 @@ public sealed class SparseModelCacheResolverTests
             File.WriteAllText(Path.Combine(modelDir, "english.txt"), "the\n");
 
             var resolved = SparseModelCacheResolver.ResolveModelDirectory(root, "Qdrant/bm25");
-            Assert.Equal(modelDir, resolved);
+            await Assert.That(resolved).IsEqualTo(modelDir);
         }
         finally
         {
@@ -24,8 +26,8 @@ public sealed class SparseModelCacheResolverTests
         }
     }
 
-    [Fact]
-    public void Resolve_hf_hub_models_dash_layout()
+    [Test]
+    public async Task Resolve_hf_hub_models_dash_layout()
     {
         var root = CreateTempDir();
         try
@@ -35,7 +37,7 @@ public sealed class SparseModelCacheResolverTests
             File.WriteAllText(Path.Combine(hubRoot, "english.txt"), "the\n");
 
             var resolved = SparseModelCacheResolver.ResolveModelDirectory(root, "Qdrant/bm25");
-            Assert.Equal(hubRoot, resolved);
+            await Assert.That(resolved).IsEqualTo(hubRoot);
         }
         finally
         {
@@ -43,8 +45,8 @@ public sealed class SparseModelCacheResolverTests
         }
     }
 
-    [Fact]
-    public void Resolve_hf_hub_snapshot_subdirectory()
+    [Test]
+    public async Task Resolve_hf_hub_snapshot_subdirectory()
     {
         var root = CreateTempDir();
         try
@@ -54,7 +56,7 @@ public sealed class SparseModelCacheResolverTests
             File.WriteAllText(Path.Combine(snapshot, "english.txt"), "the\n");
 
             var resolved = SparseModelCacheResolver.ResolveModelDirectory(root, "Qdrant/bm25");
-            Assert.Equal(snapshot, resolved);
+            await Assert.That(resolved).IsEqualTo(snapshot);
         }
         finally
         {
@@ -62,15 +64,15 @@ public sealed class SparseModelCacheResolverTests
         }
     }
 
-    [Fact]
-    public void Resolve_throws_when_missing()
+    [Test]
+    public async Task Resolve_throws_when_missing()
     {
         var root = CreateTempDir();
         try
         {
             var ex = Assert.Throws<InvalidOperationException>(
                 () => SparseModelCacheResolver.ResolveModelDirectory(root, "Qdrant/bm25"));
-            Assert.Contains("Qdrant/bm25", ex.Message, StringComparison.Ordinal);
+            await Assert.That(ex.Message).Contains("Qdrant/bm25");
         }
         finally
         {

@@ -1,0 +1,33 @@
+adr_id: "0034"
+phase_key: phase-1
+phase_title: Phase 1 — Core stack + unit projects (Domain / Application / Infrastructure)
+event: implementation
+date: "2026-07-24"
+tracker_status: implemented
+choices: >-
+  Unload Host/Proxy/AppHost from `CodebaseIndexer.slnx`; suite
+  `MockBehavior.Strict` via `[Before(HookType.TestDiscovery)]`; strip Proxy
+  local xUnit PackageReferences while unloaded; pin `TUnit`/`TUnit.Mocks`
+  `1.61.38`
+deviations: >-
+  none material (temporary dual-stack only during TUXU0001, then removed)
+code_evidence:
+  - test/Directory.Build.props
+  - global.json
+  - CodebaseIndexer.slnx
+  - test/CodebaseIndexer.Domain.Tests/
+  - test/CodebaseIndexer.Application.Tests/
+  - test/CodebaseIndexer.Application.Tests/IndexEmbeddingServiceTests.cs
+  - test/CodebaseIndexer.Application.Tests/ExpandSearchContextServiceTests.cs
+  - test/CodebaseIndexer.Application.Tests/MockDefaults.cs
+  - test/CodebaseIndexer.Infrastructure.Tests/
+  - test/CodebaseIndexer.Proxy.Tests/CodebaseIndexer.Proxy.Tests.csproj
+  - CHANGELOG.md
+test_debt:
+  - Remaining Application hand-rolled port fakes
+  - StubTeiHandler until P2 `TUnit.Mocks.Http`
+  - Host/Proxy/AppHost + coverage/docs in P2/P3
+changelog:
+  update: false
+  reason: "invoker Changelog: no; status implemented (CHANGELOG only at verified + user-facing)"
+user_facing: true
