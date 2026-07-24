@@ -1,0 +1,24 @@
+adr_id: "0034"
+phase_key: phase-1
+phase_title: Phase 1 — Core stack + unit projects (Domain / Application / Infrastructure)
+event: plan
+date: "2026-07-24"
+tracker_status: planned
+choices: >-
+  Unload Host/Proxy/AppHost.Tests from solution (not dual-stack); keep
+  `NoOpVectorStore`/Neo4j recording/`StubTeiHandler`; ≥1 Application
+  `TUnit.Mocks` setup+verify; Quality skip / Perf skip; Docker required;
+  Accept after merge no (already Accepted); final phase no. **Human
+  decisions applied 2026-07-24:** (1) unload Host/Proxy/AppHost.Tests from
+  CodebaseIndexer.slnx; (2) suite default MockBehavior: Strict; (3) while
+  Proxy.Tests unloaded, strip local xUnit PackageReferences in P1.
+  **Assumptions:** Shared props cutover forces unload or full Host
+  migration — unload matches prioritizer; compose/`ci.yml` keep `dotnet
+  test CodebaseIndexer.slnx`; C# 14 via `LangVersion` latest; latest stable
+  TUnit packages at implement time; docs-heavy CONTRIBUTING deferred to P3.
+deviations: none
+changelog:
+  update: false
+  reason: "invoker Changelog: no; status planned; user-facing yes"
+user_facing: true
+open_decisions: []

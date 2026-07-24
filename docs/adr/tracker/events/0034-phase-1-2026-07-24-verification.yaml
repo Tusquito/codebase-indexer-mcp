@@ -1,0 +1,35 @@
+adr_id: "0034"
+phase_key: phase-1
+phase_title: Phase 1 — Core stack + unit projects (Domain / Application / Infrastructure)
+event: verification
+date: "2026-07-24"
+tracker_status: verified
+choices: >-
+  Host/Proxy/AppHost unloaded; Strict mocks; Proxy xUnit PackageReferences
+  stripped; TUnit 1.61.38; MTP `--nologo` compat shim via
+  TestingPlatformBuilderHook
+deviations: none
+code_evidence:
+  - test/Directory.Build.props
+  - global.json
+  - CodebaseIndexer.slnx
+  - test/Shared/NoLogo*.cs
+  - test/CodebaseIndexer.*.Tests/MockDefaults.cs
+  - IndexEmbeddingServiceTests.cs
+  - ExpandSearchContextServiceTests.cs
+  - CHANGELOG.md
+test_debt:
+  - Deferred Host/Proxy/AppHost still xUnit-shaped on disk (P2/P3)
+  - optional migrate sync Assert.Throws → fluent awaited Throws
+verify: >-
+  review rounds: 1; `dotnet test CodebaseIndexer.slnx --nologo` 242/0; plan
+  compliance pass; integration report Verdict pass; quality skip per plan
+changelog:
+  update: true
+  bullet: >-
+    .NET unit tests on TUnit (ADR 0034 Phase 1) — Domain / Application /
+    Infrastructure use TUnit + TUnit.Mocks on Microsoft.Testing.Platform;
+    Host / Proxy / AppHost test projects temporarily out of solution until
+    Phase 2/3
+  reason: "verified + user-facing yes; matching Unreleased bullet already present"
+user_facing: true
