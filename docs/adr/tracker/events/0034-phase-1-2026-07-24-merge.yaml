@@ -1,0 +1,28 @@
+adr_id: "0034"
+phase_key: phase-1
+phase_title: Phase 1 — Core stack + unit projects (Domain / Application / Infrastructure)
+event: merge
+date: "2026-07-24"
+tracker_status: merged
+choices: >-
+  Merge PR #52 (squash `1e9d0f78cfabcb3e0826e5a849166af4ab279ba5`); branch
+  `adr/0034-phase-1-adopt-tunit`; commits `5d2aa66`, `a1b453f`, `396b78b`,
+  `6c285b2`; Accept skipped — already Accepted; release no.
+deviations: none
+code_evidence:
+  - >-
+    merged via [PR #52](https://github.com/Tusquito/codebase-indexer-mcp/pull/52)
+    (`adr/0034-phase-1-adopt-tunit`; squash
+    `1e9d0f78cfabcb3e0826e5a849166af4ab279ba5`)
+verify: >-
+  carried from verification — review rounds: 1; `dotnet test
+  CodebaseIndexer.slnx --nologo` 242/0; plan compliance pass; integration
+  report Verdict pass; quality skip per plan
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/52
+  commit: 1e9d0f78cfabcb3e0826e5a849166af4ab279ba5
+  status: merged
+changelog:
+  update: false
+  reason: "invoker Changelog: no; merged status does not draft CHANGELOG"
+user_facing: true

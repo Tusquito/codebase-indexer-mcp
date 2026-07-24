@@ -95,7 +95,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0033 | Phase 1 — Core types + conventions | Merged — 2026-07-23; PR #49 (`64c37bf`); Accept skipped — already Accepted; release no; Phases 2–3 deferred | phase-1 | `merged` | readonly struct Result/ResultT; sealed record Error; instance Match; Cancelled rare / prefer OCE; no Domain NuGet Result libs | 2026-07-23 |
 | 0033 | Phase 2 — Application + index/job ports | Merged — 2026-07-23 via PR #50; Accept skipped — already Accepted; Phase 3 deferred; release no | phase-2 | `merged` | Completed pipeline runs return Result.Success with typed partial Errors; Host keeps one-off MCP DTOs (envelope in Phase 3); stop_indexing returns NotRunning for terminal jobs; exception-type deletion deferred to Phase 3 | 2026-07-23 |
 | 0033 | Phase 3 — Storage / embed ports + MCP tools | Merged — 2026-07-24 via PR #51; Accept skipped — already Accepted; final phase of ADR 0033; release no | phase-3 | `merged` | Conflict already-running → envelope + status metadata; Qdrant soft-read transport → Dependency Failure; `kind` wire = PascalCase; empty search hits remain success; bool probes unchanged; OCE not wrapped; Domain NuGet-free Result | 2026-07-24 |
-| 0034 | Phase 1 — Core stack + unit projects (Domain / Application / Infrastructure) | Verified — Phase 1 core stack + Domain/Application/Infrastructure unit projects on TUnit; `dotnet test` 242/0; Host/Proxy/AppHost unloaded pending P2/P3 | phase-1 | `verified` | Host/Proxy/AppHost unloaded; Strict mocks; Proxy xUnit PackageReferences stripped; TUnit 1.61.38; MTP `--nologo` compat shim via TestingPlatformBuilderHook | 2026-07-24 |
+| 0034 | Phase 1 — Core stack + unit projects (Domain / Application / Infrastructure) | Merged — Phase 1 core stack + Domain/Application/Infrastructure unit projects on TUnit via PR #52; Host/Proxy/AppHost unloaded pending P2/P3 | phase-1 | `merged` | Host/Proxy/AppHost unloaded; Strict mocks; Proxy xUnit PackageReferences stripped; TUnit 1.61.38; MTP `--nologo` compat shim via TestingPlatformBuilderHook | 2026-07-24 |
 | 0035 | Phase 1 — Wire pairing on Aspire path | Merged — PR #48 (`aa8ffa6`); Accepted (phase 1); accept docs `fe6b248`; release skipped | phase-1 | `merged` | TeiBatchTokenPairing defaults 1024; Aspire AppHost/compose set TEI_MAX_BATCH_TOKENS / Embedding__MaxDenseTokens; flat MAX_DENSE_EMBED_TOKENS mapped on Aspire; appsettings MaxDenseTokens: 0 retained for non-Aspire; fail-fast/registry/GPU Phase 2 deferred. Project phase: Pre-release (no backward compatibility unless ADR documents one); Docker integration required; no schema migration version env vars. | 2026-07-22 |
 <!-- END GENERATED:summary -->
 
@@ -104,7 +104,7 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 ## Active and upcoming work
 
 <!-- BEGIN GENERATED:active -->
-- **0034** Phase 1 — Core stack + unit projects (Domain / Application / Infrastructure) — `verified`
+_No active or upcoming phases._
 <!-- END GENERATED:active -->
 
 ### Partial acceptance
@@ -2503,6 +2503,16 @@ Superseded [0001](0001-pluggable-embed-backends.md) — historical; implementati
 - **Choices:** Unload Host/Proxy/AppHost.Tests from solution (not dual-stack); keep `NoOpVectorStore`/Neo4j recording/`StubTeiHandler`; ≥1 Application `TUnit.Mocks` setup+verify; Quality skip / Perf skip; Docker required; Accept after merge no (already Accepted); final phase no. **Human decisions applied 2026-07-24:** (1) unload Host/Proxy/AppHost.Tests from CodebaseIndexer.slnx; (2) suite default MockBehavior: Strict; (3) while Proxy.Tests unloaded, strip local xUnit PackageReferences in P1. **Assumptions:** Shared props cutover forces unload or full Host migration — unload matches prioritizer; compose/`ci.yml` keep `dotnet test CodebaseIndexer.slnx`; C# 14 via `LangVersion` latest; latest stable TUnit packages at implement time; docs-heavy CONTRIBUTING deferred to P3.
 - **Deviations:** none
 - **Changelog:** no — invoker Changelog: no; status planned; user-facing yes
+
+#### 2026-07-24 — merge
+- **Phase:** Phase 1 — Core stack + unit projects (Domain / Application / Infrastructure)
+- **Tracker status:** `merged`
+- **Choices:** Merge PR #52 (squash `1e9d0f78cfabcb3e0826e5a849166af4ab279ba5`); branch `adr/0034-phase-1-adopt-tunit`; commits `5d2aa66`, `a1b453f`, `396b78b`, `6c285b2`; Accept skipped — already Accepted; release no.
+- **Deviations:** none
+- **Code evidence:** `merged via [PR #52](https://github.com/Tusquito/codebase-indexer-mcp/pull/52) (`adr/0034-phase-1-adopt-tunit`; squash `1e9d0f78cfabcb3e0826e5a849166af4ab279ba5`)`
+- **Verify:** carried from verification — review rounds: 1; `dotnet test CodebaseIndexer.slnx --nologo` 242/0; plan compliance pass; integration report Verdict pass; quality skip per plan
+- **Git:** https://github.com/Tusquito/codebase-indexer-mcp/pull/52 — status: merged — commit: 1e9d0f78cfabcb3e0826e5a849166af4ab279ba5
+- **Changelog:** no — invoker Changelog: no; merged status does not draft CHANGELOG
 
 #### 2026-07-24 — implementation
 - **Phase:** Phase 1 — Core stack + unit projects (Domain / Application / Infrastructure)
