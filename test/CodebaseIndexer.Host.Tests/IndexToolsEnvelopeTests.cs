@@ -12,21 +12,22 @@ namespace CodebaseIndexer.Host.Tests;
 /// <summary>IndexTools maps Validation/NotFound through the unified MCP envelope.</summary>
 public sealed class IndexToolsEnvelopeTests
 {
-    [Fact]
+    [Test]
     public async Task IndexCodebase_root_path_returns_validation_envelope()
     {
         var tools = CreateTools(new FakeJobs(), new FakeStore());
         var payload = await tools.IndexCodebaseAsync(path: "/");
 
-        var envelope = Assert.IsType<McpErrorEnvelope>(payload);
-        Assert.Equal(ErrorKind.Validation, envelope.Error.Kind);
-        Assert.Equal(McpErrorCodes.PathRequired, envelope.Error.Code);
-        Assert.Contains("project folder", envelope.Error.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.NotNull(envelope.Error.Metadata);
-        Assert.True(envelope.Error.Metadata.ContainsKey("hint"));
+        var envelope = await Assert.That(payload).IsTypeOf<McpErrorEnvelope>();
+        await Assert.That(envelope!.Error.Kind).IsEqualTo(ErrorKind.Validation);
+        await Assert.That(envelope.Error.Code).IsEqualTo(McpErrorCodes.PathRequired);
+        await Assert.That(envelope.Error.Message.Contains("project folder", StringComparison.OrdinalIgnoreCase))
+            .IsTrue();
+        await Assert.That(envelope.Error.Metadata).IsNotNull();
+        await Assert.That(envelope.Error.Metadata!.ContainsKey("hint")).IsTrue();
     }
 
-    [Fact]
+    [Test]
     public async Task IndexStatus_missing_job_returns_not_found_envelope()
     {
         var tools = CreateTools(
@@ -41,20 +42,20 @@ public sealed class IndexToolsEnvelopeTests
 
         var payload = await tools.IndexStatusAsync(collection: "missing");
 
-        var envelope = Assert.IsType<McpErrorEnvelope>(payload);
-        Assert.Equal(ErrorKind.NotFound, envelope.Error.Kind);
-        Assert.Equal(IndexErrorCodes.JobNotFound, envelope.Error.Code);
+        var envelope = await Assert.That(payload).IsTypeOf<McpErrorEnvelope>();
+        await Assert.That(envelope!.Error.Kind).IsEqualTo(ErrorKind.NotFound);
+        await Assert.That(envelope.Error.Code).IsEqualTo(IndexErrorCodes.JobNotFound);
     }
 
-    [Fact]
+    [Test]
     public async Task IndexAll_empty_collections_returns_not_found_envelope()
     {
         var tools = CreateTools(new FakeJobs(), new FakeStore { Collections = [] });
         var payload = await tools.IndexAllAsync();
 
-        var envelope = Assert.IsType<McpErrorEnvelope>(payload);
-        Assert.Equal(ErrorKind.NotFound, envelope.Error.Kind);
-        Assert.Equal(McpErrorCodes.CollectionsEmpty, envelope.Error.Code);
+        var envelope = await Assert.That(payload).IsTypeOf<McpErrorEnvelope>();
+        await Assert.That(envelope!.Error.Kind).IsEqualTo(ErrorKind.NotFound);
+        await Assert.That(envelope.Error.Code).IsEqualTo(McpErrorCodes.CollectionsEmpty);
     }
 
     private static IndexTools CreateTools(IIndexJobService jobs, IVectorStore store) =>
@@ -104,6 +105,7 @@ public sealed class IndexToolsEnvelopeTests
             Task.FromResult<IReadOnlyList<IndexJobSnapshot>>([]);
     }
 
+    // Human decision: keep FakeStore — Strict IVectorStore mock setup cost is high.
     private sealed class FakeStore : IVectorStore
     {
         public IReadOnlyList<string> Collections { get; init; } = [];

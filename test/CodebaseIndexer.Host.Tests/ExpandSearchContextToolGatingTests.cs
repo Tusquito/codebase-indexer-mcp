@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Mvc.Testing;
 using ModelContextProtocol.Client;
 
 namespace CodebaseIndexer.Host.Tests;
@@ -6,16 +5,16 @@ namespace CodebaseIndexer.Host.Tests;
 /// <summary>expand_search_context is registered only when Graph:Enabled=true.</summary>
 public sealed class ExpandSearchContextToolGatingTests
 {
-    [Fact]
+    [Test]
     public async Task Expand_search_context_absent_when_graph_disabled()
     {
         await using var factory = new McpHostWebApplicationFactory();
         await using var mcpClient = await CreateMcpClientAsync(factory);
         var tools = await mcpClient.ListToolsAsync();
-        Assert.DoesNotContain(tools, tool => tool.Name == "expand_search_context");
+        await Assert.That(tools).DoesNotContain(tool => tool.Name == "expand_search_context");
     }
 
-    [Fact]
+    [Test]
     public async Task Expand_search_context_present_when_graph_enabled()
     {
         // Graph:Enabled must be in host configuration — ConfigureAppConfiguration alone is too late
@@ -23,10 +22,10 @@ public sealed class ExpandSearchContextToolGatingTests
         await using var factory = new GraphEnabledMcpHostWebApplicationFactory();
         await using var mcpClient = await CreateMcpClientAsync(factory);
         var tools = await mcpClient.ListToolsAsync();
-        Assert.Contains(tools, tool => tool.Name == "expand_search_context");
+        await Assert.That(tools).Contains(tool => tool.Name == "expand_search_context");
     }
 
-    private static async Task<McpClient> CreateMcpClientAsync(WebApplicationFactory<Program> factory)
+    private static async Task<McpClient> CreateMcpClientAsync(McpHostWebApplicationFactory factory)
     {
         var httpClient = new HttpClient(factory.Server.CreateHandler())
         {

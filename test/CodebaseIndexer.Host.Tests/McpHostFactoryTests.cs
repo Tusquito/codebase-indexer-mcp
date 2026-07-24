@@ -4,11 +4,11 @@ namespace CodebaseIndexer.Host.Tests;
 public sealed class McpHostFactoryTests
 {
     /// <summary>Host starts successfully with bound configuration.</summary>
-    [Fact]
-    public void Host_starts_with_bound_configuration()
+    [Test]
+    public async Task Host_starts_with_bound_configuration()
     {
-        using var factory = new McpHostWebApplicationFactory();
+        await using var factory = new McpHostWebApplicationFactory();
         var client = factory.CreateClient();
-        Assert.NotNull(client);
+        await Assert.That(client).IsNotNull();
     }
 }
