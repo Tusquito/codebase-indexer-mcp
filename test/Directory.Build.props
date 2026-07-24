@@ -1,18 +1,30 @@
 <Project>
   <ItemGroup>
-    <PackageReference Include="coverlet.collector" Version="10.0.1">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.7.0" />
-    <PackageReference Include="xunit" Version="2.9.3" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
+    <PackageReference Include="TUnit" Version="1.61.38" />
+    <PackageReference Include="TUnit.Mocks" Version="1.61.38" />
   </ItemGroup>
 
   <ItemGroup>
-    <Using Include="Xunit" />
+    <Using Include="TUnit" />
+    <Using Include="TUnit.Assertions" />
+    <Using Include="TUnit.Assertions.Extensions" />
+    <Using Include="TUnit.Mocks" />
+  </ItemGroup>
+
+  <!-- Shared MTP shims compiled into every test project under test/. -->
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)Shared\**\*.cs"
+             Link="Shared\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!--
+    MTP-mode dotnet test forwards unrecognized tokens (including VSTest-era nologo)
+    to each test app. Without this hook, nologo yields exit code 5 and zero tests.
+  -->
+  <ItemGroup>
+    <TestingPlatformBuilderHook Include="185261FD-7541-48C9-946D-1163DB3FFB06">
+      <DisplayName>CodebaseIndexer.NoLogoCompat</DisplayName>
+      <TypeFullName>CodebaseIndexer.Tests.Shared.NoLogoCompatBuilderHook</TypeFullName>
+    </TestingPlatformBuilderHook>
   </ItemGroup>
 </Project>
