@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using CodebaseIndexer.Application.Mapping;
 using CodebaseIndexer.Application.Services;
 using ModelContextProtocol.Server;
 
@@ -15,6 +16,9 @@ public sealed class CollectionsTools
 
     /// <summary>List all indexed collections with statistics.</summary>
     [McpServerTool(Name = "list_collections"), Description("List all indexed collections with statistics.")]
-    public async Task<object> ListCollectionsAsync(CancellationToken cancellationToken = default) =>
-        await _queries.ListCollectionsAsync(cancellationToken).ConfigureAwait(false);
+    public async Task<object> ListCollectionsAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await _queries.ListCollectionsAsync(cancellationToken).ConfigureAwait(false);
+        return result.Match(v => (object)v, McpErrorMapper.FromError);
+    }
 }

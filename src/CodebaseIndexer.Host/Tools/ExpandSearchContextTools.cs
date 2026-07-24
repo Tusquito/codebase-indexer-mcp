@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using CodebaseIndexer.Application.Mapping;
 using CodebaseIndexer.Application.Services;
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Serialization;
@@ -26,7 +27,7 @@ public sealed class ExpandSearchContextTools
         "(callers/callees, endpoints, cross-file relationships). 'graph_hops' defaults " +
         "to Graph:MaxHops and is clamped to [1, Graph:MaxHops]. top_k is capped at 20. " +
         "Re-index after pull when enabling graph (no schema-version env). See docs/SEARCH_BEHAVIOR.md.")]
-    public Task<object> ExpandSearchContextAsync(
+    public async Task<object> ExpandSearchContextAsync(
         [Description("Semantic search query for seed chunks")] string query,
         [Description("Max seed hits (capped at 20)")] int top_k = 5,
         [Description("Primary collection")] string? collection = null,
@@ -35,9 +36,13 @@ public sealed class ExpandSearchContextTools
         [Description("Optional language filter")] string? language = null,
         [Description("Minimum score for seed search")] float min_score = 0.5f,
         [Description("Truncate related chunk content to this many chars")] int? max_content_chars = null,
-        CancellationToken cancellationToken = default) =>
-        _service.ExpandSearchContextAsync(
-            query, top_k, collection, collections, graph_hops, ParseLanguage(language), min_score, max_content_chars, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _service.ExpandSearchContextAsync(
+            query, top_k, collection, collections, graph_hops, ParseLanguage(language), min_score, max_content_chars, cancellationToken)
+            .ConfigureAwait(false);
+        return result.Match(v => v, McpErrorMapper.FromError);
+    }
 
     private static SourceLanguage? ParseLanguage(string? language) =>
         DomainEnumWire.TryParse(language, out SourceLanguage value) ? value : null;

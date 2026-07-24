@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using CodebaseIndexer.Application.Mapping;
 using CodebaseIndexer.Application.Services;
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Serialization;
@@ -25,7 +26,7 @@ public sealed class OutlierTools
         "Requires a single collection. Context bounded by Discovery:OutlierMaxContextSamples. " +
         "Chunks above max_similarity are excluded. limit capped at 20. " +
         "Gated by Discovery:RecommendEnabled. See docs/SEARCH_BEHAVIOR.md.")]
-    public Task<object> FindOutlierChunksAsync(
+    public async Task<object> FindOutlierChunksAsync(
         [Description("Collection name")] string collection,
         [Description("Context chunk ids")] string[]? context_chunk_ids = null,
         [Description("Max results (capped at 20)")] int limit = 5,
@@ -33,10 +34,13 @@ public sealed class OutlierTools
         [Description("Optional fnmatch path filter for context/candidates")] string? path_glob = null,
         [Description("Exclude candidates above this cosine similarity")] float? max_similarity = null,
         [Description("Truncate content to this many chars")] int? max_content_chars = null,
-        CancellationToken cancellationToken = default) =>
-        _service.FindOutlierChunksAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _service.FindOutlierChunksAsync(
             collection, context_chunk_ids, limit, ParseLanguage(language), path_glob, max_similarity,
-            max_content_chars, cancellationToken);
+            max_content_chars, cancellationToken).ConfigureAwait(false);
+        return result.Match(v => v, McpErrorMapper.FromError);
+    }
 
     private static SourceLanguage? ParseLanguage(string? language) =>
         DomainEnumWire.TryParse(language, out SourceLanguage value) ? value : null;
