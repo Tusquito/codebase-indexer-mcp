@@ -98,8 +98,19 @@ public sealed class IndexCodebaseService : IIndexCodebaseService, IIndexPipeline
         var progress = new PipelineProgress();
         var errors = new List<Error>();
 
-        await _vectorStore.EnsureCollectionAsync(collection, force, cancellationToken).ConfigureAwait(false);
-        var existingMetadata = await _vectorStore.GetFileMetadataAsync(collection, cancellationToken).ConfigureAwait(false);
+        var ensureResult = await _vectorStore.EnsureCollectionAsync(collection, force, cancellationToken).ConfigureAwait(false);
+        if (!ensureResult.IsSuccess)
+        {
+            return Result<PipelineResult>.Failure(ensureResult.Error);
+        }
+
+        var metadataResult = await _vectorStore.GetFileMetadataAsync(collection, cancellationToken).ConfigureAwait(false);
+        if (!metadataResult.IsSuccess)
+        {
+            return Result<PipelineResult>.Failure(metadataResult.Error);
+        }
+
+        var existingMetadata = metadataResult.Value;
         var existingHashes = existingMetadata.ToDictionary(kv => kv.Key, kv => kv.Value.Sha256, StringComparer.Ordinal);
 
         var graphActive = _graphOptions.Enabled
@@ -107,30 +118,31 @@ public sealed class IndexCodebaseService : IIndexCodebaseService, IIndexPipeline
         IReadOnlyList<string> collectionNames = [collection];
         if (graphActive)
         {
-            try
+            var schemaResult = await _graphStore.EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
+            if (!schemaResult.IsSuccess)
             {
-                await _graphStore.EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
-                var stats = await _vectorStore.ListCollectionStatsAsync(cancellationToken).ConfigureAwait(false);
-                var names = stats.Select(s => s.Name).ToList();
-                if (!names.Contains(collection, StringComparer.Ordinal))
-                {
-                    names.Add(collection);
-                }
-
-                collectionNames = names;
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "graph_schema_init_error");
-                errors.Add(new Error(
-                    ErrorKind.Dependency,
-                    IndexErrorCodes.GraphSchemaInit,
-                    $"Graph schema init error: {ex.Message}"));
+                _logger.LogError("graph_schema_init_error code={Code} message={Message}", schemaResult.Error.Code, schemaResult.Error.Message);
+                errors.Add(schemaResult.Error);
                 graphActive = false;
+            }
+            else
+            {
+                var statsResult = await _vectorStore.ListCollectionStatsAsync(cancellationToken).ConfigureAwait(false);
+                if (!statsResult.IsSuccess)
+                {
+                    errors.Add(statsResult.Error);
+                    graphActive = false;
+                }
+                else
+                {
+                    var names = statsResult.Value.Select(s => s.Name).ToList();
+                    if (!names.Contains(collection, StringComparer.Ordinal))
+                    {
+                        names.Add(collection);
+                    }
+
+                    collectionNames = names;
+                }
             }
         }
 
@@ -139,8 +151,15 @@ public sealed class IndexCodebaseService : IIndexCodebaseService, IIndexPipeline
 
         try
         {
-            await _vectorStore.SetIndexingAsync(collection, enabled: false, cancellationToken).ConfigureAwait(false);
-            indexingPaused = true;
+            var pauseResult = await _vectorStore.SetIndexingAsync(collection, enabled: false, cancellationToken).ConfigureAwait(false);
+            if (!pauseResult.IsSuccess)
+            {
+                errors.Add(pauseResult.Error);
+            }
+            else
+            {
+                indexingPaused = true;
+            }
 
             var flushChannel = Channel.CreateBounded<ChunkFlushBatch>(new BoundedChannelOptions(2)
             {
@@ -167,25 +186,19 @@ public sealed class IndexCodebaseService : IIndexCodebaseService, IIndexPipeline
 
             if (stalePaths.Count > 0)
             {
-                await _vectorStore.DeleteByPathsAsync(collection, stalePaths, cancellationToken).ConfigureAwait(false);
-                if (graphActive)
+                var deleteStale = await _vectorStore.DeleteByPathsAsync(collection, stalePaths, cancellationToken).ConfigureAwait(false);
+                if (!deleteStale.IsSuccess)
                 {
-                    try
+                    errors.Add(deleteStale.Error);
+                }
+                else if (graphActive)
+                {
+                    var graphDelete = await _graphStore.DeleteFilesAsync(collection, stalePaths, cancellationToken)
+                        .ConfigureAwait(false);
+                    if (!graphDelete.IsSuccess)
                     {
-                        await _graphStore.DeleteFilesAsync(collection, stalePaths, cancellationToken)
-                            .ConfigureAwait(false);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        throw;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "graph_stale_delete_error");
-                        errors.Add(new Error(
-                            ErrorKind.Dependency,
-                            IndexErrorCodes.GraphStaleDelete,
-                            $"Graph stale delete error: {ex.Message}"));
+                        _logger.LogError("graph_stale_delete_error code={Code} message={Message}", graphDelete.Error.Code, graphDelete.Error.Message);
+                        errors.Add(new Error(graphDelete.Error.Kind, IndexErrorCodes.GraphStaleDelete, graphDelete.Error.Message, graphDelete.Error.Metadata));
                     }
                 }
             }
@@ -194,7 +207,11 @@ public sealed class IndexCodebaseService : IIndexCodebaseService, IIndexPipeline
         {
             if (indexingPaused)
             {
-                await _vectorStore.SetIndexingAsync(collection, enabled: true, cancellationToken).ConfigureAwait(false);
+                var resumeResult = await _vectorStore.SetIndexingAsync(collection, enabled: true, cancellationToken).ConfigureAwait(false);
+                if (!resumeResult.IsSuccess)
+                {
+                    errors.Add(resumeResult.Error);
+                }
             }
 
             if (_options.ReleaseModelsAfterIndex)
@@ -205,40 +222,26 @@ public sealed class IndexCodebaseService : IIndexCodebaseService, IIndexPipeline
 
         if (graphActive)
         {
-            try
+            var callSitesResult = await _vectorStore.SetCollectionGraphCallSitesAsync(collection, enabled: true, cancellationToken)
+                .ConfigureAwait(false);
+            if (!callSitesResult.IsSuccess)
             {
-                await _vectorStore.SetCollectionGraphCallSitesAsync(collection, enabled: true, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "graph_call_sites_metadata_error collection={Collection}", collection);
+                _logger.LogWarning("graph_call_sites_metadata_error collection={Collection} message={Message}", collection, callSitesResult.Error.Message);
                 errors.Add(new Error(
                     ErrorKind.Dependency,
                     IndexErrorCodes.GraphCallSitesMetadata,
-                    $"Graph call-sites metadata error: {ex.Message}"));
+                    $"Graph call-sites metadata error: {callSitesResult.Error.Message}"));
             }
 
-            try
+            var graphEnabledResult = await _vectorStore.SetCollectionGraphEnabledAsync(collection, enabled: true, cancellationToken)
+                .ConfigureAwait(false);
+            if (!graphEnabledResult.IsSuccess)
             {
-                await _vectorStore.SetCollectionGraphEnabledAsync(collection, enabled: true, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "graph_enabled_metadata_error collection={Collection}", collection);
+                _logger.LogWarning("graph_enabled_metadata_error collection={Collection} message={Message}", collection, graphEnabledResult.Error.Message);
                 errors.Add(new Error(
                     ErrorKind.Dependency,
                     IndexErrorCodes.GraphEnabledMetadata,
-                    $"Graph enabled metadata error: {ex.Message}"));
+                    $"Graph enabled metadata error: {graphEnabledResult.Error.Message}"));
             }
         }
 
@@ -363,26 +366,20 @@ public sealed class IndexCodebaseService : IIndexCodebaseService, IIndexPipeline
 
             if (batch.ModifiedPaths.Count > 0)
             {
-                await _vectorStore.DeleteByPathsAsync(collection, batch.ModifiedPaths, cancellationToken)
+                var deleteModified = await _vectorStore.DeleteByPathsAsync(collection, batch.ModifiedPaths, cancellationToken)
                     .ConfigureAwait(false);
-                if (graphActive)
+                if (!deleteModified.IsSuccess)
                 {
-                    try
+                    errors.Add(deleteModified.Error);
+                }
+                else if (graphActive)
+                {
+                    var graphDelete = await _graphStore.DeleteFilesAsync(collection, batch.ModifiedPaths, cancellationToken)
+                        .ConfigureAwait(false);
+                    if (!graphDelete.IsSuccess)
                     {
-                        await _graphStore.DeleteFilesAsync(collection, batch.ModifiedPaths, cancellationToken)
-                            .ConfigureAwait(false);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        throw;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "graph_delete_error");
-                        errors.Add(new Error(
-                            ErrorKind.Dependency,
-                            IndexErrorCodes.GraphDelete,
-                            $"Graph delete error: {ex.Message}"));
+                        _logger.LogError("graph_delete_error code={Code} message={Message}", graphDelete.Error.Code, graphDelete.Error.Message);
+                        errors.Add(new Error(graphDelete.Error.Kind, IndexErrorCodes.GraphDelete, graphDelete.Error.Message, graphDelete.Error.Metadata));
                     }
                 }
             }
@@ -452,7 +449,7 @@ public sealed class IndexCodebaseService : IIndexCodebaseService, IIndexPipeline
                 batch[i] = embedded[offset + i];
             }
 
-            await _vectorStore.UpsertChunksAsync(
+            var upsertResult = await _vectorStore.UpsertChunksAsync(
                 collection,
                 batch,
                 // Only strip Qdrant callees when the graph batch was built successfully;
@@ -460,25 +457,19 @@ public sealed class IndexCodebaseService : IIndexCodebaseService, IIndexPipeline
                 omitCallees: graphBatch is not null,
                 graphNodeIdsByChunk: graphNodeIdsByChunk,
                 cancellationToken).ConfigureAwait(false);
+            if (!upsertResult.IsSuccess)
+            {
+                errors.Add(upsertResult.Error);
+            }
         }
 
         if (graphActive && graphBatch is not null)
         {
-            try
+            var writeResult = await _graphStore.WriteBatchAsync(graphBatch, cancellationToken).ConfigureAwait(false);
+            if (!writeResult.IsSuccess)
             {
-                await _graphStore.WriteBatchAsync(graphBatch, cancellationToken).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "graph_write_error");
-                errors.Add(new Error(
-                    ErrorKind.Dependency,
-                    IndexErrorCodes.GraphWrite,
-                    $"Graph write error: {ex.Message}"));
+                _logger.LogError("graph_write_error code={Code} message={Message}", writeResult.Error.Code, writeResult.Error.Message);
+                errors.Add(writeResult.Error);
             }
         }
     }

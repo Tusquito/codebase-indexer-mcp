@@ -1,10 +1,12 @@
+using CodebaseIndexer.Domain.Results;
+
 namespace CodebaseIndexer.Application.Services;
 
 /// <summary>Cross-collection reference discovery (find_cross_references).</summary>
 public interface ICrossReferenceService
 {
     /// <summary>Find cross-project links for a query, symbol, and/or member call site.</summary>
-    Task<object> FindCrossReferencesAsync(
+    Task<Result<object>> FindCrossReferencesAsync(
         string? query = null,
         string? symbolName = null,
         IReadOnlyList<string>? collections = null,

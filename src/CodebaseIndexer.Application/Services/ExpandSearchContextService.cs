@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using CodebaseIndexer.Application.Options;
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
+using CodebaseIndexer.Domain.Results;
 using Microsoft.Extensions.Options;
 
 namespace CodebaseIndexer.Application.Services;
@@ -28,7 +29,7 @@ public sealed class ExpandSearchContextService : IExpandSearchContextService
     }
 
     /// <inheritdoc />
-    public async Task<object> ExpandSearchContextAsync(
+    public async Task<Result<object>> ExpandSearchContextAsync(
         string query,
         int topK = 5,
         string? collection = null,
@@ -46,17 +47,22 @@ public sealed class ExpandSearchContextService : IExpandSearchContextService
 
         var primary = collection ?? "codebase";
         var targets = SearchService.ResolveCollections(primary, collections);
-        var search = await _search.SearchCodebaseAsync(
+        var searchResult = await _search.SearchCodebaseAsync(
             query, topK, primary, collections, language, minScore, maxContentChars: null, rerank: null, cancellationToken)
             .ConfigureAwait(false);
+        if (!searchResult.IsSuccess)
+        {
+            return Result<object>.Failure(searchResult.Error);
+        }
 
+        var search = searchResult.Value;
         var seeds = search.Results.Select(r => new ExpandSeed(
             r.ChunkId, r.Score, r.Collection, r.RelPath, r.SymbolName, r.SymbolType,
             r.StartLine, r.EndLine, r.Language)).ToArray();
 
         if (!await _graph.IsEnabledAsync(cancellationToken).ConfigureAwait(false))
         {
-            return EmptyContext(seeds);
+            return Result<object>.Success(EmptyContext(seeds));
         }
 
         var seedChunkIds = search.Results
@@ -65,27 +71,38 @@ public sealed class ExpandSearchContextService : IExpandSearchContextService
             .ToArray();
         if (seedChunkIds.Length == 0)
         {
-            return EmptyContext(seeds);
+            return Result<object>.Success(EmptyContext(seeds));
         }
 
         var hops = graphHops ?? _graphOptions.MaxHops;
         hops = Math.Max(1, Math.Min(hops, _graphOptions.MaxHops));
 
-        var expansion = await _graph.ExpandSubgraphAsync(
+        var expansionResult = await _graph.ExpandSubgraphAsync(
             seedChunkIds, hops, _graphOptions.MaxNodes, cancellationToken).ConfigureAwait(false);
+        if (!expansionResult.IsSuccess)
+        {
+            return Result<object>.Failure(expansionResult.Error);
+        }
 
+        var expansion = expansionResult.Value;
         var relatedChunks = new List<ExpandRelatedChunk>();
         foreach (var cid in expansion.RelatedChunkIds)
         {
             expansion.RelatedChunkCollections.TryGetValue(cid, out var coll);
-            var payload = coll is not null
+            var payloadResult = coll is not null
                 ? await _store.GetChunkByIdAsync(coll, cid, cancellationToken).ConfigureAwait(false)
                 : await _store.FindChunkByIdAsync(cid, cancellationToken: cancellationToken).ConfigureAwait(false);
-            if (payload is null)
+            if (!payloadResult.IsSuccess)
             {
-                continue;
+                if (payloadResult.Error.Kind == ErrorKind.NotFound)
+                {
+                    continue;
+                }
+
+                return Result<object>.Failure(payloadResult.Error);
             }
 
+            var payload = payloadResult.Value;
             var content = payload.Content ?? string.Empty;
             bool? truncated = null;
             if (maxContentChars is { } max && content.Length > max)
@@ -107,13 +124,13 @@ public sealed class ExpandSearchContextService : IExpandSearchContextService
                 truncated));
         }
 
-        return new ExpandSearchContextResponse(
+        return Result<object>.Success(new ExpandSearchContextResponse(
             expansion.Nodes.Select(n => new ExpandNode(n.Labels, n.Key, n.Props)).ToArray(),
             expansion.Edges.Select(e => new ExpandEdge(e.Type, e.FromKey, e.ToKey)).ToArray(),
             relatedChunks,
             seeds,
             targets,
-            hops);
+            hops));
     }
 
     private static ExpandSearchContextResponse EmptyContext(IReadOnlyList<ExpandSeed> seeds) =>

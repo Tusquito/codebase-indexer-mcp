@@ -1,4 +1,5 @@
 using CodebaseIndexer.Domain.Models;
+using CodebaseIndexer.Domain.Results;
 
 namespace CodebaseIndexer.Application.Services;
 
@@ -6,7 +7,7 @@ namespace CodebaseIndexer.Application.Services;
 public interface IRecommendService
 {
     /// <summary>Recommend chunks similar to positives / dissimilar from negatives.</summary>
-    Task<object> RecommendCodeAsync(
+    Task<Result<object>> RecommendCodeAsync(
         string collection,
         IReadOnlyList<string>? positiveChunkIds = null,
         string? positiveQuery = null,
@@ -19,7 +20,7 @@ public interface IRecommendService
         CancellationToken cancellationToken = default);
 
     /// <summary>Find chunks semantically distant from a context sample.</summary>
-    Task<object> FindOutlierChunksAsync(
+    Task<Result<object>> FindOutlierChunksAsync(
         string collection,
         IReadOnlyList<string>? contextChunkIds = null,
         int limit = 5,

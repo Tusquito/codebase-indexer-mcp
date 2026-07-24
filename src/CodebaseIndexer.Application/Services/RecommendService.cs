@@ -3,6 +3,7 @@ using CodebaseIndexer.Application.Options;
 using CodebaseIndexer.Domain.Embedding;
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
+using CodebaseIndexer.Domain.Results;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -27,7 +28,7 @@ public sealed class RecommendService : IRecommendService
     }
 
     /// <inheritdoc />
-    public async Task<object> RecommendCodeAsync(
+    public async Task<Result<object>> RecommendCodeAsync(
         string collection,
         IReadOnlyList<string>? positiveChunkIds = null,
         string? positiveQuery = null,
@@ -51,8 +52,10 @@ public sealed class RecommendService : IRecommendService
 
         if (posIds.Count == 0 && string.IsNullOrEmpty(posQuery))
         {
-            throw new ArgumentException(
-                "At least one positive example is required (positive_chunk_ids and/or positive_query).");
+            return Result<object>.Failure(new Error(
+                ErrorKind.Validation,
+                McpErrorCodes.Validation,
+                "At least one positive example is required (positive_chunk_ids and/or positive_query)."));
         }
 
         var exampleCount = posIds.Count + negIds.Count;
@@ -68,16 +71,22 @@ public sealed class RecommendService : IRecommendService
 
         if (exampleCount > _discovery.RecommendMaxExamples)
         {
-            throw new ArgumentException(
+            return Result<object>.Failure(new Error(
+                ErrorKind.Validation,
+                McpErrorCodes.Validation,
                 $"Example count {exampleCount} exceeds RECOMMEND_MAX_EXAMPLES=" +
-                $"{_discovery.RecommendMaxExamples} (positive + negative combined).");
+                $"{_discovery.RecommendMaxExamples} (positive + negative combined)."));
         }
 
         var allChunkIds = posIds.Concat(negIds).ToArray();
         if (allChunkIds.Length > 0)
         {
-            await _store.VerifyChunkIdsExistAsync(collection, allChunkIds, cancellationToken)
+            var verify = await _store.VerifyChunkIdsExistAsync(collection, allChunkIds, cancellationToken)
                 .ConfigureAwait(false);
+            if (!verify.IsSuccess)
+            {
+                return Result<object>.Failure(verify.Error);
+            }
         }
 
         var positive = posIds.Select(RecommendExample.FromChunkId).ToList();
@@ -99,7 +108,13 @@ public sealed class RecommendService : IRecommendService
 
         if (texts.Count > 0)
         {
-            var vectors = await _dense.EmbedBatchAsync(texts, cancellationToken).ConfigureAwait(false);
+            var vectorsResult = await _dense.EmbedBatchAsync(texts, cancellationToken).ConfigureAwait(false);
+            if (!vectorsResult.IsSuccess)
+            {
+                return Result<object>.Failure(vectorsResult.Error);
+            }
+
+            var vectors = vectorsResult.Value;
             for (var i = 0; i < roles.Count; i++)
             {
                 if (roles[i] == "positive")
@@ -116,16 +131,20 @@ public sealed class RecommendService : IRecommendService
         var results = await _store.RecommendAsync(
             collection, positive, negative.Count > 0 ? negative : null, limit, language, pathGlob, cancellationToken)
             .ConfigureAwait(false);
+        if (!results.IsSuccess)
+        {
+            return Result<object>.Failure(results.Error);
+        }
 
-        return new RecommendCodeResponse(
-            ShapeHits(results, maxContentChars),
+        return Result<object>.Success(new RecommendCodeResponse(
+            ShapeHits(results.Value, maxContentChars),
             collection,
             positive.Count,
-            negative.Count);
+            negative.Count));
     }
 
     /// <inheritdoc />
-    public async Task<object> FindOutlierChunksAsync(
+    public async Task<Result<object>> FindOutlierChunksAsync(
         string collection,
         IReadOnlyList<string>? contextChunkIds = null,
         int limit = 5,
@@ -143,22 +162,33 @@ public sealed class RecommendService : IRecommendService
         var ctxIds = contextChunkIds ?? Array.Empty<string>();
         if (ctxIds.Count > 0)
         {
-            await _store.VerifyChunkIdsExistAsync(collection, ctxIds, cancellationToken)
+            var verify = await _store.VerifyChunkIdsExistAsync(collection, ctxIds, cancellationToken)
                 .ConfigureAwait(false);
+            if (!verify.IsSuccess)
+            {
+                return Result<object>.Failure(verify.Error);
+            }
         }
 
         if (maxSimilarity is { } ms && (ms < 0f || ms > 1f))
         {
-            throw new ArgumentException("max_similarity must be between 0.0 and 1.0.");
+            return Result<object>.Failure(new Error(
+                ErrorKind.Validation,
+                McpErrorCodes.Validation,
+                "max_similarity must be between 0.0 and 1.0."));
         }
 
         var effectiveMaxSim = maxSimilarity ?? _discovery.OutlierMaxSimilarity;
         var results = await _store.FindOutlierChunksAsync(
             collection, ctxIds.Count > 0 ? ctxIds : null, limit, language, pathGlob, effectiveMaxSim,
             cancellationToken: cancellationToken).ConfigureAwait(false);
+        if (!results.IsSuccess)
+        {
+            return Result<object>.Failure(results.Error);
+        }
 
-        var items = ShapeHits(results, maxContentChars, includeSimilarity: true);
-        return new OutlierChunksResponse(items, collection, ctxIds.Count, effectiveMaxSim);
+        var items = ShapeHits(results.Value, maxContentChars, includeSimilarity: true);
+        return Result<object>.Success(new OutlierChunksResponse(items, collection, ctxIds.Count, effectiveMaxSim));
     }
 
     private static IReadOnlyList<DiscoveryHit> ShapeHits(

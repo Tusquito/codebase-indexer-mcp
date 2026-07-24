@@ -5,6 +5,7 @@ using CodebaseIndexer.Application.Search;
 using CodebaseIndexer.Domain.Embedding;
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
+using CodebaseIndexer.Domain.Results;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -48,7 +49,7 @@ public sealed class SearchService : ISearchService
         rerankEnabled && rerank is not false;
 
     /// <inheritdoc />
-    public async Task<SearchCodebaseResponse> SearchCodebaseAsync(
+    public async Task<Result<SearchCodebaseResponse>> SearchCodebaseAsync(
         string query,
         int topK = 5,
         string? collection = null,
@@ -67,9 +68,14 @@ public sealed class SearchService : ISearchService
         var targets = ResolveCollections(collection ?? "codebase", collections);
         await WarnIfGraphLinkageMissingAsync(targets, cancellationToken).ConfigureAwait(false);
         var useRerank = ShouldUseRerank(_embedding.RerankEnabled, rerank);
-        var hits = await RunSearchAsync(query, targets, topK, language, minScore, useRerank, cancellationToken)
+        var hitsResult = await RunSearchAsync(query, targets, topK, language, minScore, useRerank, cancellationToken)
             .ConfigureAwait(false);
+        if (!hitsResult.IsSuccess)
+        {
+            return Result<SearchCodebaseResponse>.Failure(hitsResult.Error);
+        }
 
+        var hits = hitsResult.Value;
         var items = new List<SearchCodebaseHit>(hits.Count);
         foreach (var hit in hits)
         {
@@ -95,15 +101,20 @@ public sealed class SearchService : ISearchService
                 truncated));
         }
 
-        var crossRefs = targets.Count > 1
+        Result<IReadOnlyList<CrossReferenceEntry>> crossRefsResult = targets.Count > 1
             ? await DetectCrossReferencesAsync(hits, targets, cancellationToken).ConfigureAwait(false)
-            : Array.Empty<CrossReferenceEntry>();
+            : Result<IReadOnlyList<CrossReferenceEntry>>.Success(Array.Empty<CrossReferenceEntry>());
+        if (!crossRefsResult.IsSuccess)
+        {
+            return Result<SearchCodebaseResponse>.Failure(crossRefsResult.Error);
+        }
 
-        return new SearchCodebaseResponse(items, targets, crossRefs);
+        return Result<SearchCodebaseResponse>.Success(
+            new SearchCodebaseResponse(items, targets, crossRefsResult.Value));
     }
 
     /// <inheritdoc />
-    public async Task<SearchSymbolsResponse> SearchSymbolsAsync(
+    public async Task<Result<SearchSymbolsResponse>> SearchSymbolsAsync(
         string query,
         int topK = 10,
         string? collection = null,
@@ -121,10 +132,14 @@ public sealed class SearchService : ISearchService
         var targets = ResolveCollections(collection ?? "codebase", collections);
         await WarnIfGraphLinkageMissingAsync(targets, cancellationToken).ConfigureAwait(false);
         var useRerank = ShouldUseRerank(_embedding.RerankEnabled, rerank);
-        var hits = await RunSearchAsync(query, targets, topK, language, minScore, useRerank, cancellationToken)
+        var hitsResult = await RunSearchAsync(query, targets, topK, language, minScore, useRerank, cancellationToken)
             .ConfigureAwait(false);
+        if (!hitsResult.IsSuccess)
+        {
+            return Result<SearchSymbolsResponse>.Failure(hitsResult.Error);
+        }
 
-        var items = hits.Select(hit => new SearchSymbolsHit(
+        var items = hitsResult.Value.Select(hit => new SearchSymbolsHit(
             hit.Id.Value,
             Math.Round(hit.Score, 4),
             hit.Collection,
@@ -135,7 +150,7 @@ public sealed class SearchService : ISearchService
             hit.EndLine,
             hit.Language)).ToArray();
 
-        return new SearchSymbolsResponse(items, targets);
+        return Result<SearchSymbolsResponse>.Success(new SearchSymbolsResponse(items, targets));
     }
 
     internal static IReadOnlyList<string> ResolveCollections(string primary, IReadOnlyList<string>? collections)
@@ -185,7 +200,7 @@ public sealed class SearchService : ISearchService
         }
     }
 
-    private async Task<IReadOnlyList<SearchHit>> RunSearchAsync(
+    private async Task<Result<IReadOnlyList<SearchHit>>> RunSearchAsync(
         string query,
         IReadOnlyList<string> targets,
         int topK,
@@ -194,35 +209,37 @@ public sealed class SearchService : ISearchService
         bool useRerank,
         CancellationToken cancellationToken)
     {
-        var denseTask = _dense.EmbedQueryAsync([query], cancellationToken);
-        Task<IReadOnlyList<SparseVector>>? sparseTask = null;
+        var denseResult = await _dense.EmbedQueryAsync([query], cancellationToken).ConfigureAwait(false);
+        if (!denseResult.IsSuccess)
+        {
+            return Result<IReadOnlyList<SearchHit>>.Failure(denseResult.Error);
+        }
+
+        SparseVector? sparse = null;
         if (_embedding.HybridSearch)
         {
-            sparseTask = _sparse.EmbedBatchAsync([query], cancellationToken);
-        }
+            var sparseResult = await _sparse.EmbedBatchAsync([query], cancellationToken).ConfigureAwait(false);
+            if (!sparseResult.IsSuccess)
+            {
+                return Result<IReadOnlyList<SearchHit>>.Failure(sparseResult.Error);
+            }
 
-        Task<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>>? colbertTask = null;
-        if (useRerank)
-        {
-            colbertTask = _colbert.EmbedBatchAsync([query], cancellationToken);
-        }
-
-        var denseVectors = await denseTask.ConfigureAwait(false);
-        SparseVector? sparse = null;
-        if (sparseTask is not null)
-        {
-            var sparseVectors = await sparseTask.ConfigureAwait(false);
-            sparse = sparseVectors[0];
+            sparse = sparseResult.Value[0];
         }
 
         IReadOnlyList<IReadOnlyList<float>>? colbert = null;
-        if (colbertTask is not null)
+        if (useRerank)
         {
-            var colbertVectors = await colbertTask.ConfigureAwait(false);
-            colbert = colbertVectors[0];
+            var colbertResult = await _colbert.EmbedBatchAsync([query], cancellationToken).ConfigureAwait(false);
+            if (!colbertResult.IsSuccess)
+            {
+                return Result<IReadOnlyList<SearchHit>>.Failure(colbertResult.Error);
+            }
+
+            colbert = colbertResult.Value[0];
         }
 
-        var dense = denseVectors[0];
+        var dense = denseResult.Value[0];
 
         if (targets.Count == 1)
         {
@@ -233,25 +250,34 @@ public sealed class SearchService : ISearchService
         var tasks = targets.Select(coll =>
             _store.SearchAsync(coll, dense, sparse, topK, language, minScore, colbert, cancellationToken));
         var batches = await Task.WhenAll(tasks).ConfigureAwait(false);
-        var perCollection = batches
-            .Where(b => b.Count > 0)
-            .Cast<IReadOnlyList<SearchHit>>()
-            .ToArray();
-
-        if (perCollection.Length == 0)
+        var hits = new List<IReadOnlyList<SearchHit>>();
+        foreach (var batch in batches)
         {
-            return Array.Empty<SearchHit>();
+            if (!batch.IsSuccess)
+            {
+                return Result<IReadOnlyList<SearchHit>>.Failure(batch.Error);
+            }
+
+            if (batch.Value.Count > 0)
+            {
+                hits.Add(batch.Value);
+            }
         }
 
-        if (perCollection.Length == 1)
+        if (hits.Count == 0)
         {
-            return perCollection[0].Take(topK).ToArray();
+            return Result<IReadOnlyList<SearchHit>>.Success(Array.Empty<SearchHit>());
         }
 
-        return CrossCollectionRrf.Fuse(perCollection, _embedding.RrfK, topK);
+        if (hits.Count == 1)
+        {
+            return Result<IReadOnlyList<SearchHit>>.Success(hits[0].Take(topK).ToArray());
+        }
+
+        return Result<IReadOnlyList<SearchHit>>.Success(CrossCollectionRrf.Fuse(hits, _embedding.RrfK, topK));
     }
 
-    private async Task<IReadOnlyList<CrossReferenceEntry>> DetectCrossReferencesAsync(
+    private async Task<Result<IReadOnlyList<CrossReferenceEntry>>> DetectCrossReferencesAsync(
         IReadOnlyList<SearchHit> hits,
         IReadOnlyList<string> targetCollections,
         CancellationToken cancellationToken)
@@ -292,7 +318,12 @@ public sealed class SearchService : ISearchService
 
             for (var i = 0; i < toCheck.Count; i++)
             {
-                foreach (var hit in foundBatches[i])
+                if (!foundBatches[i].IsSuccess)
+                {
+                    return Result<IReadOnlyList<CrossReferenceEntry>>.Failure(foundBatches[i].Error);
+                }
+
+                foreach (var hit in foundBatches[i].Value)
                 {
                     symbolCollections[toCheck[i].Symbol].Add(hit.Collection);
                 }
@@ -340,8 +371,7 @@ public sealed class SearchService : ISearchService
                     StringComparer.Ordinal)));
         }
 
-        return crossRefs
-            .OrderByDescending(x => x.Collections.Count)
-            .ToArray();
+        return Result<IReadOnlyList<CrossReferenceEntry>>.Success(
+            crossRefs.OrderByDescending(x => x.Collections.Count).ToArray());
     }
 }

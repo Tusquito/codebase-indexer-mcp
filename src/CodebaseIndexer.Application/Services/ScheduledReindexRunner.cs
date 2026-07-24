@@ -43,7 +43,17 @@ public sealed class ScheduledReindexRunner : IScheduledReindexRunner
             workspaceRoot,
             _reindex.GitPull);
 
-        var collections = await _store.ListCollectionsAsync(cancellationToken).ConfigureAwait(false);
+        var collectionsResult = await _store.ListCollectionsAsync(cancellationToken).ConfigureAwait(false);
+        if (!collectionsResult.IsSuccess)
+        {
+            _logger.LogError(
+                "scheduled_reindex_list_failed code={Code} message={Message}",
+                collectionsResult.Error.Code,
+                collectionsResult.Error.Message);
+            return;
+        }
+
+        var collections = collectionsResult.Value;
         if (collections.Count == 0)
         {
             _logger.LogInformation("scheduled_reindex_skip reason=no_collections");

@@ -2,6 +2,7 @@ using CodebaseIndexer.Application.Models;
 using CodebaseIndexer.Application.Search;
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
+using CodebaseIndexer.Domain.Results;
 using Microsoft.Extensions.Logging;
 using DomainMatchType = CodebaseIndexer.Domain.Models.MatchType;
 
@@ -32,7 +33,7 @@ public sealed class CrossReferenceService : ICrossReferenceService
     }
 
     /// <inheritdoc />
-    public async Task<object> FindCrossReferencesAsync(
+    public async Task<Result<object>> FindCrossReferencesAsync(
         string? query = null,
         string? symbolName = null,
         IReadOnlyList<string>? collections = null,
@@ -46,10 +47,10 @@ public sealed class CrossReferenceService : ICrossReferenceService
             && string.IsNullOrWhiteSpace(symbolName)
             && string.IsNullOrWhiteSpace(member))
         {
-            return new Dictionary<string, object?>
-            {
-                ["error"] = "Provide at least 'query', 'symbol_name', or 'member'.",
-            };
+            return Result<object>.Failure(new Error(
+                ErrorKind.Validation,
+                McpErrorCodes.Validation,
+                "Provide at least 'query', 'symbol_name', or 'member'."));
         }
 
         IReadOnlyList<string> targetCollections;
@@ -59,13 +60,18 @@ public sealed class CrossReferenceService : ICrossReferenceService
         }
         else
         {
-            var stats = await _store.ListCollectionStatsAsync(cancellationToken).ConfigureAwait(false);
-            targetCollections = stats.Select(s => s.Name).ToArray();
+            var statsResult = await _store.ListCollectionStatsAsync(cancellationToken).ConfigureAwait(false);
+            if (!statsResult.IsSuccess)
+            {
+                return Result<object>.Failure(statsResult.Error);
+            }
+
+            targetCollections = statsResult.Value.Select(s => s.Name).ToArray();
         }
 
         if (targetCollections.Count == 0)
         {
-            return new CrossReferenceResponse(query, symbolName, member, receiver, 0, new Dictionary<string, IReadOnlyList<CrossReferenceHit>>(), Array.Empty<CrossReferenceLink>());
+            return Result<object>.Success(new CrossReferenceResponse(query, symbolName, member, receiver, 0, new Dictionary<string, IReadOnlyList<CrossReferenceHit>>(), Array.Empty<CrossReferenceLink>()));
         }
 
         var allResults = new List<CrossReferenceHitInternal>();
@@ -73,7 +79,7 @@ public sealed class CrossReferenceService : ICrossReferenceService
 
         if (!string.IsNullOrWhiteSpace(query))
         {
-            var semantic = await _search.SearchCodebaseAsync(
+            var semanticResult = await _search.SearchCodebaseAsync(
                 query!,
                 topK,
                 targetCollections[0],
@@ -82,7 +88,12 @@ public sealed class CrossReferenceService : ICrossReferenceService
                 minScore: 0.3f,
                 rerank: rerank,
                 cancellationToken: cancellationToken).ConfigureAwait(false);
-            foreach (var r in semantic.Results)
+            if (!semanticResult.IsSuccess)
+            {
+                return Result<object>.Failure(semanticResult.Error);
+            }
+
+            foreach (var r in semanticResult.Value.Results)
             {
                 allResults.Add(ToHit(r, DomainMatchType.Semantic, _extractors.ClassifyReference(r.Content, lookupLabel, r.RelPath)));
             }
@@ -92,8 +103,13 @@ public sealed class CrossReferenceService : ICrossReferenceService
         {
             var symbolResults = await _store.FindSymbolInCollectionsAsync(
                 symbolName!, targetCollections, topK, cancellationToken).ConfigureAwait(false);
+            if (!symbolResults.IsSuccess)
+            {
+                return Result<object>.Failure(symbolResults.Error);
+            }
+
             var seen = allResults.Select(r => r.RelPath + r.StartLine).ToHashSet(StringComparer.Ordinal);
-            foreach (var r in symbolResults)
+            foreach (var r in symbolResults.Value)
             {
                 var key = r.RelPath + r.StartLine;
                 if (!seen.Add(key))
@@ -117,8 +133,13 @@ public sealed class CrossReferenceService : ICrossReferenceService
                 minScore: 0.3f,
                 rerank: rerank,
                 cancellationToken: cancellationToken).ConfigureAwait(false);
+            if (!importResults.IsSuccess)
+            {
+                return Result<object>.Failure(importResults.Error);
+            }
+
             seen = allResults.Select(r => r.RelPath + r.StartLine).ToHashSet(StringComparer.Ordinal);
-            foreach (var r in importResults.Results)
+            foreach (var r in importResults.Value.Results)
             {
                 var key = r.RelPath + r.StartLine;
                 if (!seen.Add(key))
@@ -134,8 +155,13 @@ public sealed class CrossReferenceService : ICrossReferenceService
         {
             var callerResults = await FindCallSitesAsync(
                 member!, targetCollections, receiver, topK, cancellationToken).ConfigureAwait(false);
+            if (!callerResults.IsSuccess)
+            {
+                return Result<object>.Failure(callerResults.Error);
+            }
+
             var byKey = allResults.ToDictionary(r => r.RelPath + r.StartLine, StringComparer.Ordinal);
-            foreach (var r in callerResults)
+            foreach (var r in callerResults.Value)
             {
                 var key = r.RelPath + r.StartLine;
                 if (byKey.TryGetValue(key, out var existing))
@@ -163,11 +189,11 @@ public sealed class CrossReferenceService : ICrossReferenceService
                 StringComparer.Ordinal);
 
         var links = BuildLinkSummary(byCollection, _extractors, member, symbolName);
-        return new CrossReferenceResponse(
-            query, symbolName, member, receiver, byCollection.Count, byCollection, links);
+        return Result<object>.Success(new CrossReferenceResponse(
+            query, symbolName, member, receiver, byCollection.Count, byCollection, links));
     }
 
-    private async Task<IReadOnlyList<SearchHit>> FindCallSitesAsync(
+    private async Task<Result<IReadOnlyList<SearchHit>>> FindCallSitesAsync(
         string member,
         IReadOnlyList<string> targetCollections,
         string? receiver,
@@ -201,19 +227,29 @@ public sealed class CrossReferenceService : ICrossReferenceService
         var callerResults = new List<SearchHit>();
         if (neo4jCollections.Count > 0)
         {
-            callerResults.AddRange(
-                await _graph.FindCallersAsync(member, neo4jCollections, receiver, topK, cancellationToken)
-                    .ConfigureAwait(false));
+            var neo = await _graph.FindCallersAsync(member, neo4jCollections, receiver, topK, cancellationToken)
+                .ConfigureAwait(false);
+            if (!neo.IsSuccess)
+            {
+                return Result<IReadOnlyList<SearchHit>>.Failure(neo.Error);
+            }
+
+            callerResults.AddRange(neo.Value);
         }
 
         if (qdrantCollections.Count > 0)
         {
-            callerResults.AddRange(
-                await _store.FindCallersInCollectionsAsync(
-                    member, qdrantCollections, receiver, topK, cancellationToken).ConfigureAwait(false));
+            var qd = await _store.FindCallersInCollectionsAsync(
+                member, qdrantCollections, receiver, topK, cancellationToken).ConfigureAwait(false);
+            if (!qd.IsSuccess)
+            {
+                return Result<IReadOnlyList<SearchHit>>.Failure(qd.Error);
+            }
+
+            callerResults.AddRange(qd.Value);
         }
 
-        return callerResults;
+        return Result<IReadOnlyList<SearchHit>>.Success(callerResults);
     }
 
     private static CrossReferenceHitInternal ToHit(

@@ -1,10 +1,12 @@
+using CodebaseIndexer.Domain.Results;
+
 namespace CodebaseIndexer.Application.Services;
 
 /// <summary>Multi-collection service dependency mapping.</summary>
 public interface IServiceMapService
 {
     /// <summary>Discover HTTP/config/build edges across collections.</summary>
-    Task<object> MapServiceDependenciesAsync(
+    Task<Result<object>> MapServiceDependenciesAsync(
         IReadOnlyList<string>? collections = null,
         int topK = 30,
         bool? rerank = null,

@@ -1,4 +1,5 @@
 using CodebaseIndexer.Domain.Models;
+using CodebaseIndexer.Domain.Results;
 
 namespace CodebaseIndexer.Application.Services;
 
@@ -6,7 +7,7 @@ namespace CodebaseIndexer.Application.Services;
 public interface IExpandSearchContextService
 {
     /// <summary>Hybrid search seeds → Neo4j neighborhood → hydrate related chunks.</summary>
-    Task<object> ExpandSearchContextAsync(
+    Task<Result<object>> ExpandSearchContextAsync(
         string query,
         int topK = 5,
         string? collection = null,

@@ -51,10 +51,6 @@ public sealed record SearchSymbolsResponse(
     [property: JsonPropertyName("results")] IReadOnlyList<SearchSymbolsHit> Results,
     [property: JsonPropertyName("collections_searched")] IReadOnlyList<string> CollectionsSearched);
 
-/// <summary>get_chunk error payload.</summary>
-public sealed record ChunkNotFoundResponse(
-    [property: JsonPropertyName("error")] string Error);
-
 /// <summary>get_file_outline success payload.</summary>
 public sealed record FileOutlineResponse(
     [property: JsonPropertyName("collection")] string Collection,
@@ -71,11 +67,6 @@ public sealed record FileOutlineSymbol(
     [property: JsonPropertyName("end_line")] int EndLine,
     [property: JsonPropertyName("language")] SourceLanguage Language);
 
-/// <summary>get_file_outline error payload.</summary>
-public sealed record FileOutlineErrorResponse(
-    [property: JsonPropertyName("error")] string Error,
-    [property: JsonPropertyName("hint")] string Hint);
-
 /// <summary>get_collection_summary success payload.</summary>
 public sealed record CollectionSummaryResponse(
     [property: JsonPropertyName("collection")] string Collection,
@@ -91,11 +82,6 @@ public sealed record CollectionSummaryResponse(
 public sealed record TopChunkedFile(
     [property: JsonPropertyName("rel_path")] string RelPath,
     [property: JsonPropertyName("chunk_count")] int ChunkCount);
-
-/// <summary>get_collection_summary error payload.</summary>
-public sealed record CollectionSummaryErrorResponse(
-    [property: JsonPropertyName("error")] string Error,
-    [property: JsonPropertyName("hint")] string Hint);
 
 /// <summary>list_collections row.</summary>
 public sealed record CollectionListItem(
