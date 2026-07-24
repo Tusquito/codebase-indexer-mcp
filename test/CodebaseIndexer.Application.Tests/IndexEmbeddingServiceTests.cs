@@ -60,18 +60,18 @@ public sealed class IndexEmbeddingServiceTests
     {
         public int VectorSize => 2;
         public bool IsLoaded => true;
-        public Task PreloadAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<Result> PreloadAsync(CancellationToken cancellationToken = default) => Task.FromResult(Result.Success());
         public void Release()
         {
         }
 
-        public Task<IReadOnlyList<IReadOnlyList<float>>> EmbedBatchAsync(
+        public Task<Result<IReadOnlyList<IReadOnlyList<float>>>> EmbedBatchAsync(
             IReadOnlyList<string> texts,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<IReadOnlyList<float>>>(
-                texts.Select(_ => (IReadOnlyList<float>)[0.1f, 0.2f]).ToArray());
+            Task.FromResult(Result<IReadOnlyList<IReadOnlyList<float>>>.Success(
+                texts.Select(_ => (IReadOnlyList<float>)new float[] { 0.1f, 0.2f }).ToArray()));
 
-        public Task<IReadOnlyList<IReadOnlyList<float>>> EmbedQueryAsync(
+        public Task<Result<IReadOnlyList<IReadOnlyList<float>>>> EmbedQueryAsync(
             IReadOnlyList<string> texts,
             CancellationToken cancellationToken = default) =>
             EmbedBatchAsync(texts, cancellationToken);
@@ -80,31 +80,31 @@ public sealed class IndexEmbeddingServiceTests
     private sealed class StubSparse : ISparseEmbedder
     {
         public bool IsLoaded => true;
-        public Task PreloadAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<Result> PreloadAsync(CancellationToken cancellationToken = default) => Task.FromResult(Result.Success());
         public void Release()
         {
         }
 
-        public Task<IReadOnlyList<SparseVector>> EmbedBatchAsync(
+        public Task<Result<IReadOnlyList<SparseVector>>> EmbedBatchAsync(
             IReadOnlyList<string> texts,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<SparseVector>>(
-                texts.Select(_ => new SparseVector([], [])).ToArray());
+            Task.FromResult(Result<IReadOnlyList<SparseVector>>.Success(
+                texts.Select(_ => new SparseVector([], [])).ToArray()));
     }
 
     private sealed class StubColbert : IColbertEmbedder
     {
         public int TokenDimension => 128;
         public bool IsLoaded => true;
-        public Task PreloadAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<Result> PreloadAsync(CancellationToken cancellationToken = default) => Task.FromResult(Result.Success());
         public void Release()
         {
         }
 
-        public Task<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>> EmbedBatchAsync(
+        public Task<Result<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>>> EmbedBatchAsync(
             IReadOnlyList<string> texts,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>>(
-                texts.Select(_ => (IReadOnlyList<IReadOnlyList<float>>)[]).ToArray());
+            Task.FromResult(Result<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>>.Success(
+                texts.Select(_ => (IReadOnlyList<IReadOnlyList<float>>)Array.Empty<IReadOnlyList<float>>()).ToArray()));
     }
 }

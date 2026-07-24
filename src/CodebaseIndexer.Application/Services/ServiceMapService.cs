@@ -5,6 +5,7 @@ using CodebaseIndexer.Application.Search;
 using CodebaseIndexer.Domain.Embedding;
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
+using CodebaseIndexer.Domain.Results;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -62,7 +63,7 @@ public sealed class ServiceMapService : IServiceMapService
     }
 
     /// <inheritdoc />
-    public async Task<object> MapServiceDependenciesAsync(
+    public async Task<Result<object>> MapServiceDependenciesAsync(
         IReadOnlyList<string>? collections = null,
         int topK = 30,
         bool? rerank = null,
@@ -76,31 +77,57 @@ public sealed class ServiceMapService : IServiceMapService
         }
         else
         {
-            var stats = await _store.ListCollectionStatsAsync(cancellationToken).ConfigureAwait(false);
-            targetCollections = stats.Select(s => s.Name).ToArray();
+            var statsResult = await _store.ListCollectionStatsAsync(cancellationToken).ConfigureAwait(false);
+            if (!statsResult.IsSuccess)
+            {
+                return Result<object>.Failure(statsResult.Error);
+            }
+
+            targetCollections = statsResult.Value.Select(s => s.Name).ToArray();
         }
 
         if (targetCollections.Count < 2)
         {
-            return new Dictionary<string, object?>
-            {
-                ["error"] = "Need at least 2 indexed collections to map dependencies.",
-                ["collections_found"] = targetCollections,
-            };
+            return Result<object>.Failure(new Error(
+                ErrorKind.Validation,
+                McpErrorCodes.Validation,
+                "Need at least 2 indexed collections to map dependencies.",
+                new Dictionary<string, string>
+                {
+                    ["collections_found"] = string.Join(",", targetCollections),
+                }));
         }
 
         var queries = DiscoveryQueries.Concat(_discovery.ServiceDiscoveryExtraQueryList).ToArray();
-        var denseVectors = await _dense.EmbedQueryAsync(queries, cancellationToken).ConfigureAwait(false);
+        var denseResult = await _dense.EmbedQueryAsync(queries, cancellationToken).ConfigureAwait(false);
+        if (!denseResult.IsSuccess)
+        {
+            return Result<object>.Failure(denseResult.Error);
+        }
+
+        var denseVectors = denseResult.Value;
         IReadOnlyList<SparseVector>? sparseVectors = null;
         if (_embedding.HybridSearch)
         {
-            sparseVectors = await _sparse.EmbedBatchAsync(queries, cancellationToken).ConfigureAwait(false);
+            var sparseResult = await _sparse.EmbedBatchAsync(queries, cancellationToken).ConfigureAwait(false);
+            if (!sparseResult.IsSuccess)
+            {
+                return Result<object>.Failure(sparseResult.Error);
+            }
+
+            sparseVectors = sparseResult.Value;
         }
 
         IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>? colbertVectors = null;
         if (useRerank)
         {
-            colbertVectors = await _colbert.EmbedBatchAsync(queries, cancellationToken).ConfigureAwait(false);
+            var colbertResult = await _colbert.EmbedBatchAsync(queries, cancellationToken).ConfigureAwait(false);
+            if (!colbertResult.IsSuccess)
+            {
+                return Result<object>.Failure(colbertResult.Error);
+            }
+
+            colbertVectors = colbertResult.Value;
         }
 
         var endpointsByColl = new Dictionary<string, List<ServiceMapChunk>>(StringComparer.Ordinal);
@@ -116,16 +143,26 @@ public sealed class ServiceMapService : IServiceMapService
             IReadOnlyList<IReadOnlyList<float>>? colbert = colbertVectors is not null ? colbertVectors[i] : null;
             var tasks = targetCollections.Select(coll =>
                 _store.SearchAsync(coll, dense, sparse, topK, language: null, minScore: 0.25f, colbert, cancellationToken));
-            var batches = await Task.WhenAll(tasks).ConfigureAwait(false);
-            var hits = batches.SelectMany(b => b).ToArray();
+            var batchResults = await Task.WhenAll(tasks).ConfigureAwait(false);
+            var okBatches = new List<IReadOnlyList<SearchHit>>();
+            foreach (var batch in batchResults)
+            {
+                if (!batch.IsSuccess)
+                {
+                    return Result<object>.Failure(batch.Error);
+                }
+
+                if (batch.Value.Count > 0)
+                {
+                    okBatches.Add(batch.Value);
+                }
+            }
+
+            var hits = okBatches.SelectMany(b => b).ToArray();
             if (targetCollections.Count > 1)
             {
-                var perCollection = batches
-                    .Where(b => b.Count > 0)
-                    .Cast<IReadOnlyList<SearchHit>>()
-                    .ToArray();
-                hits = perCollection.Length > 1
-                    ? CrossCollectionRrf.Fuse(perCollection, _embedding.RrfK, topK).ToArray()
+                hits = okBatches.Count > 1
+                    ? CrossCollectionRrf.Fuse(okBatches, _embedding.RrfK, topK).ToArray()
                     : hits.Take(topK).ToArray();
             }
 
@@ -321,7 +358,7 @@ public sealed class ServiceMapService : IServiceMapService
                 adjacency.Where(kv => kv.Value.Contains(coll)).Select(kv => kv.Key).ToArray());
         }
 
-        return new ServiceMapResponse(
+        return Result<object>.Success(new ServiceMapResponse(
             targetCollections,
             services,
             adjacency.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<string>)kv.Value, StringComparer.Ordinal),
@@ -331,7 +368,7 @@ public sealed class ServiceMapService : IServiceMapService
                 callersByColl.Values.Sum(v => v.Count),
                 configsByColl.Values.Sum(v => v.Count),
                 buildDepEdges.Count,
-                edges.Count));
+                edges.Count)));
     }
 
     private static void Add(Dictionary<string, List<ServiceMapChunk>> map, string coll, ServiceMapChunk entry)

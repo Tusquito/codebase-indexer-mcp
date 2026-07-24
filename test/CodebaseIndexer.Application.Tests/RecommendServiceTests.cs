@@ -4,6 +4,7 @@ using CodebaseIndexer.Application.Services;
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
 using MsOptions = Microsoft.Extensions.Options.Options;
+using CodebaseIndexer.Domain.Results;
 
 namespace CodebaseIndexer.Application.Tests;
 
@@ -14,9 +15,10 @@ public sealed class RecommendServiceTests
     public async Task RecommendCode_requires_positive_example()
     {
         var service = CreateService(new FakeStore());
-        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
-            service.RecommendCodeAsync("proj"));
-        Assert.Contains("positive", ex.Message, StringComparison.OrdinalIgnoreCase);
+        var result = await service.RecommendCodeAsync("proj");
+        Assert.False(result.IsSuccess);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+        Assert.Contains("positive", result.Error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -32,12 +34,12 @@ public sealed class RecommendServiceTests
     public async Task RecommendCode_enforces_max_examples()
     {
         var service = CreateService(new FakeStore(), recommendMaxExamples: 2);
-        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
-            service.RecommendCodeAsync(
-                "proj",
-                positiveChunkIds: ["a", "b"],
-                negativeChunkIds: ["c"]));
-        Assert.Contains("RECOMMEND_MAX_EXAMPLES", ex.Message, StringComparison.Ordinal);
+        var result = await service.RecommendCodeAsync(
+            "proj",
+            positiveChunkIds: ["a", "b"],
+            negativeChunkIds: ["c"]);
+        Assert.False(result.IsSuccess);
+        Assert.Contains("RECOMMEND_MAX_EXAMPLES", result.Error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -72,11 +74,12 @@ public sealed class RecommendServiceTests
             negativeQuery: "test utilities",
             pathGlob: "src/*.py");
 
+        Assert.True(result.IsSuccess);
         Assert.Equal(["pos", "neg"], store.VerifiedIds);
         Assert.Equal(["handler pattern", "test utilities"], dense.LastTexts);
         Assert.Equal(2, store.LastPositiveCount);
         Assert.Equal(2, store.LastNegativeCount);
-        var response = Assert.IsType<RecommendCodeResponse>(result);
+        var response = Assert.IsType<RecommendCodeResponse>(result.Value);
         Assert.Single(response.Results);
         Assert.Equal(2, response.PositiveExamples);
         Assert.Equal(2, response.NegativeExamples);
@@ -86,8 +89,9 @@ public sealed class RecommendServiceTests
     public async Task FindOutlierChunks_rejects_invalid_max_similarity()
     {
         var service = CreateService(new FakeStore());
-        await Assert.ThrowsAsync<ArgumentException>(() =>
-            service.FindOutlierChunksAsync("proj", maxSimilarity: 1.5f));
+        var result = await service.FindOutlierChunksAsync("proj", maxSimilarity: 1.5f);
+        Assert.False(result.IsSuccess);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
     }
 
     private static RecommendService CreateService(FakeStore store, int recommendMaxExamples = 10) =>
@@ -107,15 +111,15 @@ public sealed class RecommendServiceTests
         public IReadOnlyList<string>? LastTexts { get; private set; }
         public int VectorSize => 2;
         public bool IsLoaded => true;
-        public Task PreloadAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<Result> PreloadAsync(CancellationToken cancellationToken = default) => Task.FromResult(Result.Success());
         public void Release() { }
-        public Task<IReadOnlyList<IReadOnlyList<float>>> EmbedBatchAsync(IReadOnlyList<string> texts, CancellationToken cancellationToken = default)
+        public Task<Result<IReadOnlyList<IReadOnlyList<float>>>> EmbedBatchAsync(IReadOnlyList<string> texts, CancellationToken cancellationToken = default)
         {
             LastTexts = texts.ToArray();
-            return Task.FromResult<IReadOnlyList<IReadOnlyList<float>>>(
-                texts.Select(_ => (IReadOnlyList<float>)new float[] { 0.2f, 0.3f }).ToArray());
+            return Task.FromResult(Result<IReadOnlyList<IReadOnlyList<float>>>.Success(
+                texts.Select(_ => (IReadOnlyList<float>)new float[] { 0.2f, 0.3f }).ToArray()));
         }
-        public Task<IReadOnlyList<IReadOnlyList<float>>> EmbedQueryAsync(IReadOnlyList<string> texts, CancellationToken cancellationToken = default) =>
+        public Task<Result<IReadOnlyList<IReadOnlyList<float>>>> EmbedQueryAsync(IReadOnlyList<string> texts, CancellationToken cancellationToken = default) =>
             EmbedBatchAsync(texts, cancellationToken);
     }
 
@@ -127,13 +131,13 @@ public sealed class RecommendServiceTests
         public int LastNegativeCount { get; private set; }
         public IReadOnlyList<SearchHit> RecommendHits { get; init; } = [];
 
-        public override Task VerifyChunkIdsExistAsync(string collection, IReadOnlyList<string> chunkIds, CancellationToken cancellationToken = default)
+        public override Task<Result> VerifyChunkIdsExistAsync(string collection, IReadOnlyList<string> chunkIds, CancellationToken cancellationToken = default)
         {
             VerifiedIds = chunkIds.ToArray();
-            return Task.CompletedTask;
+            return Task.FromResult(Result.Success());
         }
 
-        public override Task<IReadOnlyList<SearchHit>> RecommendAsync(
+        public override Task<Result<IReadOnlyList<SearchHit>>> RecommendAsync(
             string collection,
             IReadOnlyList<RecommendExample> positive,
             IReadOnlyList<RecommendExample>? negative = null,
@@ -145,7 +149,7 @@ public sealed class RecommendServiceTests
             LastRecommendLimit = limit;
             LastPositiveCount = positive.Count;
             LastNegativeCount = negative?.Count ?? 0;
-            return Task.FromResult(RecommendHits);
+            return Task.FromResult(Result<IReadOnlyList<SearchHit>>.Success(RecommendHits));
         }
     }
 }

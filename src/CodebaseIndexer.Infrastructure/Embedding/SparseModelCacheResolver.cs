@@ -1,5 +1,3 @@
-using CodebaseIndexer.Domain.Exceptions;
-
 namespace CodebaseIndexer.Infrastructure.Embedding;
 
 /// <summary>
@@ -44,7 +42,7 @@ internal static class SparseModelCacheResolver
 
         if (!Directory.Exists(cacheRoot))
         {
-            throw new EmbeddingException($"Fastembed cache directory '{cacheRoot}' does not exist.");
+            throw new InvalidOperationException($"Fastembed cache directory '{cacheRoot}' does not exist.");
         }
 
         var slashForm = modelName.Replace('\\', '/');
@@ -66,7 +64,7 @@ internal static class SparseModelCacheResolver
             return match;
         }
 
-        throw new EmbeddingException($"Sparse model '{modelName}' not found under '{cacheRoot}'.");
+        throw new InvalidOperationException($"Sparse model '{modelName}' not found under '{cacheRoot}'.");
     }
 
     /// <summary>

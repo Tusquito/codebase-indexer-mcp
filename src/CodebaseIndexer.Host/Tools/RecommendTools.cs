@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using CodebaseIndexer.Application.Mapping;
 using CodebaseIndexer.Application.Services;
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Serialization;
@@ -25,7 +26,7 @@ public sealed class RecommendTools
         "Requires a single collection. Missing chunk IDs fail fast. " +
         "path_glob is applied as a post-filter. Example count capped by Discovery:RecommendMaxExamples. " +
         "limit capped at 20. Gated by Discovery:RecommendEnabled. See docs/SEARCH_BEHAVIOR.md.")]
-    public Task<object> RecommendCodeAsync(
+    public async Task<object> RecommendCodeAsync(
         [Description("Collection name")] string collection,
         [Description("Positive example chunk ids")] string[]? positive_chunk_ids = null,
         [Description("Positive free-text example")] string? positive_query = null,
@@ -35,10 +36,14 @@ public sealed class RecommendTools
         [Description("Optional language filter")] string? language = null,
         [Description("Optional fnmatch path filter")] string? path_glob = null,
         [Description("Truncate content to this many chars")] int? max_content_chars = null,
-        CancellationToken cancellationToken = default) =>
-        _service.RecommendCodeAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _service.RecommendCodeAsync(
             collection, positive_chunk_ids, positive_query, negative_chunk_ids, negative_query,
-            limit, ParseLanguage(language), path_glob, max_content_chars, cancellationToken);
+            limit, ParseLanguage(language), path_glob, max_content_chars, cancellationToken)
+            .ConfigureAwait(false);
+        return result.Match(v => v, McpErrorMapper.FromError);
+    }
 
     private static SourceLanguage? ParseLanguage(string? language) =>
         DomainEnumWire.TryParse(language, out SourceLanguage value) ? value : null;

@@ -1,3 +1,5 @@
+using CodebaseIndexer.Domain.Results;
+
 namespace CodebaseIndexer.Domain.Ports;
 
 /// <summary>Port for ColBERT late-interaction multivector embeddings.</summary>
@@ -9,15 +11,21 @@ public interface IColbertEmbedder
     /// <summary>Whether the embedder model or remote sidecar is ready.</summary>
     bool IsLoaded { get; }
 
-    /// <summary>Loads the model or probes the remote sidecar.</summary>
-    Task PreloadAsync(CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Loads the model or probes the remote sidecar.
+    /// Cooperative cancel throws <see cref="OperationCanceledException"/>.
+    /// </summary>
+    Task<Result> PreloadAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Releases loaded model resources (no-op for remote).</summary>
     void Release();
 
-    /// <summary>Embeds texts into per-token multivectors.</summary>
-    /// <returns>One multivector (list of token vectors) per input text.</returns>
-    Task<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>> EmbedBatchAsync(
+    /// <summary>
+    /// Embeds texts into per-token multivectors.
+    /// Cooperative cancel throws <see cref="OperationCanceledException"/>.
+    /// </summary>
+    /// <returns>One multivector (list of token vectors) per input text on success.</returns>
+    Task<Result<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>>> EmbedBatchAsync(
         IReadOnlyList<string> texts,
         CancellationToken cancellationToken = default);
 }

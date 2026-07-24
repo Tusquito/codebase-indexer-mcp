@@ -3,9 +3,9 @@ using System.Text;
 using System.Text.RegularExpressions;
 using CodebaseIndexer.Application.Options;
 using CodebaseIndexer.Domain.Embedding;
-using CodebaseIndexer.Domain.Exceptions;
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
+using CodebaseIndexer.Domain.Results;
 using CodebaseIndexer.Domain.Serialization;
 using CodebaseIndexer.Infrastructure.Configuration;
 using Grpc.Core;
@@ -60,6 +60,16 @@ public sealed class QdrantVectorStore : IVectorStore
     /// <summary>Adaptive ColBERT skip/rerank counters (test surface).</summary>
     public AdaptiveRerankStats AdaptiveRerankStats => _adaptiveStats;
 
+    private static Result StoreFailure(string code, string message) =>
+        Result.Failure(new Error(ErrorKind.Dependency, code, message));
+
+    private static Result<T> StoreFailure<T>(string code, string message) =>
+        Result<T>.Failure(new Error(ErrorKind.Dependency, code, message));
+
+    private static Result<T> NotFoundFailure<T>(string code, string message) =>
+        Result<T>.Failure(new Error(ErrorKind.NotFound, code, message));
+
+
     /// <summary>Resets adaptive ColBERT counters.</summary>
     public void ResetAdaptiveStats() => _adaptiveStats.Reset();
 
@@ -77,8 +87,10 @@ public sealed class QdrantVectorStore : IVectorStore
     }
 
     /// <inheritdoc />
-    public async Task EnsureCollectionAsync(string collection, bool force = false, CancellationToken cancellationToken = default)
+    public async Task<Result> EnsureCollectionAsync(string collection, bool force = false, CancellationToken cancellationToken = default)
     {
+        try
+        {
         if (await CollectionExistsAsync(collection, cancellationToken).ConfigureAwait(false))
         {
             if (!force)
@@ -92,7 +104,7 @@ public sealed class QdrantVectorStore : IVectorStore
                         await EnsurePayloadIndexesAsync(collection, cancellationToken).ConfigureAwait(false);
                     }
 
-                    return;
+                    return Result.Success();
                 }
             }
 
@@ -178,10 +190,21 @@ public sealed class QdrantVectorStore : IVectorStore
         {
             await EnsurePayloadIndexesAsync(collection, cancellationToken).ConfigureAwait(false);
         }
+    
+            return Result.Success();
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return StoreFailure(StoreErrorCodes.EnsureCollection, $"Ensure collection failed: {ex.Message}");
+        }
     }
 
     /// <inheritdoc />
-    public async Task UpsertChunksAsync(
+    public async Task<Result> UpsertChunksAsync(
         string collection,
         IReadOnlyList<EmbeddedChunk> chunks,
         bool omitCallees = false,
@@ -190,85 +213,101 @@ public sealed class QdrantVectorStore : IVectorStore
     {
         if (chunks.Count == 0)
         {
-            return;
+            return Result.Success();
         }
 
-        var points = chunks
-            .Select(c => ToPoint(
-                c,
-                omitCallees,
-                graphNodeIdsByChunk is not null
-                && graphNodeIdsByChunk.TryGetValue(c.Chunk.Id.Value, out var ids)
-                    ? ids
-                    : null))
-            .ToList();
-        await _client.Value.UpsertAsync(collection, points, cancellationToken: cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var points = chunks
+                .Select(c => ToPoint(
+                    c,
+                    omitCallees,
+                    graphNodeIdsByChunk is not null
+                    && graphNodeIdsByChunk.TryGetValue(c.Chunk.Id.Value, out var ids)
+                        ? ids
+                        : null))
+                .ToList();
+            await _client.Value.UpsertAsync(collection, points, cancellationToken: cancellationToken).ConfigureAwait(false);
+            return Result.Success();
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return StoreFailure(StoreErrorCodes.Upsert, $"Upsert failed: {ex.Message}");
+        }
     }
 
     /// <inheritdoc />
-    public async Task SetCollectionGraphCallSitesAsync(
+    public async Task<Result> SetCollectionGraphCallSitesAsync(
         string collection,
         bool enabled = true,
         CancellationToken cancellationToken = default)
     {
-        await SetCollectionMetadataFlagAsync(collection, GraphCallSitesMetadataKey, enabled, cancellationToken)
-            .ConfigureAwait(false);
-        _logger.LogInformation(
-            "collection_graph_call_sites_set collection={Collection} enabled={Enabled}",
-            collection,
-            enabled);
+        try
+        {
+            await SetCollectionMetadataFlagAsync(collection, GraphCallSitesMetadataKey, enabled, cancellationToken)
+                .ConfigureAwait(false);
+            _logger.LogInformation(
+                "collection_graph_call_sites_set collection={Collection} enabled={Enabled}",
+                collection,
+                enabled);
+            return Result.Success();
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return StoreFailure(StoreErrorCodes.Metadata, $"Set graph call-sites metadata failed: {ex.Message}");
+        }
     }
 
     /// <inheritdoc />
-    public async Task SetCollectionGraphEnabledAsync(
+    public async Task<Result> SetCollectionGraphEnabledAsync(
         string collection,
         bool enabled = true,
         CancellationToken cancellationToken = default)
     {
-        await SetCollectionMetadataFlagAsync(collection, GraphEnabledMetadataKey, enabled, cancellationToken)
-            .ConfigureAwait(false);
-        _logger.LogInformation(
-            "collection_graph_enabled_set collection={Collection} enabled={Enabled}",
-            collection,
-            enabled);
+        try
+        {
+            await SetCollectionMetadataFlagAsync(collection, GraphEnabledMetadataKey, enabled, cancellationToken)
+                .ConfigureAwait(false);
+            _logger.LogInformation(
+                "collection_graph_enabled_set collection={Collection} enabled={Enabled}",
+                collection,
+                enabled);
+            return Result.Success();
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return StoreFailure(StoreErrorCodes.Metadata, $"Set graph enabled metadata failed: {ex.Message}");
+        }
     }
 
     /// <inheritdoc />
     public async ValueTask<bool> CollectionHasGraphCallSitesAsync(
         string collection,
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            return await ReadCollectionMetadataFlagAsync(collection, GraphCallSitesMetadataKey, cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "collection_graph_call_sites_read_error collection={Collection}", collection);
-            return false;
-        }
-    }
+        CancellationToken cancellationToken = default) =>
+        await ReadCollectionMetadataFlagAsync(collection, GraphCallSitesMetadataKey, cancellationToken)
+            .ConfigureAwait(false);
 
     /// <inheritdoc />
     public async ValueTask<bool> CollectionHasGraphEnabledAsync(
         string collection,
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            return await ReadCollectionMetadataFlagAsync(collection, GraphEnabledMetadataKey, cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "collection_graph_enabled_read_error collection={Collection}", collection);
-            return false;
-        }
-    }
+        CancellationToken cancellationToken = default) =>
+        await ReadCollectionMetadataFlagAsync(collection, GraphEnabledMetadataKey, cancellationToken)
+            .ConfigureAwait(false);
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<SearchHit>> SearchAsync(
+    public async Task<Result<IReadOnlyList<SearchHit>>> SearchAsync(
         string collection,
         IReadOnlyList<float> denseVector,
         DomainSparseVector? sparseVector,
@@ -280,9 +319,11 @@ public sealed class QdrantVectorStore : IVectorStore
     {
         if (!await CollectionExistsAsync(collection, cancellationToken).ConfigureAwait(false))
         {
-            return Array.Empty<SearchHit>();
+            return Result<IReadOnlyList<SearchHit>>.Success(Array.Empty<SearchHit>());
         }
 
+        try
+        {
         var queryFilter = BuildLanguageFilter(language);
         var denseParams = BuildDenseSearchParams();
         var usedHybrid = sparseVector is not null && _embedding.HybridSearch;
@@ -318,7 +359,7 @@ public sealed class QdrantVectorStore : IVectorStore
                     collection,
                     gap,
                     _embedding.RerankAdaptiveGap);
-                return MapPointsToHits(probe.Take(topK).ToArray(), collection, scoreThreshold);
+                return Result<IReadOnlyList<SearchHit>>.Success(MapPointsToHits(probe.Take(topK).ToArray(), collection, scoreThreshold));
             }
 
             _adaptiveStats.Reranked++;
@@ -384,9 +425,18 @@ public sealed class QdrantVectorStore : IVectorStore
                 cancellationToken: cancellationToken).ConfigureAwait(false);
         }
 
-        return MapPointsToHits(points, collection, scoreThreshold);
+        return Result<IReadOnlyList<SearchHit>>.Success(MapPointsToHits(points, collection, scoreThreshold));
+    
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return StoreFailure<IReadOnlyList<SearchHit>>(StoreErrorCodes.Search, $"Search failed: {ex.Message}");
+        }
     }
-
     private async Task<IReadOnlyList<ScoredPoint>> HybridRrfQueryAsync(
         string collection,
         float[] denseArray,
@@ -439,43 +489,63 @@ public sealed class QdrantVectorStore : IVectorStore
     }
 
     /// <inheritdoc />
-    public async Task<ChunkPayload?> GetChunkByIdAsync(
+    public async Task<Result<ChunkPayload>> GetChunkByIdAsync(
         string collection,
         string chunkId,
         CancellationToken cancellationToken = default)
     {
-        if (!await CollectionExistsAsync(collection, cancellationToken).ConfigureAwait(false))
+        try
         {
-            return null;
-        }
-
-        var result = await _client.Value.ScrollAsync(
-            collection,
-            filter: new Filter
+            if (!await CollectionExistsAsync(collection, cancellationToken).ConfigureAwait(false))
             {
-                Must =
+                return NotFoundFailure<ChunkPayload>(
+                    StoreErrorCodes.ChunkNotFound,
+                    $"Chunk '{chunkId}' not found in collection '{collection}'.");
+            }
+
+            var result = await _client.Value.ScrollAsync(
+                collection,
+                filter: new Filter
                 {
-                    new Condition
+                    Must =
                     {
-                        Field = new FieldCondition
+                        new Condition
                         {
-                            Key = "chunk_id",
-                            Match = new GrpcMatch { Keyword = chunkId },
+                            Field = new FieldCondition
+                            {
+                                Key = "chunk_id",
+                                Match = new GrpcMatch { Keyword = chunkId },
+                            },
                         },
                     },
                 },
-            },
-            limit: 1,
-            payloadSelector: new WithPayloadSelector { Enable = true },
-            vectorsSelector: new WithVectorsSelector { Enable = false },
-            cancellationToken: cancellationToken).ConfigureAwait(false);
+                limit: 1,
+                payloadSelector: new WithPayloadSelector { Enable = true },
+                vectorsSelector: new WithVectorsSelector { Enable = false },
+                cancellationToken: cancellationToken).ConfigureAwait(false);
 
-        var point = result.Result.FirstOrDefault();
-        return point is null ? null : MapPayload(point.Payload, collection);
+            var point = result.Result.FirstOrDefault();
+            if (point is null)
+            {
+                return NotFoundFailure<ChunkPayload>(
+                    StoreErrorCodes.ChunkNotFound,
+                    $"Chunk '{chunkId}' not found in collection '{collection}'.");
+            }
+
+            return Result<ChunkPayload>.Success(MapPayload(point.Payload, collection));
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return StoreFailure<ChunkPayload>(StoreErrorCodes.Scroll, $"Get chunk failed: {ex.Message}");
+        }
     }
 
     /// <inheritdoc />
-    public async Task<ChunkPayload?> FindChunkByIdAsync(
+    public async Task<Result<ChunkPayload>> FindChunkByIdAsync(
         string chunkId,
         string? collection = null,
         CancellationToken cancellationToken = default)
@@ -485,21 +555,33 @@ public sealed class QdrantVectorStore : IVectorStore
             return await GetChunkByIdAsync(collection, chunkId, cancellationToken).ConfigureAwait(false);
         }
 
-        var stats = await ListCollectionStatsAsync(cancellationToken).ConfigureAwait(false);
-        foreach (var coll in stats)
+        var statsResult = await ListCollectionStatsAsync(cancellationToken).ConfigureAwait(false);
+        if (!statsResult.IsSuccess)
+        {
+            return Result<ChunkPayload>.Failure(statsResult.Error);
+        }
+
+        foreach (var coll in statsResult.Value)
         {
             var found = await GetChunkByIdAsync(coll.Name, chunkId, cancellationToken).ConfigureAwait(false);
-            if (found is not null)
+            if (found.IsSuccess)
+            {
+                return found;
+            }
+
+            if (found.Error.Kind != ErrorKind.NotFound)
             {
                 return found;
             }
         }
 
-        return null;
+        return NotFoundFailure<ChunkPayload>(
+            StoreErrorCodes.ChunkNotFound,
+            $"Chunk '{chunkId}' not found in any collection.");
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<FileSymbol>> ScrollFileSymbolsAsync(
+    public async Task<Result<IReadOnlyList<FileSymbol>>> ScrollFileSymbolsAsync(
         string collection,
         string relPath,
         CancellationToken cancellationToken = default)
@@ -507,7 +589,7 @@ public sealed class QdrantVectorStore : IVectorStore
         var symbols = new List<FileSymbol>();
         if (!await CollectionExistsAsync(collection, cancellationToken).ConfigureAwait(false))
         {
-            return symbols;
+            return Result<IReadOnlyList<FileSymbol>>.Success(symbols);
         }
 
         try
@@ -563,23 +645,30 @@ public sealed class QdrantVectorStore : IVectorStore
                 offset = result.NextPageOffset;
             }
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "scroll_file_symbols_error collection={Collection} path={Path}", collection, relPath);
+            return StoreFailure<IReadOnlyList<FileSymbol>>(
+                StoreErrorCodes.Scroll,
+                $"Scroll file symbols failed: {ex.Message}");
         }
 
-        return symbols.OrderBy(s => s.StartLine).ToArray();
+        return Result<IReadOnlyList<FileSymbol>>.Success(symbols.OrderBy(s => s.StartLine).ToArray());
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<PayloadRow>> ScrollAllPayloadsAsync(
+    public async Task<Result<IReadOnlyList<PayloadRow>>> ScrollAllPayloadsAsync(
         string collection,
         CancellationToken cancellationToken = default)
     {
         var rows = new List<PayloadRow>();
         if (!await CollectionExistsAsync(collection, cancellationToken).ConfigureAwait(false))
         {
-            return rows;
+            return Result<IReadOnlyList<PayloadRow>>.Success(rows);
         }
 
         try
@@ -621,42 +710,58 @@ public sealed class QdrantVectorStore : IVectorStore
                 offset = result.NextPageOffset;
             }
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "scroll_all_payloads_error collection={Collection}", collection);
+            return StoreFailure<IReadOnlyList<PayloadRow>>(
+                StoreErrorCodes.Scroll,
+                $"Scroll payloads failed: {ex.Message}");
         }
 
-        return rows;
+        return Result<IReadOnlyList<PayloadRow>>.Success(rows);
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<CollectionStats>> ListCollectionStatsAsync(
+    public async Task<Result<IReadOnlyList<CollectionStats>>> ListCollectionStatsAsync(
         CancellationToken cancellationToken = default)
     {
-        var names = await ListCollectionsAsync(cancellationToken).ConfigureAwait(false);
-        var stats = new List<CollectionStats>(names.Count);
-        foreach (var name in names)
+        var namesResult = await ListCollectionsAsync(cancellationToken).ConfigureAwait(false);
+        if (!namesResult.IsSuccess)
+        {
+            return Result<IReadOnlyList<CollectionStats>>.Failure(namesResult.Error);
+        }
+
+        var stats = new List<CollectionStats>(namesResult.Value.Count);
+        foreach (var name in namesResult.Value)
         {
             var s = await GetCollectionStatsAsync(name, cancellationToken).ConfigureAwait(false);
-            if (s is not null)
+            if (s.IsSuccess)
             {
-                stats.Add(s);
+                stats.Add(s.Value);
+            }
+            else if (s.Error.Kind != ErrorKind.NotFound)
+            {
+                return Result<IReadOnlyList<CollectionStats>>.Failure(s.Error);
             }
         }
 
-        return stats;
+        return Result<IReadOnlyList<CollectionStats>>.Success(stats);
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<SearchHit>> FindSymbolInCollectionsAsync(
+    public async Task<Result<IReadOnlyList<SearchHit>>> FindSymbolInCollectionsAsync(
         string symbolName,
         IReadOnlyList<string> collections,
         int limitPerCollection = 10,
         CancellationToken cancellationToken = default)
     {
-        var tasks = collections.Select(async coll =>
+        try
         {
-            try
+            var tasks = collections.Select(async coll =>
             {
                 if (!await CollectionExistsAsync(coll, cancellationToken).ConfigureAwait(false))
                 {
@@ -700,33 +805,49 @@ public sealed class QdrantVectorStore : IVectorStore
                         GetString(payload, "content"),
                         coll);
                 }).ToArray();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "symbol_scroll_error collection={Collection}", coll);
-                return (IReadOnlyList<SearchHit>)Array.Empty<SearchHit>();
-            }
-        });
+            });
 
-        var batches = await Task.WhenAll(tasks).ConfigureAwait(false);
-        return batches.SelectMany(b => b).ToArray();
+            var batches = await Task.WhenAll(tasks).ConfigureAwait(false);
+            return Result<IReadOnlyList<SearchHit>>.Success(batches.SelectMany(b => b).ToArray());
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return StoreFailure<IReadOnlyList<SearchHit>>(StoreErrorCodes.Scroll, $"Find symbol failed: {ex.Message}");
+        }
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<string>> ListCollectionsAsync(CancellationToken cancellationToken = default)
+    public async Task<Result<IReadOnlyList<string>>> ListCollectionsAsync(CancellationToken cancellationToken = default)
     {
+        try
+        {
         var collections = await _client.Value.ListCollectionsAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
-        return collections.OrderBy(c => c, StringComparer.Ordinal).ToArray();
+        return Result<IReadOnlyList<string>>.Success(collections.OrderBy(c => c, StringComparer.Ordinal).ToArray());
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return StoreFailure<IReadOnlyList<string>>(StoreErrorCodes.List, $"List collections failed: {ex.Message}");
+        }
     }
 
     /// <inheritdoc />
-    public async ValueTask<CollectionStats?> GetCollectionStatsAsync(
+    public async ValueTask<Result<CollectionStats>> GetCollectionStatsAsync(
         string collection,
         CancellationToken cancellationToken = default)
     {
         if (!await CollectionExistsAsync(collection, cancellationToken).ConfigureAwait(false))
         {
-            return null;
+            return NotFoundFailure<CollectionStats>(
+                StoreErrorCodes.CollectionNotFound,
+                $"Collection '{collection}' not found.");
         }
 
         var info = await _client.Value.GetCollectionInfoAsync(collection, cancellationToken: cancellationToken)
@@ -735,7 +856,7 @@ public sealed class QdrantVectorStore : IVectorStore
         var graphCallSites = MetadataFlagTrue(info.Config?.Metadata, GraphCallSitesMetadataKey);
         var graphEnabled = MetadataFlagTrue(info.Config?.Metadata, GraphEnabledMetadataKey);
 
-        return new CollectionStats(
+        return Result<CollectionStats>.Success(new CollectionStats(
             collection,
             (long)info.PointsCount,
             0,
@@ -745,20 +866,22 @@ public sealed class QdrantVectorStore : IVectorStore
             _embedding.HybridSearch,
             _embedding.RerankEnabled,
             GraphCallSites: graphCallSites,
-            GraphEnabled: graphEnabled);
+            GraphEnabled: graphEnabled));
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyDictionary<string, FileMetadata>> GetFileMetadataAsync(
+    public async Task<Result<IReadOnlyDictionary<string, FileMetadata>>> GetFileMetadataAsync(
         string collection,
         CancellationToken cancellationToken = default)
     {
         var metadata = new Dictionary<string, FileMetadata>(StringComparer.Ordinal);
         if (!await CollectionExistsAsync(collection, cancellationToken).ConfigureAwait(false))
         {
-            return metadata;
+            return Result<IReadOnlyDictionary<string, FileMetadata>>.Success(metadata);
         }
 
+        try
+        {
         PointId? offset = null;
         while (true)
         {
@@ -809,53 +932,77 @@ public sealed class QdrantVectorStore : IVectorStore
             offset = result.NextPageOffset;
         }
 
-        return metadata;
+        return Result<IReadOnlyDictionary<string, FileMetadata>>.Success(metadata);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return StoreFailure<IReadOnlyDictionary<string, FileMetadata>>(
+                StoreErrorCodes.Scroll,
+                $"Get file metadata failed: {ex.Message}");
+        }
     }
 
     /// <inheritdoc />
-    public async Task DeleteByPathsAsync(
+    public async Task<Result> DeleteByPathsAsync(
         string collection,
         IReadOnlyList<string> relPaths,
         CancellationToken cancellationToken = default)
     {
-        if (relPaths.Count == 0)
+        try
         {
-            return;
-        }
-
-        const int batchSize = 100;
-        for (var offset = 0; offset < relPaths.Count; offset += batchSize)
-        {
-            var batch = relPaths.Skip(offset).Take(batchSize).ToArray();
-            var filter = new Filter
+            if (relPaths.Count == 0)
             {
-                Should =
-                {
-                    batch.Select(path => new Condition
-                    {
-                        Field = new FieldCondition
-                        {
-                            Key = "rel_path",
-                            Match = new GrpcMatch { Keyword = path },
-                        },
-                    }),
-                },
-            };
+                return Result.Success();
+            }
 
-            await _client.Value.DeleteAsync(collection, filter, cancellationToken: cancellationToken)
-                .ConfigureAwait(false);
+            const int batchSize = 100;
+            for (var offset = 0; offset < relPaths.Count; offset += batchSize)
+            {
+                var batch = relPaths.Skip(offset).Take(batchSize).ToArray();
+                var filter = new Filter
+                {
+                    Should =
+                    {
+                        batch.Select(path => new Condition
+                        {
+                            Field = new FieldCondition
+                            {
+                                Key = "rel_path",
+                                Match = new GrpcMatch { Keyword = path },
+                            },
+                        }),
+                    },
+                };
+
+                await _client.Value.DeleteAsync(collection, filter, cancellationToken: cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            return Result.Success();
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return StoreFailure(StoreErrorCodes.Delete, $"Delete by paths failed: {ex.Message}");
         }
     }
 
     /// <inheritdoc />
-    public async Task SetIndexingAsync(
+    public async Task<Result> SetIndexingAsync(
         string collection,
         bool enabled,
         CancellationToken cancellationToken = default)
     {
         if (!await CollectionExistsAsync(collection, cancellationToken).ConfigureAwait(false))
         {
-            return;
+            return Result.Success();
         }
 
         var threshold = enabled ? 20_000ul : 0ul;
@@ -865,46 +1012,67 @@ public sealed class QdrantVectorStore : IVectorStore
                 collection,
                 optimizersConfig: new OptimizersConfigDiff { IndexingThreshold = threshold },
                 cancellationToken: cancellationToken).ConfigureAwait(false);
+            return Result.Success();
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "set_indexing_error collection={Collection} enabled={Enabled}", collection, enabled);
+            return StoreFailure(StoreErrorCodes.Metadata, $"Set indexing failed: {ex.Message}");
         }
     }
 
     /// <inheritdoc />
-    public async Task VerifyChunkIdsExistAsync(
+    public async Task<Result> VerifyChunkIdsExistAsync(
         string collection,
         IReadOnlyList<string> chunkIds,
         CancellationToken cancellationToken = default)
     {
         if (chunkIds.Count == 0)
         {
-            return;
+            return Result.Success();
         }
 
-        var pointIds = chunkIds
-            .Select(id => new PointId { Uuid = ChunkIdToPointUuid(id) })
-            .ToArray();
-        var records = await _client.Value.RetrieveAsync(
-            collection,
-            pointIds,
-            withPayload: false,
-            withVectors: false,
-            cancellationToken: cancellationToken).ConfigureAwait(false);
-        var found = records.Select(r => r.Id.Uuid).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var unknown = chunkIds
-            .Where((cid, i) => !found.Contains(pointIds[i].Uuid))
-            .ToArray();
-        if (unknown.Length > 0)
+        try
         {
-            throw new ArgumentException(
-                $"Unknown chunk_id(s) in collection '{collection}': {string.Join(", ", unknown)}");
+            var pointIds = chunkIds
+                .Select(id => new PointId { Uuid = ChunkIdToPointUuid(id) })
+                .ToArray();
+            var records = await _client.Value.RetrieveAsync(
+                collection,
+                pointIds,
+                withPayload: false,
+                withVectors: false,
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+            var found = records.Select(r => r.Id.Uuid).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var unknown = chunkIds
+                .Where((cid, i) => !found.Contains(pointIds[i].Uuid))
+                .ToArray();
+            if (unknown.Length > 0)
+            {
+                return Result.Failure(new Error(
+                    ErrorKind.NotFound,
+                    StoreErrorCodes.VerifyChunks,
+                    $"Unknown chunk_id(s) in collection '{collection}': {string.Join(", ", unknown)}"));
+            }
+
+            return Result.Success();
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return StoreFailure(StoreErrorCodes.VerifyChunks, $"Verify chunks failed: {ex.Message}");
         }
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<SearchHit>> RecommendAsync(
+    public async Task<Result<IReadOnlyList<SearchHit>>> RecommendAsync(
         string collection,
         IReadOnlyList<RecommendExample> positive,
         IReadOnlyList<RecommendExample>? negative = null,
@@ -915,9 +1083,11 @@ public sealed class QdrantVectorStore : IVectorStore
     {
         if (!await CollectionExistsAsync(collection, cancellationToken).ConfigureAwait(false))
         {
-            return Array.Empty<SearchHit>();
+            return Result<IReadOnlyList<SearchHit>>.Success(Array.Empty<SearchHit>());
         }
 
+        try
+        {
         var input = new RecommendInput { Strategy = RecommendStrategy.AverageVector };
         AddRecommendExamples(input.Positive, positive);
         if (negative is { Count: > 0 })
@@ -947,11 +1117,20 @@ public sealed class QdrantVectorStore : IVectorStore
             hits = hits.Take(limit).ToArray();
         }
 
-        return hits;
+        return Result<IReadOnlyList<SearchHit>>.Success(hits);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return StoreFailure<IReadOnlyList<SearchHit>>(StoreErrorCodes.Search, $"Recommend failed: {ex.Message}");
+        }
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<SearchHit>> FindOutlierChunksAsync(
+    public async Task<Result<IReadOnlyList<SearchHit>>> FindOutlierChunksAsync(
         string collection,
         IReadOnlyList<string>? contextChunkIds = null,
         int limit = 5,
@@ -967,10 +1146,15 @@ public sealed class QdrantVectorStore : IVectorStore
             collection, contextChunkIds, pathGlob, maxCtx, cancellationToken).ConfigureAwait(false);
         if (contextSamples.Count == 0)
         {
-            throw new ArgumentException(
-                $"No context vectors found in collection '{collection}'. " +
-                "Provide context_chunk_ids and/or ensure the collection has indexed chunks.");
+            return Result<IReadOnlyList<SearchHit>>.Failure(new Error(
+                ErrorKind.Validation,
+                StoreErrorCodes.Search,
+                $"No context vectors found in collection '{collection}'. "
+                + "Provide context_chunk_ids and/or ensure the collection has indexed chunks."));
         }
+
+        try
+        {
 
         var contextChunkIdSet = contextSamples.Select(s => s.ChunkId).ToHashSet(StringComparer.Ordinal);
         var centroid = ComputeCentroid(contextSamples.Select(s => s.Dense).ToArray());
@@ -1032,11 +1216,20 @@ public sealed class QdrantVectorStore : IVectorStore
             candidates = candidates.Where(c => MatchPathGlob(c.RelPath, pathGlob)).ToList();
         }
 
-        return candidates.Take(limit).ToArray();
+        return Result<IReadOnlyList<SearchHit>>.Success(candidates.Take(limit).ToArray());
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return StoreFailure<IReadOnlyList<SearchHit>>(StoreErrorCodes.Search, $"Find outliers failed: {ex.Message}");
+        }
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<SearchHit>> FindCallersInCollectionsAsync(
+    public async Task<Result<IReadOnlyList<SearchHit>>> FindCallersInCollectionsAsync(
         string method,
         IReadOnlyList<string> collections,
         string? receiver = null,
@@ -1089,19 +1282,36 @@ public sealed class QdrantVectorStore : IVectorStore
                     .Where(h => !string.IsNullOrEmpty(h.Id.Value))
                     .ToArray();
             }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "callers_scroll_error collection={Collection}", coll);
-                return Array.Empty<SearchHit>();
+                throw; // promoted below
             }
         });
 
-        var batches = await Task.WhenAll(tasks).ConfigureAwait(false);
-        return batches.SelectMany(b => b).ToArray();
+        try
+        {
+            var batches = await Task.WhenAll(tasks).ConfigureAwait(false);
+            return Result<IReadOnlyList<SearchHit>>.Success(batches.SelectMany(b => b).ToArray());
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return StoreFailure<IReadOnlyList<SearchHit>>(
+                StoreErrorCodes.Scroll,
+                $"Find callers failed: {ex.Message}");
+        }
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<IReadOnlyDictionary<string, string>>> ScrollChunksByPathsAsync(
+    public async Task<Result<IReadOnlyList<IReadOnlyDictionary<string, string>>>> ScrollChunksByPathsAsync(
         string collection,
         IReadOnlyList<string> relPaths,
         IReadOnlyList<string>? payloadFields = null,
@@ -1111,7 +1321,8 @@ public sealed class QdrantVectorStore : IVectorStore
         if (relPaths.Count == 0
             || !await CollectionExistsAsync(collection, cancellationToken).ConfigureAwait(false))
         {
-            return Array.Empty<IReadOnlyDictionary<string, string>>();
+            return Result<IReadOnlyList<IReadOnlyDictionary<string, string>>>.Success(
+                Array.Empty<IReadOnlyDictionary<string, string>>());
         }
 
         WithPayloadSelector payloadSelector = payloadFields is { Count: > 0 }
@@ -1163,7 +1374,11 @@ public sealed class QdrantVectorStore : IVectorStore
                 rows.Add(dict);
             }
 
-            return rows;
+            return Result<IReadOnlyList<IReadOnlyDictionary<string, string>>>.Success(rows);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -1172,7 +1387,9 @@ public sealed class QdrantVectorStore : IVectorStore
                 "scroll_chunks_by_paths_error collection={Collection} n_paths={Count}",
                 collection,
                 relPaths.Count);
-            return Array.Empty<IReadOnlyDictionary<string, string>>();
+            return StoreFailure<IReadOnlyList<IReadOnlyDictionary<string, string>>>(
+                StoreErrorCodes.Scroll,
+                $"Scroll chunks by paths failed: {ex.Message}");
         }
     }
 
@@ -1819,7 +2036,7 @@ public sealed class QdrantVectorStore : IVectorStore
         }
         catch (Exception ex) when (ex is ArgumentException or UriFormatException or RpcException)
         {
-            throw new VectorStoreException($"Invalid Qdrant URL '{options.Url}'.", ex);
+            throw new InvalidOperationException($"Invalid Qdrant URL '{options.Url}'.", ex);
         }
     }
 }

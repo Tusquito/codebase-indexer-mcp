@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using CodebaseIndexer.Application.Mapping;
 using CodebaseIndexer.Application.Services;
 using ModelContextProtocol.Server;
 
@@ -20,10 +21,14 @@ public sealed class ServiceMapTools
         "configuration, and build-level dependencies (Maven, NuGet, npm, Gradle, Go, Cargo, Python). " +
         "Returns a dependency graph with matched endpoint paths and package references. " +
         "When Embedding:RerankEnabled=true, pass rerank=false to skip ColBERT on discovery search.")]
-    public Task<object> MapServiceDependenciesAsync(
+    public async Task<object> MapServiceDependenciesAsync(
         [Description("Collections to analyze; omit for all")] string[]? collections = null,
         [Description("Max results per discovery query per collection")] int top_k = 30,
         [Description("ColBERT override: false skips rerank when enabled")] bool? rerank = null,
-        CancellationToken cancellationToken = default) =>
-        _service.MapServiceDependenciesAsync(collections, top_k, rerank, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _service.MapServiceDependenciesAsync(collections, top_k, rerank, cancellationToken)
+            .ConfigureAwait(false);
+        return result.Match(v => v, McpErrorMapper.FromError);
+    }
 }

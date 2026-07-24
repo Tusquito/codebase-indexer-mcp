@@ -1,6 +1,6 @@
 using CodebaseIndexer.Application.Options;
-using CodebaseIndexer.Domain.Exceptions;
 using CodebaseIndexer.Domain.Ports;
+using CodebaseIndexer.Domain.Results;
 using CodebaseIndexer.Infrastructure.Configuration;
 using CodebaseIndexer.Infrastructure.Embedding;
 using Microsoft.Extensions.Logging;
@@ -22,11 +22,6 @@ public sealed class TeiDenseEmbedder : IDenseEmbedder
     private Tokenizer? _tokenizer;
 
     /// <summary>Creates a TEI-backed dense embedder.</summary>
-    /// <param name="api">Refit client for the TEI embeddings API.</param>
-    /// <param name="tei">TEI service options.</param>
-    /// <param name="embedding">Embedding model configuration.</param>
-    /// <param name="knownEmbedModels">Known model token limit registry.</param>
-    /// <param name="logger">Logger instance.</param>
     public TeiDenseEmbedder(
         ITeiEmbeddingsApi api,
         IOptions<TeiOptions> tei,
@@ -48,103 +43,140 @@ public sealed class TeiDenseEmbedder : IDenseEmbedder
     public bool IsLoaded => _ready;
 
     /// <inheritdoc />
-    public async Task PreloadAsync(CancellationToken cancellationToken = default)
+    public async Task<Result> PreloadAsync(CancellationToken cancellationToken = default)
     {
-        using var healthResponse = await _api.GetHealthAsync(cancellationToken).ConfigureAwait(false);
-        healthResponse.EnsureSuccessStatusCode();
-
-        var probe = await _api.CreateEmbeddingsAsync(
-            new EmbeddingsRequest(_embedding.DenseModel, ["."], _tei.MrlDimensions),
-            cancellationToken).ConfigureAwait(false);
-
-        var embedding = probe.Data.OrderBy(d => d.Index).First().Embedding;
-        if (embedding.Count != VectorSize)
+        try
         {
-            throw new EmbeddingException(
-                $"TEI model '{_embedding.DenseModel}' returned dimension {embedding.Count}, expected {VectorSize}.");
-        }
+            using var healthResponse = await _api.GetHealthAsync(cancellationToken).ConfigureAwait(false);
+            healthResponse.EnsureSuccessStatusCode();
 
-        _ready = true;
-        var tokenLimit = EmbeddingTruncation.ResolveMaxEmbedTokens(
-            EmbedRole.Dense,
-            _embedding.DenseModel,
-            _embedding.MaxDenseTokens,
-            modelDir: null,
-            _knownEmbedModels.FrozenMaxTokens,
-            _logger);
-        _maxTokens = tokenLimit.MaxTokens;
-        EnsureTruncation();
-        _logger.LogInformation("TEI dense embedder ready at {TeiUrl} for model {Model}", _tei.Url, _embedding.DenseModel);
+            var probe = await _api.CreateEmbeddingsAsync(
+                new EmbeddingsRequest(_embedding.DenseModel, ["."], _tei.MrlDimensions),
+                cancellationToken).ConfigureAwait(false);
+
+            var embedding = probe.Data.OrderBy(d => d.Index).First().Embedding;
+            if (embedding.Count != VectorSize)
+            {
+                return Result.Failure(new Error(
+                    ErrorKind.Dependency,
+                    EmbedErrorCodes.DimensionMismatch,
+                    $"TEI model '{_embedding.DenseModel}' returned dimension {embedding.Count}, expected {VectorSize}."));
+            }
+
+            _ready = true;
+            var tokenLimit = EmbeddingTruncation.ResolveMaxEmbedTokens(
+                EmbedRole.Dense,
+                _embedding.DenseModel,
+                _embedding.MaxDenseTokens,
+                modelDir: null,
+                _knownEmbedModels.FrozenMaxTokens,
+                _logger);
+            _maxTokens = tokenLimit.MaxTokens;
+            EnsureTruncation();
+            _logger.LogInformation("TEI dense embedder ready at {TeiUrl} for model {Model}", _tei.Url, _embedding.DenseModel);
+            return Result.Success();
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return Result.Failure(new Error(
+                ErrorKind.Dependency,
+                EmbedErrorCodes.Tei,
+                $"TEI preload failed: {ex.Message}"));
+        }
     }
 
     /// <inheritdoc />
     public void Release() => _ready = false;
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<IReadOnlyList<float>>> EmbedBatchAsync(
+    public Task<Result<IReadOnlyList<IReadOnlyList<float>>>> EmbedBatchAsync(
         IReadOnlyList<string> texts,
         CancellationToken cancellationToken = default) =>
         EmbedInternalAsync(texts, isQuery: false, cancellationToken);
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<IReadOnlyList<float>>> EmbedQueryAsync(
+    public Task<Result<IReadOnlyList<IReadOnlyList<float>>>> EmbedQueryAsync(
         IReadOnlyList<string> texts,
         CancellationToken cancellationToken = default) =>
         EmbedInternalAsync(texts, isQuery: true, cancellationToken);
 
-    private async Task<IReadOnlyList<IReadOnlyList<float>>> EmbedInternalAsync(
+    private async Task<Result<IReadOnlyList<IReadOnlyList<float>>>> EmbedInternalAsync(
         IReadOnlyList<string> texts,
         bool isQuery,
         CancellationToken cancellationToken)
     {
         if (texts.Count == 0)
         {
-            return Array.Empty<IReadOnlyList<float>>();
+            return Result<IReadOnlyList<IReadOnlyList<float>>>.Success(Array.Empty<IReadOnlyList<float>>());
         }
 
-        var results = new List<IReadOnlyList<float>>(texts.Count);
-        var batchSize = Math.Max(1, _tei.EmbedBatchSize);
-
-        for (var offset = 0; offset < texts.Count; offset += batchSize)
+        try
         {
-            var count = Math.Min(batchSize, texts.Count - offset);
-            var batch = new string[count];
-            for (var i = 0; i < count; i++)
-            {
-                var text = texts[offset + i];
-                batch[i] = isQuery ? ApplyQueryInstruction(text) : Truncate(text);
-            }
+            var results = new List<IReadOnlyList<float>>(texts.Count);
+            var batchSize = Math.Max(1, _tei.EmbedBatchSize);
 
-            var response = await _api.CreateEmbeddingsAsync(
-                new EmbeddingsRequest(_embedding.DenseModel, batch, _tei.MrlDimensions),
-                cancellationToken).ConfigureAwait(false);
-
-            var ordered = new IReadOnlyList<float>[count];
-            foreach (var item in response.Data)
+            for (var offset = 0; offset < texts.Count; offset += batchSize)
             {
-                if ((uint)item.Index >= (uint)count)
+                var count = Math.Min(batchSize, texts.Count - offset);
+                var batch = new string[count];
+                for (var i = 0; i < count; i++)
                 {
-                    throw new EmbeddingException($"TEI returned out-of-range embedding index {item.Index}.");
+                    var text = texts[offset + i];
+                    batch[i] = isQuery ? ApplyQueryInstruction(text) : Truncate(text);
                 }
 
-                ordered[item.Index] = Normalize(item.Embedding);
-            }
+                var response = await _api.CreateEmbeddingsAsync(
+                    new EmbeddingsRequest(_embedding.DenseModel, batch, _tei.MrlDimensions),
+                    cancellationToken).ConfigureAwait(false);
 
-            for (var i = 0; i < count; i++)
-            {
-                if (ordered[i] is null)
+                var ordered = new IReadOnlyList<float>[count];
+                foreach (var item in response.Data)
                 {
-                    throw new EmbeddingException($"TEI returned incomplete embeddings for {count} inputs.");
+                    if ((uint)item.Index >= (uint)count)
+                    {
+                        return Result<IReadOnlyList<IReadOnlyList<float>>>.Failure(new Error(
+                            ErrorKind.Dependency,
+                            EmbedErrorCodes.Tei,
+                            $"TEI returned out-of-range embedding index {item.Index}."));
+                    }
+
+                    ordered[item.Index] = Normalize(item.Embedding);
+                }
+
+                for (var i = 0; i < count; i++)
+                {
+                    if (ordered[i] is null)
+                    {
+                        return Result<IReadOnlyList<IReadOnlyList<float>>>.Failure(new Error(
+                            ErrorKind.Dependency,
+                            EmbedErrorCodes.Tei,
+                            $"TEI returned incomplete embeddings for {count} inputs."));
+                    }
+                }
+
+                for (var i = 0; i < count; i++)
+                {
+                    results.Add(ordered[i]!);
                 }
             }
 
-            for (var i = 0; i < count; i++)
-            {
-                results.Add(ordered[i]!);
-            }
+            return Result<IReadOnlyList<IReadOnlyList<float>>>.Success(results);
         }
-
-        return results;
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return Result<IReadOnlyList<IReadOnlyList<float>>>.Failure(new Error(
+                ErrorKind.Dependency,
+                EmbedErrorCodes.Tei,
+                $"TEI embed failed: {ex.Message}"));
+        }
     }
 
     private void EnsureTruncation()

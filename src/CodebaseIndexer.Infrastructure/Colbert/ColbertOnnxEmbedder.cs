@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using CodebaseIndexer.Application.Options;
-using CodebaseIndexer.Domain.Exceptions;
 using CodebaseIndexer.Domain.Ports;
+using CodebaseIndexer.Domain.Results;
 using CodebaseIndexer.Infrastructure.Configuration;
 using CodebaseIndexer.Infrastructure.Embedding;
 using Microsoft.Extensions.Logging;
@@ -42,25 +42,41 @@ public sealed class ColbertOnnxEmbedder : IColbertEmbedder, IDisposable
     public bool IsLoaded => _ready && _model is not null;
 
     /// <inheritdoc />
-    public Task PreloadAsync(CancellationToken cancellationToken = default)
+    public Task<Result> PreloadAsync(CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        _model = GetOrCreateShared();
-        if (_colbert.UseCuda && !_model.UsesCuda)
+        try
         {
-            throw new EmbeddingException(
-                "Colbert:UseCuda=true but CUDAExecutionProvider is not available "
-                + $"(providers=[{string.Join(", ", _model.ExecutionProviders)}]).");
-        }
+            cancellationToken.ThrowIfCancellationRequested();
+            _model = GetOrCreateShared();
+            if (_colbert.UseCuda && !_model.UsesCuda)
+            {
+                return Task.FromResult(Result.Failure(new Error(
+                    ErrorKind.Dependency,
+                    EmbedErrorCodes.Colbert,
+                    "Colbert:UseCuda=true but CUDAExecutionProvider is not available "
+                    + $"(providers=[{string.Join(", ", _model.ExecutionProviders)}]).")));
+            }
 
-        _ready = true;
-        _logger.LogInformation(
-            "colbert_onnx_ready model={Model} dim={Dim} device={Device} providers={Providers}",
-            _model.ModelName,
-            TokenDimension,
-            _model.UsesCuda ? "cuda" : "cpu",
-            string.Join(',', _model.ExecutionProviders));
-        return Task.CompletedTask;
+            _ready = true;
+            _logger.LogInformation(
+                "colbert_onnx_ready model={Model} dim={Dim} device={Device} providers={Providers}",
+                _model.ModelName,
+                TokenDimension,
+                _model.UsesCuda ? "cuda" : "cpu",
+                string.Join(',', _model.ExecutionProviders));
+            return Task.FromResult(Result.Success());
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return Task.FromResult(Result.Failure(new Error(
+                ErrorKind.Dependency,
+                EmbedErrorCodes.Colbert,
+                $"ColBERT ONNX preload failed: {ex.Message}")));
+        }
     }
 
     /// <inheritdoc />
@@ -71,36 +87,50 @@ public sealed class ColbertOnnxEmbedder : IColbertEmbedder, IDisposable
     }
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>> EmbedBatchAsync(
+    public Task<Result<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>>> EmbedBatchAsync(
         IReadOnlyList<string> texts,
         CancellationToken cancellationToken = default)
     {
         if (texts.Count == 0)
         {
-            return Task.FromResult<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>>(
-                Array.Empty<IReadOnlyList<IReadOnlyList<float>>>());
+            return Task.FromResult(Result<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>>.Success(
+                Array.Empty<IReadOnlyList<IReadOnlyList<float>>>()));
         }
 
-        var model = _model ?? GetOrCreateShared();
-        _model = model;
-        _ready = true;
-
-        var results = new List<IReadOnlyList<IReadOnlyList<float>>>(texts.Count);
-        var batchSize = Math.Max(1, _colbert.EmbedBatchSize);
-        for (var offset = 0; offset < texts.Count; offset += batchSize)
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var count = Math.Min(batchSize, texts.Count - offset);
-            var batch = new string[count];
-            for (var i = 0; i < count; i++)
+            var model = _model ?? GetOrCreateShared();
+            _model = model;
+            _ready = true;
+
+            var results = new List<IReadOnlyList<IReadOnlyList<float>>>(texts.Count);
+            var batchSize = Math.Max(1, _colbert.EmbedBatchSize);
+            for (var offset = 0; offset < texts.Count; offset += batchSize)
             {
-                batch[i] = texts[offset + i];
+                cancellationToken.ThrowIfCancellationRequested();
+                var count = Math.Min(batchSize, texts.Count - offset);
+                var batch = new string[count];
+                for (var i = 0; i < count; i++)
+                {
+                    batch[i] = texts[offset + i];
+                }
+
+                results.AddRange(model.Embed(batch, TokenDimension));
             }
 
-            results.AddRange(model.Embed(batch, TokenDimension));
+            return Task.FromResult(Result<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>>.Success(results));
         }
-
-        return Task.FromResult<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>>(results);
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return Task.FromResult(Result<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>>.Failure(new Error(
+                ErrorKind.Dependency,
+                EmbedErrorCodes.Colbert,
+                $"ColBERT ONNX embed failed: {ex.Message}")));
+        }
     }
 
     /// <inheritdoc />
@@ -214,10 +244,10 @@ public sealed class ColbertOnnxEmbedder : IColbertEmbedder, IDisposable
         {
             var modelDir = SparseModelCacheResolver.ResolveModelDirectory(cacheRoot, modelName);
             var onnxPath = FindOnnx(modelDir)
-                ?? throw new EmbeddingException($"ColBERT ONNX model not found under '{modelDir}'.");
+                ?? throw new InvalidOperationException($"ColBERT ONNX model not found under '{modelDir}'.");
 
             var tokenizer = LoadTokenizer(modelDir)
-                ?? throw new EmbeddingException($"ColBERT tokenizer not found under '{modelDir}'.");
+                ?? throw new InvalidOperationException($"ColBERT tokenizer not found under '{modelDir}'.");
 
             OrtCUDAProviderOptions? cudaOpts = null;
             SessionOptions so;
@@ -244,7 +274,7 @@ public sealed class ColbertOnnxEmbedder : IColbertEmbedder, IDisposable
                 catch (Exception ex)
                 {
                     cudaOpts?.Dispose();
-                    throw new EmbeddingException(
+                    throw new InvalidOperationException(
                         "Colbert:UseCuda=true but CUDAExecutionProvider could not be registered.", ex);
                 }
             }
@@ -276,7 +306,7 @@ public sealed class ColbertOnnxEmbedder : IColbertEmbedder, IDisposable
                 session.Dispose();
                 so.Dispose();
                 cudaOpts?.Dispose();
-                throw new EmbeddingException(
+                throw new InvalidOperationException(
                     "Colbert:UseCuda=true but CUDAExecutionProvider is not active after session create "
                     + $"(available_providers=[{string.Join(", ", availableProviders)}]).");
             }
@@ -370,14 +400,14 @@ public sealed class ColbertOnnxEmbedder : IColbertEmbedder, IDisposable
             var dims = output.Dimensions.ToArray();
             if (dims.Length != 3)
             {
-                throw new EmbeddingException(
+                throw new InvalidOperationException(
                     $"ColBERT ONNX output rank {dims.Length} unexpected; expected [batch, seq, dim].");
             }
 
             var outDim = dims[2];
             if (outDim != tokenDim)
             {
-                throw new EmbeddingException(
+                throw new InvalidOperationException(
                     $"ColBERT ONNX output dim {outDim} does not match expected {tokenDim}.");
             }
 

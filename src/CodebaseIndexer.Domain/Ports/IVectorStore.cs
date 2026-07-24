@@ -1,4 +1,5 @@
 using CodebaseIndexer.Domain.Models;
+using CodebaseIndexer.Domain.Results;
 
 namespace CodebaseIndexer.Domain.Ports;
 
@@ -9,15 +10,10 @@ public interface IVectorStore
     ValueTask<bool> CollectionExistsAsync(string collection, CancellationToken cancellationToken = default);
 
     /// <summary>Creates a collection if it does not exist, optionally recreating it when forced.</summary>
-    Task EnsureCollectionAsync(string collection, bool force = false, CancellationToken cancellationToken = default);
+    Task<Result> EnsureCollectionAsync(string collection, bool force = false, CancellationToken cancellationToken = default);
 
     /// <summary>Inserts or updates embedded chunks in a collection.</summary>
-    /// <param name="collection">Target collection name.</param>
-    /// <param name="chunks">Embedded chunks to upsert.</param>
-    /// <param name="omitCallees">When true, omit <c>callees</c> payload (graph-on indexing).</param>
-    /// <param name="graphNodeIdsByChunk">Optional chunk_id → neighbor graph node keys.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    Task UpsertChunksAsync(
+    Task<Result> UpsertChunksAsync(
         string collection,
         IReadOnlyList<EmbeddedChunk> chunks,
         bool omitCallees = false,
@@ -25,13 +21,13 @@ public interface IVectorStore
         CancellationToken cancellationToken = default);
 
     /// <summary>Stamps collection metadata when Neo4j call-site lookup is active.</summary>
-    Task SetCollectionGraphCallSitesAsync(
+    Task<Result> SetCollectionGraphCallSitesAsync(
         string collection,
         bool enabled = true,
         CancellationToken cancellationToken = default);
 
     /// <summary>Stamps collection metadata when chunks carry graph_node_ids linkage.</summary>
-    Task SetCollectionGraphEnabledAsync(
+    Task<Result> SetCollectionGraphEnabledAsync(
         string collection,
         bool enabled = true,
         CancellationToken cancellationToken = default);
@@ -46,16 +42,11 @@ public interface IVectorStore
         string collection,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Hybrid or dense-only vector search against a single collection.</summary>
-    /// <param name="collection">Collection to search.</param>
-    /// <param name="denseVector">Dense query embedding.</param>
-    /// <param name="sparseVector">Optional sparse query embedding (hybrid).</param>
-    /// <param name="topK">Maximum hits to return.</param>
-    /// <param name="language">Optional language payload filter.</param>
-    /// <param name="minScore">Cosine score floor when not hybrid; ignored for RRF.</param>
-    /// <param name="colbertVector">Optional ColBERT query multivector for MAX_SIM rerank.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    Task<IReadOnlyList<SearchHit>> SearchAsync(
+    /// <summary>
+    /// Hybrid or dense-only vector search against a single collection.
+    /// Empty hit lists are success; missing collection yields empty success.
+    /// </summary>
+    Task<Result<IReadOnlyList<SearchHit>>> SearchAsync(
         string collection,
         IReadOnlyList<float> denseVector,
         SparseVector? sparseVector,
@@ -66,72 +57,72 @@ public interface IVectorStore
         CancellationToken cancellationToken = default);
 
     /// <summary>Retrieves a chunk payload by id within one collection.</summary>
-    Task<ChunkPayload?> GetChunkByIdAsync(
+    Task<Result<ChunkPayload>> GetChunkByIdAsync(
         string collection,
         string chunkId,
         CancellationToken cancellationToken = default);
 
     /// <summary>Retrieves a chunk by id from one collection or all collections.</summary>
-    Task<ChunkPayload?> FindChunkByIdAsync(
+    Task<Result<ChunkPayload>> FindChunkByIdAsync(
         string chunkId,
         string? collection = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>Scrolls symbol metadata for a single file (outline).</summary>
-    Task<IReadOnlyList<FileSymbol>> ScrollFileSymbolsAsync(
+    Task<Result<IReadOnlyList<FileSymbol>>> ScrollFileSymbolsAsync(
         string collection,
         string relPath,
         CancellationToken cancellationToken = default);
 
     /// <summary>Scrolls lightweight payloads for summary aggregation.</summary>
-    Task<IReadOnlyList<PayloadRow>> ScrollAllPayloadsAsync(
+    Task<Result<IReadOnlyList<PayloadRow>>> ScrollAllPayloadsAsync(
         string collection,
         CancellationToken cancellationToken = default);
 
     /// <summary>Lists all collections with statistics.</summary>
-    Task<IReadOnlyList<CollectionStats>> ListCollectionStatsAsync(
+    Task<Result<IReadOnlyList<CollectionStats>>> ListCollectionStatsAsync(
         CancellationToken cancellationToken = default);
 
     /// <summary>Finds chunks matching a symbol name across collections.</summary>
-    Task<IReadOnlyList<SearchHit>> FindSymbolInCollectionsAsync(
+    Task<Result<IReadOnlyList<SearchHit>>> FindSymbolInCollectionsAsync(
         string symbolName,
         IReadOnlyList<string> collections,
         int limitPerCollection = 10,
         CancellationToken cancellationToken = default);
 
     /// <summary>Lists all collection names in the vector store.</summary>
-    Task<IReadOnlyList<string>> ListCollectionsAsync(CancellationToken cancellationToken = default);
+    Task<Result<IReadOnlyList<string>>> ListCollectionsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Retrieves statistics and configuration for a collection.</summary>
-    ValueTask<CollectionStats?> GetCollectionStatsAsync(
+    ValueTask<Result<CollectionStats>> GetCollectionStatsAsync(
         string collection,
         CancellationToken cancellationToken = default);
 
     /// <summary>Retrieves stored file metadata for change detection.</summary>
-    Task<IReadOnlyDictionary<string, FileMetadata>> GetFileMetadataAsync(
+    Task<Result<IReadOnlyDictionary<string, FileMetadata>>> GetFileMetadataAsync(
         string collection,
         CancellationToken cancellationToken = default);
 
     /// <summary>Deletes all chunks associated with the given file paths.</summary>
-    Task DeleteByPathsAsync(
+    Task<Result> DeleteByPathsAsync(
         string collection,
         IReadOnlyList<string> relPaths,
         CancellationToken cancellationToken = default);
 
     /// <summary>Marks whether a collection is currently being indexed.</summary>
-    Task SetIndexingAsync(
+    Task<Result> SetIndexingAsync(
         string collection,
         bool enabled,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Raises when any chunk id is missing from the collection.</summary>
-    Task VerifyChunkIdsExistAsync(
+    /// <summary>Fails when any chunk id is missing from the collection.</summary>
+    Task<Result> VerifyChunkIdsExistAsync(
         string collection,
         IReadOnlyList<string> chunkIds,
         CancellationToken cancellationToken = default);
 
     /// <summary>Qdrant Recommend (dense AVERAGE_VECTOR) with optional path_glob post-filter.</summary>
-    Task<IReadOnlyList<SearchHit>> RecommendAsync(
+    Task<Result<IReadOnlyList<SearchHit>>> RecommendAsync(
         string collection,
         IReadOnlyList<RecommendExample> positive,
         IReadOnlyList<RecommendExample>? negative = null,
@@ -141,7 +132,7 @@ public interface IVectorStore
         CancellationToken cancellationToken = default);
 
     /// <summary>Find chunks distant from a context centroid (BEST_SCORE negative-only).</summary>
-    Task<IReadOnlyList<SearchHit>> FindOutlierChunksAsync(
+    Task<Result<IReadOnlyList<SearchHit>>> FindOutlierChunksAsync(
         string collection,
         IReadOnlyList<string>? contextChunkIds = null,
         int limit = 5,
@@ -152,7 +143,7 @@ public interface IVectorStore
         CancellationToken cancellationToken = default);
 
     /// <summary>Scroll chunks whose callees payload matches member or receiver.member.</summary>
-    Task<IReadOnlyList<SearchHit>> FindCallersInCollectionsAsync(
+    Task<Result<IReadOnlyList<SearchHit>>> FindCallersInCollectionsAsync(
         string method,
         IReadOnlyList<string> collections,
         string? receiver = null,
@@ -160,7 +151,7 @@ public interface IVectorStore
         CancellationToken cancellationToken = default);
 
     /// <summary>Scroll chunk payloads for specific rel_path values.</summary>
-    Task<IReadOnlyList<IReadOnlyDictionary<string, string>>> ScrollChunksByPathsAsync(
+    Task<Result<IReadOnlyList<IReadOnlyDictionary<string, string>>>> ScrollChunksByPathsAsync(
         string collection,
         IReadOnlyList<string> relPaths,
         IReadOnlyList<string>? payloadFields = null,

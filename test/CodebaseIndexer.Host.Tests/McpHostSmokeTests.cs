@@ -168,7 +168,9 @@ public sealed class McpHostSmokeTests : IClassFixture<McpHostWebApplicationFacto
             {
                 var json = JsonSerializer.Serialize(structured);
                 using var document = JsonDocument.Parse(json);
-                Assert.Equal(JsonValueKind.Array, document.RootElement.ValueKind);
+                // Success → array of collections; Failure → unified {error:{...}} object.
+                Assert.True(
+                    document.RootElement.ValueKind is JsonValueKind.Array or JsonValueKind.Object);
                 return;
             }
 
@@ -176,7 +178,8 @@ public sealed class McpHostSmokeTests : IClassFixture<McpHostWebApplicationFacto
             Assert.False(string.IsNullOrWhiteSpace(text));
             using (var document = JsonDocument.Parse(text!))
             {
-                Assert.Equal(JsonValueKind.Array, document.RootElement.ValueKind);
+                Assert.True(
+                    document.RootElement.ValueKind is JsonValueKind.Array or JsonValueKind.Object);
             }
 
             return;

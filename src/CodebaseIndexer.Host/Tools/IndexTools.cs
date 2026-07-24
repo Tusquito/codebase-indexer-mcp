@@ -1,11 +1,12 @@
 using System.ComponentModel;
 using System.Text.RegularExpressions;
+using CodebaseIndexer.Application.Mapping;
 using CodebaseIndexer.Application.Models;
+using CodebaseIndexer.Application.Options;
 using CodebaseIndexer.Application.Services;
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
 using CodebaseIndexer.Domain.Results;
-using CodebaseIndexer.Application.Options;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
 
@@ -20,9 +21,6 @@ public sealed class IndexTools
     private readonly WorkspaceOptions _workspace;
 
     /// <summary>Initializes a new instance of the <see cref="IndexTools"/> class.</summary>
-    /// <param name="jobs">Indexing job orchestration service.</param>
-    /// <param name="vectorStore">Vector store for collection discovery.</param>
-    /// <param name="workspace">Workspace root configuration.</param>
     public IndexTools(
         IIndexJobService jobs,
         IVectorStore vectorStore,
@@ -34,13 +32,6 @@ public sealed class IndexTools
     }
 
     /// <summary>Indexes a project folder into the vector store.</summary>
-    /// <param name="path">Project folder name under WORKSPACE_ROOT.</param>
-    /// <param name="collection">Optional collection override.</param>
-    /// <param name="force">Force full re-index even if file SHA unchanged.</param>
-    /// <param name="wait">Block until indexing completes.</param>
-    /// <param name="timeout">Timeout in seconds when <paramref name="wait"/> is true.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Job snapshot, status response, or error payload.</returns>
     [McpServerTool(Name = "index_codebase"), Description("Index a project folder into the vector store.")]
     public async Task<object> IndexCodebaseAsync(
         [Description("Project folder name under WORKSPACE_ROOT")] string path = "/",
@@ -53,9 +44,14 @@ public sealed class IndexTools
         path = NormalizePath(path);
         if (path == "/")
         {
-            return new IndexPathRequiredResponse(
-                Error: "Please specify a project folder to index.",
-                Hint: "Pass the project folder name as 'path'. For example: index_codebase(path='my-project').");
+            return McpErrorMapper.FromError(new Error(
+                ErrorKind.Validation,
+                McpErrorCodes.PathRequired,
+                "Please specify a project folder to index.",
+                new Dictionary<string, string>
+                {
+                    ["hint"] = "Pass the project folder name as 'path'. For example: index_codebase(path='my-project').",
+                }));
         }
 
         collection ??= DeriveCollectionName(_workspace.Path, path);
@@ -64,22 +60,21 @@ public sealed class IndexTools
             var existingResult = await _jobs.GetJobAsync(collection, cancellationToken).ConfigureAwait(false);
             if (wait && existingResult.IsSuccess)
             {
-                return await MapStartResultAsync(
+                return MapStartResult(
                     await _jobs.StartAsync(
                         new IndexCodebaseCommand(collection, path, force, wait, timeout),
                         cancellationToken).ConfigureAwait(false),
                     collection,
                     path,
-                    wait).ConfigureAwait(false);
+                    wait);
             }
 
-            return existingResult.Match<object>(
-                onSuccess: snapshot => new IndexAlreadyRunningResponse(
-                    Message: $"Indexing already in progress for '{collection}'",
-                    Status: snapshot),
-                onFailure: _ => new IndexAlreadyRunningResponse(
-                    Message: $"Indexing already in progress for '{collection}'",
-                    Status: new IndexJobSnapshot(
+            return existingResult.Match(
+                onSuccess: snapshot => ConflictAlreadyRunning(collection, path, snapshot),
+                onFailure: _ => ConflictAlreadyRunning(
+                    collection,
+                    path,
+                    new IndexJobSnapshot(
                         collection,
                         path,
                         IndexJobStatus.Running,
@@ -91,19 +86,16 @@ public sealed class IndexTools
                         Array.Empty<Error>())));
         }
 
-        return await MapStartResultAsync(
+        return MapStartResult(
             await _jobs.StartAsync(
                 new IndexCodebaseCommand(collection, path, force, wait, timeout),
                 cancellationToken).ConfigureAwait(false),
             collection,
             path,
-            wait).ConfigureAwait(false);
+            wait);
     }
 
     /// <summary>Checks indexing job status for one or all collections.</summary>
-    /// <param name="collection">Optional collection name; omit to list all jobs.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Job snapshot, job list, or error payload.</returns>
     [McpServerTool(Name = "index_status"), Description("Check indexing job status.")]
     public async Task<object> IndexStatusAsync(
         [Description("Optional collection name")] string? collection = null,
@@ -112,9 +104,9 @@ public sealed class IndexTools
         if (!string.IsNullOrEmpty(collection))
         {
             var jobResult = await _jobs.GetJobAsync(collection, cancellationToken).ConfigureAwait(false);
-            return jobResult.Match<object>(
-                onSuccess: job => job,
-                onFailure: _ => new IndexJobNotFoundResponse(Error: $"No indexing job found for '{collection}'."));
+            return jobResult.Match(
+                onSuccess: job => (object)job,
+                onFailure: McpErrorMapper.FromError);
         }
 
         var jobs = await _jobs.GetAllJobsAsync(cancellationToken).ConfigureAwait(false);
@@ -124,9 +116,6 @@ public sealed class IndexTools
     }
 
     /// <summary>Requests cancellation of an ongoing indexing job.</summary>
-    /// <param name="collection">Collection name.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Cancellation confirmation or error payload.</returns>
     [McpServerTool(Name = "stop_indexing"), Description("Stop an ongoing indexing job.")]
     public async Task<object> StopIndexingAsync(
         [Description("Collection name")] string collection,
@@ -135,16 +124,17 @@ public sealed class IndexTools
         var cancelResult = await _jobs.CancelAsync(collection, cancellationToken).ConfigureAwait(false);
         if (!cancelResult.IsSuccess)
         {
-            return new IndexJobNotFoundResponse(Error: $"No indexing job found for '{collection}'.");
+            return McpErrorMapper.FromError(cancelResult.Error);
         }
 
         var snapshot = cancelResult.Value;
         if (snapshot.Status is not (IndexJobStatus.Queued or IndexJobStatus.Running))
         {
-            // CancelAsync succeeds for terminal jobs without requesting cancel; preserve prior NotRunning UX.
-            return new IndexJobNotRunningResponse(
-                Error: $"Job '{collection}' is not running (status: {snapshot.Status}).",
-                Status: snapshot);
+            return McpErrorMapper.FromError(new Error(
+                ErrorKind.Conflict,
+                McpErrorCodes.JobNotRunning,
+                $"Job '{collection}' is not running (status: {snapshot.Status}).",
+                SnapshotMetadata(snapshot)));
         }
 
         return new IndexCancelledResponse(
@@ -154,11 +144,6 @@ public sealed class IndexTools
     }
 
     /// <summary>Re-indexes all existing collections sequentially.</summary>
-    /// <param name="force">Force full re-index.</param>
-    /// <param name="wait">Block until all collections finish.</param>
-    /// <param name="timeout">Timeout per collection in seconds.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Summary of indexing results or error payload.</returns>
     [McpServerTool(Name = "index_all"), Description("Re-index all existing collections sequentially.")]
     public async Task<object> IndexAllAsync(
         [Description("Force full re-index")] bool force = false,
@@ -166,12 +151,23 @@ public sealed class IndexTools
         [Description("Timeout per collection in seconds")] int timeout = 1800,
         CancellationToken cancellationToken = default)
     {
-        var collections = await _vectorStore.ListCollectionsAsync(cancellationToken).ConfigureAwait(false);
+        var collectionsResult = await _vectorStore.ListCollectionsAsync(cancellationToken).ConfigureAwait(false);
+        if (!collectionsResult.IsSuccess)
+        {
+            return McpErrorMapper.FromError(collectionsResult.Error);
+        }
+
+        var collections = collectionsResult.Value;
         if (collections.Count == 0)
         {
-            return new IndexAllEmptyResponse(
-                Error: "No indexed collections found.",
-                Hint: "Use index_codebase to index a project first, then use index_all to re-index all.");
+            return McpErrorMapper.FromError(new Error(
+                ErrorKind.NotFound,
+                McpErrorCodes.CollectionsEmpty,
+                "No indexed collections found.",
+                new Dictionary<string, string>
+                {
+                    ["hint"] = "Use index_codebase to index a project first, then use index_all to re-index all.",
+                }));
         }
 
         var results = new List<IndexJobSnapshot>();
@@ -204,12 +200,12 @@ public sealed class IndexTools
             Results: results);
     }
 
-    private static Task<object> MapStartResultAsync(
+    private static object MapStartResult(
         Result<IndexJobSnapshot> startResult,
         string collection,
         string path,
         bool wait) =>
-        Task.FromResult(startResult.Match(
+        startResult.Match(
             onSuccess: snapshot =>
             {
                 if (!wait)
@@ -223,11 +219,11 @@ public sealed class IndexTools
 
                 return snapshot;
             },
-            onFailure: error => error.Kind switch
-            {
-                ErrorKind.Conflict => (object)new IndexAlreadyRunningResponse(
-                    Message: $"Indexing already in progress for '{collection}'",
-                    Status: new IndexJobSnapshot(
+            onFailure: error => error.Kind == ErrorKind.Conflict
+                ? ConflictAlreadyRunning(
+                    collection,
+                    path,
+                    new IndexJobSnapshot(
                         collection,
                         path,
                         IndexJobStatus.Running,
@@ -237,10 +233,28 @@ public sealed class IndexTools
                         0,
                         0,
                         Array.Empty<Error>(),
-                        error.Message)),
-                ErrorKind.NotFound => new IndexJobNotFoundResponse(Error: error.Message),
-                _ => new IndexJobNotFoundResponse(Error: error.Message),
-            }));
+                        error.Message))
+                : McpErrorMapper.FromError(error));
+
+    private static object ConflictAlreadyRunning(string collection, string path, IndexJobSnapshot status) =>
+        McpErrorMapper.FromError(new Error(
+            ErrorKind.Conflict,
+            IndexErrorCodes.JobAlreadyRunning,
+            $"Indexing already in progress for '{collection}'",
+            SnapshotMetadata(status)));
+
+    private static IReadOnlyDictionary<string, string> SnapshotMetadata(IndexJobSnapshot snapshot) =>
+        new Dictionary<string, string>
+        {
+            ["collection"] = snapshot.Collection,
+            ["path"] = snapshot.Path,
+            ["status"] = snapshot.Status.ToString(),
+            ["total_files"] = snapshot.TotalFiles.ToString(),
+            ["indexed_files"] = snapshot.IndexedFiles.ToString(),
+            ["skipped_files"] = snapshot.SkippedFiles.ToString(),
+            ["total_chunks"] = snapshot.TotalChunks.ToString(),
+            ["elapsed_seconds"] = snapshot.ElapsedSeconds.ToString(),
+        };
 
     internal static string NormalizePath(string rawPath)
     {

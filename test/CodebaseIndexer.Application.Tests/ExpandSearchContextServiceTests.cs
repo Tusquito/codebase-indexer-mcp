@@ -4,6 +4,7 @@ using CodebaseIndexer.Application.Services;
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
 using MsOptions = Microsoft.Extensions.Options.Options;
+using CodebaseIndexer.Domain.Results;
 
 namespace CodebaseIndexer.Application.Tests;
 
@@ -40,7 +41,8 @@ public sealed class ExpandSearchContextServiceTests
         var service = CreateService(search, new NoOpVectorStore(), graph);
 
         var result = await service.ExpandSearchContextAsync("q", collection: "proj");
-        var json = System.Text.Json.JsonSerializer.Serialize(result);
+        Assert.True(result.IsSuccess);
+        var json = System.Text.Json.JsonSerializer.Serialize(result.Value);
         Assert.Contains("\"nodes\":[]", json);
         Assert.Contains("\"edges\":[]", json);
         Assert.Null(graph.LastExpandChunkIds);
@@ -73,7 +75,7 @@ public sealed class ExpandSearchContextServiceTests
 
         public StubSearchService(IReadOnlyList<SearchCodebaseHit> hits) => _hits = hits;
 
-        public Task<SearchCodebaseResponse> SearchCodebaseAsync(
+        public Task<Result<SearchCodebaseResponse>> SearchCodebaseAsync(
             string query,
             int topK = 5,
             string? collection = null,
@@ -83,9 +85,10 @@ public sealed class ExpandSearchContextServiceTests
             int? maxContentChars = null,
             bool? rerank = null,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(new SearchCodebaseResponse(_hits, [collection ?? "codebase"], []));
+            Task.FromResult(Result<SearchCodebaseResponse>.Success(
+                new SearchCodebaseResponse(_hits, [collection ?? "codebase"], [])));
 
-        public Task<SearchSymbolsResponse> SearchSymbolsAsync(
+        public Task<Result<SearchSymbolsResponse>> SearchSymbolsAsync(
             string query,
             int topK = 10,
             string? collection = null,
@@ -94,6 +97,7 @@ public sealed class ExpandSearchContextServiceTests
             float minScore = 0.4f,
             bool? rerank = null,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(new SearchSymbolsResponse([], [collection ?? "codebase"]));
+            Task.FromResult(Result<SearchSymbolsResponse>.Success(
+                new SearchSymbolsResponse([], [collection ?? "codebase"])));
     }
 }

@@ -71,6 +71,8 @@ Scan → Tree-sitter / sliding-window chunk → TEI dense + ONNX BM25 sparse emb
 
 ### MCP tools (Host `Tools/`)
 
+Tool failures return `{ "error": { "kind", "code", "message", "metadata?" } }` (ADR 0033). `kind` is PascalCase (`Validation`, `NotFound`, …), not lowercase.
+
 | Tool | Host type | Description |
 |------|-----------|-------------|
 | `index_codebase` / `index_status` / `stop_indexing` / `index_all` | `IndexTools` | Index jobs |

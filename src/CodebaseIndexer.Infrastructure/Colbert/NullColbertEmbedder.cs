@@ -1,5 +1,5 @@
-using CodebaseIndexer.Domain.Exceptions;
 using CodebaseIndexer.Domain.Ports;
+using CodebaseIndexer.Domain.Results;
 
 namespace CodebaseIndexer.Infrastructure.Colbert;
 
@@ -13,7 +13,8 @@ public sealed class NullColbertEmbedder : IColbertEmbedder
     public bool IsLoaded => false;
 
     /// <inheritdoc />
-    public Task PreloadAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task<Result> PreloadAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(Result.Success());
 
     /// <inheritdoc />
     public void Release()
@@ -21,8 +22,11 @@ public sealed class NullColbertEmbedder : IColbertEmbedder
     }
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>> EmbedBatchAsync(
+    public Task<Result<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>>> EmbedBatchAsync(
         IReadOnlyList<string> texts,
         CancellationToken cancellationToken = default) =>
-        throw new EmbeddingException("ColBERT embedder is not configured (Embedding:RerankEnabled=false).");
+        Task.FromResult(Result<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>>.Failure(new Error(
+            ErrorKind.Dependency,
+            EmbedErrorCodes.NotConfigured,
+            "ColBERT embedder is not configured (Embedding:RerankEnabled=false).")));
 }

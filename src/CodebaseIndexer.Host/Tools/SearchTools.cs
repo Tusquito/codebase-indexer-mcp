@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using CodebaseIndexer.Application.Mapping;
 using CodebaseIndexer.Application.Services;
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Serialization;
@@ -40,8 +41,9 @@ public sealed class SearchTools
         [Description("Min cosine score when hybrid is off")] float min_score = 0.5f,
         [Description("Truncate content to this many chars")] int? max_content_chars = null,
         [Description("ColBERT override: false skips rerank when enabled; true/null uses server default")] bool? rerank = null,
-        CancellationToken cancellationToken = default) =>
-        await _search.SearchCodebaseAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _search.SearchCodebaseAsync(
             query,
             top_k,
             collection ?? _qdrant.Collection,
@@ -51,6 +53,8 @@ public sealed class SearchTools
             max_content_chars,
             rerank,
             cancellationToken).ConfigureAwait(false);
+        return result.Match(v => (object)v, McpErrorMapper.FromError);
+    }
 
     /// <summary>Token-efficient symbol lookup without code content.</summary>
     [McpServerTool(Name = "search_symbols"), Description(
@@ -64,8 +68,9 @@ public sealed class SearchTools
         [Description("Optional language filter")] string? language = null,
         [Description("Min cosine score when hybrid is off")] float min_score = 0.4f,
         [Description("ColBERT override: false skips rerank when enabled; true/null uses server default")] bool? rerank = null,
-        CancellationToken cancellationToken = default) =>
-        await _search.SearchSymbolsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _search.SearchSymbolsAsync(
             query,
             top_k,
             collection ?? _qdrant.Collection,
@@ -74,6 +79,8 @@ public sealed class SearchTools
             min_score,
             rerank,
             cancellationToken).ConfigureAwait(false);
+        return result.Match(v => (object)v, McpErrorMapper.FromError);
+    }
 
     private static SourceLanguage? ParseLanguage(string? language) =>
         DomainEnumWire.TryParse(language, out SourceLanguage value) ? value : null;

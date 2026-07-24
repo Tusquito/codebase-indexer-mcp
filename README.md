@@ -226,6 +226,8 @@ After editing the config, run `/restart` in the CLI to reconnect. If the connect
 
 ## MCP Tools
 
+Tool failures return a unified envelope `{ "error": { "kind", "code", "message", "metadata?" } }` ([ADR 0033](docs/adr/0033-adopt-result-pattern.md)). `kind` is the PascalCase `ErrorKind` name (e.g. `Validation`, `NotFound`, `Conflict`, `Dependency`).
+
 ### Indexing
 
 | Tool | Description |

@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using CodebaseIndexer.Application.Mapping;
 using CodebaseIndexer.Application.Services;
 using ModelContextProtocol.Server;
 
@@ -27,7 +28,7 @@ public sealed class CrossReferenceTools
         "graph-enabled index; otherwise Qdrant callees scroll with a fallback warning). " +
         "Re-index after pull when enabling Graph:Enabled (no schema-version env). " +
         "When Embedding:RerankEnabled=true, pass rerank=false to skip ColBERT on semantic paths.")]
-    public Task<object> FindCrossReferencesAsync(
+    public async Task<object> FindCrossReferencesAsync(
         [Description("Semantic search query")] string? query = null,
         [Description("Exact symbol name")] string? symbol_name = null,
         [Description("Collections to search; omit for all")] string[]? collections = null,
@@ -35,7 +36,11 @@ public sealed class CrossReferenceTools
         [Description("Method name for Path D call-site lookup")] string? member = null,
         [Description("Optional receiver/field name for Path D")] string? receiver = null,
         [Description("ColBERT override: false skips rerank when enabled")] bool? rerank = null,
-        CancellationToken cancellationToken = default) =>
-        _service.FindCrossReferencesAsync(
-            query, symbol_name, collections, top_k, member, receiver, rerank, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _service.FindCrossReferencesAsync(
+            query, symbol_name, collections, top_k, member, receiver, rerank, cancellationToken)
+            .ConfigureAwait(false);
+        return result.Match(v => v, McpErrorMapper.FromError);
+    }
 }

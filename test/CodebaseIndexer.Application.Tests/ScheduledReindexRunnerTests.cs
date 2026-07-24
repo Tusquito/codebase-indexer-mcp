@@ -219,7 +219,7 @@ public sealed class ScheduledReindexRunnerTests
 
         public FakeStore(IReadOnlyList<string> collections) => _collections = collections;
 
-        public override Task<IReadOnlyList<string>> ListCollectionsAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(_collections);
+        public override Task<Result<IReadOnlyList<string>>> ListCollectionsAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(Result<IReadOnlyList<string>>.Success(_collections));
     }
 }

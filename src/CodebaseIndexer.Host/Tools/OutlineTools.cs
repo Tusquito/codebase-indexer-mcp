@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using CodebaseIndexer.Application.Mapping;
 using CodebaseIndexer.Application.Services;
 using CodebaseIndexer.Infrastructure.Configuration;
 using Microsoft.Extensions.Options;
@@ -24,9 +25,13 @@ public sealed class OutlineTools
     [McpServerTool(Name = "get_file_outline"), Description(
         "Return the symbol tree of a specific file — no code content returned. " +
         "Lists all symbols with type and line numbers. Zero embedding cost.")]
-    public Task<object> GetFileOutlineAsync(
+    public async Task<object> GetFileOutlineAsync(
         [Description("Repository-relative path")] string rel_path,
         [Description("Collection name")] string? collection = null,
-        CancellationToken cancellationToken = default) =>
-        _queries.GetFileOutlineAsync(rel_path, collection ?? _qdrant.Collection, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _queries.GetFileOutlineAsync(rel_path, collection ?? _qdrant.Collection, cancellationToken)
+            .ConfigureAwait(false);
+        return result.Match(v => v, McpErrorMapper.FromError);
+    }
 }

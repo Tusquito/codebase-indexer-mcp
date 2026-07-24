@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using CodebaseIndexer.Application.Mapping;
 using CodebaseIndexer.Application.Services;
 using CodebaseIndexer.Infrastructure.Configuration;
 using Microsoft.Extensions.Options;
@@ -25,8 +26,12 @@ public sealed class SummaryTools
         "Compact codebase orientation in a single tool call — no embedding cost. " +
         "Returns file counts, language breakdown, directory tree, symbol types, top chunked files, " +
         "and build_dependencies when other indexed collections match manifest artifacts.")]
-    public Task<object> GetCollectionSummaryAsync(
+    public async Task<object> GetCollectionSummaryAsync(
         [Description("Collection name")] string? collection = null,
-        CancellationToken cancellationToken = default) =>
-        _queries.GetCollectionSummaryAsync(collection ?? _qdrant.Collection, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _queries.GetCollectionSummaryAsync(collection ?? _qdrant.Collection, cancellationToken)
+            .ConfigureAwait(false);
+        return result.Match(v => v, McpErrorMapper.FromError);
+    }
 }

@@ -1,4 +1,5 @@
 using CodebaseIndexer.Domain.Models;
+using CodebaseIndexer.Domain.Results;
 
 namespace CodebaseIndexer.Domain.Ports;
 
@@ -9,16 +10,16 @@ public interface IGraphStore
     ValueTask<bool> IsEnabledAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Creates idempotent constraints and indexes when enabled.</summary>
-    Task EnsureSchemaAsync(CancellationToken cancellationToken = default);
+    Task<Result> EnsureSchemaAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Removes File/Chunk subgraphs for the given paths.</summary>
-    Task DeleteFilesAsync(
+    Task<Result> DeleteFilesAsync(
         string collection,
         IReadOnlyList<string> relPaths,
         CancellationToken cancellationToken = default);
 
     /// <summary>Finds caller chunks via CALLS.call_token (ADR 0023 Path D).</summary>
-    Task<IReadOnlyList<SearchHit>> FindCallersAsync(
+    Task<Result<IReadOnlyList<SearchHit>>> FindCallersAsync(
         string method,
         IReadOnlyList<string> collections,
         string? receiver = null,
@@ -26,12 +27,12 @@ public interface IGraphStore
         CancellationToken cancellationToken = default);
 
     /// <summary>Expands a bounded neighborhood around seed chunk ids.</summary>
-    Task<GraphExpansion> ExpandSubgraphAsync(
+    Task<Result<GraphExpansion>> ExpandSubgraphAsync(
         IReadOnlyList<string> chunkIds,
         int maxHops,
         int maxNodes,
         CancellationToken cancellationToken = default);
 
     /// <summary>Upserts one index-time graph batch.</summary>
-    Task WriteBatchAsync(GraphBatch batch, CancellationToken cancellationToken = default);
+    Task<Result> WriteBatchAsync(GraphBatch batch, CancellationToken cancellationToken = default);
 }
