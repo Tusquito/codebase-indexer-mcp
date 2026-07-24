@@ -1,0 +1,29 @@
+adr_id: "0033"
+phase_key: phase-3
+phase_title: Phase 3 — Storage / embed ports + MCP tools
+event: merge
+date: "2026-07-24"
+tracker_status: merged
+choices: >-
+  Merge PR #51 (`8367a41`); branch `adr/0033-phase-3-storage-mcp`;
+  Accept skipped — already Accepted; release no. Project phase: Pre-release
+  (no backward compatibility unless ADR documents one).
+deviations: none
+code_evidence:
+  - >-
+    merged via [PR #51](https://github.com/Tusquito/codebase-indexer-mcp/pull/51)
+    (`adr/0033-phase-3-storage-mcp`;
+    `8367a41fa701b0f2c89374fec392f87cb788c4ac`)
+verify: >-
+  carried from verification — review rounds: 2; dotnet test
+  CodebaseIndexer.slnx (284 pass); Docker integration + quality validation
+  threshold 0 pass (recall@10 0.5764); plan compliance pass including R1 doc
+  sync + R2 Host/Application envelope tests
+git:
+  pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/51
+  commit: 8367a41fa701b0f2c89374fec392f87cb788c4ac
+  status: merged
+changelog:
+  update: false
+  reason: "invoker Changelog: no; merged status does not draft CHANGELOG"
+user_facing: true

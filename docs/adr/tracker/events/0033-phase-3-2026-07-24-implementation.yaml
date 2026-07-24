@@ -1,0 +1,38 @@
+adr_id: "0033"
+phase_key: phase-3
+phase_title: Phase 3 — Storage / embed ports + MCP tools
+event: implementation
+date: "2026-07-24"
+tracker_status: implemented
+choices: >-
+  Conflict already-running → error envelope + status in metadata (DTO
+  deleted); Qdrant soft-read transport → Dependency Failure; `kind` wire =
+  PascalCase enum names; empty search hits remain success; bool probes
+  unchanged; OCE not wrapped; Domain NuGet-free Result
+deviations: none
+code_evidence:
+  - src/CodebaseIndexer.Domain/Results/StoreErrorCodes.cs
+  - src/CodebaseIndexer.Domain/Results/EmbedErrorCodes.cs
+  - src/CodebaseIndexer.Domain/Results/GraphErrorCodes.cs
+  - src/CodebaseIndexer.Domain/Results/McpErrorCodes.cs
+  - src/CodebaseIndexer.Domain/Ports/IDenseEmbedder.cs
+  - src/CodebaseIndexer.Domain/Ports/ISparseEmbedder.cs
+  - src/CodebaseIndexer.Domain/Ports/IColbertEmbedder.cs
+  - src/CodebaseIndexer.Domain/Ports/IVectorStore.cs
+  - src/CodebaseIndexer.Domain/Ports/IGraphStore.cs
+  - src/CodebaseIndexer.Application/Models/McpErrorEnvelope.cs
+  - src/CodebaseIndexer.Application/Models/McpErrorBody.cs
+  - src/CodebaseIndexer.Application/Mapping/McpErrorMapper.cs
+  - Infrastructure Qdrant/TEI/sparse/ColBERT/Neo4j adapters
+  - Application search/index/query services
+  - Host MCP tools
+  - CHANGELOG.md
+test_debt:
+  - Host Conflict metadata mapping
+  - Qdrant soft-read Dependency
+  - embed adapter code mapping
+  - SearchService rerank coverage
+changelog:
+  update: false
+  reason: "invoker Changelog: no; status implemented; user-facing yes"
+user_facing: true

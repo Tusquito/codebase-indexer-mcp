@@ -94,6 +94,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0032 | Phase 3 — Search / cross-ref / health | — | phase-3 | `merged` | DomainMatchType alias for System.IO.MatchType; SearchService typing-only (no body edit); health check maps non-Ok → Unhealthy; ServiceMap edge types deferred. Wire MatchType/ReferenceType/LivenessStatus through CrossReferenceService, search/discovery DTOs, and McpHostHealthCheck via DomainEnumWire; extend ReferenceType with ServiceConfig/BuildDependency; move LivenessStatus to Domain; unit + Aspire Docker integration; defer 0033/0034 and 0026 P4 | 2026-07-22 |
 | 0033 | Phase 1 — Core types + conventions | Merged — 2026-07-23; PR #49 (`64c37bf`); Accept skipped — already Accepted; release no; Phases 2–3 deferred | phase-1 | `merged` | readonly struct Result/ResultT; sealed record Error; instance Match; Cancelled rare / prefer OCE; no Domain NuGet Result libs | 2026-07-23 |
 | 0033 | Phase 2 — Application + index/job ports | Merged — 2026-07-23 via PR #50; Accept skipped — already Accepted; Phase 3 deferred; release no | phase-2 | `merged` | Completed pipeline runs return Result.Success with typed partial Errors; Host keeps one-off MCP DTOs (envelope in Phase 3); stop_indexing returns NotRunning for terminal jobs; exception-type deletion deferred to Phase 3 | 2026-07-23 |
+| 0033 | Phase 3 — Storage / embed ports + MCP tools | Merged — 2026-07-24 via PR #51; Accept skipped — already Accepted; final phase of ADR 0033; release no | phase-3 | `merged` | Conflict already-running → envelope + status metadata; Qdrant soft-read transport → Dependency Failure; `kind` wire = PascalCase; empty search hits remain success; bool probes unchanged; OCE not wrapped; Domain NuGet-free Result | 2026-07-24 |
 | 0035 | Phase 1 — Wire pairing on Aspire path | Merged — PR #48 (`aa8ffa6`); Accepted (phase 1); accept docs `fe6b248`; release skipped | phase-1 | `merged` | TeiBatchTokenPairing defaults 1024; Aspire AppHost/compose set TEI_MAX_BATCH_TOKENS / Embedding__MaxDenseTokens; flat MAX_DENSE_EMBED_TOKENS mapped on Aspire; appsettings MaxDenseTokens: 0 retained for non-Aspire; fail-fast/registry/GPU Phase 2 deferred. Project phase: Pre-release (no backward compatibility unless ADR documents one); Docker integration required; no schema migration version env vars. | 2026-07-22 |
 <!-- END GENERATED:summary -->
 
@@ -2331,7 +2332,50 @@ _No active or upcoming phases._
 - **Test debt:** link-summary enum cases; unhealthy JSON writer; classifier enum matrix; Docker compose step 3.5
 - **Changelog:** no — invoker Changelog: no; status implemented (changelog at verified if user-facing)
 
-### ADR 0033 — Phase 1 — Core types + conventions
+### ADR 0033 — Phase 3 — Storage / embed ports + MCP tools
+
+#### 2026-07-24 — verification
+- **Phase:** Phase 3 — Storage / embed ports + MCP tools
+- **Tracker status:** `verified`
+- **Choices:** Conflict already-running → envelope + status metadata; Qdrant soft-read transport → Dependency Failure; `kind` wire = PascalCase; empty search hits remain success; bool probes unchanged; OCE not wrapped; Domain NuGet-free Result
+- **Deviations:** none
+- **Code evidence:** `StoreErrorCodes/EmbedErrorCodes/GraphErrorCodes/McpErrorCodes`, `embedder + IVectorStore/IGraphStore Result ports`, `McpErrorEnvelope/McpErrorBody/McpErrorMapper`, `Host tools Match→envelope`, `IndexTools Conflict metadata`, `Infrastructure Qdrant/TEI/sparse/ColBERT/Neo4j Result adapters`, `CHANGELOG + README/copilot/SKILL envelope notes`, `McpErrorMapperTests/IndexToolsEnvelopeTests/CollectionQueryServiceTests/SearchServiceTests`
+- **Test debt:** Host Conflict already-running metadata mapping unit test; Qdrant soft-read Dependency unit case; embed adapter code-mapping depth; SearchService rerank coverage
+- **Verify:** review rounds: 2; dotnet test CodebaseIndexer.slnx (284 pass); Docker integration + quality validation threshold 0 pass (recall@10 0.5764); plan compliance pass including R1 doc sync + R2 Host/Application envelope tests
+- **Changelog:** yes — MCP tools now return a unified failure envelope `{ "error": { "kind", "code", "message", "metadata?" } }` with PascalCase `kind`; one-off error DTOs removed; soft-read Qdrant transport failures surface as Dependency
+
+#### 2026-07-24 — prioritization
+- **Phase:** Phase 3 — Storage / embed ports + MCP tools
+- **Tracker status:** `candidate`
+- **Choices:** Prefer 0033 P3 (~29) over 0034 P1 (~28, tie-break: finish Result ADR / product envelope before test-stack cutover), over 0026 P4 (GPU-gated), over 0023 P3 / 0031 P2 / 0035 P2, over Proposed 0027 (needs Accept); single phase per pipeline rule; no ADR Accept required (0033 already Accepted). **Why now:** Empty active queue after 0033 P2 merge; Domain/Application Result partial; Host still one-off error DTOs and `IVectorStore` non-Result; finish Accepted ADR before TUnit (0034) to avoid double test migration; no Accept/GPU required. **Suggested scope:** one phase (= one PR). **Chosen scope:** Migrate `IVectorStore` / embedder ports / search services to `Result` for expected failures; Host unified MCP error envelope; delete obsolete exception types and one-off error DTOs; unit + Docker `scripts/run_compose_integration.py`; defer 0034 / 0026 P4 / 0027.
+- **Deviations:** none
+- **Changelog:** no — user-facing unknown; invoker Changelog: no
+
+#### 2026-07-24 — plan
+- **Phase:** Phase 3 — Storage / embed ports + MCP tools
+- **Tracker status:** `planned`
+- **Choices:** Domain-owned Result already shipped (P1–P2); Phase 3 pushes Result to storage/embed/graph ports (no dual throw APIs); single MCP error envelope; Conflict job UX = envelope with status in metadata (not IndexAlreadyRunningResponse); Qdrant soft-read transport errors → Dependency Failure (not empty-success); kind wire = PascalCase enum names; quality validation required report-only; Accept after merge no (already Accepted); final phase yes. Human decisions 2026-07-24 applied. **Assumptions:** Empty search hits remain success; `CollectionExistsAsync`/`IsEnabledAsync` stay bool probes; OCE never wrapped; no new env/config; xUnit retained until 0034. Project phase policy: pre-release — no backward compatibility requirement unless ADR documents one; Docker integration always required; no schema migration version env vars — document re-index after pull instead.
+- **Deviations:** none
+- **Changelog:** no — invoker Changelog: no; status planned; user-facing yes
+
+#### 2026-07-24 — merge
+- **Phase:** Phase 3 — Storage / embed ports + MCP tools
+- **Tracker status:** `merged`
+- **Choices:** Merge PR #51 (`8367a41`); branch `adr/0033-phase-3-storage-mcp`; Accept skipped — already Accepted; release no. Project phase: Pre-release (no backward compatibility unless ADR documents one).
+- **Deviations:** none
+- **Code evidence:** `merged via [PR #51](https://github.com/Tusquito/codebase-indexer-mcp/pull/51) (`adr/0033-phase-3-storage-mcp`; `8367a41fa701b0f2c89374fec392f87cb788c4ac`)`
+- **Verify:** carried from verification — review rounds: 2; dotnet test CodebaseIndexer.slnx (284 pass); Docker integration + quality validation threshold 0 pass (recall@10 0.5764); plan compliance pass including R1 doc sync + R2 Host/Application envelope tests
+- **Git:** https://github.com/Tusquito/codebase-indexer-mcp/pull/51 — status: merged — commit: 8367a41fa701b0f2c89374fec392f87cb788c4ac
+- **Changelog:** no — invoker Changelog: no; merged status does not draft CHANGELOG
+
+#### 2026-07-24 — implementation
+- **Phase:** Phase 3 — Storage / embed ports + MCP tools
+- **Tracker status:** `implemented`
+- **Choices:** Conflict already-running → error envelope + status in metadata (DTO deleted); Qdrant soft-read transport → Dependency Failure; `kind` wire = PascalCase enum names; empty search hits remain success; bool probes unchanged; OCE not wrapped; Domain NuGet-free Result
+- **Deviations:** none
+- **Code evidence:** `src/CodebaseIndexer.Domain/Results/StoreErrorCodes.cs`, `src/CodebaseIndexer.Domain/Results/EmbedErrorCodes.cs`, `src/CodebaseIndexer.Domain/Results/GraphErrorCodes.cs`, `src/CodebaseIndexer.Domain/Results/McpErrorCodes.cs`, `src/CodebaseIndexer.Domain/Ports/IDenseEmbedder.cs`, `src/CodebaseIndexer.Domain/Ports/ISparseEmbedder.cs`, `src/CodebaseIndexer.Domain/Ports/IColbertEmbedder.cs`, `src/CodebaseIndexer.Domain/Ports/IVectorStore.cs`, `src/CodebaseIndexer.Domain/Ports/IGraphStore.cs`, `src/CodebaseIndexer.Application/Models/McpErrorEnvelope.cs`, `src/CodebaseIndexer.Application/Models/McpErrorBody.cs`, `src/CodebaseIndexer.Application/Mapping/McpErrorMapper.cs`, `Infrastructure Qdrant/TEI/sparse/ColBERT/Neo4j adapters`, `Application search/index/query services`, `Host MCP tools`, `CHANGELOG.md`
+- **Test debt:** Host Conflict metadata mapping; Qdrant soft-read Dependency; embed adapter code mapping; SearchService rerank coverage
+- **Changelog:** no — invoker Changelog: no; status implemented; user-facing yes
 
 #### 2026-07-23 — verification
 - **Phase:** Phase 1 — Core types + conventions
@@ -2558,6 +2602,7 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 - Proceed finish 0033 Phase 1 this cycle? → RESOLVED by invoker 2026-07-23: Yes — finish ADR 0033 Phase 1 this cycle. Remaining out-of-scope items (Prefer 0034 instead; After P1 ordering; NVIDIA GPU for 0026 P4; Accept 0027) not blocking this phase.
 - Override to 0026 Phase 4 if NVIDIA GPU confirmed this cycle?
 - Prefer 0034 Phase 1 immediately after 0033 P2 vs finish 0033 P3 first?
+- Prefer 0034 Phase 1 instead of 0033 P3 this cycle?
 - RESOLVED — Accept ADR 0035 this cycle: yes
 <!-- END GENERATED:open-decisions -->
 

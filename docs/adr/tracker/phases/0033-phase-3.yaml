@@ -1,0 +1,14 @@
+adr_id: "0033"
+phase_key: phase-3
+title: Phase 3 — Storage / embed ports + MCP tools
+tracker_status: merged
+chosen_scope: >-
+  Conflict already-running → envelope + status metadata; Qdrant soft-read
+  transport → Dependency Failure; `kind` wire = PascalCase; empty search hits
+  remain success; bool probes unchanged; OCE not wrapped; Domain NuGet-free
+  Result
+last_updated: "2026-07-24"
+pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/51
+adr_status_note: >-
+  Merged — 2026-07-24 via PR #51; Accept skipped — already Accepted;
+  final phase of ADR 0033; release no

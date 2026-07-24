@@ -1,0 +1,39 @@
+adr_id: "0033"
+phase_key: phase-3
+phase_title: Phase 3 — Storage / embed ports + MCP tools
+event: verification
+date: "2026-07-24"
+tracker_status: verified
+choices: >-
+  Conflict already-running → envelope + status metadata; Qdrant soft-read
+  transport → Dependency Failure; `kind` wire = PascalCase; empty search hits
+  remain success; bool probes unchanged; OCE not wrapped; Domain NuGet-free
+  Result
+deviations: none
+code_evidence:
+  - StoreErrorCodes/EmbedErrorCodes/GraphErrorCodes/McpErrorCodes
+  - embedder + IVectorStore/IGraphStore Result ports
+  - McpErrorEnvelope/McpErrorBody/McpErrorMapper
+  - Host tools Match→envelope
+  - IndexTools Conflict metadata
+  - Infrastructure Qdrant/TEI/sparse/ColBERT/Neo4j Result adapters
+  - CHANGELOG + README/copilot/SKILL envelope notes
+  - McpErrorMapperTests/IndexToolsEnvelopeTests/CollectionQueryServiceTests/SearchServiceTests
+test_debt:
+  - Host Conflict already-running metadata mapping unit test
+  - Qdrant soft-read Dependency unit case
+  - embed adapter code-mapping depth
+  - SearchService rerank coverage
+verify: >-
+  review rounds: 2; dotnet test CodebaseIndexer.slnx (284 pass); Docker
+  integration + quality validation threshold 0 pass (recall@10 0.5764); plan
+  compliance pass including R1 doc sync + R2 Host/Application envelope tests
+changelog:
+  update: true
+  bullet: >-
+    MCP tools now return a unified failure envelope
+    `{ "error": { "kind", "code", "message", "metadata?" } }` with PascalCase
+    `kind`; one-off error DTOs removed; soft-read Qdrant transport failures
+    surface as Dependency
+  reason: "verified + user-facing yes; matching Unreleased bullet already present"
+user_facing: true

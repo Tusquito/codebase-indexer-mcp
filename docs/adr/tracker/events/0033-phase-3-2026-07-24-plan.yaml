@@ -1,0 +1,25 @@
+adr_id: "0033"
+phase_key: phase-3
+phase_title: Phase 3 — Storage / embed ports + MCP tools
+event: plan
+date: "2026-07-24"
+tracker_status: planned
+choices: >-
+  Domain-owned Result already shipped (P1–P2); Phase 3 pushes Result to
+  storage/embed/graph ports (no dual throw APIs); single MCP error envelope;
+  Conflict job UX = envelope with status in metadata (not
+  IndexAlreadyRunningResponse); Qdrant soft-read transport errors → Dependency
+  Failure (not empty-success); kind wire = PascalCase enum names; quality
+  validation required report-only; Accept after merge no (already Accepted);
+  final phase yes. Human decisions 2026-07-24 applied. **Assumptions:** Empty
+  search hits remain success; `CollectionExistsAsync`/`IsEnabledAsync` stay
+  bool probes; OCE never wrapped; no new env/config; xUnit retained until
+  0034. Project phase policy: pre-release — no backward compatibility
+  requirement unless ADR documents one; Docker integration always required;
+  no schema migration version env vars — document re-index after pull instead.
+deviations: none
+changelog:
+  update: false
+  reason: "invoker Changelog: no; status planned; user-facing yes"
+user_facing: true
+open_decisions: []

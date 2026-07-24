@@ -1,0 +1,29 @@
+adr_id: "0033"
+phase_key: phase-3
+phase_title: Phase 3 — Storage / embed ports + MCP tools
+event: prioritization
+date: "2026-07-24"
+tracker_status: candidate
+choices: >-
+  Prefer 0033 P3 (~29) over 0034 P1 (~28, tie-break: finish Result ADR /
+  product envelope before test-stack cutover), over 0026 P4 (GPU-gated),
+  over 0023 P3 / 0031 P2 / 0035 P2, over Proposed 0027 (needs Accept);
+  single phase per pipeline rule; no ADR Accept required (0033 already
+  Accepted). **Why now:** Empty active queue after 0033 P2 merge;
+  Domain/Application Result partial; Host still one-off error DTOs and
+  `IVectorStore` non-Result; finish Accepted ADR before TUnit (0034) to
+  avoid double test migration; no Accept/GPU required. **Suggested scope:**
+  one phase (= one PR). **Chosen scope:** Migrate `IVectorStore` /
+  embedder ports / search services to `Result` for expected failures; Host
+  unified MCP error envelope; delete obsolete exception types and one-off
+  error DTOs; unit + Docker `scripts/run_compose_integration.py`; defer
+  0034 / 0026 P4 / 0027.
+deviations: none
+changelog:
+  update: false
+  reason: "user-facing unknown; invoker Changelog: no"
+user_facing: false
+open_decisions:
+  - "Prefer 0034 Phase 1 instead of 0033 P3 this cycle?"
+  - "Override to 0026 Phase 4 if NVIDIA GPU confirmed this cycle?"
+  - "Accept ADR 0027 in a future cycle?"
