@@ -57,7 +57,7 @@ public sealed class IndexCodebaseServiceTests
             result.Value.Errors,
             e => e.Code == IndexErrorCodes.GraphSchemaInit
                 && e.Kind == ErrorKind.Dependency
-                && e.Message.Contains("Graph schema init error", StringComparison.Ordinal));
+                && e.Message.Contains("neo4j down", StringComparison.Ordinal));
         Assert.Single(vector.UpsertCalls);
         Assert.False(vector.UpsertCalls[0].OmitCallees);
         Assert.Null(vector.UpsertCalls[0].GraphNodeIdsByChunk);
@@ -319,12 +319,12 @@ public sealed class IndexCodebaseServiceTests
 
         public List<(string Collection, IReadOnlyList<string> Paths)> DeletedPaths { get; } = [];
 
-        public override Task<IReadOnlyDictionary<string, FileMetadata>> GetFileMetadataAsync(
+        public override Task<Result<IReadOnlyDictionary<string, FileMetadata>>> GetFileMetadataAsync(
             string collection,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyDictionary<string, FileMetadata>>(ExistingMetadata);
+            Task.FromResult(Result<IReadOnlyDictionary<string, FileMetadata>>.Success(ExistingMetadata));
 
-        public override Task UpsertChunksAsync(
+        public override Task<Result> UpsertChunksAsync(
             string collection,
             IReadOnlyList<EmbeddedChunk> chunks,
             bool omitCallees = false,
@@ -332,34 +332,34 @@ public sealed class IndexCodebaseServiceTests
             CancellationToken cancellationToken = default)
         {
             UpsertCalls.Add((collection, chunks, omitCallees, graphNodeIdsByChunk));
-            return Task.CompletedTask;
+            return Task.FromResult(Result.Success());
         }
 
-        public override Task SetCollectionGraphCallSitesAsync(
+        public override Task<Result> SetCollectionGraphCallSitesAsync(
             string collection,
             bool enabled = true,
             CancellationToken cancellationToken = default)
         {
             GraphCallSitesCollections.Add(collection);
-            return Task.CompletedTask;
+            return Task.FromResult(Result.Success());
         }
 
-        public override Task SetCollectionGraphEnabledAsync(
+        public override Task<Result> SetCollectionGraphEnabledAsync(
             string collection,
             bool enabled = true,
             CancellationToken cancellationToken = default)
         {
             GraphEnabledCollections.Add(collection);
-            return Task.CompletedTask;
+            return Task.FromResult(Result.Success());
         }
 
-        public override Task DeleteByPathsAsync(
+        public override Task<Result> DeleteByPathsAsync(
             string collection,
             IReadOnlyList<string> relPaths,
             CancellationToken cancellationToken = default)
         {
             DeletedPaths.Add((collection, relPaths));
-            return Task.CompletedTask;
+            return Task.FromResult(Result.Success());
         }
     }
 }

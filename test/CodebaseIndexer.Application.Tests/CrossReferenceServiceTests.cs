@@ -5,6 +5,7 @@ using CodebaseIndexer.Application.Services;
 using CodebaseIndexer.Domain.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using MsOptions = Microsoft.Extensions.Options.Options;
+using CodebaseIndexer.Domain.Results;
 
 namespace CodebaseIndexer.Application.Tests;
 
@@ -16,8 +17,8 @@ public sealed class CrossReferenceServiceTests
     {
         var service = CreateService(new FakeStore(), new NoOpGraphStore());
         var result = await service.FindCrossReferencesAsync();
-        var dict = Assert.IsType<Dictionary<string, object?>>(result);
-        Assert.Contains("error", dict.Keys);
+        Assert.False(result.IsSuccess);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
     }
 
     [Fact]
@@ -34,7 +35,8 @@ public sealed class CrossReferenceServiceTests
         };
         var service = CreateService(store, new NoOpGraphStore { Enabled = false });
         var result = await service.FindCrossReferencesAsync(member: "isEnabled", receiver: "featureService", collections: ["proj-a"]);
-        var response = Assert.IsType<CrossReferenceResponse>(result);
+        Assert.True(result.IsSuccess);
+        var response = Assert.IsType<CrossReferenceResponse>(result.Value);
         Assert.Equal(1, response.CollectionCount);
         Assert.True(response.FoundIn.ContainsKey("proj-a"));
         Assert.Equal(ReferenceType.CallSite, response.FoundIn["proj-a"][0].ReferenceType);
@@ -58,7 +60,8 @@ public sealed class CrossReferenceServiceTests
         };
         var service = CreateService(store, graph);
         var result = await service.FindCrossReferencesAsync(member: "isEnabled", collections: ["proj-a"]);
-        var response = Assert.IsType<CrossReferenceResponse>(result);
+        Assert.True(result.IsSuccess);
+        var response = Assert.IsType<CrossReferenceResponse>(result.Value);
         Assert.Equal(ReferenceType.CallSite, response.FoundIn["proj-a"][0].ReferenceType);
         Assert.Equal("isEnabled", graph.LastCallerMethod);
         Assert.Null(store.LastCallerMethod);
@@ -80,7 +83,8 @@ public sealed class CrossReferenceServiceTests
         var graph = new NoOpGraphStore { Enabled = true };
         var service = CreateService(store, graph);
         var result = await service.FindCrossReferencesAsync(member: "isEnabled", collections: ["proj-a"]);
-        var response = Assert.IsType<CrossReferenceResponse>(result);
+        Assert.True(result.IsSuccess);
+        var response = Assert.IsType<CrossReferenceResponse>(result.Value);
         Assert.Equal(ReferenceType.CallSite, response.FoundIn["proj-a"][0].ReferenceType);
         Assert.Equal("isEnabled", store.LastCallerMethod);
         Assert.Null(graph.LastCallerMethod);
@@ -138,34 +142,36 @@ public sealed class CrossReferenceServiceTests
     {
         public int VectorSize => 2;
         public bool IsLoaded => true;
-        public Task PreloadAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<Result> PreloadAsync(CancellationToken cancellationToken = default) => Task.FromResult(Result.Success());
         public void Release() { }
-        public Task<IReadOnlyList<IReadOnlyList<float>>> EmbedBatchAsync(IReadOnlyList<string> texts, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<IReadOnlyList<float>>>(texts.Select(_ => (IReadOnlyList<float>)new float[] { 0.1f, 0.2f }).ToArray());
-        public Task<IReadOnlyList<IReadOnlyList<float>>> EmbedQueryAsync(IReadOnlyList<string> texts, CancellationToken cancellationToken = default) =>
+        public Task<Result<IReadOnlyList<IReadOnlyList<float>>>> EmbedBatchAsync(IReadOnlyList<string> texts, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Result<IReadOnlyList<IReadOnlyList<float>>>.Success(
+                texts.Select(_ => (IReadOnlyList<float>)new float[] { 0.1f, 0.2f }).ToArray()));
+        public Task<Result<IReadOnlyList<IReadOnlyList<float>>>> EmbedQueryAsync(IReadOnlyList<string> texts, CancellationToken cancellationToken = default) =>
             EmbedBatchAsync(texts, cancellationToken);
     }
 
     private sealed class FakeSparse : Domain.Ports.ISparseEmbedder
     {
         public bool IsLoaded => true;
-        public Task PreloadAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<Result> PreloadAsync(CancellationToken cancellationToken = default) => Task.FromResult(Result.Success());
         public void Release() { }
-        public Task<IReadOnlyList<SparseVector>> EmbedBatchAsync(IReadOnlyList<string> texts, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<SparseVector>>(texts.Select(_ => new SparseVector([1u], [1f])).ToArray());
+        public Task<Result<IReadOnlyList<SparseVector>>> EmbedBatchAsync(IReadOnlyList<string> texts, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Result<IReadOnlyList<SparseVector>>.Success(
+                texts.Select(_ => new SparseVector([1u], [1f])).ToArray()));
     }
 
     private sealed class FakeColbert : Domain.Ports.IColbertEmbedder
     {
         public int TokenDimension => 128;
         public bool IsLoaded => true;
-        public Task PreloadAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<Result> PreloadAsync(CancellationToken cancellationToken = default) => Task.FromResult(Result.Success());
         public void Release() { }
-        public Task<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>> EmbedBatchAsync(
+        public Task<Result<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>>> EmbedBatchAsync(
             IReadOnlyList<string> texts,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>>(
-                texts.Select(_ => (IReadOnlyList<IReadOnlyList<float>>)new IReadOnlyList<float>[] { new float[] { 0.1f } }).ToArray());
+            Task.FromResult(Result<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>>.Success(
+                texts.Select(_ => (IReadOnlyList<IReadOnlyList<float>>)new IReadOnlyList<float>[] { new float[] { 0.1f } }).ToArray()));
     }
 
     private sealed class FakeStore : NoOpVectorStore
@@ -175,18 +181,19 @@ public sealed class CrossReferenceServiceTests
         public string? LastCallerMethod { get; private set; }
         public string? LastCallerReceiver { get; private set; }
 
-        public override Task<IReadOnlyList<CollectionStats>> ListCollectionStatsAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<CollectionStats>>([new CollectionStats("proj-a", 1, 0, "m", "s", "tei", true)]);
+        public override Task<Result<IReadOnlyList<CollectionStats>>> ListCollectionStatsAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(Result<IReadOnlyList<CollectionStats>>.Success(
+                [new CollectionStats("proj-a", 1, 0, "m", "s", "tei", true)]));
 
-        public override Task<IReadOnlyList<string>> ListCollectionsAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<string>>(["proj-a"]);
+        public override Task<Result<IReadOnlyList<string>>> ListCollectionsAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(Result<IReadOnlyList<string>>.Success(["proj-a"]));
 
         public override ValueTask<bool> CollectionHasGraphCallSitesAsync(
             string collection,
             CancellationToken cancellationToken = default) =>
             ValueTask.FromResult(GraphCallSites);
 
-        public override Task<IReadOnlyList<SearchHit>> FindCallersInCollectionsAsync(
+        public override Task<Result<IReadOnlyList<SearchHit>>> FindCallersInCollectionsAsync(
             string method,
             IReadOnlyList<string> collections,
             string? receiver = null,
@@ -195,7 +202,7 @@ public sealed class CrossReferenceServiceTests
         {
             LastCallerMethod = method;
             LastCallerReceiver = receiver;
-            return Task.FromResult(Callers);
+            return Task.FromResult(Result<IReadOnlyList<SearchHit>>.Success(Callers));
         }
     }
 }

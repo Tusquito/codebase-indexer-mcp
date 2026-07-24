@@ -25,7 +25,8 @@ public sealed class TeiDenseEmbedderSmokeTests
         using var provider = services.BuildServiceProvider();
         var embedder = provider.GetRequiredService<TeiDenseEmbedder>();
         var result = await embedder.EmbedBatchAsync([]);
-        Assert.Empty(result);
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value);
     }
 
     /// <summary>PreloadAsync calls health and embeddings endpoints via Refit.</summary>

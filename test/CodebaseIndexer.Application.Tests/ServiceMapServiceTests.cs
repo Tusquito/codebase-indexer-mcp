@@ -5,6 +5,7 @@ using CodebaseIndexer.Application.Services;
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
 using MsOptions = Microsoft.Extensions.Options.Options;
+using CodebaseIndexer.Domain.Results;
 
 namespace CodebaseIndexer.Application.Tests;
 
@@ -16,8 +17,8 @@ public sealed class ServiceMapServiceTests
     {
         var service = CreateService(new FakeStore(["only-one"]));
         var result = await service.MapServiceDependenciesAsync(["only-one"]);
-        var dict = Assert.IsType<Dictionary<string, object?>>(result);
-        Assert.Contains("error", dict.Keys);
+        Assert.False(result.IsSuccess);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
     }
 
     [Fact]
@@ -47,7 +48,8 @@ public sealed class ServiceMapServiceTests
         };
         var service = CreateService(store);
         var result = await service.MapServiceDependenciesAsync(["svc-a", "svc-b"], topK: 5);
-        var response = Assert.IsType<ServiceMapResponse>(result);
+        Assert.True(result.IsSuccess);
+        var response = Assert.IsType<ServiceMapResponse>(result.Value);
         Assert.Contains(response.Edges, e => e.Type == "http_call");
     }
 
@@ -81,34 +83,36 @@ public sealed class ServiceMapServiceTests
     {
         public int VectorSize => 2;
         public bool IsLoaded => true;
-        public Task PreloadAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<Result> PreloadAsync(CancellationToken cancellationToken = default) => Task.FromResult(Result.Success());
         public void Release() { }
-        public Task<IReadOnlyList<IReadOnlyList<float>>> EmbedBatchAsync(IReadOnlyList<string> texts, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<IReadOnlyList<float>>>(texts.Select(_ => (IReadOnlyList<float>)new float[] { 0.1f, 0.2f }).ToArray());
-        public Task<IReadOnlyList<IReadOnlyList<float>>> EmbedQueryAsync(IReadOnlyList<string> texts, CancellationToken cancellationToken = default) =>
+        public Task<Result<IReadOnlyList<IReadOnlyList<float>>>> EmbedBatchAsync(IReadOnlyList<string> texts, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Result<IReadOnlyList<IReadOnlyList<float>>>.Success(
+                texts.Select(_ => (IReadOnlyList<float>)new float[] { 0.1f, 0.2f }).ToArray()));
+        public Task<Result<IReadOnlyList<IReadOnlyList<float>>>> EmbedQueryAsync(IReadOnlyList<string> texts, CancellationToken cancellationToken = default) =>
             EmbedBatchAsync(texts, cancellationToken);
     }
 
     private sealed class FakeSparse : ISparseEmbedder
     {
         public bool IsLoaded => true;
-        public Task PreloadAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<Result> PreloadAsync(CancellationToken cancellationToken = default) => Task.FromResult(Result.Success());
         public void Release() { }
-        public Task<IReadOnlyList<SparseVector>> EmbedBatchAsync(IReadOnlyList<string> texts, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<SparseVector>>(texts.Select(_ => new SparseVector([1u], [1f])).ToArray());
+        public Task<Result<IReadOnlyList<SparseVector>>> EmbedBatchAsync(IReadOnlyList<string> texts, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Result<IReadOnlyList<SparseVector>>.Success(
+                texts.Select(_ => new SparseVector([1u], [1f])).ToArray()));
     }
 
     private sealed class FakeColbert : IColbertEmbedder
     {
         public int TokenDimension => 128;
         public bool IsLoaded => true;
-        public Task PreloadAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<Result> PreloadAsync(CancellationToken cancellationToken = default) => Task.FromResult(Result.Success());
         public void Release() { }
-        public Task<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>> EmbedBatchAsync(
+        public Task<Result<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>>> EmbedBatchAsync(
             IReadOnlyList<string> texts,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>>(
-                texts.Select(_ => (IReadOnlyList<IReadOnlyList<float>>)new IReadOnlyList<float>[] { new float[] { 0.1f } }).ToArray());
+            Task.FromResult(Result<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>>.Success(
+                texts.Select(_ => (IReadOnlyList<IReadOnlyList<float>>)new IReadOnlyList<float>[] { new float[] { 0.1f } }).ToArray()));
     }
 
     private sealed class FakeStore : NoOpVectorStore
@@ -119,7 +123,7 @@ public sealed class ServiceMapServiceTests
 
         public Dictionary<string, IReadOnlyList<SearchHit>> HitsByCollection { get; init; } = new(StringComparer.Ordinal);
 
-        public override Task<IReadOnlyList<SearchHit>> SearchAsync(
+        public override Task<Result<IReadOnlyList<SearchHit>>> SearchAsync(
             string collection,
             IReadOnlyList<float> denseVector,
             SparseVector? sparseVector,
@@ -128,13 +132,14 @@ public sealed class ServiceMapServiceTests
             float minScore = 0.5f,
             IReadOnlyList<IReadOnlyList<float>>? colbertVector = null,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(HitsByCollection.GetValueOrDefault(collection) ?? Array.Empty<SearchHit>());
+            Task.FromResult(Result<IReadOnlyList<SearchHit>>.Success(
+                HitsByCollection.GetValueOrDefault(collection) ?? Array.Empty<SearchHit>()));
 
-        public override Task<IReadOnlyList<CollectionStats>> ListCollectionStatsAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<CollectionStats>>(
-                _collections.Select(c => new CollectionStats(c, 1, 0, "m", "s", "tei", true)).ToArray());
+        public override Task<Result<IReadOnlyList<CollectionStats>>> ListCollectionStatsAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(Result<IReadOnlyList<CollectionStats>>.Success(
+                _collections.Select(c => new CollectionStats(c, 1, 0, "m", "s", "tei", true)).ToArray()));
 
-        public override Task<IReadOnlyList<string>> ListCollectionsAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(_collections);
+        public override Task<Result<IReadOnlyList<string>>> ListCollectionsAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(Result<IReadOnlyList<string>>.Success(_collections));
     }
 }

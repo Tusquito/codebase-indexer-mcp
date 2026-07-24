@@ -1,5 +1,6 @@
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
+using CodebaseIndexer.Domain.Results;
 
 namespace CodebaseIndexer.Application.Tests;
 
@@ -8,10 +9,16 @@ internal sealed class NoOpGraphStore : IGraphStore
 {
     public bool Enabled { get; init; }
 
-    /// <summary>When set, <see cref="EnsureSchemaAsync"/> throws this exception.</summary>
+    /// <summary>When set, <see cref="EnsureSchemaAsync"/> returns this error.</summary>
+    public Error? EnsureSchemaError { get; init; }
+
+    /// <summary>When set, <see cref="WriteBatchAsync"/> returns this error.</summary>
+    public Error? WriteBatchError { get; init; }
+
+    /// <summary>Legacy: when set, mapped to <see cref="EnsureSchemaError"/> Dependency failure.</summary>
     public Exception? EnsureSchemaException { get; init; }
 
-    /// <summary>When set, <see cref="WriteBatchAsync"/> throws this exception.</summary>
+    /// <summary>Legacy: when set, mapped to <see cref="WriteBatchError"/> Dependency failure.</summary>
     public Exception? WriteBatchException { get; init; }
 
     public List<string> EnsuredSchemaCalls { get; } = [];
@@ -39,29 +46,28 @@ internal sealed class NoOpGraphStore : IGraphStore
         ValueTask.FromResult(Enabled);
 
     /// <inheritdoc />
-    public Task EnsureSchemaAsync(CancellationToken cancellationToken = default)
+    public Task<Result> EnsureSchemaAsync(CancellationToken cancellationToken = default)
     {
         EnsuredSchemaCalls.Add("ensure");
-        if (EnsureSchemaException is not null)
-        {
-            throw EnsureSchemaException;
-        }
-
-        return Task.CompletedTask;
+        var error = EnsureSchemaError
+            ?? (EnsureSchemaException is null
+                ? null
+                : new Error(ErrorKind.Dependency, GraphErrorCodes.SchemaInit, EnsureSchemaException.Message));
+        return Task.FromResult(error is null ? Result.Success() : Result.Failure(error));
     }
 
     /// <inheritdoc />
-    public Task DeleteFilesAsync(
+    public Task<Result> DeleteFilesAsync(
         string collection,
         IReadOnlyList<string> relPaths,
         CancellationToken cancellationToken = default)
     {
         DeleteCalls.Add((collection, relPaths));
-        return Task.CompletedTask;
+        return Task.FromResult(Result.Success());
     }
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<SearchHit>> FindCallersAsync(
+    public Task<Result<IReadOnlyList<SearchHit>>> FindCallersAsync(
         string method,
         IReadOnlyList<string> collections,
         string? receiver = null,
@@ -70,11 +76,11 @@ internal sealed class NoOpGraphStore : IGraphStore
     {
         LastCallerMethod = method;
         LastCallerCollections = collections;
-        return Task.FromResult(Callers);
+        return Task.FromResult(Result<IReadOnlyList<SearchHit>>.Success(Callers));
     }
 
     /// <inheritdoc />
-    public Task<GraphExpansion> ExpandSubgraphAsync(
+    public Task<Result<GraphExpansion>> ExpandSubgraphAsync(
         IReadOnlyList<string> chunkIds,
         int maxHops,
         int maxNodes,
@@ -83,18 +89,17 @@ internal sealed class NoOpGraphStore : IGraphStore
         LastExpandChunkIds = chunkIds;
         LastExpandHops = maxHops;
         LastExpandMaxNodes = maxNodes;
-        return Task.FromResult(Expansion);
+        return Task.FromResult(Result<GraphExpansion>.Success(Expansion));
     }
 
     /// <inheritdoc />
-    public Task WriteBatchAsync(GraphBatch batch, CancellationToken cancellationToken = default)
+    public Task<Result> WriteBatchAsync(GraphBatch batch, CancellationToken cancellationToken = default)
     {
         WrittenBatches.Add(batch);
-        if (WriteBatchException is not null)
-        {
-            throw WriteBatchException;
-        }
-
-        return Task.CompletedTask;
+        var error = WriteBatchError
+            ?? (WriteBatchException is null
+                ? null
+                : new Error(ErrorKind.Dependency, GraphErrorCodes.Write, WriteBatchException.Message));
+        return Task.FromResult(error is null ? Result.Success() : Result.Failure(error));
     }
 }

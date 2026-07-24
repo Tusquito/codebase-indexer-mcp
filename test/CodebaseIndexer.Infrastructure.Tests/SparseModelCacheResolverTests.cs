@@ -1,4 +1,3 @@
-using CodebaseIndexer.Domain.Exceptions;
 using CodebaseIndexer.Infrastructure.Embedding;
 
 namespace CodebaseIndexer.Infrastructure.Tests;
@@ -69,7 +68,7 @@ public sealed class SparseModelCacheResolverTests
         var root = CreateTempDir();
         try
         {
-            var ex = Assert.Throws<EmbeddingException>(
+            var ex = Assert.Throws<InvalidOperationException>(
                 () => SparseModelCacheResolver.ResolveModelDirectory(root, "Qdrant/bm25"));
             Assert.Contains("Qdrant/bm25", ex.Message, StringComparison.Ordinal);
         }

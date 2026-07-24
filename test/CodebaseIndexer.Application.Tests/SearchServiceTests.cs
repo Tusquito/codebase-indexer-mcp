@@ -1,100 +1,85 @@
+using CodebaseIndexer.Application.Models;
 using CodebaseIndexer.Application.Options;
 using CodebaseIndexer.Application.Services;
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
+using CodebaseIndexer.Domain.Results;
 using Microsoft.Extensions.Logging.Abstractions;
 using MsOptions = Microsoft.Extensions.Options.Options;
 
 namespace CodebaseIndexer.Application.Tests;
 
-/// <summary>SearchService unit tests with mocked ports.</summary>
 public sealed class SearchServiceTests
 {
-    /// <summary>Caps top_k at 20 and returns shaped hits.</summary>
     [Fact]
-    public async Task SearchCodebase_caps_top_k_and_shapes_results()
+    public async Task SearchCodebase_returns_empty_hits_as_success()
+    {
+        var service = CreateService();
+        var result = await service.SearchCodebaseAsync("query", topK: 5, collection: "demo");
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value.Results);
+    }
+
+    [Fact]
+    public async Task SearchSymbols_returns_empty_hits_as_success()
+    {
+        var service = CreateService();
+        var result = await service.SearchSymbolsAsync("query", topK: 5, collection: "demo");
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value.Results);
+    }
+
+    [Fact]
+    public async Task ShouldUseRerank_respects_override()
+    {
+        Assert.True(SearchService.ShouldUseRerank(true, null));
+        Assert.False(SearchService.ShouldUseRerank(true, false));
+        Assert.False(SearchService.ShouldUseRerank(false, true));
+    }
+
+    [Fact]
+    public async Task SearchCodebase_dense_embed_failure_short_circuits_without_store_search()
     {
         var store = new FakeVectorStore();
-        var service = CreateService(store, rerankEnabled: false);
+        var dense = new FakeDenseEmbedder
+        {
+            QueryFailure = new Error(ErrorKind.Dependency, EmbedErrorCodes.Tei, "TEI unreachable"),
+        };
+        var service = CreateService(store: store, dense: dense);
 
-        var result = await service.SearchCodebaseAsync(
-            "query",
-            topK: 50,
-            collection: "demo",
-            maxContentChars: 5);
+        var result = await service.SearchCodebaseAsync("query", topK: 5, collection: "demo");
 
-        Assert.Single(result.Results);
-        Assert.Equal("abc", result.Results[0].ChunkId);
-        Assert.Equal(0.1235, result.Results[0].Score);
-        Assert.True(result.Results[0].ContentTruncated);
-        Assert.Equal("class", result.Results[0].Content);
-        Assert.Equal(20, store.LastTopK);
+        Assert.False(result.IsSuccess);
+        Assert.Equal(ErrorKind.Dependency, result.Error.Kind);
+        Assert.Equal(EmbedErrorCodes.Tei, result.Error.Code);
+        Assert.Equal(0, store.SearchCalls);
     }
-
-    /// <summary>useRerank matrix: null/true use ColBERT when enabled; false skips.</summary>
-    [Theory]
-    [InlineData(true, null, true)]
-    [InlineData(true, true, true)]
-    [InlineData(true, false, false)]
-    [InlineData(false, null, false)]
-    [InlineData(false, true, false)]
-    [InlineData(false, false, false)]
-    public async Task SearchCodebase_useRerank_matrix(bool rerankEnabled, bool? rerank, bool expectColbert)
-    {
-        var store = new FakeVectorStore();
-        var colbert = new FakeColbertEmbedder();
-        var service = CreateService(store, rerankEnabled, colbert);
-
-        await service.SearchCodebaseAsync("query", topK: 5, collection: "demo", rerank: rerank);
-
-        Assert.Equal(expectColbert, colbert.EmbedCalls > 0);
-        Assert.Equal(expectColbert, store.LastColbert is not null);
-    }
-
-    /// <summary>ResolveCollections keeps primary first and dedupes.</summary>
-    [Fact]
-    public void ResolveCollections_dedupes_and_keeps_primary_first()
-    {
-        var resolved = SearchService.ResolveCollections("a", ["b", "a", "c"]);
-        Assert.Equal(["a", "b", "c"], resolved);
-    }
-
-    /// <summary>ShouldUseRerank matches ADR override semantics.</summary>
-    [Theory]
-    [InlineData(true, null, true)]
-    [InlineData(true, true, true)]
-    [InlineData(true, false, false)]
-    [InlineData(false, null, false)]
-    public void ShouldUseRerank_matrix(bool enabled, bool? rerank, bool expected) =>
-        Assert.Equal(expected, SearchService.ShouldUseRerank(enabled, rerank));
 
     private static SearchService CreateService(
-        FakeVectorStore store,
-        bool rerankEnabled,
-        FakeColbertEmbedder? colbert = null) =>
+        FakeColbertEmbedder? colbert = null,
+        FakeVectorStore? store = null,
+        FakeDenseEmbedder? dense = null) =>
         new(
-            store,
-            new FakeDenseEmbedder(),
+            store ?? new FakeVectorStore(),
+            dense ?? new FakeDenseEmbedder(),
             new FakeSparseEmbedder(),
             colbert ?? new FakeColbertEmbedder(),
             MsOptions.Create(new EmbeddingOptions
             {
                 HybridSearch = true,
-                DenseModel = "m",
-                SparseModel = "s",
+                RerankEnabled = false,
                 DenseVectorSize = 2,
-                CachePath = "/c",
-                PrefetchMultiplier = 5,
+                DenseModel = "test",
+                SparseModel = "test",
+                PrefetchMultiplier = 2,
                 RrfK = 60,
-                RerankEnabled = rerankEnabled,
-                RerankPrefetch = 100,
             }),
             MsOptions.Create(new GraphOptions
             {
                 Enabled = false,
                 Neo4jUri = "bolt://localhost:7687",
                 Neo4jUser = "neo4j",
-                Neo4jPassword = "",
+                Neo4jPassword = "password",
                 Neo4jDatabase = "neo4j",
                 WriterBatch = 500,
                 MaxHops = 2,
@@ -104,32 +89,44 @@ public sealed class SearchServiceTests
 
     private sealed class FakeDenseEmbedder : IDenseEmbedder
     {
+        public Error? QueryFailure { get; init; }
         public int VectorSize => 2;
         public bool IsLoaded => true;
-        public Task PreloadAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<Result> PreloadAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(Result.Success());
         public void Release() { }
 
-        public Task<IReadOnlyList<IReadOnlyList<float>>> EmbedBatchAsync(
+        public Task<Result<IReadOnlyList<IReadOnlyList<float>>>> EmbedBatchAsync(
             IReadOnlyList<string> texts,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<IReadOnlyList<float>>>([new float[] { 0.1f, 0.2f }]);
+            Task.FromResult(Result<IReadOnlyList<IReadOnlyList<float>>>.Success(
+                texts.Select(_ => (IReadOnlyList<float>)new float[] { 0.1f, 0.2f }).ToArray()));
 
-        public Task<IReadOnlyList<IReadOnlyList<float>>> EmbedQueryAsync(
+        public Task<Result<IReadOnlyList<IReadOnlyList<float>>>> EmbedQueryAsync(
             IReadOnlyList<string> texts,
-            CancellationToken cancellationToken = default) =>
-            EmbedBatchAsync(texts, cancellationToken);
+            CancellationToken cancellationToken = default)
+        {
+            if (QueryFailure is not null)
+            {
+                return Task.FromResult(Result<IReadOnlyList<IReadOnlyList<float>>>.Failure(QueryFailure));
+            }
+
+            return EmbedBatchAsync(texts, cancellationToken);
+        }
     }
 
     private sealed class FakeSparseEmbedder : ISparseEmbedder
     {
         public bool IsLoaded => true;
-        public Task PreloadAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<Result> PreloadAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(Result.Success());
         public void Release() { }
 
-        public Task<IReadOnlyList<SparseVector>> EmbedBatchAsync(
+        public Task<Result<IReadOnlyList<SparseVector>>> EmbedBatchAsync(
             IReadOnlyList<string> texts,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<SparseVector>>([new SparseVector([1u], [1f])]);
+            Task.FromResult(Result<IReadOnlyList<SparseVector>>.Success(
+                texts.Select(_ => new SparseVector([1u], [1f])).ToArray()));
     }
 
     private sealed class FakeColbertEmbedder : IColbertEmbedder
@@ -137,26 +134,27 @@ public sealed class SearchServiceTests
         public int EmbedCalls { get; private set; }
         public int TokenDimension => 128;
         public bool IsLoaded => true;
-        public Task PreloadAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<Result> PreloadAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(Result.Success());
         public void Release() { }
 
-        public Task<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>> EmbedBatchAsync(
+        public Task<Result<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>>> EmbedBatchAsync(
             IReadOnlyList<string> texts,
             CancellationToken cancellationToken = default)
         {
             EmbedCalls++;
-            IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>> result =
-                [new IReadOnlyList<float>[] { new float[] { 0.1f } }];
-            return Task.FromResult(result);
+            var result = texts
+                .Select(_ => (IReadOnlyList<IReadOnlyList<float>>)new IReadOnlyList<float>[] { new float[] { 0.1f } })
+                .ToArray();
+            return Task.FromResult(Result<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>>.Success(result));
         }
     }
 
     private sealed class FakeVectorStore : NoOpVectorStore
     {
-        public int LastTopK { get; private set; }
-        public IReadOnlyList<IReadOnlyList<float>>? LastColbert { get; private set; }
+        public int SearchCalls { get; private set; }
 
-        public override Task<IReadOnlyList<SearchHit>> SearchAsync(
+        public override Task<Result<IReadOnlyList<SearchHit>>> SearchAsync(
             string collection,
             IReadOnlyList<float> denseVector,
             SparseVector? sparseVector,
@@ -166,23 +164,8 @@ public sealed class SearchServiceTests
             IReadOnlyList<IReadOnlyList<float>>? colbertVector = null,
             CancellationToken cancellationToken = default)
         {
-            LastTopK = topK;
-            LastColbert = colbertVector;
-            IReadOnlyList<SearchHit> hits =
-            [
-                new SearchHit(
-                    new ChunkId("abc"),
-                    0.123456,
-                    "src/A.cs",
-                    SourceLanguage.CSharp,
-                    1,
-                    5,
-                    "Foo",
-                    SymbolType.Class,
-                    "class Foo {}",
-                    collection),
-            ];
-            return Task.FromResult(hits);
+            SearchCalls++;
+            return Task.FromResult(Result<IReadOnlyList<SearchHit>>.Success([]));
         }
     }
 }

@@ -74,8 +74,9 @@ public sealed class Neo4jGraphStoreTests
 
         var hits = await store.FindCallersAsync("createTie", ["myproj"], receiver: null, limitPerCollection: 10);
 
-        Assert.Single(hits);
-        Assert.Equal("chunk-caller", hits[0].Id.Value);
+        Assert.True(hits.IsSuccess);
+        Assert.Single(hits.Value);
+        Assert.Equal("chunk-caller", hits.Value[0].Id.Value);
         Assert.Contains(driver.Session.Queries, q => q.Query.Contains("r.call_token", StringComparison.Ordinal));
     }
 
