@@ -1,4 +1,5 @@
 using CodebaseIndexer.Domain.Models;
+using CodebaseIndexer.Domain.Results;
 
 namespace CodebaseIndexer.Domain.Ports;
 
@@ -8,19 +9,23 @@ public interface ISparseEmbedder
     /// <summary>Whether the embedder model is loaded and ready for inference.</summary>
     bool IsLoaded { get; }
 
-    /// <summary>Loads the embedder model into memory.</summary>
+    /// <summary>
+    /// Loads the embedder model into memory.
+    /// Cooperative cancel throws <see cref="OperationCanceledException"/>.
+    /// </summary>
     /// <param name="cancellationToken">Token used to cancel the preload operation.</param>
-    /// <returns>A task that completes when the model is loaded.</returns>
-    Task PreloadAsync(CancellationToken cancellationToken = default);
+    Task<Result> PreloadAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Releases loaded model resources.</summary>
     void Release();
 
-    /// <summary>Generates sparse embeddings for a batch of texts.</summary>
+    /// <summary>
+    /// Generates sparse embeddings for a batch of texts.
+    /// Cooperative cancel throws <see cref="OperationCanceledException"/>.
+    /// </summary>
     /// <param name="texts">Texts to embed.</param>
     /// <param name="cancellationToken">Token used to cancel the operation.</param>
-    /// <returns>Sparse embedding vectors in the same order as <paramref name="texts"/>.</returns>
-    Task<IReadOnlyList<SparseVector>> EmbedBatchAsync(
+    Task<Result<IReadOnlyList<SparseVector>>> EmbedBatchAsync(
         IReadOnlyList<string> texts,
         CancellationToken cancellationToken = default);
 }
