@@ -1,6 +1,7 @@
 using CodebaseIndexer.Application.Options;
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
+using CodebaseIndexer.Domain.Results;
 using CodebaseIndexer.Domain.Serialization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -80,55 +81,85 @@ public sealed class Neo4jGraphStore : IGraphStore, IAsyncDisposable, IDisposable
         ValueTask.FromResult(_options.Enabled);
 
     /// <inheritdoc />
-    public async Task EnsureSchemaAsync(CancellationToken cancellationToken = default)
+    public async Task<Result> EnsureSchemaAsync(CancellationToken cancellationToken = default)
     {
         if (!_options.Enabled || _schemaReady)
         {
-            return;
+            return Result.Success();
         }
 
-        await using var session = _driver.AsyncSession(o => o.WithDatabase(_options.Neo4jDatabase));
-        foreach (var statement in SchemaStatements)
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            await session.ExecuteWriteAsync(async tx =>
+            await using var session = _driver.AsyncSession(o => o.WithDatabase(_options.Neo4jDatabase));
+            foreach (var statement in SchemaStatements)
             {
-                await tx.RunAsync(statement).ConfigureAwait(false);
-            }).ConfigureAwait(false);
-        }
+                cancellationToken.ThrowIfCancellationRequested();
+                await session.ExecuteWriteAsync(async tx =>
+                {
+                    await tx.RunAsync(statement).ConfigureAwait(false);
+                }).ConfigureAwait(false);
+            }
 
-        _schemaReady = true;
-        _logger.LogInformation("neo4j_schema_ready database={Database}", _options.Neo4jDatabase);
+            _schemaReady = true;
+            _logger.LogInformation("neo4j_schema_ready database={Database}", _options.Neo4jDatabase);
+            return Result.Success();
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return Result.Failure(new Error(
+                ErrorKind.Dependency,
+                GraphErrorCodes.SchemaInit,
+                $"Neo4j schema init failed: {ex.Message}"));
+        }
     }
 
     /// <inheritdoc />
-    public async Task DeleteFilesAsync(
+    public async Task<Result> DeleteFilesAsync(
         string collection,
         IReadOnlyList<string> relPaths,
         CancellationToken cancellationToken = default)
     {
         if (!_options.Enabled || relPaths.Count == 0)
         {
-            return;
+            return Result.Success();
         }
 
-        await using var session = _driver.AsyncSession(o => o.WithDatabase(_options.Neo4jDatabase));
-        await session.ExecuteWriteAsync(async tx =>
+        try
         {
-            await tx.RunAsync(
-                """
-                UNWIND $paths AS rel_path
-                MATCH (f:File {collection: $collection, rel_path: rel_path})
-                OPTIONAL MATCH (f)<-[:IN_FILE]-(ch:Chunk)
-                DETACH DELETE ch, f
-                """,
-                new { collection, paths = relPaths.ToArray() }).ConfigureAwait(false);
-        }).ConfigureAwait(false);
-        _logger.LogDebug("neo4j_deleted_files collection={Collection} count={Count}", collection, relPaths.Count);
+            await using var session = _driver.AsyncSession(o => o.WithDatabase(_options.Neo4jDatabase));
+            await session.ExecuteWriteAsync(async tx =>
+            {
+                await tx.RunAsync(
+                    """
+                    UNWIND $paths AS rel_path
+                    MATCH (f:File {collection: $collection, rel_path: rel_path})
+                    OPTIONAL MATCH (f)<-[:IN_FILE]-(ch:Chunk)
+                    DETACH DELETE ch, f
+                    """,
+                    new { collection, paths = relPaths.ToArray() }).ConfigureAwait(false);
+            }).ConfigureAwait(false);
+            _logger.LogDebug("neo4j_deleted_files collection={Collection} count={Count}", collection, relPaths.Count);
+            return Result.Success();
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return Result.Failure(new Error(
+                ErrorKind.Dependency,
+                GraphErrorCodes.Delete,
+                $"Neo4j delete files failed: {ex.Message}"));
+        }
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<SearchHit>> FindCallersAsync(
+    public async Task<Result<IReadOnlyList<SearchHit>>> FindCallersAsync(
         string method,
         IReadOnlyList<string> collections,
         string? receiver = null,
@@ -137,17 +168,31 @@ public sealed class Neo4jGraphStore : IGraphStore, IAsyncDisposable, IDisposable
     {
         if (!_options.Enabled || collections.Count == 0)
         {
-            return Array.Empty<SearchHit>();
+            return Result<IReadOnlyList<SearchHit>>.Success(Array.Empty<SearchHit>());
         }
 
-        var token = string.IsNullOrEmpty(receiver) ? method : $"{receiver}.{method}";
-        var tasks = collections.Select(coll => QueryCallersAsync(coll, token, limitPerCollection, cancellationToken));
-        var batches = await Task.WhenAll(tasks).ConfigureAwait(false);
-        return batches.SelectMany(b => b).ToArray();
+        try
+        {
+            var token = string.IsNullOrEmpty(receiver) ? method : $"{receiver}.{method}";
+            var tasks = collections.Select(coll => QueryCallersAsync(coll, token, limitPerCollection, cancellationToken));
+            var batches = await Task.WhenAll(tasks).ConfigureAwait(false);
+            return Result<IReadOnlyList<SearchHit>>.Success(batches.SelectMany(b => b).ToArray());
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return Result<IReadOnlyList<SearchHit>>.Failure(new Error(
+                ErrorKind.Dependency,
+                GraphErrorCodes.Query,
+                $"Neo4j caller query failed: {ex.Message}"));
+        }
     }
 
     /// <inheritdoc />
-    public async Task<GraphExpansion> ExpandSubgraphAsync(
+    public async Task<Result<GraphExpansion>> ExpandSubgraphAsync(
         IReadOnlyList<string> chunkIds,
         int maxHops,
         int maxNodes,
@@ -155,93 +200,122 @@ public sealed class Neo4jGraphStore : IGraphStore, IAsyncDisposable, IDisposable
     {
         if (!_options.Enabled || chunkIds.Count == 0)
         {
-            return GraphExpansion.Empty;
+            return Result<GraphExpansion>.Success(GraphExpansion.Empty);
         }
 
-        var hops = maxHops < 1 ? 1 : maxHops;
-        if (hops > _options.MaxHops)
+        try
         {
-            hops = _options.MaxHops;
-        }
-
-        var nodeCap = maxNodes < 1 ? 1 : maxNodes;
-        // Hop bound is interpolated after clamp — cannot be a Cypher parameter.
-        var query =
-            "MATCH (c:Chunk) WHERE c.chunk_id IN $chunk_ids " +
-            $"MATCH p = (c)-[*1..{hops}]-(m) " +
-            "RETURN p LIMIT $max_nodes";
-
-        var seedSet = chunkIds.ToHashSet(StringComparer.Ordinal);
-        var nodesByKey = new Dictionary<string, GraphNode>(StringComparer.Ordinal);
-        var edges = new Dictionary<(string Type, string? From, string? To), GraphEdge>();
-        var related = new Dictionary<string, string?>(StringComparer.Ordinal);
-
-        await using var session = _driver.AsyncSession(o => o.WithDatabase(_options.Neo4jDatabase));
-        var cursor = await session.RunAsync(
-            query,
-            new { chunk_ids = chunkIds.ToArray(), max_nodes = nodeCap }).ConfigureAwait(false);
-
-        await foreach (var record in cursor.ConfigureAwait(false))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (!record.Values.TryGetValue("p", out var pathObj) || pathObj is not IPath path)
+            var hops = maxHops < 1 ? 1 : maxHops;
+            if (hops > _options.MaxHops)
             {
-                continue;
+                hops = _options.MaxHops;
             }
 
-            var nodesByElementId = path.Nodes.ToDictionary(n => n.ElementId, StringComparer.Ordinal);
-            foreach (var node in path.Nodes)
+            var nodeCap = maxNodes < 1 ? 1 : maxNodes;
+            // Hop bound is interpolated after clamp — cannot be a Cypher parameter.
+            var query =
+                "MATCH (c:Chunk) WHERE c.chunk_id IN $chunk_ids " +
+                $"MATCH p = (c)-[*1..{hops}]-(m) " +
+                "RETURN p LIMIT $max_nodes";
+
+            var seedSet = chunkIds.ToHashSet(StringComparer.Ordinal);
+            var nodesByKey = new Dictionary<string, GraphNode>(StringComparer.Ordinal);
+            var edges = new Dictionary<(string Type, string? From, string? To), GraphEdge>();
+            var related = new Dictionary<string, string?>(StringComparer.Ordinal);
+
+            await using var session = _driver.AsyncSession(o => o.WithDatabase(_options.Neo4jDatabase));
+            var cursor = await session.RunAsync(
+                query,
+                new { chunk_ids = chunkIds.ToArray(), max_nodes = nodeCap }).ConfigureAwait(false);
+
+            await foreach (var record in cursor.ConfigureAwait(false))
             {
-                var props = ToPropDict(node.Properties);
-                var key = NodeKey(props);
-                var labels = node.Labels.ToArray();
-                if (key is not null && !nodesByKey.ContainsKey(key))
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!record.Values.TryGetValue("p", out var pathObj) || pathObj is not IPath path)
                 {
-                    nodesByKey[key] = new GraphNode(labels, key, FilterNodeProps(props));
+                    continue;
                 }
 
-                if (labels.Contains("Chunk", StringComparer.Ordinal))
+                var nodesByElementId = path.Nodes.ToDictionary(n => n.ElementId, StringComparer.Ordinal);
+                foreach (var node in path.Nodes)
                 {
-                    var cid = props.GetValueOrDefault("chunk_id")?.ToString();
-                    if (!string.IsNullOrEmpty(cid) && !seedSet.Contains(cid))
+                    var props = ToPropDict(node.Properties);
+                    var key = NodeKey(props);
+                    var labels = node.Labels.ToArray();
+                    if (key is not null && !nodesByKey.ContainsKey(key))
                     {
-                        related.TryAdd(cid, props.GetValueOrDefault("collection")?.ToString());
+                        nodesByKey[key] = new GraphNode(labels, key, FilterNodeProps(props));
+                    }
+
+                    if (labels.Contains("Chunk", StringComparer.Ordinal))
+                    {
+                        var cid = props.GetValueOrDefault("chunk_id")?.ToString();
+                        if (!string.IsNullOrEmpty(cid) && !seedSet.Contains(cid))
+                        {
+                            related.TryAdd(cid, props.GetValueOrDefault("collection")?.ToString());
+                        }
                     }
                 }
+
+                foreach (var rel in path.Relationships)
+                {
+                    nodesByElementId.TryGetValue(rel.StartNodeElementId, out var startNode);
+                    nodesByElementId.TryGetValue(rel.EndNodeElementId, out var endNode);
+                    var fromKey = startNode is null ? null : NodeKey(ToPropDict(startNode.Properties));
+                    var toKey = endNode is null ? null : NodeKey(ToPropDict(endNode.Properties));
+                    var edgeId = (rel.Type, fromKey, toKey);
+                    edges.TryAdd(edgeId, new GraphEdge(rel.Type, fromKey, toKey));
+                }
             }
 
-            foreach (var rel in path.Relationships)
-            {
-                nodesByElementId.TryGetValue(rel.StartNodeElementId, out var startNode);
-                nodesByElementId.TryGetValue(rel.EndNodeElementId, out var endNode);
-                var fromKey = startNode is null ? null : NodeKey(ToPropDict(startNode.Properties));
-                var toKey = endNode is null ? null : NodeKey(ToPropDict(endNode.Properties));
-                var edgeId = (rel.Type, fromKey, toKey);
-                edges.TryAdd(edgeId, new GraphEdge(rel.Type, fromKey, toKey));
-            }
+            return Result<GraphExpansion>.Success(new GraphExpansion(
+                nodesByKey.Values.ToArray(),
+                edges.Values.ToArray(),
+                related.Keys.ToArray(),
+                related.Where(kv => kv.Value is not null)
+                    .ToDictionary(kv => kv.Key, kv => kv.Value!, StringComparer.Ordinal)));
         }
-
-        return new GraphExpansion(
-            nodesByKey.Values.ToArray(),
-            edges.Values.ToArray(),
-            related.Keys.ToArray(),
-            related.Where(kv => kv.Value is not null)
-                .ToDictionary(kv => kv.Key, kv => kv.Value!, StringComparer.Ordinal));
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return Result<GraphExpansion>.Failure(new Error(
+                ErrorKind.Dependency,
+                GraphErrorCodes.Expand,
+                $"Neo4j expand failed: {ex.Message}"));
+        }
     }
 
     /// <inheritdoc />
-    public async Task WriteBatchAsync(GraphBatch batch, CancellationToken cancellationToken = default)
+    public async Task<Result> WriteBatchAsync(GraphBatch batch, CancellationToken cancellationToken = default)
     {
         if (!_options.Enabled)
         {
-            return;
+            return Result.Success();
         }
 
-        await using var session = _driver.AsyncSession(o => o.WithDatabase(_options.Neo4jDatabase));
-        await session.ExecuteWriteAsync(async tx =>
+        try
         {
-            await WriteBatchSessionAsync(tx, batch, cancellationToken).ConfigureAwait(false);
-        }).ConfigureAwait(false);
+            await using var session = _driver.AsyncSession(o => o.WithDatabase(_options.Neo4jDatabase));
+            await session.ExecuteWriteAsync(async tx =>
+            {
+                await WriteBatchSessionAsync(tx, batch, cancellationToken).ConfigureAwait(false);
+            }).ConfigureAwait(false);
+            return Result.Success();
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return Result.Failure(new Error(
+                ErrorKind.Dependency,
+                GraphErrorCodes.Write,
+                $"Neo4j write batch failed: {ex.Message}"));
+        }
     }
 
     private async Task<IReadOnlyList<SearchHit>> QueryCallersAsync(

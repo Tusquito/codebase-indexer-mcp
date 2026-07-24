@@ -1,5 +1,6 @@
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
+using CodebaseIndexer.Domain.Results;
 
 namespace CodebaseIndexer.Infrastructure.Neo4j;
 
@@ -11,34 +12,34 @@ public sealed class NullGraphStore : IGraphStore
         ValueTask.FromResult(false);
 
     /// <inheritdoc />
-    public Task EnsureSchemaAsync(CancellationToken cancellationToken = default) =>
-        Task.CompletedTask;
+    public Task<Result> EnsureSchemaAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(Result.Success());
 
     /// <inheritdoc />
-    public Task DeleteFilesAsync(
+    public Task<Result> DeleteFilesAsync(
         string collection,
         IReadOnlyList<string> relPaths,
         CancellationToken cancellationToken = default) =>
-        Task.CompletedTask;
+        Task.FromResult(Result.Success());
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<SearchHit>> FindCallersAsync(
+    public Task<Result<IReadOnlyList<SearchHit>>> FindCallersAsync(
         string method,
         IReadOnlyList<string> collections,
         string? receiver = null,
         int limitPerCollection = 10,
         CancellationToken cancellationToken = default) =>
-        Task.FromResult<IReadOnlyList<SearchHit>>(Array.Empty<SearchHit>());
+        Task.FromResult(Result<IReadOnlyList<SearchHit>>.Success(Array.Empty<SearchHit>()));
 
     /// <inheritdoc />
-    public Task<GraphExpansion> ExpandSubgraphAsync(
+    public Task<Result<GraphExpansion>> ExpandSubgraphAsync(
         IReadOnlyList<string> chunkIds,
         int maxHops,
         int maxNodes,
         CancellationToken cancellationToken = default) =>
-        Task.FromResult(GraphExpansion.Empty);
+        Task.FromResult(Result<GraphExpansion>.Success(GraphExpansion.Empty));
 
     /// <inheritdoc />
-    public Task WriteBatchAsync(GraphBatch batch, CancellationToken cancellationToken = default) =>
-        Task.CompletedTask;
+    public Task<Result> WriteBatchAsync(GraphBatch batch, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Result.Success());
 }

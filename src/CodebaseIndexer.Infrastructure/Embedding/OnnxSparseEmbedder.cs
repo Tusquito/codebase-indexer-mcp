@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using CodebaseIndexer.Application.Options;
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
+using CodebaseIndexer.Domain.Results;
 using CodebaseIndexer.Infrastructure.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -21,9 +22,6 @@ public sealed class OnnxSparseEmbedder : ISparseEmbedder, IDisposable
     private TruncationSource _truncationSource = TruncationSource.Disabled;
 
     /// <summary>Creates a sparse embedder from embedding and known-model options.</summary>
-    /// <param name="embedding">Embedding configuration.</param>
-    /// <param name="knownEmbedModels">Known model token limit registry.</param>
-    /// <param name="logger">Logger instance.</param>
     public OnnxSparseEmbedder(
         IOptions<EmbeddingOptions> embedding,
         IOptions<KnownEmbedModelsOptions> knownEmbedModels,
@@ -38,25 +36,40 @@ public sealed class OnnxSparseEmbedder : ISparseEmbedder, IDisposable
     public bool IsLoaded => _ready;
 
     /// <inheritdoc />
-    public Task PreloadAsync(CancellationToken cancellationToken = default)
+    public Task<Result> PreloadAsync(CancellationToken cancellationToken = default)
     {
-        var modelDir = SparseModelCacheResolver.ResolveModelDirectory(_embedding.CachePath, _embedding.SparseModel);
-        _ = GetSharedModel(modelDir);
-        var tokenLimit = EmbeddingTruncation.ResolveMaxEmbedTokens(
-            EmbedRole.Sparse,
-            _embedding.SparseModel,
-            _embedding.MaxSparseTokens,
-            modelDir,
-            _knownEmbedModels.FrozenMaxTokens,
-            _logger);
-        _maxTokens = tokenLimit.MaxTokens;
-        _truncationSource = tokenLimit.Source;
-        _ready = true;
-        _logger.LogInformation(
-            "sparse_embed_ready model={Model} dir={Dir}",
-            _embedding.SparseModel,
-            modelDir);
-        return Task.CompletedTask;
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var modelDir = SparseModelCacheResolver.ResolveModelDirectory(_embedding.CachePath, _embedding.SparseModel);
+            _ = GetSharedModel(modelDir);
+            var tokenLimit = EmbeddingTruncation.ResolveMaxEmbedTokens(
+                EmbedRole.Sparse,
+                _embedding.SparseModel,
+                _embedding.MaxSparseTokens,
+                modelDir,
+                _knownEmbedModels.FrozenMaxTokens,
+                _logger);
+            _maxTokens = tokenLimit.MaxTokens;
+            _truncationSource = tokenLimit.Source;
+            _ready = true;
+            _logger.LogInformation(
+                "sparse_embed_ready model={Model} dir={Dir}",
+                _embedding.SparseModel,
+                modelDir);
+            return Task.FromResult(Result.Success());
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return Task.FromResult(Result.Failure(new Error(
+                ErrorKind.Dependency,
+                EmbedErrorCodes.Sparse,
+                $"Sparse preload failed: {ex.Message}")));
+        }
     }
 
     /// <inheritdoc />
@@ -66,25 +79,39 @@ public sealed class OnnxSparseEmbedder : ISparseEmbedder, IDisposable
     }
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<SparseVector>> EmbedBatchAsync(
+    public Task<Result<IReadOnlyList<SparseVector>>> EmbedBatchAsync(
         IReadOnlyList<string> texts,
         CancellationToken cancellationToken = default)
     {
         if (texts.Count == 0)
         {
-            return Task.FromResult<IReadOnlyList<SparseVector>>(Array.Empty<SparseVector>());
+            return Task.FromResult(Result<IReadOnlyList<SparseVector>>.Success(Array.Empty<SparseVector>()));
         }
 
-        var model = GetSharedModel(
-            SparseModelCacheResolver.ResolveModelDirectory(_embedding.CachePath, _embedding.SparseModel));
-        var results = new List<SparseVector>(texts.Count);
-        foreach (var text in texts)
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            results.Add(model.Embed(Truncate(text)));
-        }
+            var model = GetSharedModel(
+                SparseModelCacheResolver.ResolveModelDirectory(_embedding.CachePath, _embedding.SparseModel));
+            var results = new List<SparseVector>(texts.Count);
+            foreach (var text in texts)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                results.Add(model.Embed(Truncate(text)));
+            }
 
-        return Task.FromResult<IReadOnlyList<SparseVector>>(results);
+            return Task.FromResult(Result<IReadOnlyList<SparseVector>>.Success(results));
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return Task.FromResult(Result<IReadOnlyList<SparseVector>>.Failure(new Error(
+                ErrorKind.Dependency,
+                EmbedErrorCodes.Sparse,
+                $"Sparse embed failed: {ex.Message}")));
+        }
     }
 
     /// <summary>Releases no shared models; they live for the process lifetime.</summary>
@@ -108,5 +135,4 @@ public sealed class OnnxSparseEmbedder : ISparseEmbedder, IDisposable
             $"{_embedding.CachePath}|{_embedding.SparseModel}",
             _ => new Lazy<Bm25EmbedderCore>(() => new Bm25EmbedderCore(modelDir), LazyThreadSafetyMode.ExecutionAndPublication))
             .Value;
-
 }

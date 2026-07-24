@@ -1,6 +1,6 @@
 using CodebaseIndexer.Application.Options;
-using CodebaseIndexer.Domain.Exceptions;
 using CodebaseIndexer.Domain.Ports;
+using CodebaseIndexer.Domain.Results;
 using CodebaseIndexer.Infrastructure.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -33,7 +33,7 @@ public sealed class ColbertRemoteEmbedder : IColbertEmbedder
     public bool IsLoaded => _ready;
 
     /// <inheritdoc />
-    public async Task PreloadAsync(CancellationToken cancellationToken = default)
+    public async Task<Result> PreloadAsync(CancellationToken cancellationToken = default)
     {
         try
         {
@@ -49,8 +49,10 @@ public sealed class ColbertRemoteEmbedder : IColbertEmbedder
 
             if (health.TokenDimension is { } sidecarDim && sidecarDim != TokenDimension)
             {
-                throw new EmbeddingException(
-                    $"ColBERT sidecar token_dimension {sidecarDim} does not match expected {TokenDimension} for model '{_options.EmbedModel}'.");
+                return Result.Failure(new Error(
+                    ErrorKind.Dependency,
+                    EmbedErrorCodes.DimensionMismatch,
+                    $"ColBERT sidecar token_dimension {sidecarDim} does not match expected {TokenDimension} for model '{_options.EmbedModel}'."));
             }
 
             var probe = await _api.EmbedColbertAsync(
@@ -59,20 +61,27 @@ public sealed class ColbertRemoteEmbedder : IColbertEmbedder
 
             if (probe.Embeddings.Count == 0)
             {
-                throw new EmbeddingException("ColBERT sidecar probe returned no embeddings.");
+                return Result.Failure(new Error(
+                    ErrorKind.Dependency,
+                    EmbedErrorCodes.Colbert,
+                    "ColBERT sidecar probe returned no embeddings."));
             }
 
             if (probe.TokenDimension != TokenDimension)
             {
-                throw new EmbeddingException(
-                    $"ColBERT sidecar token_dimension {probe.TokenDimension} does not match expected {TokenDimension}.");
+                return Result.Failure(new Error(
+                    ErrorKind.Dependency,
+                    EmbedErrorCodes.DimensionMismatch,
+                    $"ColBERT sidecar token_dimension {probe.TokenDimension} does not match expected {TokenDimension}."));
             }
 
             var first = probe.Embeddings[0];
             if (first.Count > 0 && first[0].Count != TokenDimension)
             {
-                throw new EmbeddingException(
-                    $"ColBERT sidecar embedding dimension mismatch: expected {TokenDimension}, got {first[0].Count}.");
+                return Result.Failure(new Error(
+                    ErrorKind.Dependency,
+                    EmbedErrorCodes.DimensionMismatch,
+                    $"ColBERT sidecar embedding dimension mismatch: expected {TokenDimension}, got {first[0].Count}."));
             }
 
             _ready = true;
@@ -80,15 +89,18 @@ public sealed class ColbertRemoteEmbedder : IColbertEmbedder
                 "colbert_remote_ready model={Model} url={Url}",
                 _options.EmbedModel,
                 _options.Url);
+            return Result.Success();
         }
-        catch (EmbeddingException)
+        catch (OperationCanceledException)
         {
             throw;
         }
         catch (Exception ex)
         {
-            throw new EmbeddingException(
-                $"ColBERT sidecar preload failed at {_options.Url}: {ex.Message}", ex);
+            return Result.Failure(new Error(
+                ErrorKind.Dependency,
+                EmbedErrorCodes.Colbert,
+                $"ColBERT sidecar preload failed at {_options.Url}: {ex.Message}"));
         }
     }
 
@@ -96,56 +108,77 @@ public sealed class ColbertRemoteEmbedder : IColbertEmbedder
     public void Release() => _ready = false;
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>> EmbedBatchAsync(
+    public async Task<Result<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>>> EmbedBatchAsync(
         IReadOnlyList<string> texts,
         CancellationToken cancellationToken = default)
     {
         if (texts.Count == 0)
         {
-            return Array.Empty<IReadOnlyList<IReadOnlyList<float>>>();
+            return Result<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>>.Success(
+                Array.Empty<IReadOnlyList<IReadOnlyList<float>>>());
         }
 
-        var results = new List<IReadOnlyList<IReadOnlyList<float>>>(texts.Count);
-        var batchSize = Math.Max(1, _options.EmbedBatchSize);
-
-        for (var offset = 0; offset < texts.Count; offset += batchSize)
+        try
         {
-            var count = Math.Min(batchSize, texts.Count - offset);
-            var batch = new string[count];
-            for (var i = 0; i < count; i++)
+            var results = new List<IReadOnlyList<IReadOnlyList<float>>>(texts.Count);
+            var batchSize = Math.Max(1, _options.EmbedBatchSize);
+
+            for (var offset = 0; offset < texts.Count; offset += batchSize)
             {
-                batch[i] = texts[offset + i];
+                var count = Math.Min(batchSize, texts.Count - offset);
+                var batch = new string[count];
+                for (var i = 0; i < count; i++)
+                {
+                    batch[i] = texts[offset + i];
+                }
+
+                var response = await _api.EmbedColbertAsync(
+                    new ColbertEmbedRequest(batch),
+                    cancellationToken).ConfigureAwait(false);
+
+                if (response.Embeddings.Count != count)
+                {
+                    return Result<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>>.Failure(new Error(
+                        ErrorKind.Dependency,
+                        EmbedErrorCodes.Colbert,
+                        $"ColBERT sidecar returned {response.Embeddings.Count} embeddings for {count} inputs."));
+                }
+
+                if (response.TokenDimension != TokenDimension)
+                {
+                    return Result<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>>.Failure(new Error(
+                        ErrorKind.Dependency,
+                        EmbedErrorCodes.DimensionMismatch,
+                        $"ColBERT sidecar token_dimension {response.TokenDimension} does not match expected {TokenDimension}."));
+                }
+
+                results.AddRange(response.Embeddings);
             }
 
-            var response = await _api.EmbedColbertAsync(
-                new ColbertEmbedRequest(batch),
-                cancellationToken).ConfigureAwait(false);
-
-            if (response.Embeddings.Count != count)
+            for (var i = 0; i < results.Count; i++)
             {
-                throw new EmbeddingException(
-                    $"ColBERT sidecar returned {response.Embeddings.Count} embeddings for {count} inputs.");
+                var mv = results[i];
+                if (mv.Count > 0 && mv[0].Count != TokenDimension)
+                {
+                    return Result<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>>.Failure(new Error(
+                        ErrorKind.Dependency,
+                        EmbedErrorCodes.DimensionMismatch,
+                        $"ColBERT embedding {i} token dimension mismatch: expected {TokenDimension}, got {mv[0].Count}."));
+                }
             }
 
-            if (response.TokenDimension != TokenDimension)
-            {
-                throw new EmbeddingException(
-                    $"ColBERT sidecar token_dimension {response.TokenDimension} does not match expected {TokenDimension}.");
-            }
-
-            results.AddRange(response.Embeddings);
+            return Result<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>>.Success(results);
         }
-
-        for (var i = 0; i < results.Count; i++)
+        catch (OperationCanceledException)
         {
-            var mv = results[i];
-            if (mv.Count > 0 && mv[0].Count != TokenDimension)
-            {
-                throw new EmbeddingException(
-                    $"ColBERT embedding {i} token dimension mismatch: expected {TokenDimension}, got {mv[0].Count}.");
-            }
+            throw;
         }
-
-        return results;
+        catch (Exception ex)
+        {
+            return Result<IReadOnlyList<IReadOnlyList<IReadOnlyList<float>>>>.Failure(new Error(
+                ErrorKind.Dependency,
+                EmbedErrorCodes.Colbert,
+                $"ColBERT sidecar embed failed: {ex.Message}"));
+        }
     }
 }
