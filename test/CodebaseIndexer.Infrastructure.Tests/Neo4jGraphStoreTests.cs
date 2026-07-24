@@ -4,13 +4,14 @@ using CodebaseIndexer.Infrastructure.Neo4j;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Neo4j.Driver;
+using System.Threading.Tasks;
 
 namespace CodebaseIndexer.Infrastructure.Tests;
 
 /// <summary>Neo4jGraphStore unit tests with a recording fake driver.</summary>
 public sealed class Neo4jGraphStoreTests
 {
-    [Fact]
+    [Test]
     public async Task Disabled_store_skips_schema_and_writes()
     {
         var driver = new FakeDriver();
@@ -19,11 +20,11 @@ public sealed class Neo4jGraphStoreTests
         await store.EnsureSchemaAsync();
         await store.WriteBatchAsync(new GraphBatch("demo"));
 
-        Assert.Empty(driver.Session.Queries);
-        Assert.False(await store.IsEnabledAsync());
+        await Assert.That(driver.Session.Queries).IsEmpty();
+        await Assert.That(await store.IsEnabledAsync()).IsFalse();
     }
 
-    [Fact]
+    [Test]
     public async Task Ensure_schema_runs_constraints()
     {
         var driver = new FakeDriver();
@@ -31,12 +32,12 @@ public sealed class Neo4jGraphStoreTests
 
         await store.EnsureSchemaAsync();
 
-        Assert.True(driver.Session.Queries.Count >= 7);
-        Assert.Contains(driver.Session.Queries, q => q.Query.Contains("chunk_id_unique", StringComparison.Ordinal));
-        Assert.Contains(driver.Session.Queries, q => q.Query.Contains("calls_call_token", StringComparison.Ordinal));
+        await Assert.That(driver.Session.Queries.Count >= 7).IsTrue();
+        await Assert.That(driver.Session.Queries).Contains(q => q.Query.Contains("chunk_id_unique", StringComparison.Ordinal));
+        await Assert.That(driver.Session.Queries).Contains(q => q.Query.Contains("calls_call_token", StringComparison.Ordinal));
     }
 
-    [Fact]
+    [Test]
     public async Task Expand_clamps_hops_into_cypher()
     {
         var driver = new FakeDriver();
@@ -44,11 +45,11 @@ public sealed class Neo4jGraphStoreTests
 
         await store.ExpandSubgraphAsync(["c1"], maxHops: 99, maxNodes: 50);
 
-        Assert.Contains(driver.Session.Queries, q => q.Query.Contains("[*1..2]-", StringComparison.Ordinal));
-        Assert.DoesNotContain(driver.Session.Queries, q => q.Query.Contains("[*1..99]-", StringComparison.Ordinal));
+        await Assert.That(driver.Session.Queries).Contains(q => q.Query.Contains("[*1..2]-", StringComparison.Ordinal));
+        await Assert.That(driver.Session.Queries).DoesNotContain(q => q.Query.Contains("[*1..99]-", StringComparison.Ordinal));
     }
 
-    [Fact]
+    [Test]
     public async Task Find_callers_runs_call_token_query()
     {
         var driver = new FakeDriver
@@ -74,13 +75,13 @@ public sealed class Neo4jGraphStoreTests
 
         var hits = await store.FindCallersAsync("createTie", ["myproj"], receiver: null, limitPerCollection: 10);
 
-        Assert.True(hits.IsSuccess);
-        Assert.Single(hits.Value);
-        Assert.Equal("chunk-caller", hits.Value[0].Id.Value);
-        Assert.Contains(driver.Session.Queries, q => q.Query.Contains("r.call_token", StringComparison.Ordinal));
+        await Assert.That(hits.IsSuccess).IsTrue();
+        await Assert.That(hits.Value).HasSingleItem();
+        await Assert.That(hits.Value[0].Id.Value).IsEqualTo("chunk-caller");
+        await Assert.That(driver.Session.Queries).Contains(q => q.Query.Contains("r.call_token", StringComparison.Ordinal));
     }
 
-    [Fact]
+    [Test]
     public async Task Write_batch_runs_unwind_statements()
     {
         var driver = new FakeDriver();
@@ -91,8 +92,8 @@ public sealed class Neo4jGraphStoreTests
 
         await store.WriteBatchAsync(batch);
 
-        Assert.Contains(driver.Session.Queries, q => q.Query.Contains("UNWIND $files", StringComparison.Ordinal));
-        Assert.Contains(driver.Session.Queries, q => q.Query.Contains("UNWIND $chunks", StringComparison.Ordinal));
+        await Assert.That(driver.Session.Queries).Contains(q => q.Query.Contains("UNWIND $files", StringComparison.Ordinal));
+        await Assert.That(driver.Session.Queries).Contains(q => q.Query.Contains("UNWIND $chunks", StringComparison.Ordinal));
     }
 
     private static Neo4jGraphStore CreateStore(FakeDriver driver, bool enabled, int maxHops = 2) =>

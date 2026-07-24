@@ -5,32 +5,33 @@ using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Ports;
 using MsOptions = Microsoft.Extensions.Options.Options;
 using CodebaseIndexer.Domain.Results;
+using System.Threading.Tasks;
 
 namespace CodebaseIndexer.Application.Tests;
 
 /// <summary>Port of test_recommend_tool.py / outlier validation.</summary>
 public sealed class RecommendServiceTests
 {
-    [Fact]
+    [Test]
     public async Task RecommendCode_requires_positive_example()
     {
         var service = CreateService(new FakeStore());
         var result = await service.RecommendCodeAsync("proj");
-        Assert.False(result.IsSuccess);
-        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
-        Assert.Contains("positive", result.Error.Message, StringComparison.OrdinalIgnoreCase);
+        await Assert.That(result.IsSuccess).IsFalse();
+        await Assert.That(result.Error.Kind).IsEqualTo(ErrorKind.Validation);
+        await Assert.That(result.Error.Message).Contains("positive");
     }
 
-    [Fact]
+    [Test]
     public async Task RecommendCode_caps_limit_at_20()
     {
         var store = new FakeStore();
         var service = CreateService(store);
         await service.RecommendCodeAsync("proj", positiveChunkIds: ["a"], limit: 50);
-        Assert.Equal(20, store.LastRecommendLimit);
+        await Assert.That(store.LastRecommendLimit).IsEqualTo(20);
     }
 
-    [Fact]
+    [Test]
     public async Task RecommendCode_enforces_max_examples()
     {
         var service = CreateService(new FakeStore(), recommendMaxExamples: 2);
@@ -38,11 +39,11 @@ public sealed class RecommendServiceTests
             "proj",
             positiveChunkIds: ["a", "b"],
             negativeChunkIds: ["c"]);
-        Assert.False(result.IsSuccess);
-        Assert.Contains("RECOMMEND_MAX_EXAMPLES", result.Error.Message, StringComparison.Ordinal);
+        await Assert.That(result.IsSuccess).IsFalse();
+        await Assert.That(result.Error.Message).Contains("RECOMMEND_MAX_EXAMPLES");
     }
 
-    [Fact]
+    [Test]
     public async Task RecommendCode_verifies_ids_embeds_and_shapes_results()
     {
         var store = new FakeStore
@@ -74,24 +75,24 @@ public sealed class RecommendServiceTests
             negativeQuery: "test utilities",
             pathGlob: "src/*.py");
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(["pos", "neg"], store.VerifiedIds);
-        Assert.Equal(["handler pattern", "test utilities"], dense.LastTexts);
-        Assert.Equal(2, store.LastPositiveCount);
-        Assert.Equal(2, store.LastNegativeCount);
-        var response = Assert.IsType<RecommendCodeResponse>(result.Value);
-        Assert.Single(response.Results);
-        Assert.Equal(2, response.PositiveExamples);
-        Assert.Equal(2, response.NegativeExamples);
+        await Assert.That(result.IsSuccess).IsTrue();
+        await Assert.That(store.VerifiedIds).IsEquivalentTo(["pos", "neg"]);
+        await Assert.That(dense.LastTexts).IsEquivalentTo(["handler pattern", "test utilities"]);
+        await Assert.That(store.LastPositiveCount).IsEqualTo(2);
+        await Assert.That(store.LastNegativeCount).IsEqualTo(2);
+        var response = await Assert.That(result.Value).IsTypeOf<RecommendCodeResponse>();
+        await Assert.That(response!.Results).HasSingleItem();
+        await Assert.That(response.PositiveExamples).IsEqualTo(2);
+        await Assert.That(response.NegativeExamples).IsEqualTo(2);
     }
 
-    [Fact]
+    [Test]
     public async Task FindOutlierChunks_rejects_invalid_max_similarity()
     {
         var service = CreateService(new FakeStore());
         var result = await service.FindOutlierChunksAsync("proj", maxSimilarity: 1.5f);
-        Assert.False(result.IsSuccess);
-        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+        await Assert.That(result.IsSuccess).IsFalse();
+        await Assert.That(result.Error.Kind).IsEqualTo(ErrorKind.Validation);
     }
 
     private static RecommendService CreateService(FakeStore store, int recommendMaxExamples = 10) =>

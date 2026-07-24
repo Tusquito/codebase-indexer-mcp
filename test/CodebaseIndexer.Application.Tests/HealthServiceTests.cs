@@ -1,5 +1,6 @@
 using CodebaseIndexer.Application.Services;
 using CodebaseIndexer.Domain.Models;
+using System.Threading.Tasks;
 
 namespace CodebaseIndexer.Application.Tests;
 
@@ -7,12 +8,12 @@ namespace CodebaseIndexer.Application.Tests;
 public sealed class HealthServiceTests
 {
     /// <summary>GetStatusAsync returns ok status and dotnet runtime.</summary>
-    [Fact]
+    [Test]
     public async Task GetStatus_returns_ok()
     {
         var service = new HealthService();
         var status = await service.GetStatusAsync();
-        Assert.Equal(LivenessStatus.Ok, status.Status);
-        Assert.Equal("dotnet", status.Runtime);
+        await Assert.That(status.Status).IsEqualTo(LivenessStatus.Ok);
+        await Assert.That(status.Runtime).IsEqualTo("dotnet");
     }
 }

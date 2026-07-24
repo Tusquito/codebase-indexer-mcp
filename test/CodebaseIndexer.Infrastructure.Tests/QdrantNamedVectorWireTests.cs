@@ -1,6 +1,7 @@
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Serialization;
 using CodebaseIndexer.Infrastructure.Qdrant;
+using System.Threading.Tasks;
 
 namespace CodebaseIndexer.Infrastructure.Tests;
 
@@ -8,25 +9,25 @@ namespace CodebaseIndexer.Infrastructure.Tests;
 public sealed class QdrantNamedVectorWireTests
 {
     /// <summary>DomainEnumWire matches expected Qdrant named-vector names.</summary>
-    [Theory]
-    [InlineData(NamedVector.Dense, "dense")]
-    [InlineData(NamedVector.Sparse, "sparse")]
-    [InlineData(NamedVector.Colbert, "colbert")]
-    public void DomainEnumWire_matches_qdrant_named_vector_name(NamedVector vector, string expected)
+    [Test]
+    [Arguments(NamedVector.Dense, "dense")]
+    [Arguments(NamedVector.Sparse, "sparse")]
+    [Arguments(NamedVector.Colbert, "colbert")]
+    public async Task DomainEnumWire_matches_qdrant_named_vector_name(NamedVector vector, string expected)
     {
-        Assert.Equal(expected, DomainEnumWire.ToWire(vector));
+        await Assert.That(DomainEnumWire.ToWire(vector)).IsEqualTo(expected);
     }
 
     /// <summary>QdrantVectorStore create/upsert key set uses the same DomainEnumWire map.</summary>
-    [Fact]
-    public void GetNamedVectorWireMap_matches_DomainEnumWire()
+    [Test]
+    public async Task GetNamedVectorWireMap_matches_DomainEnumWire()
     {
         var map = QdrantVectorStore.GetNamedVectorWireMap();
-        Assert.Equal(Enum.GetValues<NamedVector>().Length, map.Count);
+        await Assert.That(map.Count).IsEqualTo(Enum.GetValues<NamedVector>().Length);
         foreach (NamedVector value in Enum.GetValues<NamedVector>())
         {
-            Assert.True(map.TryGetValue(value, out var wire));
-            Assert.Equal(DomainEnumWire.ToWire(value), wire);
+            await Assert.That(map.TryGetValue(value, out var wire)).IsTrue();
+            await Assert.That(wire).IsEqualTo(DomainEnumWire.ToWire(value));
         }
     }
 }

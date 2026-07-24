@@ -1,3 +1,4 @@
+using System.IO;
 using CodebaseIndexer.Application.Options;
 using CodebaseIndexer.Application.Services;
 using CodebaseIndexer.Domain.Models;
@@ -5,6 +6,7 @@ using CodebaseIndexer.Domain.Ports;
 using CodebaseIndexer.Domain.Results;
 using Microsoft.Extensions.Logging.Abstractions;
 using MsOptions = Microsoft.Extensions.Options.Options;
+using System.Threading.Tasks;
 
 namespace CodebaseIndexer.Application.Tests;
 
@@ -13,7 +15,7 @@ namespace CodebaseIndexer.Application.Tests;
 /// </summary>
 public sealed class ScheduledReindexRunnerTests
 {
-    [Fact]
+    [Test]
     public async Task RunOnce_no_collections_skips_jobs()
     {
         var jobs = new FakeJobs();
@@ -22,10 +24,10 @@ public sealed class ScheduledReindexRunnerTests
 
         await runner.RunOnceAsync();
 
-        Assert.Empty(jobs.Starts);
+        await Assert.That(jobs.Starts).IsEmpty();
     }
 
-    [Fact]
+    [Test]
     public async Task RunOnce_git_pull_false_starts_index_job_without_mcp_http()
     {
         var root = Directory.CreateTempSubdirectory("reindex-ws-");
@@ -39,13 +41,13 @@ public sealed class ScheduledReindexRunnerTests
 
             await runner.RunOnceAsync();
 
-            Assert.Single(jobs.Starts);
+            await Assert.That(jobs.Starts).HasSingleItem();
             var cmd = jobs.Starts[0];
-            Assert.Equal(collection, cmd.Collection);
-            Assert.Equal("/" + collection, cmd.Path);
-            Assert.False(cmd.Force);
-            Assert.True(cmd.Wait);
-            Assert.Equal(1800, cmd.TimeoutSeconds);
+            await Assert.That(cmd.Collection).IsEqualTo(collection);
+            await Assert.That(cmd.Path).IsEqualTo("/" + collection);
+            await Assert.That(cmd.Force).IsFalse();
+            await Assert.That(cmd.Wait).IsTrue();
+            await Assert.That(cmd.TimeoutSeconds).IsEqualTo(1800);
         }
         finally
         {
@@ -53,7 +55,7 @@ public sealed class ScheduledReindexRunnerTests
         }
     }
 
-    [Fact]
+    [Test]
     public async Task RunOnce_missing_collection_path_skips_without_start()
     {
         var root = Directory.CreateTempSubdirectory("reindex-missing-");
@@ -65,7 +67,7 @@ public sealed class ScheduledReindexRunnerTests
 
             await runner.RunOnceAsync();
 
-            Assert.Empty(jobs.Starts);
+            await Assert.That(jobs.Starts).IsEmpty();
         }
         finally
         {
@@ -73,7 +75,7 @@ public sealed class ScheduledReindexRunnerTests
         }
     }
 
-    [Fact]
+    [Test]
     public async Task RunOnce_git_pull_true_non_git_path_skips()
     {
         var root = Directory.CreateTempSubdirectory("reindex-nongit-");
@@ -87,7 +89,7 @@ public sealed class ScheduledReindexRunnerTests
 
             await runner.RunOnceAsync();
 
-            Assert.Empty(jobs.Starts);
+            await Assert.That(jobs.Starts).IsEmpty();
         }
         finally
         {
@@ -95,7 +97,7 @@ public sealed class ScheduledReindexRunnerTests
         }
     }
 
-    [Fact]
+    [Test]
     public async Task RunOnce_already_running_skips_start()
     {
         var root = Directory.CreateTempSubdirectory("reindex-running-");
@@ -109,7 +111,7 @@ public sealed class ScheduledReindexRunnerTests
 
             await runner.RunOnceAsync();
 
-            Assert.Empty(jobs.Starts);
+            await Assert.That(jobs.Starts).IsEmpty();
         }
         finally
         {
@@ -117,7 +119,7 @@ public sealed class ScheduledReindexRunnerTests
         }
     }
 
-    [Fact]
+    [Test]
     public async Task RunOnce_start_failure_increments_errors_without_throw()
     {
         var root = Directory.CreateTempSubdirectory("reindex-fail-");
@@ -134,7 +136,7 @@ public sealed class ScheduledReindexRunnerTests
 
             await runner.RunOnceAsync();
 
-            Assert.Single(jobs.Starts);
+            await Assert.That(jobs.Starts).HasSingleItem();
         }
         finally
         {

@@ -7,13 +7,14 @@ using CodebaseIndexer.Domain.Ports;
 using CodebaseIndexer.Domain.Results;
 using Microsoft.Extensions.Logging.Abstractions;
 using MsOptions = Microsoft.Extensions.Options.Options;
+using System.Threading.Tasks;
 
 namespace CodebaseIndexer.Application.Tests;
 
 /// <summary>Unit tests for index-time graph hooks (Python <c>test_pipeline_graph</c> parity).</summary>
 public sealed class IndexCodebaseServiceTests
 {
-    [Fact]
+    [Test]
     public async Task Run_graph_disabled_skips_schema()
     {
         var graph = new NoOpGraphStore { Enabled = false };
@@ -22,14 +23,14 @@ public sealed class IndexCodebaseServiceTests
 
         var result = await service.RunAsync("demo", subPath: "", force: true, CancellationToken.None);
 
-        Assert.True(result.IsSuccess);
-        Assert.Empty(graph.EnsuredSchemaCalls);
-        Assert.Empty(graph.WrittenBatches);
-        Assert.Empty(result.Value.Errors);
-        Assert.Empty(vector.UpsertCalls);
+        await Assert.That(result.IsSuccess).IsTrue();
+        await Assert.That(graph.EnsuredSchemaCalls).IsEmpty();
+        await Assert.That(graph.WrittenBatches).IsEmpty();
+        await Assert.That(result.Value.Errors).IsEmpty();
+        await Assert.That(vector.UpsertCalls).IsEmpty();
     }
 
-    [Fact]
+    [Test]
     public async Task Run_graph_schema_error_appended_and_skips_graph_io()
     {
         var graph = new NoOpGraphStore
@@ -50,22 +51,20 @@ public sealed class IndexCodebaseServiceTests
 
         var result = await service.RunAsync("demo", subPath: "", force: true, CancellationToken.None);
 
-        Assert.True(result.IsSuccess);
-        Assert.Single(graph.EnsuredSchemaCalls);
-        Assert.Empty(graph.WrittenBatches);
-        Assert.Contains(
-            result.Value.Errors,
-            e => e.Code == IndexErrorCodes.GraphSchemaInit
+        await Assert.That(result.IsSuccess).IsTrue();
+        await Assert.That(graph.EnsuredSchemaCalls).HasSingleItem();
+        await Assert.That(graph.WrittenBatches).IsEmpty();
+        await Assert.That(result.Value.Errors).Contains(e => e.Code == IndexErrorCodes.GraphSchemaInit
                 && e.Kind == ErrorKind.Dependency
                 && e.Message.Contains("neo4j down", StringComparison.Ordinal));
-        Assert.Single(vector.UpsertCalls);
-        Assert.False(vector.UpsertCalls[0].OmitCallees);
-        Assert.Null(vector.UpsertCalls[0].GraphNodeIdsByChunk);
-        Assert.Empty(vector.GraphCallSitesCollections);
-        Assert.Empty(vector.GraphEnabledCollections);
+        await Assert.That(vector.UpsertCalls).HasSingleItem();
+        await Assert.That(vector.UpsertCalls[0].OmitCallees).IsFalse();
+        await Assert.That(vector.UpsertCalls[0].GraphNodeIdsByChunk).IsNull();
+        await Assert.That(vector.GraphCallSitesCollections).IsEmpty();
+        await Assert.That(vector.GraphEnabledCollections).IsEmpty();
     }
 
-    [Fact]
+    [Test]
     public async Task Run_graph_success_ensures_schema_writes_batch_omits_callees_stamps_metadata()
     {
         var graph = new NoOpGraphStore { Enabled = true };
@@ -82,19 +81,19 @@ public sealed class IndexCodebaseServiceTests
 
         var result = await service.RunAsync("demo", subPath: "", force: true, CancellationToken.None);
 
-        Assert.True(result.IsSuccess);
-        Assert.Empty(result.Value.Errors);
-        Assert.Single(graph.EnsuredSchemaCalls);
-        Assert.Single(graph.WrittenBatches);
-        Assert.Equal("demo", graph.WrittenBatches[0].Collection);
-        Assert.Single(vector.UpsertCalls);
-        Assert.True(vector.UpsertCalls[0].OmitCallees);
-        Assert.NotNull(vector.UpsertCalls[0].GraphNodeIdsByChunk);
-        Assert.Equal(["demo"], vector.GraphCallSitesCollections);
-        Assert.Equal(["demo"], vector.GraphEnabledCollections);
+        await Assert.That(result.IsSuccess).IsTrue();
+        await Assert.That(result.Value.Errors).IsEmpty();
+        await Assert.That(graph.EnsuredSchemaCalls).HasSingleItem();
+        await Assert.That(graph.WrittenBatches).HasSingleItem();
+        await Assert.That(graph.WrittenBatches[0].Collection).IsEqualTo("demo");
+        await Assert.That(vector.UpsertCalls).HasSingleItem();
+        await Assert.That(vector.UpsertCalls[0].OmitCallees).IsTrue();
+        await Assert.That(vector.UpsertCalls[0].GraphNodeIdsByChunk).IsNotNull();
+        await Assert.That(vector.GraphCallSitesCollections).IsEquivalentTo(["demo"]);
+        await Assert.That(vector.GraphEnabledCollections).IsEquivalentTo(["demo"]);
     }
 
-    [Fact]
+    [Test]
     public async Task Run_graph_batch_build_failure_does_not_omit_callees()
     {
         var graph = new NoOpGraphStore { Enabled = true };
@@ -112,19 +111,17 @@ public sealed class IndexCodebaseServiceTests
 
         var result = await service.RunAsync("demo", subPath: "", force: true, CancellationToken.None);
 
-        Assert.True(result.IsSuccess);
-        Assert.Contains(
-            result.Value.Errors,
-            e => e.Code == IndexErrorCodes.GraphBatchBuild
+        await Assert.That(result.IsSuccess).IsTrue();
+        await Assert.That(result.Value.Errors).Contains(e => e.Code == IndexErrorCodes.GraphBatchBuild
                 && e.Kind == ErrorKind.Dependency
                 && e.Message.Contains("Graph batch build error", StringComparison.Ordinal));
-        Assert.Empty(graph.WrittenBatches);
-        Assert.Single(vector.UpsertCalls);
-        Assert.False(vector.UpsertCalls[0].OmitCallees);
-        Assert.Null(vector.UpsertCalls[0].GraphNodeIdsByChunk);
+        await Assert.That(graph.WrittenBatches).IsEmpty();
+        await Assert.That(vector.UpsertCalls).HasSingleItem();
+        await Assert.That(vector.UpsertCalls[0].OmitCallees).IsFalse();
+        await Assert.That(vector.UpsertCalls[0].GraphNodeIdsByChunk).IsNull();
     }
 
-    [Fact]
+    [Test]
     public async Task Run_graph_deletes_stale_paths_from_graph_store()
     {
         var graph = new NoOpGraphStore { Enabled = true };
@@ -139,15 +136,15 @@ public sealed class IndexCodebaseServiceTests
 
         var result = await service.RunAsync("demo", subPath: "", force: true, CancellationToken.None);
 
-        Assert.True(result.IsSuccess);
-        Assert.Single(graph.DeleteCalls);
-        Assert.Equal("demo", graph.DeleteCalls[0].Collection);
-        Assert.Equal(["gone.py"], graph.DeleteCalls[0].Paths);
-        Assert.Equal(["demo"], vector.GraphCallSitesCollections);
-        Assert.Equal(["demo"], vector.GraphEnabledCollections);
+        await Assert.That(result.IsSuccess).IsTrue();
+        await Assert.That(graph.DeleteCalls).HasSingleItem();
+        await Assert.That(graph.DeleteCalls[0].Collection).IsEqualTo("demo");
+        await Assert.That(graph.DeleteCalls[0].Paths).IsEquivalentTo(["gone.py"]);
+        await Assert.That(vector.GraphCallSitesCollections).IsEquivalentTo(["demo"]);
+        await Assert.That(vector.GraphEnabledCollections).IsEquivalentTo(["demo"]);
     }
 
-    [Fact]
+    [Test]
     public async Task Run_graph_deletes_modified_paths_before_upsert()
     {
         var graph = new NoOpGraphStore { Enabled = true };
@@ -170,10 +167,10 @@ public sealed class IndexCodebaseServiceTests
 
         var result = await service.RunAsync("demo", subPath: "", force: false, CancellationToken.None);
 
-        Assert.True(result.IsSuccess);
-        Assert.Contains(graph.DeleteCalls, d => d.Paths.Contains("a.py"));
-        Assert.Single(graph.WrittenBatches);
-        Assert.True(vector.UpsertCalls[0].OmitCallees);
+        await Assert.That(result.IsSuccess).IsTrue();
+        await Assert.That(graph.DeleteCalls).Contains(d => d.Paths.Contains("a.py"));
+        await Assert.That(graph.WrittenBatches).HasSingleItem();
+        await Assert.That(vector.UpsertCalls[0].OmitCallees).IsTrue();
     }
 
     private static IndexCodebaseService CreateService(

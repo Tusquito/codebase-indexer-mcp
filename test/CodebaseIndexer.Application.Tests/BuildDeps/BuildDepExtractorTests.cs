@@ -1,32 +1,33 @@
 using CodebaseIndexer.Application.BuildDeps;
+using System.Threading.Tasks;
 
 namespace CodebaseIndexer.Application.Tests.BuildDeps;
 
 /// <summary>Port of mcp_server/tests/test_build_deps.py extractor cases.</summary>
 public sealed class BuildDepExtractorTests
 {
-    [Theory]
-    [InlineData("pom.xml")]
-    [InlineData("submodule/pom.xml")]
-    [InlineData("MyProject.csproj")]
-    [InlineData("package.json")]
-    [InlineData("build.gradle")]
-    [InlineData("go.mod")]
-    [InlineData("Cargo.toml")]
-    [InlineData("pyproject.toml")]
-    [InlineData("requirements.txt")]
-    public void IsBuildManifest_known_paths(string path) =>
-        Assert.True(BuildManifestDetector.IsBuildManifest(path));
+    [Test]
+    [Arguments("pom.xml")]
+    [Arguments("submodule/pom.xml")]
+    [Arguments("MyProject.csproj")]
+    [Arguments("package.json")]
+    [Arguments("build.gradle")]
+    [Arguments("go.mod")]
+    [Arguments("Cargo.toml")]
+    [Arguments("pyproject.toml")]
+    [Arguments("requirements.txt")]
+    public async Task IsBuildManifest_known_paths(string path) =>
+        await Assert.That(BuildManifestDetector.IsBuildManifest(path)).IsTrue();
 
-    [Theory]
-    [InlineData("src/Main.java")]
-    [InlineData("README.md")]
-    [InlineData("application.yml")]
-    public void IsBuildManifest_rejects_non_manifests(string path) =>
-        Assert.False(BuildManifestDetector.IsBuildManifest(path));
+    [Test]
+    [Arguments("src/Main.java")]
+    [Arguments("README.md")]
+    [Arguments("application.yml")]
+    public async Task IsBuildManifest_rejects_non_manifests(string path) =>
+        await Assert.That(BuildManifestDetector.IsBuildManifest(path)).IsFalse();
 
-    [Fact]
-    public void Extract_maven_pom_dependencies_and_parent()
+    [Test]
+    public async Task Extract_maven_pom_dependencies_and_parent()
     {
         const string pom = """
             <project>
@@ -51,14 +52,14 @@ public sealed class BuildDepExtractorTests
             """;
 
         var deps = BuildDepExtractor.Extract(pom, "pom.xml");
-        Assert.Equal(3, deps.Count);
-        Assert.Contains(deps, d => d.Artifact == "myapp-contracts-definitions" && d.Group == "com.example.contracts");
-        Assert.Contains(deps, d => d.Artifact == "junit" && d.Scope == "test");
-        Assert.Contains(deps, d => d.Artifact == "myapp-parent" && d.Scope == "parent");
+        await Assert.That(deps.Count).IsEqualTo(3);
+        await Assert.That(deps).Contains(d => d.Artifact == "myapp-contracts-definitions" && d.Group == "com.example.contracts");
+        await Assert.That(deps).Contains(d => d.Artifact == "junit" && d.Scope == "test");
+        await Assert.That(deps).Contains(d => d.Artifact == "myapp-parent" && d.Scope == "parent");
     }
 
-    [Fact]
-    public void Extract_nuget_package_and_project_references()
+    [Test]
+    public async Task Extract_nuget_package_and_project_references()
     {
         const string csproj = """
             <Project Sdk="Microsoft.NET.Sdk">
@@ -70,12 +71,12 @@ public sealed class BuildDepExtractorTests
             """;
 
         var deps = BuildDepExtractor.Extract(csproj, "MyApp.csproj");
-        Assert.Contains(deps, d => d.Artifact == "Newtonsoft.Json" && d.Version == "13.0.3");
-        Assert.Contains(deps, d => d.Scope == "project" && d.Artifact == "MyLib");
+        await Assert.That(deps).Contains(d => d.Artifact == "Newtonsoft.Json" && d.Version == "13.0.3");
+        await Assert.That(deps).Contains(d => d.Scope == "project" && d.Artifact == "MyLib");
     }
 
-    [Fact]
-    public void Extract_npm_dependencies()
+    [Test]
+    public async Task Extract_npm_dependencies()
     {
         const string pkg = """
             {
@@ -85,12 +86,12 @@ public sealed class BuildDepExtractorTests
             """;
 
         var deps = BuildDepExtractor.Extract(pkg, "package.json");
-        Assert.Contains(deps, d => d.Artifact == "express" && d.Scope == "dependencies");
-        Assert.Contains(deps, d => d.Artifact == "jest" && d.Scope == "devDependencies");
+        await Assert.That(deps).Contains(d => d.Artifact == "express" && d.Scope == "dependencies");
+        await Assert.That(deps).Contains(d => d.Artifact == "jest" && d.Scope == "devDependencies");
     }
 
-    [Fact]
-    public void Match_deps_to_collections_exact_and_fuzzy()
+    [Test]
+    public async Task Match_deps_to_collections_exact_and_fuzzy()
     {
         var deps = BuildDepExtractor.Extract(
             """
@@ -104,6 +105,6 @@ public sealed class BuildDepExtractorTests
             "pom.xml");
         var matches = BuildDepCollectionMatcher.Match(
             deps, ["myapp-contracts", "other-svc"], selfCollection: "caller");
-        Assert.Contains(matches, m => m.MatchedCollection == "myapp-contracts");
+        await Assert.That(matches).Contains(m => m.MatchedCollection == "myapp-contracts");
     }
 }

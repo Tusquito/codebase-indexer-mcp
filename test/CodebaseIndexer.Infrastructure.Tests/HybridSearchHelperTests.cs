@@ -1,4 +1,5 @@
 using CodebaseIndexer.Application.Search;
+using System.Threading.Tasks;
 
 namespace CodebaseIndexer.Infrastructure.Tests;
 
@@ -6,21 +7,21 @@ namespace CodebaseIndexer.Infrastructure.Tests;
 public sealed class HybridSearchHelperTests
 {
     /// <summary>ChunkId UUID mapping stays stable (Phase 2 golden contract).</summary>
-    [Fact]
-    public void ChunkIdToPointUuid_is_deterministic()
+    [Test]
+    public async Task ChunkIdToPointUuid_is_deterministic()
     {
         var a = CodebaseIndexer.Infrastructure.Qdrant.QdrantVectorStore.ChunkIdToPointUuid("abc");
         var b = CodebaseIndexer.Infrastructure.Qdrant.QdrantVectorStore.ChunkIdToPointUuid("abc");
-        Assert.Equal(a, b);
+        await Assert.That(b).IsEqualTo(a);
         var other = CodebaseIndexer.Infrastructure.Qdrant.QdrantVectorStore.ChunkIdToPointUuid("abd");
-        Assert.False(a == other);
+        await Assert.That(a == other).IsFalse();
     }
 
     /// <summary>Cross-collection fuse is reachable from Infrastructure tests via Application.</summary>
-    [Fact]
-    public void CrossCollectionRrf_fuse_empty_lists()
+    [Test]
+    public async Task CrossCollectionRrf_fuse_empty_lists()
     {
         var fused = CrossCollectionRrf.Fuse([], rrfK: 60, topK: 5);
-        Assert.Empty(fused);
+        await Assert.That(fused).IsEmpty();
     }
 }

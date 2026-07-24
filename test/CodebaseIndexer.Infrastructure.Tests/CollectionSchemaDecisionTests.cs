@@ -1,12 +1,13 @@
 using CodebaseIndexer.Infrastructure.Qdrant;
+using System.Threading.Tasks;
 
 namespace CodebaseIndexer.Infrastructure.Tests;
 
 /// <summary>ColBERT / hybrid schema recreate matrix (Python ensure_collection mismatch parity).</summary>
 public sealed class CollectionSchemaDecisionTests
 {
-    [Fact]
-    public void EvaluateCollectionSchema_matching_schema_keeps_collection()
+    [Test]
+    public async Task EvaluateCollectionSchema_matching_schema_keeps_collection()
     {
         var decision = QdrantVectorStore.EvaluateCollectionSchema(
             denseSize: 768,
@@ -20,13 +21,13 @@ public sealed class CollectionSchemaDecisionTests
             expectedColbertTokenSize: 128,
             quantizationEnabled: true);
 
-        Assert.False(decision.NeedsRecreate);
-        Assert.False(decision.ColbertMismatch);
-        Assert.False(decision.ColbertDimMismatch);
+        await Assert.That(decision.NeedsRecreate).IsFalse();
+        await Assert.That(decision.ColbertMismatch).IsFalse();
+        await Assert.That(decision.ColbertDimMismatch).IsFalse();
     }
 
-    [Fact]
-    public void EvaluateCollectionSchema_dense_dim_mismatch_recreates()
+    [Test]
+    public async Task EvaluateCollectionSchema_dense_dim_mismatch_recreates()
     {
         var decision = QdrantVectorStore.EvaluateCollectionSchema(
             denseSize: 384,
@@ -40,11 +41,11 @@ public sealed class CollectionSchemaDecisionTests
             expectedColbertTokenSize: 128,
             quantizationEnabled: false);
 
-        Assert.True(decision.NeedsRecreate);
+        await Assert.That(decision.NeedsRecreate).IsTrue();
     }
 
-    [Fact]
-    public void EvaluateCollectionSchema_hybrid_mismatch_recreates()
+    [Test]
+    public async Task EvaluateCollectionSchema_hybrid_mismatch_recreates()
     {
         var decision = QdrantVectorStore.EvaluateCollectionSchema(
             denseSize: 768,
@@ -58,11 +59,11 @@ public sealed class CollectionSchemaDecisionTests
             expectedColbertTokenSize: 128,
             quantizationEnabled: false);
 
-        Assert.True(decision.NeedsRecreate);
+        await Assert.That(decision.NeedsRecreate).IsTrue();
     }
 
-    [Fact]
-    public void EvaluateCollectionSchema_colbert_presence_mismatch_recreates()
+    [Test]
+    public async Task EvaluateCollectionSchema_colbert_presence_mismatch_recreates()
     {
         var decision = QdrantVectorStore.EvaluateCollectionSchema(
             denseSize: 768,
@@ -76,12 +77,12 @@ public sealed class CollectionSchemaDecisionTests
             expectedColbertTokenSize: 128,
             quantizationEnabled: true);
 
-        Assert.True(decision.NeedsRecreate);
-        Assert.True(decision.ColbertMismatch);
+        await Assert.That(decision.NeedsRecreate).IsTrue();
+        await Assert.That(decision.ColbertMismatch).IsTrue();
     }
 
-    [Fact]
-    public void EvaluateCollectionSchema_colbert_dim_mismatch_recreates()
+    [Test]
+    public async Task EvaluateCollectionSchema_colbert_dim_mismatch_recreates()
     {
         var decision = QdrantVectorStore.EvaluateCollectionSchema(
             denseSize: 768,
@@ -95,12 +96,12 @@ public sealed class CollectionSchemaDecisionTests
             expectedColbertTokenSize: 128,
             quantizationEnabled: true);
 
-        Assert.True(decision.NeedsRecreate);
-        Assert.True(decision.ColbertDimMismatch);
+        await Assert.That(decision.NeedsRecreate).IsTrue();
+        await Assert.That(decision.ColbertDimMismatch).IsTrue();
     }
 
-    [Fact]
-    public void EvaluateCollectionSchema_quantization_mismatch_recreates()
+    [Test]
+    public async Task EvaluateCollectionSchema_quantization_mismatch_recreates()
     {
         var decision = QdrantVectorStore.EvaluateCollectionSchema(
             denseSize: 768,
@@ -114,6 +115,6 @@ public sealed class CollectionSchemaDecisionTests
             expectedColbertTokenSize: 128,
             quantizationEnabled: false);
 
-        Assert.True(decision.NeedsRecreate);
+        await Assert.That(decision.NeedsRecreate).IsTrue();
     }
 }

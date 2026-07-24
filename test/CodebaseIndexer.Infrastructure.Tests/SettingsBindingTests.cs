@@ -4,6 +4,7 @@ using CodebaseIndexer.Infrastructure.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using System.Threading.Tasks;
 
 namespace CodebaseIndexer.Infrastructure.Tests;
 
@@ -11,22 +12,22 @@ namespace CodebaseIndexer.Infrastructure.Tests;
 public sealed class SettingsBindingTests
 {
     /// <summary>Configuration binds split option sections correctly.</summary>
-    [Fact]
-    public void BindConfiguration_binds_split_sections()
+    [Test]
+    public async Task BindConfiguration_binds_split_sections()
     {
         var configuration = TestSettingsFactory.CreateConfiguration();
 
         var qdrant = ResolveOptions<QdrantOptions>(configuration);
         var tei = ResolveOptions<TeiOptions>(configuration);
 
-        Assert.Equal("http://localhost:6334", qdrant.Url);
-        Assert.Equal("http://localhost:8080", tei.Url);
-        Assert.Equal("codebase", qdrant.Collection);
+        await Assert.That(qdrant.Url).IsEqualTo("http://localhost:6334");
+        await Assert.That(tei.Url).IsEqualTo("http://localhost:8080");
+        await Assert.That(qdrant.Collection).IsEqualTo("codebase");
     }
 
     /// <summary>Later configuration sources override section URLs.</summary>
-    [Fact]
-    public void Later_configuration_overrides_section_urls()
+    [Test]
+    public async Task Later_configuration_overrides_section_urls()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(TestSettingsFactory.CreateConfigurationValues())
@@ -40,13 +41,13 @@ public sealed class SettingsBindingTests
         var qdrant = ResolveOptions<QdrantOptions>(configuration);
         var tei = ResolveOptions<TeiOptions>(configuration);
 
-        Assert.Equal("http://qdrant:6334", qdrant.Url);
-        Assert.Equal("http://tei:80", tei.Url);
+        await Assert.That(qdrant.Url).IsEqualTo("http://qdrant:6334");
+        await Assert.That(tei.Url).IsEqualTo("http://tei:80");
     }
 
     /// <summary>Validate-on-start fails when required TEI URL is missing.</summary>
-    [Fact]
-    public void ValidateOnStart_fails_when_required_tei_url_missing()
+    [Test]
+    public async Task ValidateOnStart_fails_when_required_tei_url_missing()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -71,7 +72,7 @@ public sealed class SettingsBindingTests
         var exception = Assert.Throws<OptionsValidationException>(() =>
             _ = provider.GetRequiredService<IOptions<TeiOptions>>().Value);
 
-        Assert.Contains(nameof(TeiOptions.Url), exception.Message, StringComparison.Ordinal);
+        await Assert.That(exception.Message).Contains(nameof(TeiOptions.Url));
     }
 
     private static TOptions ResolveOptions<TOptions>(IConfiguration configuration)

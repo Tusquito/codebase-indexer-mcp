@@ -6,22 +6,23 @@ using CodebaseIndexer.Domain.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using MsOptions = Microsoft.Extensions.Options.Options;
 using CodebaseIndexer.Domain.Results;
+using System.Threading.Tasks;
 
 namespace CodebaseIndexer.Application.Tests;
 
 /// <summary>Contract tests for find_cross_references orchestration.</summary>
 public sealed class CrossReferenceServiceTests
 {
-    [Fact]
+    [Test]
     public async Task FindCrossReferences_errors_when_no_query_symbol_or_member()
     {
         var service = CreateService(new FakeStore(), new NoOpGraphStore());
         var result = await service.FindCrossReferencesAsync();
-        Assert.False(result.IsSuccess);
-        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+        await Assert.That(result.IsSuccess).IsFalse();
+        await Assert.That(result.Error.Kind).IsEqualTo(ErrorKind.Validation);
     }
 
-    [Fact]
+    [Test]
     public async Task FindCrossReferences_path_d_uses_qdrant_when_graph_disabled()
     {
         var store = new FakeStore
@@ -35,16 +36,16 @@ public sealed class CrossReferenceServiceTests
         };
         var service = CreateService(store, new NoOpGraphStore { Enabled = false });
         var result = await service.FindCrossReferencesAsync(member: "isEnabled", receiver: "featureService", collections: ["proj-a"]);
-        Assert.True(result.IsSuccess);
-        var response = Assert.IsType<CrossReferenceResponse>(result.Value);
-        Assert.Equal(1, response.CollectionCount);
-        Assert.True(response.FoundIn.ContainsKey("proj-a"));
-        Assert.Equal(ReferenceType.CallSite, response.FoundIn["proj-a"][0].ReferenceType);
-        Assert.Equal("isEnabled", store.LastCallerMethod);
-        Assert.Equal("featureService", store.LastCallerReceiver);
+        await Assert.That(result.IsSuccess).IsTrue();
+        var response = await Assert.That(result.Value).IsTypeOf<CrossReferenceResponse>();
+        await Assert.That(response!.CollectionCount).IsEqualTo(1);
+        await Assert.That(response.FoundIn.ContainsKey("proj-a")).IsTrue();
+        await Assert.That(response.FoundIn["proj-a"][0].ReferenceType).IsEqualTo(ReferenceType.CallSite);
+        await Assert.That(store.LastCallerMethod).IsEqualTo("isEnabled");
+        await Assert.That(store.LastCallerReceiver).IsEqualTo("featureService");
     }
 
-    [Fact]
+    [Test]
     public async Task FindCrossReferences_path_d_uses_neo4j_when_graph_call_sites()
     {
         var store = new FakeStore { GraphCallSites = true };
@@ -60,14 +61,14 @@ public sealed class CrossReferenceServiceTests
         };
         var service = CreateService(store, graph);
         var result = await service.FindCrossReferencesAsync(member: "isEnabled", collections: ["proj-a"]);
-        Assert.True(result.IsSuccess);
-        var response = Assert.IsType<CrossReferenceResponse>(result.Value);
-        Assert.Equal(ReferenceType.CallSite, response.FoundIn["proj-a"][0].ReferenceType);
-        Assert.Equal("isEnabled", graph.LastCallerMethod);
-        Assert.Null(store.LastCallerMethod);
+        await Assert.That(result.IsSuccess).IsTrue();
+        var response = await Assert.That(result.Value).IsTypeOf<CrossReferenceResponse>();
+        await Assert.That(response!.FoundIn["proj-a"][0].ReferenceType).IsEqualTo(ReferenceType.CallSite);
+        await Assert.That(graph.LastCallerMethod).IsEqualTo("isEnabled");
+        await Assert.That(store.LastCallerMethod).IsNull();
     }
 
-    [Fact]
+    [Test]
     public async Task FindCrossReferences_path_d_falls_back_to_qdrant_without_metadata()
     {
         var store = new FakeStore
@@ -83,26 +84,20 @@ public sealed class CrossReferenceServiceTests
         var graph = new NoOpGraphStore { Enabled = true };
         var service = CreateService(store, graph);
         var result = await service.FindCrossReferencesAsync(member: "isEnabled", collections: ["proj-a"]);
-        Assert.True(result.IsSuccess);
-        var response = Assert.IsType<CrossReferenceResponse>(result.Value);
-        Assert.Equal(ReferenceType.CallSite, response.FoundIn["proj-a"][0].ReferenceType);
-        Assert.Equal("isEnabled", store.LastCallerMethod);
-        Assert.Null(graph.LastCallerMethod);
+        await Assert.That(result.IsSuccess).IsTrue();
+        var response = await Assert.That(result.Value).IsTypeOf<CrossReferenceResponse>();
+        await Assert.That(response!.FoundIn["proj-a"][0].ReferenceType).IsEqualTo(ReferenceType.CallSite);
+        await Assert.That(store.LastCallerMethod).IsEqualTo("isEnabled");
+        await Assert.That(graph.LastCallerMethod).IsNull();
     }
 
-    [Fact]
-    public void UrlExtractors_classify_endpoint_and_http_call()
+    [Test]
+    public async Task UrlExtractors_classify_endpoint_and_http_call()
     {
         var extractors = new UrlExtractors(Array.Empty<string>());
-        Assert.Equal(
-            ReferenceType.EndpointDefinition,
-            extractors.ClassifyReference("[HttpGet(\"api/users\")]\npublic IActionResult Get()", "Get", "UsersController.cs"));
-        Assert.Equal(
-            ReferenceType.HttpCall,
-            extractors.ClassifyReference("await httpClient.GetAsync(\"https://x\");", "x", "Client.cs"));
-        Assert.Equal(
-            ReferenceType.BuildDependency,
-            extractors.ClassifyReference("<PackageReference Include=\"Foo\" Version=\"1.0\" />", "", "App.csproj"));
+        await Assert.That(extractors.ClassifyReference("[HttpGet(\"api/users\")]\npublic IActionResult Get()", "Get", "UsersController.cs")).IsEqualTo(ReferenceType.EndpointDefinition);
+        await Assert.That(extractors.ClassifyReference("await httpClient.GetAsync(\"https://x\");", "x", "Client.cs")).IsEqualTo(ReferenceType.HttpCall);
+        await Assert.That(extractors.ClassifyReference("<PackageReference Include=\"Foo\" Version=\"1.0\" />", "", "App.csproj")).IsEqualTo(ReferenceType.BuildDependency);
     }
 
     private static CrossReferenceService CreateService(FakeStore store, NoOpGraphStore graph)

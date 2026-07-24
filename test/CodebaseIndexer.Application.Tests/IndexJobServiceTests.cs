@@ -2,12 +2,13 @@ using CodebaseIndexer.Application.Services;
 using CodebaseIndexer.Domain.Models;
 using CodebaseIndexer.Domain.Results;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Threading.Tasks;
 
 namespace CodebaseIndexer.Application.Tests;
 
 public sealed class IndexJobServiceTests
 {
-    [Fact]
+    [Test]
     public async Task StartAsync_conflict_when_already_running_without_wait()
     {
         var indexer = new StubIndexer(delay: TimeSpan.FromSeconds(30));
@@ -15,44 +16,44 @@ public sealed class IndexJobServiceTests
 
         var first = await service.StartAsync(
             new IndexCodebaseCommand("demo", "/demo", Force: false, Wait: false, TimeoutSeconds: 5));
-        Assert.True(first.IsSuccess);
-        Assert.True(first.Value.Status is IndexJobStatus.Queued or IndexJobStatus.Running);
+        await Assert.That(first.IsSuccess).IsTrue();
+        await Assert.That(first.Value.Status is IndexJobStatus.Queued or IndexJobStatus.Running).IsTrue();
 
         var second = await service.StartAsync(
             new IndexCodebaseCommand("demo", "/demo", Force: false, Wait: false, TimeoutSeconds: 5));
 
-        Assert.False(second.IsSuccess);
-        Assert.Equal(ErrorKind.Conflict, second.Error.Kind);
-        Assert.Equal(IndexErrorCodes.JobAlreadyRunning, second.Error.Code);
+        await Assert.That(second.IsSuccess).IsFalse();
+        await Assert.That(second.Error.Kind).IsEqualTo(ErrorKind.Conflict);
+        await Assert.That(second.Error.Code).IsEqualTo(IndexErrorCodes.JobAlreadyRunning);
 
         await service.CancelAsync("demo");
     }
 
-    [Fact]
+    [Test]
     public async Task GetJobAsync_not_found()
     {
         var service = new IndexJobService(new StubIndexer(), NullLogger<IndexJobService>.Instance);
 
         var result = await service.GetJobAsync("missing");
 
-        Assert.False(result.IsSuccess);
-        Assert.Equal(ErrorKind.NotFound, result.Error.Kind);
-        Assert.Equal(IndexErrorCodes.JobNotFound, result.Error.Code);
+        await Assert.That(result.IsSuccess).IsFalse();
+        await Assert.That(result.Error.Kind).IsEqualTo(ErrorKind.NotFound);
+        await Assert.That(result.Error.Code).IsEqualTo(IndexErrorCodes.JobNotFound);
     }
 
-    [Fact]
+    [Test]
     public async Task CancelAsync_not_found()
     {
         var service = new IndexJobService(new StubIndexer(), NullLogger<IndexJobService>.Instance);
 
         var result = await service.CancelAsync("missing");
 
-        Assert.False(result.IsSuccess);
-        Assert.Equal(ErrorKind.NotFound, result.Error.Kind);
-        Assert.Equal(IndexErrorCodes.JobNotFound, result.Error.Code);
+        await Assert.That(result.IsSuccess).IsFalse();
+        await Assert.That(result.Error.Kind).IsEqualTo(ErrorKind.NotFound);
+        await Assert.That(result.Error.Code).IsEqualTo(IndexErrorCodes.JobNotFound);
     }
 
-    [Fact]
+    [Test]
     public async Task StartAsync_happy_path_returns_success()
     {
         var service = new IndexJobService(new StubIndexer(), NullLogger<IndexJobService>.Instance);
@@ -60,10 +61,10 @@ public sealed class IndexJobServiceTests
         var result = await service.StartAsync(
             new IndexCodebaseCommand("demo", "/demo", Force: false, Wait: true, TimeoutSeconds: 10));
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(IndexJobStatus.Done, result.Value.Status);
-        Assert.Equal("demo", result.Value.Collection);
-        Assert.Empty(result.Value.Errors);
+        await Assert.That(result.IsSuccess).IsTrue();
+        await Assert.That(result.Value.Status).IsEqualTo(IndexJobStatus.Done);
+        await Assert.That(result.Value.Collection).IsEqualTo("demo");
+        await Assert.That(result.Value.Errors).IsEmpty();
     }
 
     private sealed class StubIndexer(TimeSpan? delay = null) : IIndexCodebaseService

@@ -3,13 +3,14 @@ using CodebaseIndexer.Application.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Quartz;
 using MsOptions = Microsoft.Extensions.Options.Options;
+using System.Threading.Tasks;
 
 namespace CodebaseIndexer.Application.Tests;
 
 /// <summary>Quartz job vs interval hosted service scheduling behavior.</summary>
 public sealed class ScheduledReindexSchedulingTests
 {
-    [Fact]
+    [Test]
     public async Task QuartzJob_Execute_invokes_runner_once()
     {
         var runner = new RecordingRunner();
@@ -18,10 +19,10 @@ public sealed class ScheduledReindexSchedulingTests
 
         await job.Execute(context);
 
-        Assert.Equal(1, runner.Calls);
+        await Assert.That(runner.Calls).IsEqualTo(1);
     }
 
-    [Fact]
+    [Test]
     public async Task IntervalHostedService_exits_immediately_when_cron_configured()
     {
         var runner = new RecordingRunner();
@@ -39,10 +40,10 @@ public sealed class ScheduledReindexSchedulingTests
         await Task.Delay(50);
         await service.StopAsync(CancellationToken.None);
 
-        Assert.Equal(0, runner.Calls);
+        await Assert.That(runner.Calls).IsEqualTo(0);
     }
 
-    [Fact]
+    [Test]
     public async Task IntervalHostedService_exits_immediately_when_disabled()
     {
         var runner = new RecordingRunner();
@@ -60,7 +61,7 @@ public sealed class ScheduledReindexSchedulingTests
         await Task.Delay(50);
         await service.StopAsync(CancellationToken.None);
 
-        Assert.Equal(0, runner.Calls);
+        await Assert.That(runner.Calls).IsEqualTo(0);
     }
 
     private sealed class RecordingRunner : IScheduledReindexRunner
