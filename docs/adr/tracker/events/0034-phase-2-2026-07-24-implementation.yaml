@@ -1,0 +1,27 @@
+adr_id: "0034"
+phase_key: phase-2
+phase_title: Phase 2 — Host + Proxy
+event: implementation
+date: "2026-07-24"
+tracker_status: implemented
+choices: >-
+  TUnit.AspNetCore 1.61.38 + WebApplicationTest<McpHostWebApplicationFactory,
+  Program> for smoke; Strict MockDefaults Host+Proxy; TEI/ColBERT unit doubles
+  via ITeiEmbeddingsApi.Mock() / IColbertEmbedApi.Mock(); keep FakeStore (+
+  FakeJobs) in IndexToolsEnvelopeTests; keep StubNeo4jDriver + factory TEI/ColBERT
+  stubs; Proxy [NotInParallel]; AppHost.Tests still unloaded
+deviations: >-
+  stubs retained for factory/matrix DI (not unused); compose integration
+  deferred to step 3.5 after hung/no-output smoke attempt
+code_evidence:
+  - CodebaseIndexer.slnx
+  - test/CodebaseIndexer.Host.Tests/*
+  - test/CodebaseIndexer.Proxy.Tests/*
+test_debt:
+  - Proxy Console.Out TUnit0055
+  - optional FakeJobs→Mock and factory stub→mock cleanup
+  - compose green in 3.5
+changelog:
+  update: false
+  reason: "invoker Changelog: no; status implemented; user-facing no"
+user_facing: false

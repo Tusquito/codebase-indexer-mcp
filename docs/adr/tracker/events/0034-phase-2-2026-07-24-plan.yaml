@@ -1,0 +1,24 @@
+adr_id: "0034"
+phase_key: phase-2
+phase_title: Phase 2 — Host + Proxy
+event: plan
+date: "2026-07-24"
+tracker_status: planned
+choices: >-
+  Adopt `TUnit.AspNetCore` (`TestWebApplicationFactory`) for Host factory;
+  map smoke `IClassFixture` → `WebApplicationTest<McpHostWebApplicationFactory,
+  Program>` (human decision); keep per-test matrix factories; mock
+  `ITeiEmbeddingsApi`/`IColbertEmbedApi`; keep `StubNeo4jDriver`; keep
+  FakeStore in IndexToolsEnvelopeTests if Strict mock setup cost is high
+  (human decision); Proxy `[NotInParallel]` for `Console.Out`; AppHost stays
+  unloaded; Quality skip / Perf skip; Docker required; Accept after merge no;
+  final phase no. **Assumptions:** Phase 1 shared props + MTP + NoLogo hook
+  remain; ~31 Host/Proxy tests; pin AspNetCore package to latest stable
+  aligned with TUnit line at implement time; Infrastructure `StubTeiHandler`
+  out of this PR.
+deviations: none
+changelog:
+  update: false
+  reason: "invoker Changelog: no; status planned; user-facing yes"
+user_facing: true
+open_decisions: []

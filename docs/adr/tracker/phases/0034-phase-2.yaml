@@ -1,0 +1,13 @@
+adr_id: "0034"
+phase_key: phase-2
+title: Phase 2 — Host + Proxy
+tracker_status: merged
+chosen_scope: >-
+  TUnit.AspNetCore + WebApplicationTest<McpHostWebApplicationFactory, Program>;
+  Strict MockDefaults; TEI/ColBERT .Mock(); keep FakeStore/Neo4j + factory stubs;
+  Proxy [NotInParallel]; AppHost unloaded
+last_updated: "2026-07-24"
+pr_url: https://github.com/Tusquito/codebase-indexer-mcp/pull/53
+adr_status_note: >-
+  Merged — Host+Proxy TUnit migration via PR #53; AppHost.Tests still unloaded
+  (Phase 3)

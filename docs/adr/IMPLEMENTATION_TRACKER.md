@@ -96,6 +96,7 @@ Do **not** use ADR bodies as a task list or implementation journal. Append pipel
 | 0033 | Phase 2 — Application + index/job ports | Merged — 2026-07-23 via PR #50; Accept skipped — already Accepted; Phase 3 deferred; release no | phase-2 | `merged` | Completed pipeline runs return Result.Success with typed partial Errors; Host keeps one-off MCP DTOs (envelope in Phase 3); stop_indexing returns NotRunning for terminal jobs; exception-type deletion deferred to Phase 3 | 2026-07-23 |
 | 0033 | Phase 3 — Storage / embed ports + MCP tools | Merged — 2026-07-24 via PR #51; Accept skipped — already Accepted; final phase of ADR 0033; release no | phase-3 | `merged` | Conflict already-running → envelope + status metadata; Qdrant soft-read transport → Dependency Failure; `kind` wire = PascalCase; empty search hits remain success; bool probes unchanged; OCE not wrapped; Domain NuGet-free Result | 2026-07-24 |
 | 0034 | Phase 1 — Core stack + unit projects (Domain / Application / Infrastructure) | Merged — Phase 1 core stack + Domain/Application/Infrastructure unit projects on TUnit via PR #52; Host/Proxy/AppHost unloaded pending P2/P3 | phase-1 | `merged` | Host/Proxy/AppHost unloaded; Strict mocks; Proxy xUnit PackageReferences stripped; TUnit 1.61.38; MTP `--nologo` compat shim via TestingPlatformBuilderHook | 2026-07-24 |
+| 0034 | Phase 2 — Host + Proxy | Merged — Host+Proxy TUnit migration via PR #53; AppHost.Tests still unloaded (Phase 3) | phase-2 | `merged` | TUnit.AspNetCore + WebApplicationTest<McpHostWebApplicationFactory, Program>; Strict MockDefaults; TEI/ColBERT .Mock(); keep FakeStore/Neo4j + factory stubs; Proxy [NotInParallel]; AppHost unloaded | 2026-07-24 |
 | 0035 | Phase 1 — Wire pairing on Aspire path | Merged — PR #48 (`aa8ffa6`); Accepted (phase 1); accept docs `fe6b248`; release skipped | phase-1 | `merged` | TeiBatchTokenPairing defaults 1024; Aspire AppHost/compose set TEI_MAX_BATCH_TOKENS / Embedding__MaxDenseTokens; flat MAX_DENSE_EMBED_TOKENS mapped on Aspire; appsettings MaxDenseTokens: 0 retained for non-Aspire; fail-fast/registry/GPU Phase 2 deferred. Project phase: Pre-release (no backward compatibility unless ADR documents one); Docker integration required; no schema migration version env vars. | 2026-07-22 |
 <!-- END GENERATED:summary -->
 
@@ -2490,6 +2491,16 @@ _No active or upcoming phases._
 - **Verify:** review rounds: 1; `dotnet test CodebaseIndexer.slnx --nologo` 242/0; plan compliance pass; integration report Verdict pass; quality skip per plan
 - **Changelog:** yes — .NET unit tests on TUnit (ADR 0034 Phase 1) — Domain / Application / Infrastructure use TUnit + TUnit.Mocks on Microsoft.Testing.Platform; Host / Proxy / AppHost test projects temporarily out of solution until Phase 2/3
 
+#### 2026-07-24 — verification
+- **Phase:** Phase 2 — Host + Proxy
+- **Tracker status:** `verified`
+- **Choices:** TUnit.AspNetCore + WebApplicationTest<McpHostWebApplicationFactory, Program>; Strict MockDefaults; TEI/ColBERT .Mock(); keep FakeStore/Neo4j + factory stubs; Proxy [NotInParallel]; AppHost unloaded
+- **Deviations:** none
+- **Code evidence:** `CodebaseIndexer.slnx`, `test/CodebaseIndexer.Host.Tests/*`, `test/CodebaseIndexer.Proxy.Tests/*`
+- **Test debt:** optional FakeJobs→Mock; optional factory stub→mock; Proxy Console.Out / TUnit0055 note
+- **Verify:** review rounds: 1; `dotnet test CodebaseIndexer.slnx --nologo` 273 passed; Docker compose integration Verdict pass; plan compliance pass
+- **Changelog:** yes — Host and Proxy tests now run on TUnit (including AspNetCore WebApplicationTest host fixtures) instead of xUnit/VSTest.
+
 #### 2026-07-24 — prioritization
 - **Phase:** Phase 1 — Core stack + unit projects (Domain / Application / Infrastructure)
 - **Tracker status:** `candidate`
@@ -2497,10 +2508,24 @@ _No active or upcoming phases._
 - **Deviations:** none
 - **Changelog:** no — user-facing unknown; invoker Changelog: no
 
+#### 2026-07-24 — prioritization
+- **Phase:** Phase 2 — Host + Proxy
+- **Tracker status:** `candidate`
+- **Choices:** Prefer 0034 P2 over 0026 P4 (GPU open decision), 0031 P2, 0035 P2, and Proposed 0027 (needs Accept); single phase per pipeline rule; no ADR Accept required. **Why now:** Phase 1 merged (PR #52) left Host/Proxy/AppHost unloaded from `CodebaseIndexer.slnx` while sources still use xUnit `[Fact]`/`IClassFixture` under TUnit shared props — finish the Accepted sequential cutover, restore Host/Proxy CI, no Accept/GPU required. **Suggested scope:** one phase (= one PR). **Chosen scope:** Migrate `test/CodebaseIndexer.Host.Tests` and `test/CodebaseIndexer.Proxy.Tests` to TUnit (`[Test]`, ClassDataSource/AspNetCore fixtures, Mocks.Http as needed); re-add both projects to `CodebaseIndexer.slnx`; `dotnet test` green for Host+Proxy; Docker `scripts/run_compose_integration.py`; defer Phase 3 AspireFixture + coverage CI/docs.
+- **Deviations:** none
+- **Changelog:** no — user-facing unknown; invoker Changelog: no
+
 #### 2026-07-24 — plan
 - **Phase:** Phase 1 — Core stack + unit projects (Domain / Application / Infrastructure)
 - **Tracker status:** `planned`
 - **Choices:** Unload Host/Proxy/AppHost.Tests from solution (not dual-stack); keep `NoOpVectorStore`/Neo4j recording/`StubTeiHandler`; ≥1 Application `TUnit.Mocks` setup+verify; Quality skip / Perf skip; Docker required; Accept after merge no (already Accepted); final phase no. **Human decisions applied 2026-07-24:** (1) unload Host/Proxy/AppHost.Tests from CodebaseIndexer.slnx; (2) suite default MockBehavior: Strict; (3) while Proxy.Tests unloaded, strip local xUnit PackageReferences in P1. **Assumptions:** Shared props cutover forces unload or full Host migration — unload matches prioritizer; compose/`ci.yml` keep `dotnet test CodebaseIndexer.slnx`; C# 14 via `LangVersion` latest; latest stable TUnit packages at implement time; docs-heavy CONTRIBUTING deferred to P3.
+- **Deviations:** none
+- **Changelog:** no — invoker Changelog: no; status planned; user-facing yes
+
+#### 2026-07-24 — plan
+- **Phase:** Phase 2 — Host + Proxy
+- **Tracker status:** `planned`
+- **Choices:** Adopt `TUnit.AspNetCore` (`TestWebApplicationFactory`) for Host factory; map smoke `IClassFixture` → `WebApplicationTest<McpHostWebApplicationFactory, Program>` (human decision); keep per-test matrix factories; mock `ITeiEmbeddingsApi`/`IColbertEmbedApi`; keep `StubNeo4jDriver`; keep FakeStore in IndexToolsEnvelopeTests if Strict mock setup cost is high (human decision); Proxy `[NotInParallel]` for `Console.Out`; AppHost stays unloaded; Quality skip / Perf skip; Docker required; Accept after merge no; final phase no. **Assumptions:** Phase 1 shared props + MTP + NoLogo hook remain; ~31 Host/Proxy tests; pin AspNetCore package to latest stable aligned with TUnit line at implement time; Infrastructure `StubTeiHandler` out of this PR.
 - **Deviations:** none
 - **Changelog:** no — invoker Changelog: no; status planned; user-facing yes
 
@@ -2512,6 +2537,16 @@ _No active or upcoming phases._
 - **Code evidence:** `merged via [PR #52](https://github.com/Tusquito/codebase-indexer-mcp/pull/52) (`adr/0034-phase-1-adopt-tunit`; squash `1e9d0f78cfabcb3e0826e5a849166af4ab279ba5`)`
 - **Verify:** carried from verification — review rounds: 1; `dotnet test CodebaseIndexer.slnx --nologo` 242/0; plan compliance pass; integration report Verdict pass; quality skip per plan
 - **Git:** https://github.com/Tusquito/codebase-indexer-mcp/pull/52 — status: merged — commit: 1e9d0f78cfabcb3e0826e5a849166af4ab279ba5
+- **Changelog:** no — invoker Changelog: no; merged status does not draft CHANGELOG
+
+#### 2026-07-24 — merge
+- **Phase:** Phase 2 — Host + Proxy
+- **Tracker status:** `merged`
+- **Choices:** Merge PR #53 (commit `ba603e19138677f0f08f7bb6f2a515e37c66f16a`); branch `adr/0034-phase-2-host-proxy-tunit`; Accept skipped — already Accepted; release no.
+- **Deviations:** none
+- **Code evidence:** `merged via [PR #53](https://github.com/Tusquito/codebase-indexer-mcp/pull/53) (`adr/0034-phase-2-host-proxy-tunit`; `ba603e19138677f0f08f7bb6f2a515e37c66f16a`)`
+- **Verify:** carried from verification — review rounds: 1; `dotnet test CodebaseIndexer.slnx --nologo` 273 passed; Docker compose integration Verdict pass; plan compliance pass
+- **Git:** https://github.com/Tusquito/codebase-indexer-mcp/pull/53 — status: merged — commit: ba603e19138677f0f08f7bb6f2a515e37c66f16a
 - **Changelog:** no — invoker Changelog: no; merged status does not draft CHANGELOG
 
 #### 2026-07-24 — implementation
@@ -2531,6 +2566,15 @@ _No active or upcoming phases._
 - **Code evidence:** `test/Directory.Build.props`, `global.json`, `CodebaseIndexer.slnx`, `test/CodebaseIndexer.Domain.Tests/`, `test/CodebaseIndexer.Application.Tests/`, `test/CodebaseIndexer.Application.Tests/IndexEmbeddingServiceTests.cs`, `test/CodebaseIndexer.Application.Tests/ExpandSearchContextServiceTests.cs`, `test/CodebaseIndexer.Application.Tests/MockDefaults.cs`, `test/CodebaseIndexer.Infrastructure.Tests/`, `test/CodebaseIndexer.Proxy.Tests/CodebaseIndexer.Proxy.Tests.csproj`, `CHANGELOG.md`
 - **Test debt:** Remaining Application hand-rolled port fakes; StubTeiHandler until P2 `TUnit.Mocks.Http`; Host/Proxy/AppHost + coverage/docs in P2/P3
 - **Changelog:** no — invoker Changelog: no; status implemented (CHANGELOG only at verified + user-facing)
+
+#### 2026-07-24 — implementation
+- **Phase:** Phase 2 — Host + Proxy
+- **Tracker status:** `implemented`
+- **Choices:** TUnit.AspNetCore 1.61.38 + WebApplicationTest<McpHostWebApplicationFactory, Program> for smoke; Strict MockDefaults Host+Proxy; TEI/ColBERT unit doubles via ITeiEmbeddingsApi.Mock() / IColbertEmbedApi.Mock(); keep FakeStore (+ FakeJobs) in IndexToolsEnvelopeTests; keep StubNeo4jDriver + factory TEI/ColBERT stubs; Proxy [NotInParallel]; AppHost.Tests still unloaded
+- **Deviations:** stubs retained for factory/matrix DI (not unused); compose integration deferred to step 3.5 after hung/no-output smoke attempt
+- **Code evidence:** `CodebaseIndexer.slnx`, `test/CodebaseIndexer.Host.Tests/*`, `test/CodebaseIndexer.Proxy.Tests/*`
+- **Test debt:** Proxy Console.Out TUnit0055; optional FakeJobs→Mock and factory stub→mock cleanup; compose green in 3.5
+- **Changelog:** no — invoker Changelog: no; status implemented; user-facing no
 
 ### ADR 0035 — Phase 1 — Wire pairing on Aspire path
 
@@ -2660,6 +2704,8 @@ Decisions made during implementation that are **not** worth amending the ADR fil
 - Prefer 0034 Phase 1 instead of 0033 P3 this cycle?
 - Confirm 0034 P1 this cycle vs override to 0026 P4 if NVIDIA GPU confirmed?
 - NVIDIA GPU available for later 0026 P4?
+- Override to 0026 P4 if NVIDIA GPU confirmed this cycle?
+- Accept 0027 in a future cycle?
 - RESOLVED — Accept ADR 0035 this cycle: yes
 <!-- END GENERATED:open-decisions -->
 

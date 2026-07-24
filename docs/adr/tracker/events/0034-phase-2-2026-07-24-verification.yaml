@@ -1,0 +1,29 @@
+adr_id: "0034"
+phase_key: phase-2
+phase_title: Phase 2 — Host + Proxy
+event: verification
+date: "2026-07-24"
+tracker_status: verified
+choices: >-
+  TUnit.AspNetCore + WebApplicationTest<McpHostWebApplicationFactory, Program>;
+  Strict MockDefaults; TEI/ColBERT .Mock(); keep FakeStore/Neo4j + factory stubs;
+  Proxy [NotInParallel]; AppHost unloaded
+deviations: none
+code_evidence:
+  - CodebaseIndexer.slnx
+  - test/CodebaseIndexer.Host.Tests/*
+  - test/CodebaseIndexer.Proxy.Tests/*
+test_debt:
+  - optional FakeJobs→Mock
+  - optional factory stub→mock
+  - Proxy Console.Out / TUnit0055 note
+verify: >-
+  review rounds: 1; `dotnet test CodebaseIndexer.slnx --nologo` 273 passed;
+  Docker compose integration Verdict pass; plan compliance pass
+changelog:
+  update: true
+  bullet: >-
+    Host and Proxy tests now run on TUnit (including AspNetCore
+    WebApplicationTest host fixtures) instead of xUnit/VSTest.
+  reason: "verified + user-facing yes; invoker Changelog: yes"
+user_facing: true

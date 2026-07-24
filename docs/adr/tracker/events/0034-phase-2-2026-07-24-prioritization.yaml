@@ -1,0 +1,27 @@
+adr_id: "0034"
+phase_key: phase-2
+phase_title: Phase 2 — Host + Proxy
+event: prioritization
+date: "2026-07-24"
+tracker_status: candidate
+choices: >-
+  Prefer 0034 P2 over 0026 P4 (GPU open decision), 0031 P2, 0035 P2, and
+  Proposed 0027 (needs Accept); single phase per pipeline rule; no ADR Accept
+  required. **Why now:** Phase 1 merged (PR #52) left Host/Proxy/AppHost
+  unloaded from `CodebaseIndexer.slnx` while sources still use xUnit
+  `[Fact]`/`IClassFixture` under TUnit shared props — finish the Accepted
+  sequential cutover, restore Host/Proxy CI, no Accept/GPU required.
+  **Suggested scope:** one phase (= one PR). **Chosen scope:** Migrate
+  `test/CodebaseIndexer.Host.Tests` and `test/CodebaseIndexer.Proxy.Tests` to
+  TUnit (`[Test]`, ClassDataSource/AspNetCore fixtures, Mocks.Http as needed);
+  re-add both projects to `CodebaseIndexer.slnx`; `dotnet test` green for
+  Host+Proxy; Docker `scripts/run_compose_integration.py`; defer Phase 3
+  AspireFixture + coverage CI/docs.
+deviations: none
+changelog:
+  update: false
+  reason: "user-facing unknown; invoker Changelog: no"
+user_facing: false
+open_decisions:
+  - "Override to 0026 P4 if NVIDIA GPU confirmed this cycle?"
+  - "Accept 0027 in a future cycle?"
