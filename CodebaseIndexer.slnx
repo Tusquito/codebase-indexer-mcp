@@ -18,6 +18,8 @@
   <Folder Name="/test/">
     <Project Path="test/CodebaseIndexer.Application.Tests/CodebaseIndexer.Application.Tests.csproj" />
     <Project Path="test/CodebaseIndexer.Domain.Tests/CodebaseIndexer.Domain.Tests.csproj" />
+    <Project Path="test/CodebaseIndexer.Host.Tests/CodebaseIndexer.Host.Tests.csproj" />
     <Project Path="test/CodebaseIndexer.Infrastructure.Tests/CodebaseIndexer.Infrastructure.Tests.csproj" />
+    <Project Path="test/CodebaseIndexer.Proxy.Tests/CodebaseIndexer.Proxy.Tests.csproj" />
   </Folder>
 </Solution>

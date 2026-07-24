@@ -15,7 +15,7 @@ namespace CodebaseIndexer.Host.Tests;
 public sealed class HealthEndpointReadinessTests
 {
     /// <summary>/health is 200 when TEI is healthy; /alive is always 200.</summary>
-    [Fact]
+    [Test]
     public async Task Health_ok_when_tei_healthy_alive_always_ok()
     {
         await using var factory = new HealthMatrixFactory(teiHealthy: true);
@@ -24,28 +24,28 @@ public sealed class HealthEndpointReadinessTests
         var health = await client.GetAsync("/health");
         health.EnsureSuccessStatusCode();
         var payload = await health.Content.ReadFromJsonAsync<HealthPayload>();
-        Assert.Equal(LivenessStatus.Ok, payload!.Status);
+        await Assert.That(payload!.Status).IsEqualTo(LivenessStatus.Ok);
 
         var alive = await client.GetAsync("/alive");
         alive.EnsureSuccessStatusCode();
     }
 
     /// <summary>/health fails when TEI is down; /alive stays 200.</summary>
-    [Fact]
+    [Test]
     public async Task Health_fails_when_tei_down_alive_still_ok()
     {
         await using var factory = new HealthMatrixFactory(teiHealthy: false);
         var client = factory.CreateClient();
 
         var health = await client.GetAsync("/health");
-        Assert.False(health.IsSuccessStatusCode);
+        await Assert.That(health.IsSuccessStatusCode).IsFalse();
 
         var alive = await client.GetAsync("/alive");
         alive.EnsureSuccessStatusCode();
     }
 
     /// <summary>Remote ColBERT readiness fails when sidecar is down (rerank on).</summary>
-    [Fact]
+    [Test]
     public async Task Health_fails_when_remote_colbert_down()
     {
         await using var factory = new HealthMatrixFactory(
@@ -55,14 +55,14 @@ public sealed class HealthEndpointReadinessTests
         var client = factory.CreateClient();
 
         var health = await client.GetAsync("/health");
-        Assert.False(health.IsSuccessStatusCode);
+        await Assert.That(health.IsSuccessStatusCode).IsFalse();
 
         var alive = await client.GetAsync("/alive");
         alive.EnsureSuccessStatusCode();
     }
 
     /// <summary>Neo4j readiness fails when bolt is down (graph on).</summary>
-    [Fact]
+    [Test]
     public async Task Health_fails_when_neo4j_down_with_graph_enabled()
     {
         await using var factory = new HealthMatrixFactory(
@@ -72,7 +72,7 @@ public sealed class HealthEndpointReadinessTests
         var client = factory.CreateClient();
 
         var health = await client.GetAsync("/health");
-        Assert.False(health.IsSuccessStatusCode);
+        await Assert.That(health.IsSuccessStatusCode).IsFalse();
 
         var alive = await client.GetAsync("/alive");
         alive.EnsureSuccessStatusCode();

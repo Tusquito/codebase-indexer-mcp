@@ -1,17 +1,17 @@
 using CodebaseIndexer.Application.Options;
 using CodebaseIndexer.Infrastructure.Configuration;
 using CodebaseIndexer.Infrastructure.Tei;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using TUnit.AspNetCore;
 
 namespace CodebaseIndexer.Host.Tests;
 
 /// <summary>Web application factory with in-memory test configuration.</summary>
-public class McpHostWebApplicationFactory : WebApplicationFactory<Program>
+public class McpHostWebApplicationFactory : TestWebApplicationFactory<Program>
 {
     private readonly IReadOnlyDictionary<string, string?> _earlySettings;
 

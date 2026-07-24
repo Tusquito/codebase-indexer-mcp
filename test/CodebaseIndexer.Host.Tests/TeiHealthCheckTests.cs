@@ -1,3 +1,4 @@
+using System.Net;
 using CodebaseIndexer.Host.Health;
 using CodebaseIndexer.Infrastructure.Tei;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -8,40 +9,38 @@ namespace CodebaseIndexer.Host.Tests;
 public sealed class TeiHealthCheckTests
 {
     /// <summary>Healthy when TEI /health returns success.</summary>
-    [Fact]
+    [Test]
     public async Task CheckHealth_returns_healthy_on_success()
     {
-        var check = new TeiHealthCheck(new StubTeiEmbeddingsApi(healthy: true));
+        var api = ITeiEmbeddingsApi.Mock();
+        api.GetHealthAsync(Any()).Returns(new HttpResponseMessage(HttpStatusCode.OK));
+
+        var check = new TeiHealthCheck(api);
         var result = await check.CheckHealthAsync(new HealthCheckContext());
-        Assert.Equal(HealthStatus.Healthy, result.Status);
+        await Assert.That(result.Status).IsEqualTo(HealthStatus.Healthy);
     }
 
     /// <summary>Unhealthy when TEI /health returns non-success.</summary>
-    [Fact]
+    [Test]
     public async Task CheckHealth_returns_unhealthy_on_non_success()
     {
-        var check = new TeiHealthCheck(new StubTeiEmbeddingsApi(healthy: false));
+        var api = ITeiEmbeddingsApi.Mock();
+        api.GetHealthAsync(Any()).Returns(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+
+        var check = new TeiHealthCheck(api);
         var result = await check.CheckHealthAsync(new HealthCheckContext());
-        Assert.Equal(HealthStatus.Unhealthy, result.Status);
+        await Assert.That(result.Status).IsEqualTo(HealthStatus.Unhealthy);
     }
 
     /// <summary>Unhealthy when TEI call throws.</summary>
-    [Fact]
+    [Test]
     public async Task CheckHealth_returns_unhealthy_on_exception()
     {
-        var check = new TeiHealthCheck(new ThrowingTeiEmbeddingsApi());
+        var api = ITeiEmbeddingsApi.Mock();
+        api.GetHealthAsync(Any()).Throws(new HttpRequestException("connection refused"));
+
+        var check = new TeiHealthCheck(api);
         var result = await check.CheckHealthAsync(new HealthCheckContext());
-        Assert.Equal(HealthStatus.Unhealthy, result.Status);
-    }
-
-    private sealed class ThrowingTeiEmbeddingsApi : ITeiEmbeddingsApi
-    {
-        public Task<HttpResponseMessage> GetHealthAsync(CancellationToken cancellationToken = default) =>
-            throw new HttpRequestException("connection refused");
-
-        public Task<EmbeddingsResponse> CreateEmbeddingsAsync(
-            EmbeddingsRequest request,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
+        await Assert.That(result.Status).IsEqualTo(HealthStatus.Unhealthy);
     }
 }
