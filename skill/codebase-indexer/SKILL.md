@@ -19,6 +19,10 @@ You have MCP tools for semantic code search backed by a local Qdrant vector DB.
 They vary widely in token cost. Follow the tool ladder below, stopping as soon
 as you have enough information to answer the user.
 
+**Tool failures** return `{ "error": { "kind", "code", "message", "metadata?" } }`
+with PascalCase `kind` (e.g. `Validation`, `NotFound`) — treat unknown `code`
+values as opaque.
+
 ## On Skill Load — Auto-Index Current Repository
 
 When this skill is invoked, immediately run the following bootstrap sequence
